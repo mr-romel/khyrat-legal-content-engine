@@ -13,8 +13,37 @@ def _required(name: str) -> str:
     return value
 
 
+def _normalize_model_name(value: str) -> str:
+    """
+    Normalize the Gemini model name.
+
+    Google expects the bare model ID, not "models/<id>".
+    For new API users, older 2.x Flash choices can return 404.
+    We transparently move those choices to the current free-tier
+    production model used by this project.
+    """
+    model = (value or "").strip()
+
+    if model.startswith("models/"):
+        model = model[len("models/"):]
+
+    old_or_blocked = {
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    }
+
+    if not model or model in old_or_blocked:
+        return "gemini-3.5-flash-lite"
+
+    return model
+
+
 def load_config() -> dict:
     service_account_raw = _required("GOOGLE_SERVICE_ACCOUNT_JSON")
+
     try:
         service_account_info = json.loads(service_account_raw)
     except json.JSONDecodeError as exc:
@@ -31,11 +60,13 @@ def load_config() -> dict:
         "sheet_id": _required("GOOGLE_SHEET_ID"),
         "sheet_range": os.getenv(
             "GOOGLE_SHEET_RANGE",
-            "Content!A:Q"
+            "Content!A:Q",
         ).strip(),
         "gemini_api_key": _required("GEMINI_API_KEY"),
-        "gemini_model": os.getenv(
-            "GEMINI_MODEL",
-            "gemini-2.5-flash"
-        ).strip(),
+        "gemini_model": _normalize_model_name(
+            os.getenv(
+                "GEMINI_MODEL",
+                "gemini-3.5-flash-lite",
+            )
+        ),
     }
