@@ -62,7 +62,7 @@ https://aistudio.google.com/apikey
 
 النموذج الافتراضي:
 
-`gemini-2.5-flash`
+`gemini-3.5-flash-lite`
 
 يمكن تغييره من GitHub Secret باسم:
 
@@ -104,7 +104,7 @@ https://docs.google.com/spreadsheets/d/ABC123XYZ/edit
 
 ضع:
 
-`gemini-2.5-flash`
+`gemini-3.5-flash-lite`
 
 ## 5) التشغيل
 
@@ -159,3 +159,15 @@ Workflow يعمل كل 5 دقائق.
 - حالات SUCCESS / PARTIAL_FAILURE
 - منع التكرار الكامل
 - Log مفصل
+
+
+## إصلاح Gemini للحسابات الجديدة
+
+في النسخة الحالية من المشروع نستخدم:
+`gemini-3.5-flash-lite`
+
+البرنامج أيضًا يحوّل تلقائيًا بعض أسماء نماذج Gemini القديمة مثل:
+`gemini-2.5-flash`
+إلى النموذج الحالي المستخدم للمشروع.
+
+لذلك لا تحتاج إلى تعديل الكود بنفسك.
