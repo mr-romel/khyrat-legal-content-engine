@@ -14,20 +14,12 @@ def _required(name: str) -> str:
 
 
 def _normalize_model_name(value: str) -> str:
-    """
-    Normalize the Gemini model name.
-
-    Google expects the bare model ID, not "models/<id>".
-    For new API users, older 2.x Flash choices can return 404.
-    We transparently move those choices to the current free-tier
-    production model used by this project.
-    """
     model = (value or "").strip()
 
     if model.startswith("models/"):
         model = model[len("models/"):]
 
-    old_or_blocked = {
+    old_names = {
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
         "gemini-2.5-pro",
@@ -35,7 +27,7 @@ def _normalize_model_name(value: str) -> str:
         "gemini-2.0-flash-lite",
     }
 
-    if not model or model in old_or_blocked:
+    if not model or model in old_names:
         return "gemini-3.5-flash-lite"
 
     return model
@@ -48,12 +40,13 @@ def load_config() -> dict:
         service_account_info = json.loads(service_account_raw)
     except json.JSONDecodeError as exc:
         raise ConfigError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. "
-            "Paste the complete service-account JSON into the GitHub Secret."
+            "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON."
         ) from exc
 
     if not isinstance(service_account_info, dict):
-        raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object.")
+        raise ConfigError(
+            "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
+        )
 
     return {
         "service_account_info": service_account_info,

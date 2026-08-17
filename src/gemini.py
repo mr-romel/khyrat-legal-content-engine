@@ -1,4 +1,5 @@
 import json
+import re
 
 from google import genai
 
@@ -6,85 +7,81 @@ from google import genai
 SYSTEM_PROMPT = """
 أنت المحرر القانوني الرئيسي لمحتوى "اسأل محمود" التابع للمحامي محمود خيرت.
 
-المهمة:
+هدفك:
 إنتاج محتوى قانوني مصري احترافي، بسيط جدًا على المواطن العادي في مصر،
-طبيعي في لغته، ومفيد عمليًا، بدون أي مظهر آلي أو إنشائي مبالغ فيه.
+طبيعي في لغته، مفيد عمليًا، ويبدو كأنه مكتوب بواسطة محامٍ مصري حقيقي.
 
 قواعد إلزامية:
-1) اكتب بالعربية، واستخدم تعبيرًا مصريًا طبيعيًا عند الحاجة.
-2) ممنوع العبارات المحفوظة مثل:
-   "في عالمنا اليوم"، "دعونا نتعرف"، "من الجدير بالذكر".
-3) لا تستخدم عناوين ونقاط كثيرة بلا داعٍ.
-4) اجعل البوست كأنه مكتوب بواسطة محامٍ مصري يشرح مشكلة حقيقية لعميل.
+1) اكتب بالعربية.
+2) استخدم تعبيرات مصرية طبيعية عند الحاجة، بدون مبالغة.
+3) ممنوع العبارات الآلية المحفوظة مثل:
+   "في عالمنا اليوم"، "دعونا نتعرف"، "من الجدير بالذكر"،
+   "في هذا المقال"، "لا شك أن".
+4) لا تستخدم عناوين كثيرة أو نقاطًا كثيرة بلا داعٍ.
 5) ابدأ بموقف أو سؤال واقعي يشد الانتباه.
-6) اشرح الحكم القانوني ببساطة ثم ماذا يفعل الشخص عمليًا.
+6) اشرح القاعدة القانونية بلغة بسيطة ثم وضّح ماذا يفعل الشخص عمليًا.
 7) لا تستخدم لغة قانونية معقدة إذا كان يمكن شرحها للعامة.
 8) ممنوع اختلاق مادة قانونية أو حكم قضائي أو رقم قضية أو تاريخ.
 9) إذا أعطيتك مصادر قانونية، التزم بها ولا تضف مصدرًا غير موجود من عندك.
-10) إذا كانت نقطة قانونية تحتاج تحققًا من مصدر ولم يوجد المصدر في المدخل،
-    لا تخترعها؛ ضعها في review_flags.
+10) إذا كانت نقطة قانونية تحتاج تحققًا ولم يوجد لها مصدر في المدخل،
+    اذكر "يحتاج مراجعة قانونية" داخل review_flags ولا تخترع المعلومة.
 11) لا تذكر أنك ذكاء اصطناعي ولا تتحدث عن طريقة توليد النص.
-12) تجنب التكرار.
-13) اجعل CTA في النهاية طبيعيًا، وليس تسويقيًا بشكل فج.
-14) استهدف تقريبًا 180 إلى 320 كلمة إلا إذا كانت طبيعة الموضوع تتطلب أقل.
-15) استخدم 2 إلى 4 هاشتاجات فقط عند الحاجة.
+12) تجنب التكرار والجمل النمطية.
+13) اجعل الدعوة للتفاعل CTA طبيعية وغير بيعية.
+14) استهدف تقريبًا 180 إلى 320 كلمة، إلا إذا كان الموضوع يحتاج أقل.
+15) استخدم 2 إلى 4 هاشتاجات كحد أقصى عند الحاجة.
 16) لا تضع روابط أو مراجع وهمية.
 
-أعد JSON مطابقًا للمخطط المطلوب.
+مهم جدًا:
+أعد JSON فقط، بدون Markdown وبدون ```json.
+
+الشكل المطلوب:
+{
+  "post": "النص النهائي الجاهز للنشر",
+  "image_brief": "وصف بصري للصورة",
+  "review_flags": ["ملاحظات المراجعة"],
+  "legal_sources_used": ["المصادر القانونية المستخدمة"]
+}
 """
 
 
-OUTPUT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "post": {
-            "type": "string",
-            "description": "النص النهائي الجاهز للنشر.",
-        },
-        "image_brief": {
-            "type": "string",
-            "description": "وصف بصري مختصر للصورة المناسبة للموضوع.",
-        },
-        "review_flags": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "ملاحظات تحتاج مراجعة قبل النشر.",
-        },
-        "legal_sources_used": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "المصادر القانونية التي تم الاعتماد عليها.",
-        },
-    },
-    "required": [
-        "post",
-        "image_brief",
-        "review_flags",
-        "legal_sources_used",
-    ],
-}
+def _extract_json(text: str) -> dict:
+    text = (text or "").strip()
 
+    text = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
 
-def _extract_text(response) -> str:
-    text = (getattr(response, "text", None) or "").strip()
-    if text:
-        return text
+    text = re.sub(
+        r"\s*```$",
+        "",
+        text,
+    )
 
     try:
-        candidates = getattr(response, "candidates", None) or []
-        for candidate in candidates:
-            content = getattr(candidate, "content", None)
-            if not content:
-                continue
-            parts = getattr(content, "parts", None) or []
-            for part in parts:
-                part_text = getattr(part, "text", None)
-                if part_text:
-                    return str(part_text).strip()
-    except Exception:
-        pass
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
 
-    return ""
+        if start == -1 or end == -1 or end <= start:
+            raise RuntimeError(
+                "Gemini did not return a JSON object. "
+                f"Raw response: {text[:1500]}"
+            )
+
+        candidate = text[start:end + 1]
+
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "Gemini returned invalid JSON. "
+                f"Raw response: {text[:1500]}"
+            ) from exc
 
 
 def generate_post(
@@ -112,40 +109,26 @@ def generate_post(
     response = client.models.generate_content(
         model=model,
         contents=SYSTEM_PROMPT + "\n\n" + user_prompt,
-        config={
-            "response_format": {
-                "text": {
-                    "mime_type": "application/json",
-                    "schema": OUTPUT_SCHEMA,
-                }
-            }
-        },
     )
 
-    text = _extract_text(response)
+    raw_text = (getattr(response, "text", None) or "").strip()
 
-    if not text:
+    if not raw_text:
         raise RuntimeError("Gemini returned an empty response.")
 
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            "Gemini returned invalid JSON. "
-            f"Raw response: {text[:1500]}"
-        ) from exc
+    data = _extract_json(raw_text)
 
-    required = (
+    required_fields = (
         "post",
         "image_brief",
         "review_flags",
         "legal_sources_used",
     )
 
-    for key in required:
-        if key not in data:
+    for field in required_fields:
+        if field not in data:
             raise RuntimeError(
-                f"Gemini JSON is missing required field: {key}"
+                f"Gemini JSON is missing required field: {field}"
             )
 
     if not isinstance(data["review_flags"], list):
@@ -153,5 +136,11 @@ def generate_post(
 
     if not isinstance(data["legal_sources_used"], list):
         data["legal_sources_used"] = [str(data["legal_sources_used"])]
+
+    data["post"] = str(data["post"]).strip()
+    data["image_brief"] = str(data["image_brief"]).strip()
+
+    if not data["post"]:
+        raise RuntimeError("Gemini returned an empty post.")
 
     return data
