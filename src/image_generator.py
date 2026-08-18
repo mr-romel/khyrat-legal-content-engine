@@ -1,90 +1,149 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import requests
+from PIL import Image, ImageOps
 
 
-CLOUDFLARE_IMAGE_MODEL = (
-    "@cf/bytedance/stable-diffusion-xl-lightning"
-)
+IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 
-CLOUDFLARE_IMAGE_ENDPOINT = (
+IMAGE_ENDPOINT = (
     "https://api.cloudflare.com/client/v4/accounts/"
     "{account_id}/ai/run/"
-    "@cf/bytedance/stable-diffusion-xl-lightning"
+    "@cf/black-forest-labs/flux-1-schnell"
 )
 
 
 class ImageGenerationError(RuntimeError):
-    """Raised when Cloudflare cannot generate an image."""
+    """Raised when image generation fails."""
 
 
-def _extract_image_bytes(
+def _make_seed(topic: str) -> int:
+    """
+    Create a deterministic seed from the topic.
+
+    Same topic -> same seed.
+    Different topic -> different seed.
+    """
+    digest = hashlib.sha256(
+        topic.encode("utf-8")
+    ).hexdigest()
+
+    return int(digest[:8], 16)
+
+
+def _extract_base64_image(
     response: requests.Response,
 ) -> bytes:
-    """
-    Cloudflare image model responses are binary image data.
-    Handle the normal binary response and fail clearly otherwise.
-    """
 
     content_type = (
-        response.headers.get("content-type", "")
+        response.headers.get(
+            "content-type",
+            "",
+        )
         .lower()
     )
 
+    # Some Cloudflare responses may be returned directly
+    # as binary image data.
     if content_type.startswith("image/"):
-        return response.content
+        if response.content:
+            return response.content
 
-    # Defensive fallback in case the API returns JSON with image data.
     try:
         payload: dict[str, Any] = response.json()
+
     except ValueError as exc:
         raise ImageGenerationError(
-            "Cloudflare returned a non-image response "
-            f"with content-type: {content_type}"
+            "Cloudflare returned a non-JSON, non-image response."
         ) from exc
 
     if not payload.get("success", False):
-        errors = payload.get("errors", [])
         raise ImageGenerationError(
-            f"Cloudflare AI request failed: {errors or payload}"
+            "Cloudflare AI request failed: "
+            f"{payload.get('errors') or payload}"
         )
 
     result = payload.get("result")
 
-    if isinstance(result, str):
-        import base64
-
-        try:
-            return base64.b64decode(
-                result,
-                validate=True,
-            )
-        except Exception as exc:
-            raise ImageGenerationError(
-                "Cloudflare returned an invalid base64 image."
-            ) from exc
+    image_base64 = None
 
     if isinstance(result, dict):
-        image_b64 = result.get("image")
+        image_base64 = result.get("image")
 
-        if image_b64:
-            import base64
+    elif isinstance(result, str):
+        image_base64 = result
 
-            try:
-                return base64.b64decode(
-                    image_b64,
-                    validate=True,
-                )
-            except Exception as exc:
-                raise ImageGenerationError(
-                    "Cloudflare returned invalid image data."
-                ) from exc
+    if not image_base64:
+        raise ImageGenerationError(
+            "Cloudflare returned no image data."
+        )
 
-    raise ImageGenerationError(
-        "Cloudflare response did not contain image data."
+    try:
+        return base64.b64decode(
+            image_base64,
+            validate=True,
+        )
+
+    except Exception as exc:
+        raise ImageGenerationError(
+            "Cloudflare returned invalid Base64 image data."
+        ) from exc
+
+
+def _convert_to_4x5(
+    image_bytes: bytes,
+    output_path: Path,
+) -> None:
+    """
+    FLUX Schnell commonly returns a landscape image.
+    We convert it into a professional 4:5 portrait crop.
+
+    The crop is centered slightly above the middle because
+    human faces and focal subjects are commonly positioned
+    in the upper-middle composition.
+    """
+
+    try:
+        image = Image.open(
+            BytesIO(image_bytes)
+        ).convert("RGB")
+
+    except Exception as exc:
+        raise ImageGenerationError(
+            f"Could not decode generated image: {exc}"
+        ) from exc
+
+    target_ratio = 4 / 5
+    source_ratio = image.width / image.height
+
+    if abs(source_ratio - target_ratio) < 0.02:
+        final_image = image
+
+    else:
+        # ImageOps.fit performs a high-quality cover crop.
+        final_image = ImageOps.fit(
+            image,
+            (1024, 1280),
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.43),
+        )
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    final_image.save(
+        output_path,
+        format="JPEG",
+        quality=94,
+        optimize=True,
     )
 
 
@@ -93,33 +152,28 @@ def create_legal_image(
     topic: str,
     image_brief: str,
     output_path: str,
-    api_key: str | None = None,
     cloudflare_account_id: str | None = None,
     cloudflare_api_token: str | None = None,
 ) -> str:
-    """
-    Generate a real editorial image using Cloudflare Workers AI.
-
-    The image engine is intentionally independent from Gemini so that
-    the Core Engine can swap image providers later without redesign.
-    """
-
-    del api_key  # Gemini is no longer used for image generation.
 
     account_id = (
-        cloudflare_account_id or ""
+        cloudflare_account_id
+        or ""
     ).strip()
 
     api_token = (
-        cloudflare_api_token or ""
+        cloudflare_api_token
+        or ""
     ).strip()
 
     topic = (
-        topic or ""
+        topic
+        or ""
     ).strip()
 
     image_brief = (
-        image_brief or ""
+        image_brief
+        or ""
     ).strip()
 
     if not account_id:
@@ -142,87 +196,140 @@ def create_legal_image(
             "Image brief is empty."
         )
 
-    prompt = f"""
-Create a premium editorial image for an Egyptian legal education page.
+    # ------------------------------------------------------------
+    # IMPORTANT:
+    # We are deliberately NOT asking FLUX for a generic
+    # "legal image".
+    #
+    # We force it to depict the actual story.
+    # ------------------------------------------------------------
 
-SUBJECT:
+    prompt = f"""
+EDITORIAL LEGAL STORY IMAGE
+
+Create ONE highly specific cinematic editorial photograph
+that visually depicts the exact legal problem described below.
+
+LEGAL TOPIC:
 {topic}
 
-VISUAL BRIEF:
+VISUAL DIRECTOR'S BRIEF:
 {image_brief}
 
-CREATIVE REQUIREMENTS:
+CORE OBJECTIVE:
+A person should understand the situation from the image alone,
+without reading the caption.
 
-- Real visual storytelling.
-- Photorealistic and cinematic.
-- Egyptian context where relevant.
-- Show the actual human/legal situation.
-- One clear focal subject.
-- Strong composition.
-- Natural human expressions and body language.
-- Realistic documents and objects.
-- Professional editorial photography aesthetic.
-- Serious, credible and sophisticated.
-- Optimized for a professional Facebook legal page.
-- Portrait composition, 4:5.
+SCENE REQUIREMENTS:
 
-ABSOLUTELY DO NOT:
-- add text
-- add Arabic letters
-- add English letters
-- add headlines
-- add captions
-- add legal explanations
-- add logos
-- add watermarks
-- create a poster
-- create an infographic
-- create a presentation
-- create a quote card
-- create a social media template
-- create a collage
-- create a generic lawyer-at-a-desk scene
-- use generic justice scales unless specifically relevant
+- Depict a specific real-life event, not an abstract concept.
+- Show the people involved in the actual problem.
+- Show what they are physically doing.
+- Show the important object/document involved.
+- Show the emotional tension appropriate to the situation.
+- Use a realistic Egyptian setting whenever the subject naturally
+  requires an Egyptian context.
+- The image must feel like a moment captured from a real story.
 
-The image must communicate the problem visually without requiring
-any text or explanation.
+CAMERA:
+
+Professional editorial photography.
+Medium shot or medium close-up when useful.
+Strong focal subject.
+Natural depth of field.
+Subtle cinematic lighting.
+Realistic skin and clothing.
+Natural hands and body language.
+Believable environment.
+
+LEGAL STORYTELLING:
+
+The central object or action must correspond directly to the topic.
+
+Do not replace the actual story with generic legal symbolism.
+
+For example:
+If the subject concerns a trust receipt, visually show
+people handling/signing/handing over the relevant document
+in a realistic dispute-related situation.
+
+If the subject concerns an employment termination,
+visually show an employee receiving a termination document
+inside a realistic workplace.
+
+If the subject concerns a contract,
+visually show a person reviewing or signing a contract
+with attention to the relevant clause.
+
+These are principles, not instructions to copy those examples.
+
+VISUAL PRIORITY:
+
+1. Actual human/legal situation.
+2. Important document/object.
+3. Human emotion.
+4. Environment.
+5. Cinematic composition.
+
+STRICT NEGATIVE RULES:
+
+NO Arabic text.
+NO English text.
+NO readable writing.
+NO headline.
+NO caption.
+NO typography.
+NO logo.
+NO watermark.
+NO poster.
+NO infographic.
+NO presentation slide.
+NO quote card.
+NO social-media template.
+NO collage.
+NO split screen.
+NO generic courthouse.
+NO generic scales of justice.
+NO floating legal icons.
+NO random books.
+NO generic lawyer sitting at a desk.
+NO abstract blue legal background.
+NO stock-photo composition.
+NO unrelated objects.
+
+The result must NOT look like an AI-generated social media graphic.
+
+It should look like:
+a premium editorial photograph from a serious Egyptian legal
+journalism or documentary story.
+
+Portrait-oriented composition is preferred.
+Keep the primary subject near the center.
+Avoid placing the key subject at the extreme left or right
+because the final image will be cropped to a 4:5 portrait composition.
+
+FINAL IMAGE:
+photorealistic, cinematic, credible, emotionally clear,
+professionally art-directed, realistic Egyptian context,
+single coherent scene.
 """.strip()
 
-    negative_prompt = """
-text, typography, letters, Arabic text, English text,
-headline, caption, subtitle, logo, watermark,
-poster, infographic, presentation, quote card,
-social media template, UI, screenshot, collage,
-split screen, generic lawyer desk,
-generic scales of justice, cartoon,
-cheap stock photo, distorted face,
-extra fingers, malformed hands, duplicate people,
-blurry subject, low detail, oversaturated
-""".strip()
-
-    endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(
-        account_id=account_id,
-    )
-
-    # 4:5 portrait.
-    width = 768
-    height = 960
+    seed = _make_seed(topic)
 
     request_body = {
         "prompt": prompt,
-        "negative_prompt": negative_prompt,
-        "width": width,
-        "height": height,
-        "num_steps": 8,
-        "guidance": 7.5,
+        "steps": 8,
+        "seed": seed,
     }
 
+    endpoint = IMAGE_ENDPOINT.format(
+        account_id=account_id,
+    )
+
     headers = {
-        "Authorization": (
-            f"Bearer {api_token}"
-        ),
+        "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
-        "Accept": "image/*",
+        "Accept": "application/json",
     }
 
     try:
@@ -250,21 +357,30 @@ blurry subject, low detail, oversaturated
             f"{error_payload}"
         )
 
-    image_bytes = _extract_image_bytes(
-        response
-    )
+    try:
+        image_bytes = _extract_base64_image(
+            response
+        )
+
+    except ImageGenerationError:
+        raise
+
+    if not image_bytes:
+        raise ImageGenerationError(
+            "Cloudflare returned an empty image."
+        )
 
     output = Path(
         output_path
     )
 
-    output.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    # ------------------------------------------------------------
+    # Convert to final 4:5 JPG
+    # ------------------------------------------------------------
 
-    output.write_bytes(
-        image_bytes
+    _convert_to_4x5(
+        image_bytes,
+        output,
     )
 
     if (
@@ -272,16 +388,16 @@ blurry subject, low detail, oversaturated
         or output.stat().st_size == 0
     ):
         raise ImageGenerationError(
-            "Generated image file is empty."
+            "Final 4:5 image file is empty."
         )
 
     print(
-        "Cloudflare AI image generated successfully: "
-        f"{output}"
+        "Cloudflare FLUX image generated successfully:"
+        f" {output}"
     )
 
     print(
-        f"Generated image size: "
+        f"Final image size: "
         f"{output.stat().st_size} bytes"
     )
 
