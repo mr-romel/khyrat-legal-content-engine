@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 from google import genai
 
@@ -11,7 +12,7 @@ SYSTEM_PROMPT = """
 إنتاج محتوى قانوني مصري احترافي، بسيط جدًا على المواطن العادي في مصر،
 طبيعي في لغته، مفيد عمليًا، ويبدو كأنه مكتوب بواسطة محامٍ مصري حقيقي.
 
-قواعد إلزامية:
+قواعد إلزامية للمحتوى:
 1) اكتب بالعربية.
 2) استخدم تعبيرات مصرية طبيعية عند الحاجة، بدون مبالغة.
 3) ممنوع العبارات الآلية المحفوظة مثل:
@@ -32,20 +33,39 @@ SYSTEM_PROMPT = """
 15) استخدم 2 إلى 4 هاشتاجات كحد أقصى عند الحاجة.
 16) لا تضع روابط أو مراجع وهمية.
 
-مهم جدًا:
+قواعد إلزامية للوصف البصري:
+17) image_brief ليس نصًا سيظهر على الصورة.
+18) اكتب image_brief كتوجيه احترافي لمولد صور AI.
+19) الصورة يجب أن تكون مشهدًا بصريًا حقيقيًا مرتبطًا بالمشكلة القانونية،
+    وليس Poster أو Infographic أو Screenshot أو كارت نصي.
+20) لا تضع أي نص مكتوب داخل الصورة.
+21) ممنوع كتابة عنوان الموضوع أو شرح الموضوع أو فقرات أو هاشتاجات داخل الصورة.
+22) لا تستخدم ميزان العدالة كعنصر رئيسي بشكل تلقائي؛ استخدمه فقط لو كان له معنى بصري حقيقي.
+23) اختر مشهدًا مختلفًا حسب طبيعة الموضوع.
+24) ركّز على الأشخاص، المستندات، الموقف، المكان، التعبير، الإضاءة
+    والرموز البصرية التي توضح المشكلة.
+25) اجعل الصورة مناسبة لمنشور Facebook احترافي لمكتب محاماة مصري.
+26) الصورة عمودية بنسبة 4:5، تكوين واضح، subject رئيسي واحد،
+    خلفية مرتبة، تفاصيل واقعية، وإضاءة احترافية.
+27) لا تجعل المشهد يبدو كصورة Stock رخيصة أو صورة دعائية مبتذلة.
+28) لا تضف شعارات أو أسماء محامين أو نصوص أو Watermark؛ الهوية تضاف لاحقًا
+    إذا احتجنا ذلك خارج مولد الصور.
+29) image_brief يجب أن يكون باللغة الإنجليزية لأن مولد الصور يتعامل معها
+    بشكل أفضل في هذا الـpipeline.
+
 أعد JSON فقط، بدون Markdown وبدون ```json.
 
 الشكل المطلوب:
 {
   "post": "النص النهائي الجاهز للنشر",
-  "image_brief": "وصف بصري للصورة",
+  "image_brief": "احترافي باللغة الإنجليزية، صالح مباشرة لمولد الصور",
   "review_flags": ["ملاحظات المراجعة"],
   "legal_sources_used": ["المصادر القانونية المستخدمة"]
 }
 """
 
 
-def _extract_json(text: str) -> dict:
+def _extract_json(text: str) -> dict[str, Any]:
     text = (text or "").strip()
 
     text = re.sub(
@@ -55,11 +75,7 @@ def _extract_json(text: str) -> dict:
         flags=re.IGNORECASE,
     )
 
-    text = re.sub(
-        r"\s*```$",
-        "",
-        text,
-    )
+    text = re.sub(r"\s*```$", "", text)
 
     try:
         return json.loads(text)
@@ -73,7 +89,7 @@ def _extract_json(text: str) -> dict:
                 f"Raw response: {text[:1500]}"
             )
 
-        candidate = text[start:end + 1]
+        candidate = text[start : end + 1]
 
         try:
             return json.loads(candidate)
@@ -90,8 +106,18 @@ def generate_post(
     topic: str,
     legal_sources: str,
     previous_context: str = "",
-) -> dict:
+) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
+
+    selected_model = (model or "").strip().strip("/")
+
+    # Keep the production default resilient even if the GitHub Secret
+    # is accidentally missing or left blank.
+    if not selected_model or selected_model == "models/":
+        selected_model = "gemini-3.6-flash"
+
+    if selected_model.startswith("models/"):
+        selected_model = selected_model[len("models/") :]
 
     user_prompt = f"""
 الموضوع المطلوب:
@@ -104,10 +130,34 @@ def generate_post(
 {previous_context or "لا يوجد."}
 
 اكتب البوست النهائي الآن.
+
+ثم صمّم مفهومًا بصريًا مناسبًا لهذا الموضوع تحديدًا.
+لا تكرر مجرد عنوان الموضوع داخل image_brief.
+فكر في "ما المشهد الذي لو رآه المواطن بدون قراءة النص سيفهم المشكلة أو يشعر بها؟"
+
+مثال لطريقة التفكير فقط:
+- لو الموضوع عن إيصال أمانة: مشهد تسليم مستند/إيصال بين شخصين في موقف واقعي متوتر.
+- لو الموضوع عن عقد: مشهد شخص يراجع عقدًا ويكتشف بندًا خطيرًا.
+- لو الموضوع عن فصل موظف: مشهد موظف يتلقى قرارًا من جهة العمل في سياق واقعي.
+- لو الموضوع عن ميراث: مشهد أفراد أسرة أمام مستندات تركة وتقسيم رسمي.
+
+لا تنسخ الأمثلة حرفيًا، وابتكر مشهدًا مناسبًا للموضوع الفعلي.
+
+image_brief يجب أن يكون:
+- باللغة الإنجليزية
+- وصفًا بصريًا فقط
+- مناسبًا لمولد صور احترافي
+- بدون أي نص داخل الصورة
+- بدون شرح قانوني داخل الصورة
+- بدون كتابة العنوان
+- بدون watermark
+- cinematic / realistic / professional
+- Egyptian context where relevant
+- vertical 4:5 composition
 """
 
     response = client.models.generate_content(
-        model=model,
+        model=selected_model,
         contents=SYSTEM_PROMPT + "\n\n" + user_prompt,
     )
 
@@ -142,5 +192,8 @@ def generate_post(
 
     if not data["post"]:
         raise RuntimeError("Gemini returned an empty post.")
+
+    if not data["image_brief"]:
+        raise RuntimeError("Gemini returned an empty image brief.")
 
     return data
