@@ -18,7 +18,6 @@ def _normalize_model_name(value: str) -> str:
 
     if model.startswith("models/"):
         model = model[len("models/"):]
-
     old_names = {
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -35,7 +34,6 @@ def _normalize_model_name(value: str) -> str:
 
 def load_config() -> dict:
     service_account_raw = _required("GOOGLE_SERVICE_ACCOUNT_JSON")
-
     try:
         service_account_info = json.loads(service_account_raw)
     except json.JSONDecodeError as exc:
@@ -47,7 +45,6 @@ def load_config() -> dict:
         raise ConfigError(
             "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
         )
-
     return {
         "service_account_info": service_account_info,
         "sheet_id": _required("GOOGLE_SHEET_ID"),
@@ -62,4 +59,15 @@ def load_config() -> dict:
                 "gemini-3.5-flash-lite",
             )
         ),
+        "facebook_page_id": os.getenv(
+            "FACEBOOK_PAGE_ID",
+            "464216073916915",
+        ).strip(),
+        "facebook_page_access_token": _required(
+            "FACEBOOK_PAGE_ACCESS_TOKEN"
+        ),
+        "facebook_graph_version": os.getenv(
+            "FACEBOOK_GRAPH_VERSION",
+            "26.0",
+        ).strip(),
     }
