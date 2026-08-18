@@ -2,6 +2,7 @@ name: Khyrat Legal Content Engine
 
 on:
   workflow_dispatch:
+
   schedule:
     - cron: "0 10,20 * * *"
       timezone: "Africa/Cairo"
@@ -9,42 +10,62 @@ on:
 permissions:
   contents: write
 
+
 jobs:
+
   publish:
+
     runs-on: ubuntu-latest
+
     timeout-minutes: 15
 
     steps:
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
 
-      - name: Run content engine
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+
+      - name: Run Khyrat Legal Content Engine
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+
           FACEBOOK_PAGE_ID: "464216073916915"
           FACEBOOK_GRAPH_VERSION: "26.0"
-          FACEBOOK_AUTO_LIKE: "true"
-          FACEBOOK_FIRST_COMMENT: "لو الموضوع ده بيمس موقف حصل معاك، اكتب سؤالك في التعليقات، وهنوضح لك القاعدة القانونية ببساطة. ⚖️"
-        run: python src/main.py
 
-      - name: Commit generated artifacts
-        if: always()
+        run: |
+          python src/main.py
+
+
+      - name: Commit generated images
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add generated/ || true
-          git diff --cached --quiet || git commit -m "chore: update generated content"
-          git push || true
+
+          if git diff --cached --quiet; then
+            echo "No generated files to commit."
+          else
+            git commit -m "chore: add generated legal content image"
+            git push
+          fi
