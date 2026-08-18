@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -22,38 +21,29 @@ MAX_PROMPT_LENGTH = 1800
 
 
 class ImageGenerationError(RuntimeError):
-    """Raised when image generation fails."""
+    """Raised when Cloudflare image generation fails."""
 
 
-def _make_seed(topic: str) -> int:
-    digest = hashlib.sha256(
-        topic.encode("utf-8")
-    ).hexdigest()
-
-    return int(digest[:8], 16)
-
-
-def _extract_base64_image(
+def _extract_image_bytes(
     response: requests.Response,
 ) -> bytes:
-
     content_type = (
-        response.headers.get(
-            "content-type",
-            "",
-        )
+        response.headers.get("content-type", "")
         .lower()
     )
 
     if content_type.startswith("image/"):
+        if not response.content:
+            raise ImageGenerationError(
+                "Cloudflare returned an empty image response."
+            )
         return response.content
 
     try:
         payload: dict[str, Any] = response.json()
-
     except ValueError as exc:
         raise ImageGenerationError(
-            "Cloudflare returned a non-JSON, non-image response."
+            "Cloudflare returned neither an image nor valid JSON."
         ) from exc
 
     if not payload.get("success", False):
@@ -63,12 +53,10 @@ def _extract_base64_image(
         )
 
     result = payload.get("result")
-
-    image_base64 = None
+    image_base64: str | None = None
 
     if isinstance(result, dict):
         image_base64 = result.get("image")
-
     elif isinstance(result, str):
         image_base64 = result
 
@@ -82,33 +70,99 @@ def _extract_base64_image(
             image_base64,
             validate=True,
         )
-
     except Exception as exc:
         raise ImageGenerationError(
             "Cloudflare returned invalid Base64 image data."
         ) from exc
 
 
+def _build_prompt(
+    topic: str,
+    image_brief: str,
+) -> str:
+    topic = (
+        topic.strip()
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
+
+    brief = (
+        image_brief.strip()
+        .replace("\r", " ")
+        .replace("\n\n", "\n")
+    )
+
+    # Keep a large safety margin below Cloudflare's 2048-char limit.
+    if len(brief) > 900:
+        brief = (
+            brief[:900]
+            .rsplit(" ", 1)[0]
+            .strip()
+        )
+
+    prompt = f"""
+Create one realistic cinematic editorial photograph.
+
+LEGAL STORY:
+{topic}
+
+VISUAL DIRECTOR BRIEF:
+{brief}
+
+Depict the exact human/legal situation described above.
+Show the people, their action, the important document or object,
+the setting, and the emotional tension.
+
+Use realistic Egyptian context when appropriate.
+Professional documentary/editorial photography.
+Photorealistic people and materials.
+Natural expressions and body language.
+Strong focal subject.
+Realistic cinematic lighting.
+Natural depth of field.
+Portrait-friendly composition.
+
+The viewer should understand the situation from the image itself.
+
+ABSOLUTELY NO:
+text, Arabic letters, English letters, readable writing,
+headlines, captions, typography, logos, watermarks,
+poster, infographic, presentation, quote card,
+social-media template, collage, split screen, UI,
+generic lawyer-at-desk scene, generic courthouse,
+generic justice scales, random legal symbols,
+abstract legal background.
+
+Do not create a generic legal image.
+Depict the actual story.
+""".strip()
+
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        prompt = (
+            prompt[:MAX_PROMPT_LENGTH]
+            .rsplit(" ", 1)[0]
+            .strip()
+        )
+
+    return prompt
+
+
 def _convert_to_4x5(
     image_bytes: bytes,
     output_path: Path,
 ) -> None:
-
     try:
         image = Image.open(
             BytesIO(image_bytes)
         ).convert("RGB")
-
     except Exception as exc:
         raise ImageGenerationError(
             f"Could not decode generated image: {exc}"
         ) from exc
 
-    target_size = (1024, 1280)
-
     final_image = ImageOps.fit(
         image,
-        target_size,
+        (1024, 1280),
         method=Image.Resampling.LANCZOS,
         centering=(0.5, 0.43),
     )
@@ -124,82 +178,6 @@ def _convert_to_4x5(
         quality=94,
         optimize=True,
     )
-
-
-def _build_prompt(
-    topic: str,
-    image_brief: str,
-) -> str:
-    """
-    Build a compact FLUX prompt that stays safely below
-    Cloudflare's 2048-character limit.
-    """
-
-    # Keep the Gemini brief, but reserve room for our fixed instructions.
-    brief_budget = 950
-
-    compact_brief = (
-        image_brief
-        .strip()
-        .replace("\n\n", "\n")
-    )
-
-    if len(compact_brief) > brief_budget:
-        compact_brief = (
-            compact_brief[:brief_budget]
-            .rsplit(" ", 1)[0]
-            .strip()
-        )
-
-    topic_budget = 220
-
-    compact_topic = topic.strip()
-
-    if len(compact_topic) > topic_budget:
-        compact_topic = (
-            compact_topic[:topic_budget]
-            .rsplit(" ", 1)[0]
-            .strip()
-        )
-
-    fixed_instruction = """
-Create one realistic cinematic editorial photograph.
-
-Story:
-{topic}
-
-Visual direction:
-{brief}
-
-Show the actual people, action, important object/document,
-setting and emotion described above.
-
-Egyptian context when relevant.
-Professional documentary/editorial photography.
-Natural human expressions and body language.
-Strong focal subject.
-Portrait-friendly composition, 4:5 crop.
-Realistic lighting and materials.
-
-ABSOLUTELY NO:
-text, letters, Arabic writing, English writing, headlines,
-captions, logos, watermark, poster, infographic, collage,
-UI, split screen, generic lawyer-at-desk scene,
-generic justice scales, random legal symbols.
-""".strip().format(
-        topic=compact_topic,
-        brief=compact_brief,
-    )
-
-    # Final safety guard.
-    if len(fixed_instruction) > MAX_PROMPT_LENGTH:
-        fixed_instruction = (
-            fixed_instruction[:MAX_PROMPT_LENGTH]
-            .rsplit(" ", 1)[0]
-            .strip()
-        )
-
-    return fixed_instruction
 
 
 def create_legal_image(
@@ -219,14 +197,6 @@ def create_legal_image(
         cloudflare_api_token or ""
     ).strip()
 
-    topic = (
-        topic or ""
-    ).strip()
-
-    image_brief = (
-        image_brief or ""
-    ).strip()
-
     if not account_id:
         raise ImageGenerationError(
             "CLOUDFLARE_ACCOUNT_ID is missing."
@@ -237,12 +207,12 @@ def create_legal_image(
             "CLOUDFLARE_API_TOKEN is missing."
         )
 
-    if not topic:
+    if not topic.strip():
         raise ImageGenerationError(
             "Topic is empty."
         )
 
-    if not image_brief:
+    if not image_brief.strip():
         raise ImageGenerationError(
             "Image brief is empty."
         )
@@ -260,11 +230,19 @@ def create_legal_image(
         account_id=account_id,
     )
 
+    # IMPORTANT:
+    # Only fields supported by the REST schema used here.
+    # DO NOT add seed.
     request_body = {
         "prompt": prompt,
         "steps": 8,
-        "seed": _make_seed(topic),
     }
+
+    # Hard guard: prove that seed can never be sent.
+    if "seed" in request_body:
+        raise ImageGenerationError(
+            "Internal safety check failed: unsupported 'seed' field."
+        )
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -279,38 +257,32 @@ def create_legal_image(
             json=request_body,
             timeout=180,
         )
-
     except requests.RequestException as exc:
         raise ImageGenerationError(
             f"Cloudflare image request failed: {exc}"
         ) from exc
 
     if not response.ok:
-
         try:
             error_payload = response.json()
-
         except ValueError:
             error_payload = response.text
 
         raise ImageGenerationError(
             "Cloudflare image API failed: "
-            f"HTTP {response.status_code} - "
-            f"{error_payload}"
+            f"HTTP {response.status_code} - {error_payload}"
         )
 
-    image_bytes = _extract_base64_image(
+    image_bytes = _extract_image_bytes(
         response
     )
 
     if not image_bytes:
         raise ImageGenerationError(
-            "Cloudflare returned an empty image."
+            "Cloudflare returned empty image bytes."
         )
 
-    output = Path(
-        output_path
-    )
+    output = Path(output_path)
 
     _convert_to_4x5(
         image_bytes,
@@ -322,7 +294,7 @@ def create_legal_image(
         or output.stat().st_size == 0
     ):
         raise ImageGenerationError(
-            "Final 4:5 image file is empty."
+            "Final image file is empty."
         )
 
     print(
@@ -331,8 +303,7 @@ def create_legal_image(
     )
 
     print(
-        f"Final image size: "
-        f"{output.stat().st_size} bytes"
+        f"Final image size: {output.stat().st_size} bytes"
     )
 
     return str(output)
