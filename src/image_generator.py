@@ -1,52 +1,90 @@
 from __future__ import annotations
 
-import base64
 from pathlib import Path
 from typing import Any
 
 import requests
 
 
-IMAGE_MODEL = "gemini-3.1-flash-image"
-IMAGE_API_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
+CLOUDFLARE_IMAGE_MODEL = (
+    "@cf/bytedance/stable-diffusion-xl-lightning"
+)
+
+CLOUDFLARE_IMAGE_ENDPOINT = (
+    "https://api.cloudflare.com/client/v4/accounts/"
+    "{account_id}/ai/run/"
+    "@cf/bytedance/stable-diffusion-xl-lightning"
+)
 
 
 class ImageGenerationError(RuntimeError):
-    pass
+    """Raised when Cloudflare cannot generate an image."""
 
 
-def _extract_image_base64(payload: dict[str, Any]) -> str:
+def _extract_image_bytes(
+    response: requests.Response,
+) -> bytes:
     """
-    Extract generated image data from the current Gemini Interactions
-    response structure.
-
-    Google exposes the generated image through output_image.data and
-    also through the model_output step content.
+    Cloudflare image model responses are binary image data.
+    Handle the normal binary response and fail clearly otherwise.
     """
 
-    output_image = payload.get("output_image")
+    content_type = (
+        response.headers.get("content-type", "")
+        .lower()
+    )
 
-    if isinstance(output_image, dict):
-        data = output_image.get("data")
-        if data:
-            return str(data)
+    if content_type.startswith("image/"):
+        return response.content
 
-    for step in payload.get("steps", []) or []:
-        if not isinstance(step, dict):
-            continue
+    # Defensive fallback in case the API returns JSON with image data.
+    try:
+        payload: dict[str, Any] = response.json()
+    except ValueError as exc:
+        raise ImageGenerationError(
+            "Cloudflare returned a non-image response "
+            f"with content-type: {content_type}"
+        ) from exc
 
-        if step.get("type") != "model_output":
-            continue
+    if not payload.get("success", False):
+        errors = payload.get("errors", [])
+        raise ImageGenerationError(
+            f"Cloudflare AI request failed: {errors or payload}"
+        )
 
-        for block in step.get("content", []) or []:
-            if not isinstance(block, dict):
-                continue
+    result = payload.get("result")
 
-            if block.get("type") == "image" and block.get("data"):
-                return str(block["data"])
+    if isinstance(result, str):
+        import base64
+
+        try:
+            return base64.b64decode(
+                result,
+                validate=True,
+            )
+        except Exception as exc:
+            raise ImageGenerationError(
+                "Cloudflare returned an invalid base64 image."
+            ) from exc
+
+    if isinstance(result, dict):
+        image_b64 = result.get("image")
+
+        if image_b64:
+            import base64
+
+            try:
+                return base64.b64decode(
+                    image_b64,
+                    validate=True,
+                )
+            except Exception as exc:
+                raise ImageGenerationError(
+                    "Cloudflare returned invalid image data."
+                ) from exc
 
     raise ImageGenerationError(
-        "Gemini returned a successful response but no image data was found."
+        "Cloudflare response did not contain image data."
     )
 
 
@@ -55,22 +93,44 @@ def create_legal_image(
     topic: str,
     image_brief: str,
     output_path: str,
-    api_key: str,
+    api_key: str | None = None,
+    cloudflare_account_id: str | None = None,
+    cloudflare_api_token: str | None = None,
 ) -> str:
     """
-    Generate a real 4:5 editorial image using Gemini 3.1 Flash Image.
+    Generate a real editorial image using Cloudflare Workers AI.
 
-    Uses the official Gemini Interactions REST endpoint directly.
-    This avoids SDK-specific Interactions schema incompatibilities.
+    The image engine is intentionally independent from Gemini so that
+    the Core Engine can swap image providers later without redesign.
     """
 
-    if not api_key:
+    del api_key  # Gemini is no longer used for image generation.
+
+    account_id = (
+        cloudflare_account_id or ""
+    ).strip()
+
+    api_token = (
+        cloudflare_api_token or ""
+    ).strip()
+
+    topic = (
+        topic or ""
+    ).strip()
+
+    image_brief = (
+        image_brief or ""
+    ).strip()
+
+    if not account_id:
         raise ImageGenerationError(
-            "GEMINI_API_KEY is missing."
+            "CLOUDFLARE_ACCOUNT_ID is missing."
         )
 
-    topic = (topic or "").strip()
-    image_brief = (image_brief or "").strip()
+    if not api_token:
+        raise ImageGenerationError(
+            "CLOUDFLARE_API_TOKEN is missing."
+        )
 
     if not topic:
         raise ImageGenerationError(
@@ -83,8 +143,7 @@ def create_legal_image(
         )
 
     prompt = f"""
-Create a premium editorial visual for an Egyptian legal education
-Facebook page.
+Create a premium editorial image for an Egyptian legal education page.
 
 SUBJECT:
 {topic}
@@ -92,133 +151,121 @@ SUBJECT:
 VISUAL BRIEF:
 {image_brief}
 
-MANDATORY CREATIVE RULES:
+CREATIVE REQUIREMENTS:
 
-- Create a REAL visual scene.
-- Do NOT create a poster.
-- Do NOT create an infographic.
-- Do NOT create a text card.
-- Do NOT create a quote graphic.
-- Do NOT reproduce the topic as text.
-- Do NOT place Arabic text anywhere in the image.
-- Do NOT place English text anywhere in the image.
-- Do NOT place captions, headlines or labels.
-- Do NOT place legal explanations inside the image.
-- Do NOT place logos or watermarks.
-- Do NOT use generic justice scales unless they are genuinely relevant.
-- Do NOT create a generic lawyer sitting at a desk unless the topic
-  specifically requires that scene.
+- Real visual storytelling.
+- Photorealistic and cinematic.
+- Egyptian context where relevant.
+- Show the actual human/legal situation.
+- One clear focal subject.
+- Strong composition.
+- Natural human expressions and body language.
+- Realistic documents and objects.
+- Professional editorial photography aesthetic.
+- Serious, credible and sophisticated.
+- Optimized for a professional Facebook legal page.
+- Portrait composition, 4:5.
 
-VISUAL STORYTELLING:
+ABSOLUTELY DO NOT:
+- add text
+- add Arabic letters
+- add English letters
+- add headlines
+- add captions
+- add legal explanations
+- add logos
+- add watermarks
+- create a poster
+- create an infographic
+- create a presentation
+- create a quote card
+- create a social media template
+- create a collage
+- create a generic lawyer-at-a-desk scene
+- use generic justice scales unless specifically relevant
 
-Show the actual human/legal situation represented by the subject.
-
-Use realistic people, documents, objects, environments, body language
-and emotions appropriate to Egypt when relevant.
-
-The image should visually communicate the problem even without reading
-the post.
-
-STYLE:
-
-Premium cinematic realism.
-High-end editorial photography.
-Realistic skin, clothing, materials and lighting.
-Professional art direction.
-Sophisticated restrained palette.
-Natural deep navy, warm gold, white and neutral tones may appear subtly.
-
-COMPOSITION:
-
-Portrait 4:5.
-Optimized for Facebook feed.
-One strong focal point.
-Clear visual hierarchy.
-Natural depth of field.
-Tasteful negative space.
-No collage.
-No split screen.
-No UI elements.
-No decorative text.
-
-The result must look like an intentionally art-directed professional
-editorial image, NOT generic AI stock photography.
+The image must communicate the problem visually without requiring
+any text or explanation.
 """.strip()
 
+    negative_prompt = """
+text, typography, letters, Arabic text, English text,
+headline, caption, subtitle, logo, watermark,
+poster, infographic, presentation, quote card,
+social media template, UI, screenshot, collage,
+split screen, generic lawyer desk,
+generic scales of justice, cartoon,
+cheap stock photo, distorted face,
+extra fingers, malformed hands, duplicate people,
+blurry subject, low detail, oversaturated
+""".strip()
+
+    endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(
+        account_id=account_id,
+    )
+
+    # 4:5 portrait.
+    width = 768
+    height = 960
+
     request_body = {
-        "model": IMAGE_MODEL,
-        "input": [
-            {
-                "type": "text",
-                "text": prompt,
-            }
-        ],
-        "response_format": {
-            "type": "image",
-            "mime_type": "image/jpeg",
-            "aspect_ratio": "4:5",
-            "image_size": "1K",
-        },
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "width": width,
+        "height": height,
+        "num_steps": 8,
+        "guidance": 7.5,
+    }
+
+    headers = {
+        "Authorization": (
+            f"Bearer {api_token}"
+        ),
+        "Content-Type": "application/json",
+        "Accept": "image/*",
     }
 
     try:
         response = requests.post(
-            IMAGE_API_URL,
-            headers={
-                "x-goog-api-key": api_key,
-                "Content-Type": "application/json",
-            },
+            endpoint,
+            headers=headers,
             json=request_body,
             timeout=180,
         )
+
     except requests.RequestException as exc:
         raise ImageGenerationError(
-            f"Gemini image network request failed: {exc}"
-        ) from exc
-
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise ImageGenerationError(
-            f"Gemini image API returned non-JSON response "
-            f"(HTTP {response.status_code})."
+            f"Cloudflare image request failed: {exc}"
         ) from exc
 
     if not response.ok:
-        error = payload.get("error", {})
-        message = error.get(
-            "message",
-            "Unknown Gemini image API error.",
-        )
-        code = error.get("code")
-        status = error.get("status")
+        try:
+            error_payload = response.json()
+        except ValueError:
+            error_payload = response.text
 
         raise ImageGenerationError(
-            f"Gemini image API failed: {message} "
-            f"(HTTP {response.status_code}, code={code}, status={status})"
+            "Cloudflare image API failed: "
+            f"HTTP {response.status_code} - "
+            f"{error_payload}"
         )
 
-    try:
-        image_base64 = _extract_image_base64(payload)
+    image_bytes = _extract_image_bytes(
+        response
+    )
 
-        image_bytes = base64.b64decode(
-            image_base64,
-            validate=True,
-        )
-    except ImageGenerationError:
-        raise
-    except Exception as exc:
-        raise ImageGenerationError(
-            f"Gemini returned invalid image data: {exc}"
-        ) from exc
+    output = Path(
+        output_path
+    )
 
-    output = Path(output_path)
     output.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    output.write_bytes(image_bytes)
+    output.write_bytes(
+        image_bytes
+    )
 
     if (
         not output.exists()
@@ -229,10 +276,13 @@ editorial image, NOT generic AI stock photography.
         )
 
     print(
-        f"AI image generated successfully: {output}"
+        "Cloudflare AI image generated successfully: "
+        f"{output}"
     )
+
     print(
-        f"Generated image size: {output.stat().st_size} bytes"
+        f"Generated image size: "
+        f"{output.stat().st_size} bytes"
     )
 
     return str(output)
