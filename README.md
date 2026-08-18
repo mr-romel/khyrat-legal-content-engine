@@ -1,25 +1,27 @@
-# Khyrat Legal Content Engine
+# Khyrat Legal Content Engine — Facebook Quality Upgrade
 
-هذه النسخة هي النواة الخلفية للمشروع، ومصممة لتكون قابلة للتوسع لاحقًا إلى تطبيق Android.
+This package upgrades the Facebook stage from a Pillow text-card to real AI-generated visuals using Gemini 3.1 Flash Image (Nano Banana 2), then publishes the image + post caption and adds a first comment. Auto-like is attempted as an optional action; if Meta rejects it, publication still succeeds and the reason is logged.
 
-## التشغيل التلقائي
-يعمل GitHub Actions مرتين يوميًا:
-- 10:00 صباحًا
-- 20:00 مساءً
-بتوقيت `Africa/Cairo`.
+## Replace/add these files
+- Replace `src/main.py`
+- Replace `src/config.py`
+- Replace `src/image_generator.py`
+- Replace `src/facebook_publisher.py`
+- Replace `.github/workflows/publish.yml`
+- Replace `requirements.txt`
 
-يوجد أيضًا تشغيل يدوي من GitHub Actions.
+## Required GitHub Secret
+`FACEBOOK_PAGE_ACCESS_TOKEN`
 
-## Gemini
-النموذج الافتراضي:
-`gemini-3.5-flash-lite`
+The Page ID is currently set to `464216073916915`.
 
-لا يستخدم المشروع `response_format` أو `response_schema` في هذه النسخة.
-يطلب من Gemini JSON عاديًا ثم يتحقق منه محليًا، لتقليل اختلافات إصدارات SDK.
+## Visual behavior
+- 4:5 Facebook feed image
+- Real scene / editorial visual
+- No explanatory text in image
+- No title duplicated inside image
+- Topic-specific visual concept
+- Legal-brand palette, without generic scales unless relevant
 
-## Secrets
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
-- `GOOGLE_SHEET_ID`
-- `GOOGLE_SHEET_RANGE` = `Content!A:Q`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL` = `gemini-3.5-flash-lite`
+## Engagement behavior
+After publishing, the engine adds a first Page comment. It also attempts a programmatic like; this action is optional because Meta may restrict it depending on current API capabilities. The workflow does not fail just because an optional like is rejected.

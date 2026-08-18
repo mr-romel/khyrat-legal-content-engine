@@ -13,7 +13,7 @@ from sheets import (
 )
 from gemini import generate_post
 from image_generator import create_legal_image
-from facebook_publisher import FacebookPublishError, publish_photo
+from facebook_publisher import FacebookPublishError, publish_photo, add_first_comment, try_like_post
 from utils import now_cairo, is_due, sheet_name_from_range
 
 
@@ -137,6 +137,7 @@ def main():
             topic=topic,
             image_brief=image_brief,
             output_path=str(image_path),
+            api_key=config["gemini_api_key"],
         )
 
         relative_image_path = str(image_path).replace("\\", "/")
@@ -192,6 +193,29 @@ def main():
 
         facebook_post_id = facebook_result["post_id"]
 
+        # Add a first comment from the Page. We intentionally do not mass-tag followers.
+        comment_result = add_first_comment(
+            post_id=facebook_post_id,
+            page_access_token=config["facebook_page_access_token"],
+            graph_version=config["facebook_graph_version"],
+            comment=config["facebook_first_comment"],
+        )
+
+        like_result = {"ok": False, "error": "Auto-like disabled."}
+        if config["facebook_auto_like"]:
+            like_result = try_like_post(
+                post_id=facebook_post_id,
+                page_access_token=config["facebook_page_access_token"],
+                graph_version=config["facebook_graph_version"],
+            )
+
+        engagement_note = (
+            f"comment_id={comment_result.get('comment_id', '')}; "
+            f"auto_like={like_result.get('ok', False)}"
+        )
+        if not like_result.get("ok"):
+            engagement_note += f"; like_note={like_result.get('error', '')}"
+
         update_row(
             service,
             config["sheet_id"],
@@ -201,13 +225,16 @@ def main():
                 "الحالة": "PUBLISHED",
                 "Facebook Status": "PUBLISHED",
                 "Facebook Post ID": facebook_post_id,
-                "آخر خطأ": "",
+                "آخر خطأ": "" if like_result.get("ok") else "Optional like not applied.",
                 "وقت آخر تشغيل": current.isoformat(),
+                "ملاحظات": engagement_note,
             },
         )
 
         print(f"Facebook publish succeeded: {facebook_post_id}")
-        print("Facebook publishing stage completed successfully.")
+        print(f"First comment added: {comment_result.get('comment_id', '')}")
+        print(f"Auto-like applied: {like_result.get('ok', False)}")
+        print("Facebook publishing + engagement stage completed successfully.")
 
     except FacebookPublishError as exc:
         error_text = f"{type(exc).__name__}: {exc}"
