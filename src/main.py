@@ -1,285 +1,252 @@
-from pathlib import Path
-import os
-import traceback
+from __future__ import annotations
 
-from config import load_config, ConfigError
-from sheets import (
-    HEADERS,
-    create_service,
-    get_values,
-    row_to_dict,
-    update_row,
-    ensure_headers,
-)
-from gemini import generate_post
-from image_generator import create_legal_image
-from facebook_publisher import FacebookPublishError, publish_photo, add_first_comment, try_like_post
-from utils import now_cairo, is_due, sheet_name_from_range
+import json
+import re
+from typing import Any
+
+from google import genai
 
 
-GENERATED_DIR = Path("generated")
+DEFAULT_TEXT_MODEL = "gemini-3.6-flash"
 
 
-def github_raw_url(relative_path: str) -> str:
-    repository = os.getenv("GITHUB_REPOSITORY", "").strip()
-    branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
+SYSTEM_PROMPT = """
+أنت المحرر القانوني الرئيسي لمحتوى "اسأل محمود"
+التابع للمحامي محمود خيرت.
 
-    if not repository:
-        return ""
+هدفك:
+إنتاج محتوى قانوني مصري احترافي، بسيط جدًا على المواطن العادي في مصر،
+طبيعي في لغته، مفيد عمليًا، ويبدو كأنه مكتوب بواسطة محامٍ مصري حقيقي.
 
-    normalized = relative_path.replace("\\", "/").lstrip("/")
-    return (
-        f"https://raw.githubusercontent.com/"
-        f"{repository}/{branch}/{normalized}"
+قواعد المحتوى:
+
+1) اكتب بالعربية.
+2) استخدم تعبيرات مصرية طبيعية عند الحاجة بدون مبالغة.
+3) ممنوع العبارات الآلية المحفوظة مثل:
+   "في عالمنا اليوم"،
+   "دعونا نتعرف"،
+   "من الجدير بالذكر"،
+   "في هذا المقال"،
+   "لا شك أن".
+4) لا تستخدم عناوين كثيرة أو نقاطًا كثيرة بلا داعٍ.
+5) ابدأ بموقف أو سؤال واقعي يشد الانتباه.
+6) اشرح القاعدة القانونية بلغة بسيطة ثم وضح ماذا يفعل الشخص عمليًا.
+7) لا تستخدم لغة قانونية معقدة إذا كان يمكن شرحها للعامة.
+8) ممنوع اختلاق مادة قانونية أو حكم قضائي أو رقم قضية أو تاريخ.
+9) إذا أعطيتك مصادر قانونية، التزم بها ولا تضف مصدرًا غير موجود.
+10) إذا كانت نقطة قانونية تحتاج تحققًا ولم يوجد لها مصدر في المدخل،
+    اذكر "يحتاج مراجعة قانونية" داخل review_flags ولا تخترع المعلومة.
+11) لا تذكر أنك ذكاء اصطناعي.
+12) تجنب التكرار والجمل النمطية.
+13) اجعل CTA طبيعية وغير بيعية.
+14) استهدف تقريبًا 180 إلى 320 كلمة، إلا إذا كان الموضوع يحتاج أقل.
+15) استخدم 2 إلى 4 هاشتاجات كحد أقصى عند الحاجة.
+16) لا تضع روابط أو مراجع وهمية.
+
+قواعد الصورة:
+
+17) image_brief ليس نصًا سيظهر على الصورة.
+18) image_brief هو Visual Brief لمولد صور AI.
+19) يجب أن يصف مشهدًا بصريًا حقيقيًا وليس Poster أو Infographic.
+20) لا تضع أي نص مكتوب داخل الصورة.
+21) لا تضع عنوان الموضوع داخل الصورة.
+22) لا تضع شرحًا قانونيًا أو فقرات داخل الصورة.
+23) لا تستخدم ميزان العدالة بشكل تلقائي.
+24) استخدم أشخاصًا وأشياءً ومكانًا وتصرفًا وانفعالات مرتبطة بالمشكلة.
+25) عند مناسبة الموضوع، استخدم سياقًا مصريًا واقعيًا.
+26) لا تجعل كل الصور مجرد محامٍ يجلس خلف مكتب.
+27) الصورة يجب أن تكون مناسبة لمنشور Facebook قانوني احترافي.
+28) التركيب Portrait بنسبة 4:5.
+29) يجب أن تكون الصورة واقعية وسينمائية واحترافية.
+30) image_brief يجب أن يكون باللغة الإنجليزية.
+31) لا تذكر في image_brief أي نص مطلوب كتابته داخل الصورة.
+32) لا تضف شعارات أو Watermark.
+33) اجعل الصورة مفهومة بصريًا حتى بدون قراءة الكابشن.
+
+أعد JSON فقط.
+بدون Markdown.
+بدون ```json.
+
+الشكل:
+
+{
+  "post": "...",
+  "image_brief": "...",
+  "review_flags": [],
+  "legal_sources_used": []
+}
+"""
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    text = (text or "").strip()
+
+    # إزالة Markdown fences إن وجدت.
+    text = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
     )
 
-
-def main():
-    print("=" * 70)
-    print("KHYRAT LEGAL CONTENT ENGINE - FACEBOOK PUBLISHING")
-    print("=" * 70)
-    config = load_config()
-    service = create_service(config["service_account_info"])
-
-    sheet_name = sheet_name_from_range(config["sheet_range"])
-    ensure_headers(service, config["sheet_id"], sheet_name)
-
-    values = get_values(
-        service,
-        config["sheet_id"],
-        f"{sheet_name}!A:Q",
+    text = re.sub(
+        r"\s*```$",
+        "",
+        text,
     )
 
-    if not values:
-        print("Google Sheet is empty. Add at least one content row.")
-        return
+    # محاولة مباشرة.
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
 
-    headers = values[0]
-    if headers[: len(HEADERS)] != HEADERS:
+    # محاولة استخراج أول JSON object.
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start == -1 or end == -1 or end <= start:
         raise RuntimeError(
-            "Sheet headers do not match the expected template. "
-            "Replace row 1 with the template headers."
+            "Gemini did not return a JSON object. "
+            f"Raw response: {text[:2000]}"
         )
 
-    rows = []
-    for index, raw_row in enumerate(values[1:], start=2):
-        row = row_to_dict(raw_row)
-        rows.append((index, row))
-
-    current = now_cairo()
-    print(f"Current Cairo time: {current.isoformat()}")
-    due_rows = []
-    for row_number, row in rows:
-        try:
-            if is_due(row, current):
-                due_rows.append((row_number, row))
-        except Exception as exc:
-            update_row(
-                service,
-                config["sheet_id"],
-                sheet_name,
-                row_number,
-                {
-                    "الحالة": "FAILED",
-                    "آخر خطأ": str(exc),
-                    "وقت آخر تشغيل": current.isoformat(),
-                },
-            )
-            print(f"Row {row_number} rejected: {exc}")
-
-    if not due_rows:
-        print("No content is due right now.")
-        return
-
-    # MVP safety: one item per run.
-    row_number, row = due_rows[0]
-    topic = row.get("الموضوع", "").strip()
-
-    if not topic:
-        raise RuntimeError(
-            f"Row {row_number} has no topic in 'الموضوع'."
-        )
-
-    print(f"Processing row {row_number}: {topic}")
-    update_row(
-        service,
-        config["sheet_id"],
-        sheet_name,
-        row_number,
-        {
-            "الحالة": "PROCESSING",
-            "Facebook Status": "PROCESSING",
-            "آخر خطأ": "",
-            "وقت آخر تشغيل": current.isoformat(),
-        },
-    )
+    candidate = text[start:end + 1]
 
     try:
-        result = generate_post(
-            api_key=config["gemini_api_key"],
-            model=config["gemini_model"],
-            topic=topic,
-            legal_sources=row.get("المصادر القانونية", ""),
-            previous_context="",
+        return json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "Gemini returned invalid JSON. "
+            f"Raw response: {text[:2000]}"
+        ) from exc
+
+
+def generate_post(
+    api_key: str,
+    model: str,
+    topic: str,
+    legal_sources: str,
+    previous_context: str = "",
+) -> dict[str, Any]:
+
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is missing.")
+
+    selected_model = (
+        model or DEFAULT_TEXT_MODEL
+    ).strip()
+
+    if selected_model.startswith("models/"):
+        selected_model = selected_model[len("models/"):]
+
+    if not selected_model:
+        selected_model = DEFAULT_TEXT_MODEL
+
+    client = genai.Client(api_key=api_key)
+
+    user_prompt = f"""
+الموضوع:
+{topic}
+
+المصادر القانونية المدخلة:
+{legal_sources or "لا توجد مصادر قانونية مضافة."}
+
+السياق السابق لتجنب التكرار:
+{previous_context or "لا يوجد."}
+
+اكتب المحتوى النهائي.
+
+بعد ذلك أنشئ Visual Brief مستقل للصورة.
+
+فكر بهذه الطريقة:
+ما المشهد الذي لو شاهده المواطن قبل قراءة الكابشن
+سيفهم المشكلة أو يشعر بها؟
+
+مثال:
+موضوع إيصال أمانة:
+مشهد واقعي لشخص يسلم مستندًا لشخص آخر في موقف متوتر.
+
+موضوع عقد:
+شخص يراجع عقدًا ويكتشف بندًا مقلقًا.
+
+موضوع فصل موظف:
+موظف يتلقى قرارًا من جهة العمل.
+
+هذه أمثلة على التفكير فقط.
+لا تنسخها حرفيًا.
+ابتكر المشهد المناسب للموضوع الحقيقي.
+
+image_brief يجب أن يكون:
+- باللغة الإنجليزية
+- بصريًا فقط
+- واقعيًا
+- 4:5 portrait
+- بدون أي نص داخل الصورة
+- بدون عنوان
+- بدون شرح
+- بدون شعار
+- بدون watermark
+"""
+
+    response = client.models.generate_content(
+        model=selected_model,
+        contents=SYSTEM_PROMPT + "\n\n" + user_prompt,
+    )
+
+    raw_text = (
+        getattr(response, "text", None) or ""
+    ).strip()
+
+    if not raw_text:
+        raise RuntimeError(
+            "Gemini returned an empty response."
         )
-        post = result["post"].strip()
-        image_brief = result["image_brief"].strip()
 
-        safe_id = (row.get("ID") or f"row-{row_number}").strip()
-        safe_id = "".join(
-            ch if ch.isalnum() or ch in "-_" else "_"
-            for ch in safe_id
-        )
+    data = _extract_json(raw_text)
 
-        image_path = GENERATED_DIR / f"{safe_id}.jpg"
+    required_fields = (
+        "post",
+        "image_brief",
+        "review_flags",
+        "legal_sources_used",
+    )
 
-        create_legal_image(
-            topic=topic,
-            image_brief=image_brief,
-            output_path=str(image_path),
-            api_key=config["gemini_api_key"],
-        )
-
-        relative_image_path = str(image_path).replace("\\", "/")
-        image_url = github_raw_url(relative_image_path)
-
-        review_flags = result.get("review_flags", [])
-        review_flags_text = " | ".join(
-            str(item).strip() for item in review_flags if str(item).strip()
-        )
-
-        sources = result.get("legal_sources_used", [])
-        sources_text = " | ".join(
-            str(item).strip() for item in sources if str(item).strip()
-        )
-
-        status = "READY_FOR_SOCIAL_PUBLISH"
-        if review_flags_text:
-            status = "NEEDS_REVIEW"
-
-        update_row(
-            service,
-            config["sheet_id"],
-            sheet_name,
-            row_number,
-            {
-                "الحالة": status,
-                "المحتوى": post,
-                "وصف الصورة": image_brief,
-                "رابط الصورة": image_url,
-                "Facebook Status": "READY" if not review_flags_text else "BLOCKED",
-                "المصادر القانونية": sources_text or row.get("المصادر القانونية", ""),
-                "آخر خطأ": review_flags_text,
-                "وقت آخر تشغيل": current.isoformat(),
-            },
-        )
-
-        print(f"Generated image: {image_path}")
-        print(f"Image URL: {image_url}")
-        print(f"Generation status: {status}")
-
-        # Never publish automatically when legal review is required.
-        if review_flags_text:
-            print("Facebook publish skipped: item requires legal review.")
-            return
-
-        facebook_result = publish_photo(
-            page_id=config["facebook_page_id"],
-            page_access_token=config["facebook_page_access_token"],
-            graph_version=config["facebook_graph_version"],
-            image_path=image_path,
-            caption=post,
-        )
-
-        facebook_post_id = facebook_result["post_id"]
-
-        # Add a first comment from the Page. We intentionally do not mass-tag followers.
-        comment_result = add_first_comment(
-            post_id=facebook_post_id,
-            page_access_token=config["facebook_page_access_token"],
-            graph_version=config["facebook_graph_version"],
-            comment=config["facebook_first_comment"],
-        )
-
-        like_result = {"ok": False, "error": "Auto-like disabled."}
-        if config["facebook_auto_like"]:
-            like_result = try_like_post(
-                post_id=facebook_post_id,
-                page_access_token=config["facebook_page_access_token"],
-                graph_version=config["facebook_graph_version"],
+    for field in required_fields:
+        if field not in data:
+            raise RuntimeError(
+                f"Gemini JSON is missing required field: {field}"
             )
 
-        engagement_note = (
-            f"comment_id={comment_result.get('comment_id', '')}; "
-            f"auto_like={like_result.get('ok', False)}"
-        )
-        if not like_result.get("ok"):
-            engagement_note += f"; like_note={like_result.get('error', '')}"
+    if not isinstance(data["review_flags"], list):
+        data["review_flags"] = [
+            str(data["review_flags"])
+        ]
 
-        update_row(
-            service,
-            config["sheet_id"],
-            sheet_name,
-            row_number,
-            {
-                "الحالة": "PUBLISHED",
-                "Facebook Status": "PUBLISHED",
-                "Facebook Post ID": facebook_post_id,
-                "آخر خطأ": "" if like_result.get("ok") else "Optional like not applied.",
-                "وقت آخر تشغيل": current.isoformat(),
-                "ملاحظات": engagement_note,
-            },
-        )
+    if not isinstance(
+        data["legal_sources_used"],
+        list,
+    ):
+        data["legal_sources_used"] = [
+            str(data["legal_sources_used"])
+        ]
 
-        print(f"Facebook publish succeeded: {facebook_post_id}")
-        print(f"First comment added: {comment_result.get('comment_id', '')}")
-        print(f"Auto-like applied: {like_result.get('ok', False)}")
-        print("Facebook publishing + engagement stage completed successfully.")
+    data["post"] = str(
+        data["post"]
+    ).strip()
 
-    except FacebookPublishError as exc:
-        error_text = f"{type(exc).__name__}: {exc}"
-        print("FACEBOOK PUBLISH ERROR")
-        print(error_text)
-        traceback.print_exc()
-        update_row(
-            service,
-            config["sheet_id"],
-            sheet_name,
-            row_number,
-            {
-                "الحالة": "FAILED",
-                "Facebook Status": "FAILED",
-                "آخر خطأ": error_text,
-                "وقت آخر تشغيل": current.isoformat(),
-            },
-        )
-        raise
+    data["image_brief"] = str(
+        data["image_brief"]
+    ).strip()
 
-    except Exception as exc:
-        error_text = f"{type(exc).__name__}: {exc}"
-
-        print("PROCESSING ERROR")
-        print(error_text)
-        traceback.print_exc()
-        update_row(
-            service,
-            config["sheet_id"],
-            sheet_name,
-            row_number,
-            {
-                "الحالة": "FAILED",
-                "Facebook Status": "FAILED",
-                "آخر خطأ": error_text,
-                "وقت آخر تشغيل": current.isoformat(),
-            },
+    if not data["post"]:
+        raise RuntimeError(
+            "Gemini returned an empty post."
         )
 
-        raise
+    if not data["image_brief"]:
+        raise RuntimeError(
+            "Gemini returned an empty image brief."
+        )
 
-
-if __name__ == "__main__":
-    try:
-        main()
-    except ConfigError as exc:
-        print(f"CONFIGURATION ERROR: {exc}")
-        raise SystemExit(2)
+    return data
