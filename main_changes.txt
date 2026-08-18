@@ -1,0 +1,55 @@
+Add this import beside the existing imports in src/main.py:
+
+from facebook_publisher import FacebookPublishError, publish_photo
+
+After the generation/image step and after the existing update_row(...) that writes READY_FOR_SOCIAL_PUBLISH, replace the final print-only ending with the following logic:
+
+        if review_flags_text:
+            print("Facebook publish skipped: item requires legal review.")
+            return
+
+        facebook_result = publish_photo(
+            page_id=config["facebook_page_id"],
+            page_access_token=config["facebook_page_access_token"],
+            graph_version=config["facebook_graph_version"],
+            image_path=image_path,
+            caption=post,
+        )
+
+        facebook_post_id = facebook_result["post_id"]
+
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "الحالة": "PUBLISHED",
+                "Facebook Status": "PUBLISHED",
+                "Facebook Post ID": facebook_post_id,
+                "آخر خطأ": "",
+                "وقت آخر تشغيل": current.isoformat(),
+            },
+        )
+
+        print(f"Facebook publish succeeded: {facebook_post_id}")
+
+And add a dedicated exception branch before the generic Exception branch:
+
+    except FacebookPublishError as exc:
+        error_text = f"{type(exc).__name__}: {exc}"
+        print("FACEBOOK PUBLISH ERROR")
+        print(error_text)
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "الحالة": "FAILED",
+                "Facebook Status": "FAILED",
+                "آخر خطأ": error_text,
+                "وقت آخر تشغيل": current.isoformat(),
+            },
+        )
+        raise

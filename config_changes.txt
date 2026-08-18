@@ -1,0 +1,13 @@
+In src/config.py, extend the returned dict in load_config() with:
+
+        "facebook_page_id": os.getenv(
+            "FACEBOOK_PAGE_ID",
+            "464216073916915",
+        ).strip(),
+        "facebook_page_access_token": _required(
+            "FACEBOOK_PAGE_ACCESS_TOKEN"
+        ),
+        "facebook_graph_version": os.getenv(
+            "FACEBOOK_GRAPH_VERSION",
+            "26.0",
+        ).strip(),

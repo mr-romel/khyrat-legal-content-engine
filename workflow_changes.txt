@@ -1,0 +1,7 @@
+In .github/workflows/publish.yml, add these environment variables under the existing Run content engine env block:
+
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: "464216073916915"
+          FACEBOOK_GRAPH_VERSION: "26.0"
+
+No token value is written into the workflow.
