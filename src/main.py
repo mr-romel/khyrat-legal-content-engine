@@ -34,18 +34,23 @@ GENERATED_DIR = Path("generated")
 
 def github_raw_url(relative_path: str) -> str:
     """
-    Build a raw.githubusercontent.com URL for a generated artifact.
+    Build a raw.githubusercontent.com URL for a generated image.
     """
-    repository = os.getenv(
-        "GITHUB_REPOSITORY",
-        "",
-    ).strip()
+
+    repository = (
+        os.getenv(
+            "GITHUB_REPOSITORY",
+            "",
+        )
+        .strip()
+    )
 
     branch = (
         os.getenv(
             "GITHUB_REF_NAME",
             "main",
-        ).strip()
+        )
+        .strip()
         or "main"
     )
 
@@ -74,17 +79,18 @@ def process_row(
     current,
 ) -> None:
     """
-    Process one due content row through the full pipeline:
+    Process one scheduled content row.
 
-    Google Sheet
-        ↓
-    Gemini content
-        ↓
-    Gemini image
-        ↓
-    Facebook publish
-        ↓
-    Google Sheet status update
+    Pipeline:
+        Google Sheets
+            ↓
+        Gemini Content
+            ↓
+        Cloudflare AI Image
+            ↓
+        Facebook Publish
+            ↓
+        Google Sheets Update
     """
 
     topic = (
@@ -94,7 +100,7 @@ def process_row(
 
     if not topic:
         raise RuntimeError(
-            f"Row {row_number} has no topic in 'الموضوع'."
+            f"Row {row_number} has no topic."
         )
 
     print(
@@ -102,7 +108,7 @@ def process_row(
     )
 
     # ------------------------------------------------------------
-    # Mark row as processing
+    # Mark row as PROCESSING
     # ------------------------------------------------------------
 
     update_row(
@@ -120,7 +126,7 @@ def process_row(
 
     try:
         # ========================================================
-        # 1. GENERATE LEGAL CONTENT
+        # 1. GENERATE LEGAL CONTENT WITH GEMINI
         # ========================================================
 
         print("Generating legal content...")
@@ -169,8 +175,13 @@ def process_row(
                 "Gemini returned an empty image brief."
             )
 
-        if not isinstance(review_flags, list):
-            review_flags = [str(review_flags)]
+        if not isinstance(
+            review_flags,
+            list,
+        ):
+            review_flags = [
+                str(review_flags)
+            ]
 
         if not isinstance(
             legal_sources_used,
@@ -193,7 +204,7 @@ def process_row(
         )
 
         # ========================================================
-        # 2. CREATE SAFE IMAGE FILE NAME
+        # 2. BUILD SAFE IMAGE FILE NAME
         # ========================================================
 
         raw_id = (
@@ -215,22 +226,33 @@ def process_row(
         )
 
         # ========================================================
-        # 3. GENERATE REAL AI IMAGE
+        # 3. GENERATE REAL IMAGE WITH CLOUDFLARE
         # ========================================================
 
-        print("Generating real AI image...")
+        print(
+            "Generating real AI image with Cloudflare..."
+        )
 
         create_legal_image(
             topic=topic,
             image_brief=image_brief,
             output_path=str(image_path),
-            api_key=config["gemini_api_key"],
+            cloudflare_account_id=config[
+                "cloudflare_account_id"
+            ],
+            cloudflare_api_token=config[
+                "cloudflare_api_token"
+            ],
         )
 
         if not image_path.exists():
             raise ImageGenerationError(
                 f"Image was not created: {image_path}"
             )
+
+        # ========================================================
+        # 4. BUILD PUBLIC IMAGE URL
+        # ========================================================
 
         image_url = github_raw_url(
             str(image_path).replace(
@@ -240,7 +262,7 @@ def process_row(
         )
 
         # ========================================================
-        # 4. DETERMINE REVIEW STATUS
+        # 5. DETERMINE REVIEW STATUS
         # ========================================================
 
         generation_status = (
@@ -251,7 +273,7 @@ def process_row(
             generation_status = "NEEDS_REVIEW"
 
         # ========================================================
-        # 5. SAVE GENERATED DATA TO SHEET
+        # 6. SAVE GENERATED CONTENT TO GOOGLE SHEETS
         # ========================================================
 
         update_row(
@@ -277,7 +299,8 @@ def process_row(
                     )
                 ),
                 "آخر خطأ": review_flags_text,
-                "وقت آخر تشغيل": current.isoformat(),
+                "وقت آخر تشغيل":
+                    current.isoformat(),
             },
         )
 
@@ -294,7 +317,7 @@ def process_row(
         )
 
         # ========================================================
-        # 6. LEGAL REVIEW GATE
+        # 7. LEGAL REVIEW GATE
         # ========================================================
 
         if review_flags_text:
@@ -302,11 +325,10 @@ def process_row(
                 "Facebook publish skipped: "
                 "manual legal review is required."
             )
-
             return
 
         # ========================================================
-        # 7. FACEBOOK PUBLISH
+        # 8. PUBLISH TO FACEBOOK
         # ========================================================
 
         print(
@@ -336,12 +358,11 @@ def process_row(
 
         if not facebook_post_id:
             raise FacebookPublishError(
-                "Facebook published the post but "
-                "did not return a Post ID."
+                "Facebook returned no Post ID."
             )
 
         # ========================================================
-        # 8. FINAL SUCCESS UPDATE
+        # 9. FINAL SUCCESS UPDATE
         # ========================================================
 
         update_row(
@@ -352,9 +373,11 @@ def process_row(
             {
                 "الحالة": "PUBLISHED",
                 "Facebook Status": "PUBLISHED",
-                "Facebook Post ID": facebook_post_id,
+                "Facebook Post ID":
+                    facebook_post_id,
                 "آخر خطأ": "",
-                "وقت آخر تشغيل": current.isoformat(),
+                "وقت آخر تشغيل":
+                    current.isoformat(),
             },
         )
 
@@ -367,6 +390,10 @@ def process_row(
             "Facebook publishing stage "
             "completed successfully."
         )
+
+    # ============================================================
+    # IMAGE / FACEBOOK ERRORS
+    # ============================================================
 
     except (
         FacebookPublishError,
@@ -381,7 +408,9 @@ def process_row(
             "PUBLISHING/IMAGE ERROR"
         )
 
-        print(error_text)
+        print(
+            error_text
+        )
 
         update_row(
             service,
@@ -392,11 +421,16 @@ def process_row(
                 "الحالة": "FAILED",
                 "Facebook Status": "FAILED",
                 "آخر خطأ": error_text,
-                "وقت آخر تشغيل": current.isoformat(),
+                "وقت آخر تشغيل":
+                    current.isoformat(),
             },
         )
 
         raise
+
+    # ============================================================
+    # GENERAL ERRORS
+    # ============================================================
 
     except Exception as exc:
 
@@ -408,7 +442,9 @@ def process_row(
             "PROCESSING ERROR"
         )
 
-        print(error_text)
+        print(
+            error_text
+        )
 
         traceback.print_exc()
 
@@ -421,7 +457,8 @@ def process_row(
                 "الحالة": "FAILED",
                 "Facebook Status": "FAILED",
                 "آخر خطأ": error_text,
-                "وقت آخر تشغيل": current.isoformat(),
+                "وقت آخر تشغيل":
+                    current.isoformat(),
             },
         )
 
@@ -429,21 +466,22 @@ def process_row(
 
 
 def main() -> None:
+
     print("=" * 70)
     print(
         "KHYRAT LEGAL CONTENT ENGINE - "
-        "AI IMAGE + FACEBOOK"
+        "CLOUDFLARE IMAGE + FACEBOOK"
     )
     print("=" * 70)
 
     # ============================================================
-    # LOAD CONFIGURATION
+    # 1. LOAD CONFIG
     # ============================================================
 
     config = load_config()
 
     # ============================================================
-    # CONNECT TO GOOGLE SHEETS
+    # 2. GOOGLE SHEETS
     # ============================================================
 
     service = create_service(
@@ -468,25 +506,24 @@ def main() -> None:
 
     if not values:
         print(
-            "Google Sheet is empty. "
-            "Add at least one content row."
+            "Google Sheet is empty."
         )
         return
 
     # ============================================================
-    # VALIDATE HEADERS
+    # 3. HEADER VALIDATION
     # ============================================================
 
     headers = values[0]
 
     if headers[: len(HEADERS)] != HEADERS:
         raise RuntimeError(
-            "Sheet headers do not match the "
-            "expected template."
+            "Sheet headers do not match "
+            "the expected template."
         )
 
     # ============================================================
-    # READ ROWS
+    # 4. READ ROWS
     # ============================================================
 
     rows = []
@@ -505,7 +542,7 @@ def main() -> None:
         )
 
     # ============================================================
-    # CURRENT TIME
+    # 5. CURRENT CAIRO TIME
     # ============================================================
 
     current = now_cairo()
@@ -516,7 +553,7 @@ def main() -> None:
     )
 
     # ============================================================
-    # FIND DUE CONTENT
+    # 6. FIND DUE CONTENT
     # ============================================================
 
     due_rows = []
@@ -561,7 +598,7 @@ def main() -> None:
             )
 
     # ============================================================
-    # NOTHING DUE
+    # 7. NOTHING DUE
     # ============================================================
 
     if not due_rows:
@@ -573,7 +610,7 @@ def main() -> None:
         return
 
     # ============================================================
-    # MVP: PROCESS ONE ITEM PER RUN
+    # 8. PROCESS ONLY ONE ROW IN MVP
     # ============================================================
 
     row_number, row = due_rows[0]
@@ -591,6 +628,7 @@ def main() -> None:
 if __name__ == "__main__":
 
     try:
+
         main()
 
     except ConfigError as exc:
