@@ -7,109 +7,41 @@ from pathlib import Path
 from config import ConfigError, load_config
 from facebook_publisher import (
     FacebookPublishError,
+    create_first_comment,
+    like_post,
     publish_photo,
 )
 from gemini import generate_post
-from image_generator import (
-    ImageGenerationError,
-    create_legal_image,
-)
-from sheets import (
-    HEADERS,
-    create_service,
-    ensure_headers,
-    get_values,
-    row_to_dict,
-    update_row,
-)
-from utils import (
-    is_due,
-    now_cairo,
-    sheet_name_from_range,
-)
-
+from image_generator import ImageGenerationError, create_legal_image
+from linkedin_publisher import LinkedInPublishError, create_comment as li_create_comment, like_post as li_like_post, publish_image_post
+from sheets import HEADERS, create_service, ensure_headers, get_values, row_to_dict, update_row
+from utils import is_due, now_cairo, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
 
 
 def github_raw_url(relative_path: str) -> str:
-    """
-    Build a raw.githubusercontent.com URL for a generated image.
-    """
-
-    repository = (
-        os.getenv(
-            "GITHUB_REPOSITORY",
-            "",
-        )
-        .strip()
-    )
-
-    branch = (
-        os.getenv(
-            "GITHUB_REF_NAME",
-            "main",
-        )
-        .strip()
-        or "main"
-    )
-
+    repository = os.getenv("GITHUB_REPOSITORY", "").strip()
+    branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
     if not repository:
         return ""
+    normalized = relative_path.replace("\\", "/").lstrip("/")
+    return f"https://raw.githubusercontent.com/{repository}/{branch}/{normalized}"
 
-    normalized = (
-        relative_path
-        .replace("\\", "/")
-        .lstrip("/")
-    )
 
+def _build_first_comment(topic: str) -> str:
     return (
-        "https://raw.githubusercontent.com/"
-        f"{repository}/{branch}/{normalized}"
+        f"لو عندك موقف مشابه في موضوع «{topic}»، اكتب سؤالك في التعليقات، "
+        "وشارك البوست مع شخص ممكن يهمه يعرف حقه."
     )
 
 
-def process_row(
-    *,
-    service,
-    config: dict,
-    sheet_name: str,
-    row_number: int,
-    row: dict,
-    current,
-) -> None:
-    """
-    Process one scheduled content row.
-
-    Pipeline:
-        Google Sheets
-            ↓
-        Gemini Content
-            ↓
-        Cloudflare AI Image
-            ↓
-        Facebook Publish
-            ↓
-        Google Sheets Update
-    """
-
-    topic = (
-        row.get("الموضوع", "")
-        or ""
-    ).strip()
-
+def process_row(*, service, config: dict, sheet_name: str, row_number: int, row: dict, current) -> None:
+    topic = (row.get("الموضوع", "") or "").strip()
     if not topic:
-        raise RuntimeError(
-            f"Row {row_number} has no topic."
-        )
+        raise RuntimeError(f"Row {row_number} has no topic.")
 
-    print(
-        f"Processing row {row_number}: {topic}"
-    )
-
-    # ------------------------------------------------------------
-    # Mark row as PROCESSING
-    # ------------------------------------------------------------
+    print(f"Processing row {row_number}: {topic}")
 
     update_row(
         service,
@@ -119,162 +51,59 @@ def process_row(
         {
             "الحالة": "PROCESSING",
             "Facebook Status": "PROCESSING",
+            "LinkedIn Status": "PROCESSING",
             "آخر خطأ": "",
             "وقت آخر تشغيل": current.isoformat(),
         },
     )
 
     try:
-        # ========================================================
-        # 1. GENERATE LEGAL CONTENT WITH GEMINI
-        # ========================================================
-
         print("Generating legal content...")
-
         result = generate_post(
             api_key=config["gemini_api_key"],
             model=config["gemini_model"],
             topic=topic,
-            legal_sources=(
-                row.get(
-                    "المصادر القانونية",
-                    "",
-                )
-                or ""
-            ),
+            legal_sources=row.get("المصادر القانونية", "") or "",
             previous_context="",
         )
 
-        post = (
-            result.get("post", "")
-            or ""
-        ).strip()
-
-        image_brief = (
-            result.get("image_brief", "")
-            or ""
-        ).strip()
-
-        review_flags = result.get(
-            "review_flags",
-            [],
-        )
-
-        legal_sources_used = result.get(
-            "legal_sources_used",
-            [],
-        )
+        post = (result.get("post", "") or "").strip()
+        image_brief = (result.get("image_brief", "") or "").strip()
+        review_flags = result.get("review_flags", [])
+        legal_sources_used = result.get("legal_sources_used", [])
 
         if not post:
-            raise RuntimeError(
-                "Gemini returned an empty post."
-            )
-
+            raise RuntimeError("Gemini returned an empty post.")
         if not image_brief:
-            raise RuntimeError(
-                "Gemini returned an empty image brief."
-            )
+            raise RuntimeError("Gemini returned an empty image brief.")
 
-        if not isinstance(
-            review_flags,
-            list,
-        ):
-            review_flags = [
-                str(review_flags)
-            ]
-
-        if not isinstance(
-            legal_sources_used,
-            list,
-        ):
-            legal_sources_used = [
-                str(legal_sources_used)
-            ]
+        if not isinstance(review_flags, list):
+            review_flags = [str(review_flags)]
+        if not isinstance(legal_sources_used, list):
+            legal_sources_used = [str(legal_sources_used)]
 
         review_flags_text = " | ".join(
-            str(item).strip()
-            for item in review_flags
-            if str(item).strip()
+            str(item).strip() for item in review_flags if str(item).strip()
         )
-
         sources_text = " | ".join(
-            str(item).strip()
-            for item in legal_sources_used
-            if str(item).strip()
+            str(item).strip() for item in legal_sources_used if str(item).strip()
         )
 
-        # ========================================================
-        # 2. BUILD SAFE IMAGE FILE NAME
-        # ========================================================
+        raw_id = (row.get("ID", "") or f"row-{row_number}").strip()
+        safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in raw_id)
+        image_path = GENERATED_DIR / f"{safe_id}.jpg"
 
-        raw_id = (
-            row.get("ID", "")
-            or f"row-{row_number}"
-        ).strip()
-
-        safe_id = "".join(
-            ch
-            if ch.isalnum()
-            or ch in "-_"
-            else "_"
-            for ch in raw_id
-        )
-
-        image_path = (
-            GENERATED_DIR
-            / f"{safe_id}.jpg"
-        )
-
-        # ========================================================
-        # 3. GENERATE REAL IMAGE WITH CLOUDFLARE
-        # ========================================================
-
-        print(
-            "Generating real AI image with Cloudflare..."
-        )
-
+        print("Generating real AI image with Cloudflare...")
         create_legal_image(
             topic=topic,
             image_brief=image_brief,
             output_path=str(image_path),
-            cloudflare_account_id=config[
-                "cloudflare_account_id"
-            ],
-            cloudflare_api_token=config[
-                "cloudflare_api_token"
-            ],
+            cloudflare_account_id=config["cloudflare_account_id"],
+            cloudflare_api_token=config["cloudflare_api_token"],
         )
 
-        if not image_path.exists():
-            raise ImageGenerationError(
-                f"Image was not created: {image_path}"
-            )
-
-        # ========================================================
-        # 4. BUILD PUBLIC IMAGE URL
-        # ========================================================
-
-        image_url = github_raw_url(
-            str(image_path).replace(
-                "\\",
-                "/",
-            )
-        )
-
-        # ========================================================
-        # 5. DETERMINE REVIEW STATUS
-        # ========================================================
-
-        generation_status = (
-            "READY_FOR_SOCIAL_PUBLISH"
-        )
-
-        if review_flags_text:
-            generation_status = "NEEDS_REVIEW"
-
-        # ========================================================
-        # 6. SAVE GENERATED CONTENT TO GOOGLE SHEETS
-        # ========================================================
+        image_url = github_raw_url(str(image_path).replace("\\", "/"))
+        generation_status = "NEEDS_REVIEW" if review_flags_text else "READY_FOR_SOCIAL_PUBLISH"
 
         update_row(
             service,
@@ -286,84 +115,182 @@ def process_row(
                 "المحتوى": post,
                 "وصف الصورة": image_brief,
                 "رابط الصورة": image_url,
-                "Facebook Status": (
-                    "BLOCKED"
-                    if review_flags_text
-                    else "READY"
-                ),
-                "المصادر القانونية": (
-                    sources_text
-                    or row.get(
-                        "المصادر القانونية",
-                        "",
-                    )
-                ),
+                "المصادر القانونية": sources_text or row.get("المصادر القانونية", ""),
                 "آخر خطأ": review_flags_text,
-                "وقت آخر تشغيل":
-                    current.isoformat(),
+                "وقت آخر تشغيل": current.isoformat(),
             },
         )
 
-        print(
-            f"Generated image: {image_path}"
-        )
-
-        print(
-            f"Image URL: {image_url}"
-        )
-
-        print(
-            f"Generation status: {generation_status}"
-        )
-
-        # ========================================================
-        # 7. LEGAL REVIEW GATE
-        # ========================================================
+        print(f"Generated image: {image_path}")
+        print(f"Image URL: {image_url}")
+        print(f"Generation status: {generation_status}")
 
         if review_flags_text:
-            print(
-                "Facebook publish skipped: "
-                "manual legal review is required."
+            update_row(
+                service,
+                config["sheet_id"],
+                sheet_name,
+                row_number,
+                {
+                    "Facebook Status": "BLOCKED",
+                    "LinkedIn Status": "BLOCKED",
+                },
             )
+            print("Publishing skipped: legal review is required.")
             return
 
-        # ========================================================
-        # 8. PUBLISH TO FACEBOOK
-        # ========================================================
+        # --------------------------------------------------------
+        # FACEBOOK
+        # --------------------------------------------------------
+        fb_post_id = (row.get("Facebook Post ID", "") or "").strip()
+        fb_comment_id = (row.get("Facebook Comment ID", "") or "").strip()
 
-        print(
-            "Publishing image + caption to Facebook..."
+        if not fb_post_id:
+            print("Publishing image + caption to Facebook...")
+            fb_result = publish_photo(
+                page_id=config["facebook_page_id"],
+                page_access_token=config["facebook_page_access_token"],
+                graph_version=config["facebook_graph_version"],
+                image_path=image_path,
+                caption=post,
+            )
+            fb_post_id = fb_result["post_id"]
+        else:
+            print(f"Facebook post already recorded: {fb_post_id}")
+
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "Facebook Status": "PUBLISHED",
+                "Facebook Post ID": fb_post_id,
+            },
         )
 
-        facebook_result = publish_photo(
-            page_id=config[
-                "facebook_page_id"
-            ],
-            page_access_token=config[
-                "facebook_page_access_token"
-            ],
-            graph_version=config[
-                "facebook_graph_version"
-            ],
-            image_path=image_path,
-            caption=post,
+        # Best-effort engagement: never undo a successful publish.
+        comment_status = "SKIPPED"
+        like_status = "SKIPPED"
+
+        try:
+            if not fb_comment_id:
+                fb_comment_id = create_first_comment(
+                    post_id=fb_post_id,
+                    page_access_token=config["facebook_page_access_token"],
+                    graph_version=config["facebook_graph_version"],
+                    message=_build_first_comment(topic),
+                )
+            comment_status = "PUBLISHED"
+        except Exception as exc:
+            comment_status = f"FAILED: {exc}"
+            print(f"Facebook first comment warning: {exc}")
+
+        try:
+            like_post(
+                post_id=fb_post_id,
+                page_access_token=config["facebook_page_access_token"],
+                graph_version=config["facebook_graph_version"],
+            )
+            like_status = "LIKED"
+        except Exception as exc:
+            like_status = f"FAILED: {exc}"
+            print(f"Facebook like warning: {exc}")
+
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "Facebook Comment Status": comment_status,
+                "Facebook Comment ID": fb_comment_id,
+                "Facebook Like Status": like_status,
+            },
         )
 
-        facebook_post_id = (
-            facebook_result.get(
-                "post_id"
-            )
-            or ""
-        ).strip()
+        print(f"Facebook publish succeeded: {fb_post_id}")
+        print(f"Facebook comment: {comment_status}")
+        print(f"Facebook like: {like_status}")
 
-        if not facebook_post_id:
-            raise FacebookPublishError(
-                "Facebook returned no Post ID."
+        # --------------------------------------------------------
+        # LINKEDIN
+        # --------------------------------------------------------
+        if not config["linkedin_enabled"]:
+            print("LinkedIn: not configured yet; Facebook stage remains successful.")
+            update_row(
+                service,
+                config["sheet_id"],
+                sheet_name,
+                row_number,
+                {"LinkedIn Status": "NOT_CONFIGURED"},
             )
+        else:
+            li_post_id = (row.get("LinkedIn Post ID", "") or "").strip()
+            if not li_post_id:
+                print("Publishing image + caption to LinkedIn...")
+                li_result = publish_image_post(
+                    token=config["linkedin_access_token"],
+                    author_urn=config["linkedin_author_urn"],
+                    image_path=image_path,
+                    commentary=post,
+                    version=config["linkedin_version"],
+                )
+                li_post_id = li_result["post_urn"]
+                li_image_id = li_result["image_urn"]
+                update_row(
+                    service,
+                    config["sheet_id"],
+                    sheet_name,
+                    row_number,
+                    {
+                        "LinkedIn Status": "PUBLISHED",
+                        "LinkedIn Post ID": li_post_id,
+                        "LinkedIn Image ID": li_image_id,
+                    },
+                )
 
-        # ========================================================
-        # 9. FINAL SUCCESS UPDATE
-        # ========================================================
+                li_comment_status = "SKIPPED"
+                li_like_status = "SKIPPED"
+                try:
+                    li_create_comment(
+                        token=config["linkedin_access_token"],
+                        actor_urn=config["linkedin_author_urn"],
+                        post_urn=li_post_id,
+                        message=_build_first_comment(topic),
+                        version=config["linkedin_version"],
+                    )
+                    li_comment_status = "PUBLISHED"
+                except Exception as exc:
+                    li_comment_status = f"FAILED: {exc}"
+                    print(f"LinkedIn comment warning: {exc}")
+
+                try:
+                    li_like_post(
+                        token=config["linkedin_access_token"],
+                        actor_urn=config["linkedin_author_urn"],
+                        post_urn=li_post_id,
+                        version=config["linkedin_version"],
+                    )
+                    li_like_status = "LIKED"
+                except Exception as exc:
+                    li_like_status = f"FAILED: {exc}"
+                    print(f"LinkedIn like warning: {exc}")
+
+                update_row(
+                    service,
+                    config["sheet_id"],
+                    sheet_name,
+                    row_number,
+                    {
+                        "LinkedIn Status": "PUBLISHED",
+                    },
+                )
+                print(f"LinkedIn publish succeeded: {li_post_id}")
+                print(f"LinkedIn comment: {li_comment_status}")
+                print(f"LinkedIn like: {li_like_status}")
+            else:
+                print(f"LinkedIn post already recorded: {li_post_id}")
 
         update_row(
             service,
@@ -372,46 +299,17 @@ def process_row(
             row_number,
             {
                 "الحالة": "PUBLISHED",
-                "Facebook Status": "PUBLISHED",
-                "Facebook Post ID":
-                    facebook_post_id,
                 "آخر خطأ": "",
-                "وقت آخر تشغيل":
-                    current.isoformat(),
+                "وقت آخر تشغيل": current.isoformat(),
             },
         )
 
-        print(
-            "Facebook publish succeeded: "
-            f"{facebook_post_id}"
-        )
+        print("Full social publishing pipeline completed successfully.")
 
-        print(
-            "Facebook publishing stage "
-            "completed successfully."
-        )
-
-    # ============================================================
-    # IMAGE / FACEBOOK ERRORS
-    # ============================================================
-
-    except (
-        FacebookPublishError,
-        ImageGenerationError,
-    ) as exc:
-
-        error_text = (
-            f"{type(exc).__name__}: {exc}"
-        )
-
-        print(
-            "PUBLISHING/IMAGE ERROR"
-        )
-
-        print(
-            error_text
-        )
-
+    except (FacebookPublishError, ImageGenerationError, LinkedInPublishError) as exc:
+        error_text = f"{type(exc).__name__}: {exc}"
+        print("PIPELINE ERROR")
+        print(error_text)
         update_row(
             service,
             config["sheet_id"],
@@ -419,35 +317,16 @@ def process_row(
             row_number,
             {
                 "الحالة": "FAILED",
-                "Facebook Status": "FAILED",
                 "آخر خطأ": error_text,
-                "وقت آخر تشغيل":
-                    current.isoformat(),
+                "وقت آخر تشغيل": current.isoformat(),
             },
         )
-
         raise
-
-    # ============================================================
-    # GENERAL ERRORS
-    # ============================================================
-
     except Exception as exc:
-
-        error_text = (
-            f"{type(exc).__name__}: {exc}"
-        )
-
-        print(
-            "PROCESSING ERROR"
-        )
-
-        print(
-            error_text
-        )
-
+        error_text = f"{type(exc).__name__}: {exc}"
+        print("PROCESSING ERROR")
+        print(error_text)
         traceback.print_exc()
-
         update_row(
             service,
             config["sheet_id"],
@@ -455,134 +334,49 @@ def process_row(
             row_number,
             {
                 "الحالة": "FAILED",
-                "Facebook Status": "FAILED",
                 "آخر خطأ": error_text,
-                "وقت آخر تشغيل":
-                    current.isoformat(),
+                "وقت آخر تشغيل": current.isoformat(),
             },
         )
-
         raise
 
 
 def main() -> None:
-
     print("=" * 70)
-    print(
-        "KHYRAT LEGAL CONTENT ENGINE - "
-        "CLOUDFLARE IMAGE + FACEBOOK"
-    )
+    print("KHYRAT LEGAL CONTENT ENGINE - FULL SOCIAL PIPELINE")
     print("=" * 70)
-
-    # ============================================================
-    # 1. LOAD CONFIG
-    # ============================================================
 
     config = load_config()
-
-    # ============================================================
-    # 2. GOOGLE SHEETS
-    # ============================================================
-
-    service = create_service(
-        config["service_account_info"]
-    )
-
-    sheet_name = sheet_name_from_range(
-        config["sheet_range"]
-    )
-
-    ensure_headers(
-        service,
-        config["sheet_id"],
-        sheet_name,
-    )
+    service = create_service(config["service_account_info"])
+    sheet_name = sheet_name_from_range(config["sheet_range"])
+    ensure_headers(service, config["sheet_id"], sheet_name)
 
     values = get_values(
         service,
         config["sheet_id"],
-        f"{sheet_name}!A:Q",
+        f"{sheet_name}!A:U",
     )
 
     if not values:
-        print(
-            "Google Sheet is empty."
-        )
+        print("Google Sheet is empty.")
         return
 
-    # ============================================================
-    # 3. HEADER VALIDATION
-    # ============================================================
-
     headers = values[0]
-
     if headers[: len(HEADERS)] != HEADERS:
         raise RuntimeError(
-            "Sheet headers do not match "
-            "the expected template."
+            "Sheet headers do not match the current template."
         )
-
-    # ============================================================
-    # 4. READ ROWS
-    # ============================================================
-
-    rows = []
-
-    for index, raw_row in enumerate(
-        values[1:],
-        start=2,
-    ):
-        row = row_to_dict(raw_row)
-
-        rows.append(
-            (
-                index,
-                row,
-            )
-        )
-
-    # ============================================================
-    # 5. CURRENT CAIRO TIME
-    # ============================================================
 
     current = now_cairo()
-
-    print(
-        f"Current Cairo time: "
-        f"{current.isoformat()}"
-    )
-
-    # ============================================================
-    # 6. FIND DUE CONTENT
-    # ============================================================
+    print(f"Current Cairo time: {current.isoformat()}")
 
     due_rows = []
-
-    for row_number, row in rows:
-
+    for row_number, raw_row in enumerate(values[1:], start=2):
+        row = row_to_dict(raw_row)
         try:
-
-            if is_due(
-                row,
-                current,
-            ):
-                due_rows.append(
-                    (
-                        row_number,
-                        row,
-                    )
-                )
-
+            if is_due(row, current):
+                due_rows.append((row_number, row))
         except Exception as exc:
-
-            error_text = str(exc)
-
-            print(
-                f"Row {row_number} "
-                f"schedule validation failed: "
-                f"{error_text}"
-            )
-
             update_row(
                 service,
                 config["sheet_id"],
@@ -590,31 +384,18 @@ def main() -> None:
                 row_number,
                 {
                     "الحالة": "FAILED",
-                    "Facebook Status": "FAILED",
-                    "آخر خطأ": error_text,
-                    "وقت آخر تشغيل":
-                        current.isoformat(),
+                    "آخر خطأ": str(exc),
+                    "وقت آخر تشغيل": current.isoformat(),
                 },
             )
 
-    # ============================================================
-    # 7. NOTHING DUE
-    # ============================================================
-
     if not due_rows:
-
-        print(
-            "No content is due right now."
-        )
-
+        print("No content is due right now.")
         return
 
-    # ============================================================
-    # 8. PROCESS ONLY ONE ROW IN MVP
-    # ============================================================
-
+    # Still one scheduled item per invocation, but all social actions for that
+    # item happen inside the same run.
     row_number, row = due_rows[0]
-
     process_row(
         service=service,
         config=config,
@@ -626,15 +407,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-
     try:
-
         main()
-
     except ConfigError as exc:
-
-        print(
-            f"CONFIGURATION ERROR: {exc}"
-        )
-
+        print(f"CONFIGURATION ERROR: {exc}")
         raise SystemExit(2)
