@@ -13,6 +13,7 @@ from sheets import (
 )
 from gemini import generate_post
 from image_generator import create_legal_image
+from facebook_publisher import FacebookPublishError, publish_photo
 from utils import now_cairo, is_due, sheet_name_from_range
 
 
@@ -35,9 +36,8 @@ def github_raw_url(relative_path: str) -> str:
 
 def main():
     print("=" * 70)
-    print("KHYRAT LEGAL CONTENT ENGINE - MVP")
+    print("KHYRAT LEGAL CONTENT ENGINE - FACEBOOK PUBLISHING")
     print("=" * 70)
-
     config = load_config()
     service = create_service(config["service_account_info"])
 
@@ -68,7 +68,6 @@ def main():
 
     current = now_cairo()
     print(f"Current Cairo time: {current.isoformat()}")
-
     due_rows = []
     for row_number, row in rows:
         try:
@@ -102,7 +101,6 @@ def main():
         )
 
     print(f"Processing row {row_number}: {topic}")
-
     update_row(
         service,
         config["sheet_id"],
@@ -110,6 +108,7 @@ def main():
         row_number,
         {
             "الحالة": "PROCESSING",
+            "Facebook Status": "PROCESSING",
             "آخر خطأ": "",
             "وقت آخر تشغيل": current.isoformat(),
         },
@@ -123,7 +122,6 @@ def main():
             legal_sources=row.get("المصادر القانونية", ""),
             previous_context="",
         )
-
         post = result["post"].strip()
         image_brief = result["image_brief"].strip()
 
@@ -155,7 +153,6 @@ def main():
         )
 
         status = "READY_FOR_SOCIAL_PUBLISH"
-
         if review_flags_text:
             status = "NEEDS_REVIEW"
 
@@ -169,6 +166,7 @@ def main():
                 "المحتوى": post,
                 "وصف الصورة": image_brief,
                 "رابط الصورة": image_url,
+                "Facebook Status": "READY" if not review_flags_text else "BLOCKED",
                 "المصادر القانونية": sources_text or row.get("المصادر القانونية", ""),
                 "آخر خطأ": review_flags_text,
                 "وقت آخر تشغيل": current.isoformat(),
@@ -177,15 +175,22 @@ def main():
 
         print(f"Generated image: {image_path}")
         print(f"Image URL: {image_url}")
-        print(f"Status: {status}")
-        print("The MVP generation stage completed successfully.")
+        print(f"Generation status: {status}")
 
-    except Exception as exc:
-        error_text = f"{type(exc).__name__}: {exc}"
+        # Never publish automatically when legal review is required.
+        if review_flags_text:
+            print("Facebook publish skipped: item requires legal review.")
+            return
 
-        print("PROCESSING ERROR")
-        print(error_text)
-        traceback.print_exc()
+        facebook_result = publish_photo(
+            page_id=config["facebook_page_id"],
+            page_access_token=config["facebook_page_access_token"],
+            graph_version=config["facebook_graph_version"],
+            image_path=image_path,
+            caption=post,
+        )
+
+        facebook_post_id = facebook_result["post_id"]
 
         update_row(
             service,
@@ -193,7 +198,50 @@ def main():
             sheet_name,
             row_number,
             {
+                "الحالة": "PUBLISHED",
+                "Facebook Status": "PUBLISHED",
+                "Facebook Post ID": facebook_post_id,
+                "آخر خطأ": "",
+                "وقت آخر تشغيل": current.isoformat(),
+            },
+        )
+
+        print(f"Facebook publish succeeded: {facebook_post_id}")
+        print("Facebook publishing stage completed successfully.")
+
+    except FacebookPublishError as exc:
+        error_text = f"{type(exc).__name__}: {exc}"
+        print("FACEBOOK PUBLISH ERROR")
+        print(error_text)
+        traceback.print_exc()
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
                 "الحالة": "FAILED",
+                "Facebook Status": "FAILED",
+                "آخر خطأ": error_text,
+                "وقت آخر تشغيل": current.isoformat(),
+            },
+        )
+        raise
+
+    except Exception as exc:
+        error_text = f"{type(exc).__name__}: {exc}"
+
+        print("PROCESSING ERROR")
+        print(error_text)
+        traceback.print_exc()
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "الحالة": "FAILED",
+                "Facebook Status": "FAILED",
                 "آخر خطأ": error_text,
                 "وقت آخر تشغيل": current.isoformat(),
             },
