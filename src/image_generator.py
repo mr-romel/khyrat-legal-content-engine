@@ -18,18 +18,14 @@ IMAGE_ENDPOINT = (
     "@cf/black-forest-labs/flux-1-schnell"
 )
 
+MAX_PROMPT_LENGTH = 1800
+
 
 class ImageGenerationError(RuntimeError):
     """Raised when image generation fails."""
 
 
 def _make_seed(topic: str) -> int:
-    """
-    Create a deterministic seed from the topic.
-
-    Same topic -> same seed.
-    Different topic -> different seed.
-    """
     digest = hashlib.sha256(
         topic.encode("utf-8")
     ).hexdigest()
@@ -49,11 +45,8 @@ def _extract_base64_image(
         .lower()
     )
 
-    # Some Cloudflare responses may be returned directly
-    # as binary image data.
     if content_type.startswith("image/"):
-        if response.content:
-            return response.content
+        return response.content
 
     try:
         payload: dict[str, Any] = response.json()
@@ -100,14 +93,6 @@ def _convert_to_4x5(
     image_bytes: bytes,
     output_path: Path,
 ) -> None:
-    """
-    FLUX Schnell commonly returns a landscape image.
-    We convert it into a professional 4:5 portrait crop.
-
-    The crop is centered slightly above the middle because
-    human faces and focal subjects are commonly positioned
-    in the upper-middle composition.
-    """
 
     try:
         image = Image.open(
@@ -119,20 +104,14 @@ def _convert_to_4x5(
             f"Could not decode generated image: {exc}"
         ) from exc
 
-    target_ratio = 4 / 5
-    source_ratio = image.width / image.height
+    target_size = (1024, 1280)
 
-    if abs(source_ratio - target_ratio) < 0.02:
-        final_image = image
-
-    else:
-        # ImageOps.fit performs a high-quality cover crop.
-        final_image = ImageOps.fit(
-            image,
-            (1024, 1280),
-            method=Image.Resampling.LANCZOS,
-            centering=(0.5, 0.43),
-        )
+    final_image = ImageOps.fit(
+        image,
+        target_size,
+        method=Image.Resampling.LANCZOS,
+        centering=(0.5, 0.43),
+    )
 
     output_path.parent.mkdir(
         parents=True,
@@ -147,6 +126,82 @@ def _convert_to_4x5(
     )
 
 
+def _build_prompt(
+    topic: str,
+    image_brief: str,
+) -> str:
+    """
+    Build a compact FLUX prompt that stays safely below
+    Cloudflare's 2048-character limit.
+    """
+
+    # Keep the Gemini brief, but reserve room for our fixed instructions.
+    brief_budget = 950
+
+    compact_brief = (
+        image_brief
+        .strip()
+        .replace("\n\n", "\n")
+    )
+
+    if len(compact_brief) > brief_budget:
+        compact_brief = (
+            compact_brief[:brief_budget]
+            .rsplit(" ", 1)[0]
+            .strip()
+        )
+
+    topic_budget = 220
+
+    compact_topic = topic.strip()
+
+    if len(compact_topic) > topic_budget:
+        compact_topic = (
+            compact_topic[:topic_budget]
+            .rsplit(" ", 1)[0]
+            .strip()
+        )
+
+    fixed_instruction = """
+Create one realistic cinematic editorial photograph.
+
+Story:
+{topic}
+
+Visual direction:
+{brief}
+
+Show the actual people, action, important object/document,
+setting and emotion described above.
+
+Egyptian context when relevant.
+Professional documentary/editorial photography.
+Natural human expressions and body language.
+Strong focal subject.
+Portrait-friendly composition, 4:5 crop.
+Realistic lighting and materials.
+
+ABSOLUTELY NO:
+text, letters, Arabic writing, English writing, headlines,
+captions, logos, watermark, poster, infographic, collage,
+UI, split screen, generic lawyer-at-desk scene,
+generic justice scales, random legal symbols.
+""".strip().format(
+        topic=compact_topic,
+        brief=compact_brief,
+    )
+
+    # Final safety guard.
+    if len(fixed_instruction) > MAX_PROMPT_LENGTH:
+        fixed_instruction = (
+            fixed_instruction[:MAX_PROMPT_LENGTH]
+            .rsplit(" ", 1)[0]
+            .strip()
+        )
+
+    return fixed_instruction
+
+
 def create_legal_image(
     *,
     topic: str,
@@ -157,23 +212,19 @@ def create_legal_image(
 ) -> str:
 
     account_id = (
-        cloudflare_account_id
-        or ""
+        cloudflare_account_id or ""
     ).strip()
 
     api_token = (
-        cloudflare_api_token
-        or ""
+        cloudflare_api_token or ""
     ).strip()
 
     topic = (
-        topic
-        or ""
+        topic or ""
     ).strip()
 
     image_brief = (
-        image_brief
-        or ""
+        image_brief or ""
     ).strip()
 
     if not account_id:
@@ -196,135 +247,24 @@ def create_legal_image(
             "Image brief is empty."
         )
 
-    # ------------------------------------------------------------
-    # IMPORTANT:
-    # We are deliberately NOT asking FLUX for a generic
-    # "legal image".
-    #
-    # We force it to depict the actual story.
-    # ------------------------------------------------------------
+    prompt = _build_prompt(
+        topic,
+        image_brief,
+    )
 
-    prompt = f"""
-EDITORIAL LEGAL STORY IMAGE
-
-Create ONE highly specific cinematic editorial photograph
-that visually depicts the exact legal problem described below.
-
-LEGAL TOPIC:
-{topic}
-
-VISUAL DIRECTOR'S BRIEF:
-{image_brief}
-
-CORE OBJECTIVE:
-A person should understand the situation from the image alone,
-without reading the caption.
-
-SCENE REQUIREMENTS:
-
-- Depict a specific real-life event, not an abstract concept.
-- Show the people involved in the actual problem.
-- Show what they are physically doing.
-- Show the important object/document involved.
-- Show the emotional tension appropriate to the situation.
-- Use a realistic Egyptian setting whenever the subject naturally
-  requires an Egyptian context.
-- The image must feel like a moment captured from a real story.
-
-CAMERA:
-
-Professional editorial photography.
-Medium shot or medium close-up when useful.
-Strong focal subject.
-Natural depth of field.
-Subtle cinematic lighting.
-Realistic skin and clothing.
-Natural hands and body language.
-Believable environment.
-
-LEGAL STORYTELLING:
-
-The central object or action must correspond directly to the topic.
-
-Do not replace the actual story with generic legal symbolism.
-
-For example:
-If the subject concerns a trust receipt, visually show
-people handling/signing/handing over the relevant document
-in a realistic dispute-related situation.
-
-If the subject concerns an employment termination,
-visually show an employee receiving a termination document
-inside a realistic workplace.
-
-If the subject concerns a contract,
-visually show a person reviewing or signing a contract
-with attention to the relevant clause.
-
-These are principles, not instructions to copy those examples.
-
-VISUAL PRIORITY:
-
-1. Actual human/legal situation.
-2. Important document/object.
-3. Human emotion.
-4. Environment.
-5. Cinematic composition.
-
-STRICT NEGATIVE RULES:
-
-NO Arabic text.
-NO English text.
-NO readable writing.
-NO headline.
-NO caption.
-NO typography.
-NO logo.
-NO watermark.
-NO poster.
-NO infographic.
-NO presentation slide.
-NO quote card.
-NO social-media template.
-NO collage.
-NO split screen.
-NO generic courthouse.
-NO generic scales of justice.
-NO floating legal icons.
-NO random books.
-NO generic lawyer sitting at a desk.
-NO abstract blue legal background.
-NO stock-photo composition.
-NO unrelated objects.
-
-The result must NOT look like an AI-generated social media graphic.
-
-It should look like:
-a premium editorial photograph from a serious Egyptian legal
-journalism or documentary story.
-
-Portrait-oriented composition is preferred.
-Keep the primary subject near the center.
-Avoid placing the key subject at the extreme left or right
-because the final image will be cropped to a 4:5 portrait composition.
-
-FINAL IMAGE:
-photorealistic, cinematic, credible, emotionally clear,
-professionally art-directed, realistic Egyptian context,
-single coherent scene.
-""".strip()
-
-    seed = _make_seed(topic)
-
-    request_body = {
-        "prompt": prompt,
-        "steps": 8,
-        "seed": seed,
-    }
+    print(
+        f"Cloudflare prompt length: {len(prompt)} characters"
+    )
 
     endpoint = IMAGE_ENDPOINT.format(
         account_id=account_id,
     )
+
+    request_body = {
+        "prompt": prompt,
+        "steps": 8,
+        "seed": _make_seed(topic),
+    }
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -346,8 +286,10 @@ single coherent scene.
         ) from exc
 
     if not response.ok:
+
         try:
             error_payload = response.json()
+
         except ValueError:
             error_payload = response.text
 
@@ -357,13 +299,9 @@ single coherent scene.
             f"{error_payload}"
         )
 
-    try:
-        image_bytes = _extract_base64_image(
-            response
-        )
-
-    except ImageGenerationError:
-        raise
+    image_bytes = _extract_base64_image(
+        response
+    )
 
     if not image_bytes:
         raise ImageGenerationError(
@@ -373,10 +311,6 @@ single coherent scene.
     output = Path(
         output_path
     )
-
-    # ------------------------------------------------------------
-    # Convert to final 4:5 JPG
-    # ------------------------------------------------------------
 
     _convert_to_4x5(
         image_bytes,
@@ -392,8 +326,8 @@ single coherent scene.
         )
 
     print(
-        "Cloudflare FLUX image generated successfully:"
-        f" {output}"
+        "Cloudflare FLUX image generated successfully: "
+        f"{output}"
     )
 
     print(
