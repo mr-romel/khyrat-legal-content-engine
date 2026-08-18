@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
+    # 10:00 صباحًا و 8:00 مساءً بتوقيت القاهرة
     - cron: "0 10,20 * * *"
       timezone: "Africa/Cairo"
 
@@ -15,21 +16,35 @@ jobs:
 
   publish:
 
+    name: Generate, Create Image & Publish
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
 
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      # ==========================================================
+      # 1. CHECKOUT
+      # ==========================================================
 
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+
+      # ==========================================================
+      # 2. PYTHON
+      # ==========================================================
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: "pip"
 
+
+      # ==========================================================
+      # 3. INSTALL DEPENDENCIES
+      # ==========================================================
 
       - name: Install dependencies
         run: |
@@ -37,35 +52,93 @@ jobs:
           pip install -r requirements.txt
 
 
+      # ==========================================================
+      # 4. VERIFY ENVIRONMENT
+      # ==========================================================
+
+      - name: Verify Python environment
+        run: |
+          python --version
+          pip --version
+          python -c "import requests; print('requests:', requests.__version__)"
+          python -c "import google.genai; print('google-genai installed')"
+
+
+      # ==========================================================
+      # 5. RUN KHYRAT LEGAL CONTENT ENGINE
+      # ==========================================================
+
       - name: Run Khyrat Legal Content Engine
         env:
+
+          # ------------------------------------------------------
+          # Google Sheets
+          # ------------------------------------------------------
+
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
 
+
+          # ------------------------------------------------------
+          # Gemini - TEXT ONLY
+          # ------------------------------------------------------
+
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+
+
+          # ------------------------------------------------------
+          # Cloudflare Workers AI - IMAGE
+          # ------------------------------------------------------
+
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+
+          # ------------------------------------------------------
+          # Facebook
+          # ------------------------------------------------------
 
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
 
           FACEBOOK_PAGE_ID: "464216073916915"
           FACEBOOK_GRAPH_VERSION: "26.0"
 
+
         run: |
           python src/main.py
 
 
+      # ==========================================================
+      # 6. COMMIT GENERATED IMAGES
+      # ==========================================================
+
       - name: Commit generated images
         if: success()
         run: |
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add generated/ || true
 
           if git diff --cached --quiet; then
-            echo "No generated files to commit."
+            echo "No generated images to commit."
           else
-            git commit -m "chore: add generated legal content image"
+            git commit -m "chore: add generated legal image"
             git push
           fi
+
+
+      # ==========================================================
+      # 7. FINAL STATUS
+      # ==========================================================
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "KHYRAT LEGAL CONTENT ENGINE"
+          echo "Workflow completed."
+          echo "=============================================="
