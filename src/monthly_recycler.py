@@ -3,8 +3,8 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date
 
-from sheets import get_values, insert_row_at_top, row_to_dict
-from utils import parse_date
+from src.sheets import get_values, insert_row_at_top, row_to_dict
+from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
 
@@ -85,11 +85,7 @@ def recycle_month_if_needed(
     sheet_name: str,
     current: date,
 ) -> int:
-    """Create the current month's recycled queue once and self-heal if day 1 was missed.
-
-    Existing rows are never edited or deleted. New rows are inserted directly below
-    the header so the newest month's unpublished queue stays at the top.
-    """
+    """Create the current month's recycled queue once and self-heal if day 1 was missed."""
     values = get_values(
         service,
         spreadsheet_id,
@@ -115,7 +111,6 @@ def recycle_month_if_needed(
         )
         return 0
 
-    # On a late/self-healing run, only future eligible days are created.
     days = [
         day
         for day in _even_days(current.year, current.month)
@@ -130,31 +125,17 @@ def recycle_month_if_needed(
         source = sources[index % len(sources)]
         original_topic = source["الموضوع"].strip()
         angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
-        recycled_topic = (
-            f"{original_topic} — زاوية جديدة: {angle}"
-        )
-        posting_time = (
-            source.get("ساعة النشر", "").strip()
-            or "14:00"
-        )
+        recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
+        posting_time = source.get("ساعة النشر", "").strip() or "14:00"
 
         row = {
-            "ID": (
-                f"{current_key.replace('-', '')}"
-                f"-R{index + 1:02d}"
-            ),
+            "ID": f"{current_key.replace('-', '')}-R{index + 1:02d}",
             "الموضوع": recycled_topic,
-            "تاريخ النشر": (
-                f"{current.year:04d}-{current.month:02d}-"
-                f"{day:02d}"
-            ),
+            "تاريخ النشر": f"{current.year:04d}-{current.month:02d}-{day:02d}",
             "ساعة النشر": posting_time,
             "نوع الجدولة": "DATE_TIME",
             "الحالة": "READY",
-            "المصادر القانونية": source.get(
-                "المصادر القانونية",
-                "",
-            ),
+            "المصادر القانونية": source.get("المصادر القانونية", ""),
             "ملاحظات": (
                 f"{RECYCLE_MARKER}:{current_key} | "
                 f"الموضوع الأصلي: {original_topic} | "
@@ -172,7 +153,5 @@ def recycle_month_if_needed(
         )
         created += 1
 
-    print(
-        f"Monthly recycler: created {created} rows for {current_key}."
-    )
+    print(f"Monthly recycler: created {created} rows for {current_key}.")
     return created
