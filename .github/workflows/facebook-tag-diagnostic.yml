@@ -9,7 +9,8 @@ jobs:
 
     env:
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
-      FACEBOOK_PAGE_ID: "464216073916915"
+      EXPECTED_PAGE_ID: "464216073916915"
+      EXPECTED_PAGE_NAME: "اسأل محمود - مستشار قانوني للشركات"
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
 
     steps:
@@ -36,16 +37,12 @@ jobs:
             exit 1
           fi
 
-          if [ -z "$FACEBOOK_PAGE_ID" ]; then
-            echo "ERROR: FACEBOOK_PAGE_ID is missing."
-            exit 1
-          fi
-
           echo "Facebook configuration detected."
-          echo "Page ID: $FACEBOOK_PAGE_ID"
+          echo "Expected Page ID: $EXPECTED_PAGE_ID"
+          echo "Expected Page name: $EXPECTED_PAGE_NAME"
           echo "Graph API version: $FACEBOOK_GRAPH_VERSION"
 
-      - name: Inspect Page token
+      - name: Inspect Page token identity
         shell: bash
         run: |
           python - <<'PY'
@@ -53,13 +50,15 @@ jobs:
           import requests
 
           token = os.environ["FACEBOOK_PAGE_ACCESS_TOKEN"]
-          page_id = os.environ["FACEBOOK_PAGE_ID"]
           version = os.environ["FACEBOOK_GRAPH_VERSION"]
 
-          url = f"https://graph.facebook.com/{version}/{page_id}"
+          expected_page_id = os.environ["EXPECTED_PAGE_ID"]
+          expected_page_name = os.environ["EXPECTED_PAGE_NAME"]
+
+          url = f"https://graph.facebook.com/{version}/me"
 
           params = {
-              "fields": "id,name,link",
+              "fields": "id,name",
               "access_token": token,
           }
 
@@ -78,19 +77,35 @@ jobs:
               print(response.text[:1000])
               raise SystemExit(1)
 
-          if response.ok:
-              print("Facebook Page access: OK")
-              print("Page ID:", data.get("id"))
-              print("Page name:", data.get("name"))
-              print("Page link:", data.get("link"))
-          else:
-              print("Facebook Page access: FAILED")
-              print("Response:")
-              print(data)
+          print("Facebook response:")
+          print(data)
+
+          if not response.ok:
+              print()
+              print("Facebook Page token validation: FAILED")
               raise SystemExit(1)
+
+          page_id = data.get("id")
+          page_name = data.get("name")
+
+          print()
+          print("Facebook Page token validation: OK")
+          print("Resolved Page ID:", page_id)
+          print("Resolved Page name:", page_name)
+
+          if page_id != expected_page_id:
+              print()
+              print("ERROR: The Page Access Token does not belong to")
+              print("the expected page.")
+              print("Expected:", expected_page_id)
+              print("Received:", page_id)
+              raise SystemExit(1)
+
+          print()
+          print("SUCCESS: Page Access Token belongs to the expected page.")
           PY
 
-      - name: Inspect available token permissions
+      - name: Inspect Page token permissions
         shell: bash
         run: |
           python - <<'PY'
@@ -121,13 +136,16 @@ jobs:
               print(response.text[:1000])
               raise SystemExit(1)
 
-          if response.ok:
-              print("Token permissions response:")
-              print(data)
-          else:
-              print("Could not inspect token permissions.")
-              print(data)
+          print("Permissions response:")
+          print(data)
+
+          if not response.ok:
+              print()
+              print("Could not inspect Page Access Token permissions.")
               raise SystemExit(1)
+
+          print()
+          print("Page Access Token permissions inspection: OK")
           PY
 
       - name: Test personal profile lookup
@@ -143,15 +161,21 @@ jobs:
           version = os.environ["FACEBOOK_GRAPH_VERSION"]
           profile_url = os.environ["PERSONAL_PROFILE_URL"]
 
-          print("Personal profile under test:")
+          print("==============================================")
+          print("PERSONAL PROFILE DIAGNOSTIC")
+          print("==============================================")
+          print("Profile under test:")
           print(profile_url)
-
           print()
-          print("IMPORTANT:")
-          print("This step does NOT publish a post.")
-          print("This step does NOT create a tag.")
-          print("It only tests whether the current Page access token can resolve")
-          print("the supplied Facebook profile through the Graph API.")
+          print("This step:")
+          print("- Does NOT publish a post.")
+          print("- Does NOT create a tag.")
+          print("- Does NOT create a comment.")
+          print("- Does NOT create a like.")
+          print("- Does NOT modify the production workflow.")
+          print()
+          print("It only tests whether Meta allows the current")
+          print("Page Access Token to resolve this personal profile.")
 
           username = "MODY.ROMEL.UA07"
 
@@ -174,7 +198,7 @@ jobs:
           try:
               data = response.json()
           except Exception:
-              print("Non-JSON response:")
+              print("Facebook returned a non-JSON response.")
               print(response.text[:1000])
               raise SystemExit(0)
 
@@ -183,29 +207,44 @@ jobs:
 
           if response.ok:
               print()
-              print("RESULT: Facebook resolved the profile.")
+              print("==============================================")
+              print("RESULT: PROFILE RESOLVED")
+              print("==============================================")
               print("Profile ID:", data.get("id"))
               print("Profile name:", data.get("name"))
+              print()
+              print("Meta allowed the current Page token to")
+              print("resolve the supplied profile.")
           else:
               print()
+              print("==============================================")
+              print("RESULT: PROFILE NOT RESOLVED")
+              print("==============================================")
               print(
-                  "RESULT: Facebook did NOT allow this Page token "
-                  "to resolve the personal profile through this request."
+                  "Meta did not allow the current Page token "
+                  "to resolve this personal profile through "
+                  "this Graph API request."
+              )
+              print()
+              print(
+                  "IMPORTANT: This does NOT prove that Facebook "
+                  "Page tagging through the Facebook UI is impossible."
               )
               print(
-                  "This is diagnostic only and does not mean Page tagging "
-                  "is impossible through the Facebook UI."
+                  "It only proves that this specific Graph API "
+                  "lookup is not available with the current token."
               )
-          PY
 
       - name: Final diagnostic summary
+        if: always()
         run: |
           echo "=============================================="
           echo "FACEBOOK TAG DIAGNOSTIC"
           echo "=============================================="
-          echo "No post was published."
-          echo "No comment was created."
-          echo "No like was created."
-          echo "No tag was created."
-          echo "Production workflow was not touched."
+          echo "Production workflow: NOT TOUCHED"
+          echo "Production publishing: NOT RUN"
+          echo "Facebook post created: NO"
+          echo "Facebook comment created: NO"
+          echo "Facebook like created: NO"
+          echo "Facebook tag created: NO"
           echo "=============================================="
