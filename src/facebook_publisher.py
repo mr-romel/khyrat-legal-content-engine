@@ -2,72 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import requests
 
 
 class FacebookPublishError(RuntimeError):
-    pass
+    """Facebook API operation failed."""
 
 
-def _headers(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
+def _api_error(
+    action: str,
+    response: requests.Response,
+) -> FacebookPublishError:
 
-
-def _parse_json(response: requests.Response) -> dict[str, Any]:
     try:
         payload = response.json()
-    except ValueError as exc:
-        raise FacebookPublishError(
-            f"Facebook returned non-JSON response (HTTP {response.status_code})."
-        ) from exc
-    if not isinstance(payload, dict):
-        raise FacebookPublishError("Facebook returned an unexpected response.")
-    return payload
+    except ValueError:
+        payload = response.text
 
-
-def _raise_api_error(prefix: str, response: requests.Response, payload: dict[str, Any]) -> None:
-    if response.ok and "error" not in payload:
-        return
-    error = payload.get("error", {})
-    message = error.get("message", "Unknown Facebook API error.")
-    code = error.get("code")
-    subcode = error.get("error_subcode")
-    raise FacebookPublishError(
-        f"{prefix}: {message} (code={code}, subcode={subcode})"
+    return FacebookPublishError(
+        f"{action}: {payload}"
     )
 
 
-def find_recent_matching_post(
-    *,
-    page_id: str,
-    page_access_token: str,
-    graph_version: str,
-    caption: str,
-    limit: int = 25,
-) -> str:
-    """Best-effort duplicate recovery by matching exact recent post text."""
-    endpoint = f"https://graph.facebook.com/v{graph_version}/{page_id}/posts"
-    response = requests.get(
-        endpoint,
-        headers=_headers(page_access_token),
-        params={
-            "fields": "id,message,created_time",
-            "limit": str(limit),
-        },
-        timeout=60,
-    )
-    payload = _parse_json(response)
-    if response.status_code >= 400 or "error" in payload:
-        return ""
-
-    for post in payload.get("data", []) or []:
-        if not isinstance(post, dict):
-            continue
-        if (post.get("message") or "").strip() == caption.strip():
-            return str(post.get("id", ""))
-    return ""
+def _headers() -> dict[str, str]:
+    return {
+        "Accept": "application/json",
+    }
 
 
 def publish_photo(
@@ -78,89 +39,130 @@ def publish_photo(
     image_path: str | Path,
     caption: str,
 ) -> dict[str, Any]:
-    page_id = (page_id or "").strip()
-    page_access_token = (page_access_token or "").strip()
-    graph_version = (graph_version or "").strip().lstrip("v")
+
+    page_id = page_id.strip()
+    page_access_token = page_access_token.strip()
+    graph_version = graph_version.strip().lstrip("v")
+
     image = Path(image_path)
 
     if not page_id:
-        raise FacebookPublishError("FACEBOOK_PAGE_ID is empty.")
-    if not page_access_token:
-        raise FacebookPublishError("FACEBOOK_PAGE_ACCESS_TOKEN is empty.")
-    if not image.is_file():
-        raise FacebookPublishError(f"Image does not exist: {image}")
+        raise FacebookPublishError(
+            "FACEBOOK_PAGE_ID is empty."
+        )
 
-    recovered_id = find_recent_matching_post(
-        page_id=page_id,
-        page_access_token=page_access_token,
-        graph_version=graph_version,
-        caption=caption,
-    )
-    if recovered_id:
-        return {
-            "post_id": recovered_id,
-            "photo_id": "",
-            "duplicate_recovered": True,
-            "raw": {"recovered": True, "post_id": recovered_id},
-        }
+    if not page_access_token:
+        raise FacebookPublishError(
+            "FACEBOOK_PAGE_ACCESS_TOKEN is empty."
+        )
+
+    if not image.is_file():
+        raise FacebookPublishError(
+            f"Image does not exist: {image}"
+        )
 
     endpoint = (
-        f"https://graph.facebook.com/v{graph_version}/{page_id}/photos"
+        f"https://graph.facebook.com/"
+        f"v{graph_version}/"
+        f"{page_id}/photos"
     )
 
     try:
         with image.open("rb") as file_handle:
             response = requests.post(
                 endpoint,
-                headers=_headers(page_access_token),
+                headers=_headers(),
                 data={
+                    "access_token": page_access_token,
                     "caption": caption,
                     "published": "true",
                 },
                 files={
-                    "source": (image.name, file_handle, "image/jpeg"),
+                    "source": (
+                        image.name,
+                        file_handle,
+                        "image/jpeg",
+                    )
                 },
-                timeout=120,
+                timeout=180,
             )
     except requests.RequestException as exc:
         raise FacebookPublishError(
-            f"Facebook network request failed: {exc}"
+            f"Facebook publish network error: {exc}"
         ) from exc
 
-    payload = _parse_json(response)
-    _raise_api_error("Facebook publish failed", response, payload)
+    if not response.ok:
+        raise _api_error(
+            "Facebook publish failed",
+            response,
+        )
 
-    post_id = payload.get("post_id") or payload.get("id")
+    payload = response.json()
+
+    post_id = (
+        payload.get("post_id")
+        or payload.get("id")
+        or ""
+    ).strip()
+
     if not post_id:
         raise FacebookPublishError(
-            f"Facebook published successfully but returned no Post ID: {payload}"
+            f"Facebook returned no Post ID: {payload}"
         )
 
     return {
-        "post_id": str(post_id),
-        "photo_id": str(payload.get("id", "")),
-        "duplicate_recovered": False,
+        "post_id": post_id,
         "raw": payload,
     }
 
 
-def create_first_comment(
+def add_comment(
     *,
     post_id: str,
     page_access_token: str,
     graph_version: str,
     message: str,
-) -> str:
-    endpoint = f"https://graph.facebook.com/v{graph_version}/{post_id}/comments"
-    response = requests.post(
-        endpoint,
-        headers=_headers(page_access_token),
-        data={"message": message},
-        timeout=60,
+) -> dict[str, Any]:
+
+    endpoint = (
+        f"https://graph.facebook.com/"
+        f"v{graph_version}/"
+        f"{post_id}/comments"
     )
-    payload = _parse_json(response)
-    _raise_api_error("Facebook comment failed", response, payload)
-    return str(payload.get("id", ""))
+
+    try:
+        response = requests.post(
+            endpoint,
+            headers=_headers(),
+            data={
+                "access_token": page_access_token,
+                "message": message,
+            },
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        return {
+            "status": "FAILED",
+            "error": str(exc),
+        }
+
+    if not response.ok:
+        return {
+            "status": "FAILED",
+            "error": _api_error(
+                "Facebook comment failed",
+                response,
+            ).args[0],
+        }
+
+    payload = response.json()
+
+    return {
+        "status": "PUBLISHED",
+        "comment_id": str(
+            payload.get("id", "")
+        ),
+    }
 
 
 def like_post(
@@ -168,13 +170,41 @@ def like_post(
     post_id: str,
     page_access_token: str,
     graph_version: str,
-) -> bool:
-    endpoint = f"https://graph.facebook.com/v{graph_version}/{post_id}/likes"
-    response = requests.post(
-        endpoint,
-        headers=_headers(page_access_token),
-        timeout=60,
+) -> dict[str, Any]:
+
+    endpoint = (
+        f"https://graph.facebook.com/"
+        f"v{graph_version}/"
+        f"{post_id}/likes"
     )
-    payload = _parse_json(response)
-    _raise_api_error("Facebook like failed", response, payload)
-    return bool(payload.get("success", True))
+
+    try:
+        response = requests.post(
+            endpoint,
+            headers=_headers(),
+            data={
+                "access_token": page_access_token,
+            },
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        return {
+            "status": "FAILED",
+            "error": str(exc),
+        }
+
+    if not response.ok:
+        return {
+            "status": "FAILED",
+            "error": _api_error(
+                "Facebook like failed",
+                response,
+            ).args[0],
+        }
+
+    payload = response.json()
+
+    return {
+        "status": "LIKED",
+        "raw": payload,
+    }
