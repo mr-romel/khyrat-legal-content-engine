@@ -162,3 +162,70 @@ def append_row(
     )
     digits = "".join(ch for ch in updated_range if ch.isdigit())
     return int(digits) if digits else -1
+
+
+def insert_row_at_top(
+    service,
+    spreadsheet_id: str,
+    sheet_name: str,
+    values: dict[str, Any],
+) -> int:
+    """Insert one complete content row immediately below the header row."""
+    metadata = (
+        service.spreadsheets()
+        .get(
+            spreadsheetId=spreadsheet_id,
+            fields="sheets.properties",
+        )
+        .execute()
+    )
+
+    sheet_id = None
+    for sheet in metadata.get("sheets", []):
+        properties = sheet.get("properties", {})
+        if properties.get("title") == sheet_name:
+            sheet_id = properties.get("sheetId")
+            break
+
+    if sheet_id is None:
+        raise RuntimeError(
+            f"Google Sheet tab '{sheet_name}' was not found."
+        )
+
+    (
+        service.spreadsheets()
+        .batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": "ROWS",
+                                "startIndex": 1,
+                                "endIndex": 2,
+                            },
+                            "inheritFromBefore": False,
+                        }
+                    }
+                ]
+            },
+        )
+        .execute()
+    )
+
+    row = [values.get(header, "") for header in HEADERS]
+    (
+        service.spreadsheets()
+        .values()
+        .update(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A2:{SHEET_LAST_COLUMN}2",
+            valueInputOption="RAW",
+            body={"values": [row]},
+        )
+        .execute()
+    )
+
+    return 2
