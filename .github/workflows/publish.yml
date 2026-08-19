@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Check the Sheet every hour so each recycled post can publish at its original hour.
+    # Check the Sheet every hour so each post can publish at 14:00 Cairo time.
     # The monthly recycler prepares the new month automatically when needed.
     - cron: "0 * * * *"
       timezone: "Africa/Cairo"
@@ -60,7 +60,7 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
         run: |
-          python -c "from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.config import load_config; from src.utils import now_cairo, sheet_name_from_range; c=load_config(); recycle_month_if_needed(service=create_service(c['service_account_info']), spreadsheet_id=c['sheet_id'], sheet_name=sheet_name_from_range(c['sheet_range']), current=now_cairo().date())"
+          python -c "import json, os; from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.utils import now_cairo, sheet_name_from_range; service_account_info=json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']); sheet_id=os.environ['GOOGLE_SHEET_ID'].strip(); sheet_range=os.environ.get('GOOGLE_SHEET_RANGE','Content!A:U').strip() or 'Content!A:U'; recycle_month_if_needed(service=create_service(service_account_info), spreadsheet_id=sheet_id, sheet_name=sheet_name_from_range(sheet_range), current=now_cairo().date())"
 
 
       - name: Run Khyrat Legal Content Engine
@@ -114,4 +114,5 @@ jobs:
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE"
           echo "MONTHLY RECYCLER + FULL SOCIAL PIPELINE"
+          echo "ALL GENERATED POSTS: 14:00 CAIRO TIME"
           echo "=============================================="
