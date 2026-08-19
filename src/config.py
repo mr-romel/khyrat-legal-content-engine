@@ -10,7 +10,7 @@ DEFAULT_FACEBOOK_GRAPH_VERSION = "26.0"
 
 
 class ConfigError(RuntimeError):
-    pass
+    """Raised when required configuration is missing."""
 
 
 def _required(name: str) -> str:
@@ -31,10 +31,7 @@ def _optional(
     return os.getenv(name, default).strip()
 
 
-def _normalize_model_name(
-    value: str,
-) -> str:
-
+def _normalize_model_name(value: str) -> str:
     model = (value or "").strip()
 
     if model.startswith("models/"):
@@ -44,7 +41,6 @@ def _normalize_model_name(
 
 
 def load_config() -> dict:
-
     service_account_raw = _required(
         "GOOGLE_SERVICE_ACCOUNT_JSON"
     )
@@ -58,74 +54,84 @@ def load_config() -> dict:
             "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON."
         ) from exc
 
-    if not isinstance(
-        service_account_info,
-        dict,
-    ):
+    if not isinstance(service_account_info, dict):
         raise ConfigError(
             "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
         )
 
     return {
+        # --------------------------------------------------------
+        # Google Sheets
+        # --------------------------------------------------------
 
-        # Google
-        "service_account_info":
-            service_account_info,
+        "service_account_info": service_account_info,
 
-        "sheet_id":
-            _required("GOOGLE_SHEET_ID"),
+        "sheet_id": _required(
+            "GOOGLE_SHEET_ID"
+        ),
 
-        "sheet_range":
-            _optional(
-                "GOOGLE_SHEET_RANGE",
-                "Content!A:U",
-            ),
+        "sheet_range": _optional(
+            "GOOGLE_SHEET_RANGE",
+            "Content!A:U",
+        ),
 
+        # --------------------------------------------------------
         # Gemini
-        "gemini_api_key":
-            _required("GEMINI_API_KEY"),
+        # --------------------------------------------------------
 
-        "gemini_model":
-            _normalize_model_name(
-                _optional(
-                    "GEMINI_MODEL",
-                    DEFAULT_GEMINI_MODEL,
-                )
-            ),
+        "gemini_api_key": _required(
+            "GEMINI_API_KEY"
+        ),
 
-        # Cloudflare
-        "cloudflare_account_id":
-            _required("CLOUDFLARE_ACCOUNT_ID"),
+        "gemini_model": _normalize_model_name(
+            _optional(
+                "GEMINI_MODEL",
+                DEFAULT_GEMINI_MODEL,
+            )
+        ),
 
-        "cloudflare_api_token":
-            _required("CLOUDFLARE_API_TOKEN"),
+        # --------------------------------------------------------
+        # Cloudflare Workers AI
+        # --------------------------------------------------------
 
+        "cloudflare_account_id": _required(
+            "CLOUDFLARE_ACCOUNT_ID"
+        ),
+
+        "cloudflare_api_token": _required(
+            "CLOUDFLARE_API_TOKEN"
+        ),
+
+        # --------------------------------------------------------
         # Facebook
-        "facebook_page_id":
-            _optional(
-                "FACEBOOK_PAGE_ID",
-                DEFAULT_FACEBOOK_PAGE_ID,
-            ),
+        # --------------------------------------------------------
 
-        "facebook_page_access_token":
-            _required(
-                "FACEBOOK_PAGE_ACCESS_TOKEN"
-            ),
+        "facebook_page_id": _optional(
+            "FACEBOOK_PAGE_ID",
+            DEFAULT_FACEBOOK_PAGE_ID,
+        ),
 
-        "facebook_graph_version":
-            _optional(
-                "FACEBOOK_GRAPH_VERSION",
-                DEFAULT_FACEBOOK_GRAPH_VERSION,
-            ),
+        "facebook_page_access_token": _required(
+            "FACEBOOK_PAGE_ACCESS_TOKEN"
+        ),
 
+        "facebook_graph_version": _optional(
+            "FACEBOOK_GRAPH_VERSION",
+            DEFAULT_FACEBOOK_GRAPH_VERSION,
+        ),
+
+        # --------------------------------------------------------
         # LinkedIn
-        "linkedin_access_token":
-            _required(
-                "LINKEDIN_ACCESS_TOKEN"
-            ),
+        # --------------------------------------------------------
 
-        "linkedin_author_urn":
-            _required(
-                "LINKEDIN_AUTHOR_URN"
-            ),
+        "linkedin_access_token": _required(
+            "LINKEDIN_ACCESS_TOKEN"
+        ),
+
+        # Optional override.
+        # Normally we resolve this automatically from /userinfo.
+        "linkedin_author_urn": _optional(
+            "LINKEDIN_AUTHOR_URN",
+            "",
+        ),
     }
