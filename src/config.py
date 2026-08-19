@@ -5,12 +5,12 @@ import os
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
-DEFAULT_FACEBOOK_GRAPH_VERSION = "26.0"
 DEFAULT_FACEBOOK_PAGE_ID = "464216073916915"
+DEFAULT_FACEBOOK_GRAPH_VERSION = "26.0"
 
 
 class ConfigError(RuntimeError):
-    """Raised when required configuration is missing."""
+    pass
 
 
 def _required(name: str) -> str:
@@ -31,7 +31,10 @@ def _optional(
     return os.getenv(name, default).strip()
 
 
-def _normalize_model_name(value: str) -> str:
+def _normalize_model_name(
+    value: str,
+) -> str:
+
     model = (value or "").strip()
 
     if model.startswith("models/"):
@@ -41,6 +44,7 @@ def _normalize_model_name(value: str) -> str:
 
 
 def load_config() -> dict:
+
     service_account_raw = _required(
         "GOOGLE_SERVICE_ACCOUNT_JSON"
     )
@@ -54,12 +58,17 @@ def load_config() -> dict:
             "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON."
         ) from exc
 
-    if not isinstance(service_account_info, dict):
+    if not isinstance(
+        service_account_info,
+        dict,
+    ):
         raise ConfigError(
             "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
         )
 
     return {
+
+        # Google
         "service_account_info":
             service_account_info,
 
@@ -69,9 +78,10 @@ def load_config() -> dict:
         "sheet_range":
             _optional(
                 "GOOGLE_SHEET_RANGE",
-                "Content!A:Q",
+                "Content!A:U",
             ),
 
+        # Gemini
         "gemini_api_key":
             _required("GEMINI_API_KEY"),
 
@@ -83,12 +93,14 @@ def load_config() -> dict:
                 )
             ),
 
+        # Cloudflare
         "cloudflare_account_id":
             _required("CLOUDFLARE_ACCOUNT_ID"),
 
         "cloudflare_api_token":
             _required("CLOUDFLARE_API_TOKEN"),
 
+        # Facebook
         "facebook_page_id":
             _optional(
                 "FACEBOOK_PAGE_ID",
@@ -106,8 +118,14 @@ def load_config() -> dict:
                 DEFAULT_FACEBOOK_GRAPH_VERSION,
             ),
 
+        # LinkedIn
         "linkedin_access_token":
             _required(
                 "LINKEDIN_ACCESS_TOKEN"
+            ),
+
+        "linkedin_author_urn":
+            _required(
+                "LINKEDIN_AUTHOR_URN"
             ),
     }
