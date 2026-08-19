@@ -2,24 +2,29 @@ name: Khyrat Legal Content Engine
 
 on:
   workflow_dispatch:
+
   schedule:
     - cron: "0 10,20 * * *"
       timezone: "Africa/Cairo"
 
-concurrency:
-  group: khyrat-social-publishing
-  cancel-in-progress: false
-
 permissions:
   contents: write
 
+concurrency:
+  group: khyrat-legal-content-engine
+  cancel-in-progress: false
+
 jobs:
+
   publish:
-    name: Full Social Publishing Pipeline
+
+    name: Generate and Publish Social Content
     runs-on: ubuntu-latest
+
     timeout-minutes: 20
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v7
 
@@ -34,16 +39,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Verify environment
+      - name: Verify Python environment
         run: |
           python --version
           pip --version
-          python -c "import requests; print('requests', requests.__version__)"
-          python -c "import PIL; print('Pillow', PIL.__version__)"
-          python -c "import google.genai; print('google-genai installed')"
+          python -c "import requests; print('requests:', requests.__version__)"
+          python -c "import google.genai; print('google-genai: OK')"
 
       - name: Run Khyrat Legal Content Engine
         env:
+
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
@@ -59,20 +64,29 @@ jobs:
           FACEBOOK_GRAPH_VERSION: "26.0"
 
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
-          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
-          LINKEDIN_VERSION: "202607"
 
-        run: python src/main.py
+        run: |
+          python src/main.py
 
       - name: Commit generated images
         if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add generated/ || true
+
           if git diff --cached --quiet; then
-            echo "No generated images to commit."
+            echo "No generated image changes."
           else
             git commit -m "chore: add generated legal image"
             git push
           fi
+
+      - name: Final summary
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "KHYRAT LEGAL CONTENT ENGINE"
+          echo "FULL SOCIAL PIPELINE FINISHED"
+          echo "=============================================="
