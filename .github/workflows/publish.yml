@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
   schedule:
-    # 10:00 صباحًا و 8:00 مساءً بتوقيت القاهرة
+    # Run twice daily at 10:00 AM and 8:00 PM Cairo time.
+    # The monthly recycler prepares the new month automatically when needed.
     - cron: "0 10,20 * * *"
       timezone: "Africa/Cairo"
 
@@ -51,6 +52,15 @@ jobs:
           python -c "import requests; print('requests:', requests.__version__)"
           python -c "import google.genai; print('google-genai: OK')"
           python -c "from PIL import Image; print('Pillow: OK')"
+
+
+      - name: Prepare monthly recycled content queue
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+        run: |
+          python -c "from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.config import load_config; from src.utils import now_cairo, sheet_name_from_range; c=load_config(); recycle_month_if_needed(service=create_service(c['service_account_info']), spreadsheet_id=c['sheet_id'], sheet_name=sheet_name_from_range(c['sheet_range']), current=now_cairo().date())"
 
 
       - name: Run Khyrat Legal Content Engine
@@ -103,5 +113,5 @@ jobs:
         run: |
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE"
-          echo "FULL SOCIAL PIPELINE FINISHED"
+          echo "MONTHLY RECYCLER + FULL SOCIAL PIPELINE"
           echo "=============================================="
