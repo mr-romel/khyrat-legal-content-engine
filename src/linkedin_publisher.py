@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -10,11 +11,10 @@ LINKEDIN_VERSION = "202607"
 REST_PROTOCOL = "2.0.0"
 
 LINKEDIN_REST_BASE = "https://api.linkedin.com/rest"
-LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 
 
 class LinkedInPublishError(RuntimeError):
-    """Raised when a LinkedIn operation fails."""
+    """Raised when a required LinkedIn publishing operation fails."""
 
 
 class LinkedInActionResult:
@@ -39,8 +39,13 @@ class LinkedInActionResult:
 
 def _headers(
     token: str,
+    *,
     json_content: bool = False,
 ) -> dict[str, str]:
+    """
+    Standard LinkedIn REST headers.
+    """
+
     headers = {
         "Authorization": f"Bearer {token}",
         "Linkedin-Version": LINKEDIN_VERSION,
@@ -62,59 +67,17 @@ def _payload(
         return response.text
 
 
-def _raise(
+def _raise_required_error(
     action: str,
     response: requests.Response,
 ) -> None:
+    payload = _payload(response)
+
     raise LinkedInPublishError(
         f"{action} failed "
         f"(HTTP {response.status_code}): "
-        f"{_payload(response)}"
+        f"{payload}"
     )
-
-
-def resolve_member_urn(
-    token: str,
-) -> str:
-    """
-    Resolve the authenticated LinkedIn member automatically.
-
-    Requires a token with OpenID access.
-    """
-
-    try:
-        response = requests.get(
-            LINKEDIN_USERINFO_URL,
-            headers={
-                "Authorization": f"Bearer {token}",
-            },
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        raise LinkedInPublishError(
-            f"LinkedIn userinfo request failed: {exc}"
-        ) from exc
-
-    if not response.ok:
-        _raise(
-            "LinkedIn userinfo",
-            response,
-        )
-
-    payload = response.json()
-
-    sub = str(
-        payload.get("sub", "")
-    ).strip()
-
-    if not sub:
-        raise LinkedInPublishError(
-            "LinkedIn userinfo did not return a 'sub'. "
-            "Make sure the access token includes "
-            "openid and profile."
-        )
-
-    return f"urn:li:person:{sub}"
 
 
 def initialize_image_upload(
@@ -122,7 +85,14 @@ def initialize_image_upload(
     token: str,
     owner_urn: str,
 ) -> tuple[str, str]:
-    url = (
+    """
+    Initialize a LinkedIn image upload.
+
+    Returns:
+        upload_url, image_urn
+    """
+
+    endpoint = (
         f"{LINKEDIN_REST_BASE}"
         "/images?action=initializeUpload"
     )
@@ -135,7 +105,7 @@ def initialize_image_upload(
 
     try:
         response = requests.post(
-            url,
+            endpoint,
             headers=_headers(
                 token,
                 json_content=True,
@@ -145,11 +115,11 @@ def initialize_image_upload(
         )
     except requests.RequestException as exc:
         raise LinkedInPublishError(
-            f"LinkedIn image initialization failed: {exc}"
+            f"LinkedIn image initialization network error: {exc}"
         ) from exc
 
     if not response.ok:
-        _raise(
+        _raise_required_error(
             "LinkedIn image initialization",
             response,
         )
@@ -165,10 +135,14 @@ def initialize_image_upload(
         value.get("image", "")
     ).strip()
 
-    if not upload_url or not image_urn:
+    if not upload_url:
         raise LinkedInPublishError(
-            "LinkedIn image initialization returned "
-            "an invalid upload URL or image URN."
+            "LinkedIn image initialization returned no uploadUrl."
+        )
+
+    if not image_urn:
+        raise LinkedInPublishError(
+            "LinkedIn image initialization returned no image URN."
         )
 
     return upload_url, image_urn
@@ -180,11 +154,15 @@ def upload_image(
     upload_url: str,
     image_path: str | Path,
 ) -> None:
+    """
+    Upload the generated JPG to LinkedIn.
+    """
+
     image = Path(image_path)
 
     if not image.is_file():
         raise LinkedInPublishError(
-            f"LinkedIn image not found: {image}"
+            f"LinkedIn image file not found: {image}"
         )
 
     try:
@@ -199,11 +177,11 @@ def upload_image(
         )
     except requests.RequestException as exc:
         raise LinkedInPublishError(
-            f"LinkedIn image upload failed: {exc}"
+            f"LinkedIn image upload network error: {exc}"
         ) from exc
 
     if not response.ok:
-        _raise(
+        _raise_required_error(
             "LinkedIn image upload",
             response,
         )
@@ -216,7 +194,13 @@ def create_post(
     commentary: str,
     image_urn: str,
 ) -> str:
-    url = f"{LINKEDIN_REST_BASE}/posts"
+    """
+    Publish the image + commentary as a public LinkedIn post.
+    """
+
+    endpoint = (
+        f"{LINKEDIN_REST_BASE}/posts"
+    )
 
     body = {
         "author": author_urn,
@@ -239,7 +223,7 @@ def create_post(
 
     try:
         response = requests.post(
-            url,
+            endpoint,
             headers=_headers(
                 token,
                 json_content=True,
@@ -249,18 +233,24 @@ def create_post(
         )
     except requests.RequestException as exc:
         raise LinkedInPublishError(
-            f"LinkedIn post request failed: {exc}"
+            f"LinkedIn post network error: {exc}"
         ) from exc
 
     if not response.ok:
-        _raise(
+        _raise_required_error(
             "LinkedIn post creation",
             response,
         )
 
     post_urn = (
-        response.headers.get("x-restli-id", "")
-        or response.headers.get("X-RestLi-Id", "")
+        response.headers.get(
+            "x-restli-id",
+            "",
+        )
+        or response.headers.get(
+            "X-RestLi-Id",
+            "",
+        )
     ).strip()
 
     if not post_urn:
@@ -278,9 +268,18 @@ def add_comment(
     post_urn: str,
     message: str,
 ) -> LinkedInActionResult:
-    url = (
+    """
+    Best-effort first comment.
+
+    If LinkedIn denies the social-feed permission, the post remains
+    successful and this action is recorded as NOT_AUTHORIZED_OR_FAILED.
+    """
+
+    endpoint = (
         f"{LINKEDIN_REST_BASE}"
-        f"/socialActions/{post_urn}/comments"
+        f"/socialActions/"
+        f"{post_urn}"
+        f"/comments"
     )
 
     body = {
@@ -293,7 +292,7 @@ def add_comment(
 
     try:
         response = requests.post(
-            url,
+            endpoint,
             headers=_headers(
                 token,
                 json_content=True,
@@ -310,14 +309,21 @@ def add_comment(
     if not response.ok:
         return LinkedInActionResult(
             status="NOT_AUTHORIZED_OR_FAILED",
-            error=str(
-                _payload(response)
+            error=(
+                f"HTTP {response.status_code}: "
+                f"{_payload(response)}"
             ),
         )
 
     comment_id = (
-        response.headers.get("x-restli-id", "")
-        or response.headers.get("X-RestLi-Id", "")
+        response.headers.get(
+            "x-restli-id",
+            "",
+        )
+        or response.headers.get(
+            "X-RestLi-Id",
+            "",
+        )
     ).strip()
 
     return LinkedInActionResult(
@@ -332,17 +338,37 @@ def like_post(
     actor_urn: str,
     post_urn: str,
 ) -> LinkedInActionResult:
-    url = f"{LINKEDIN_REST_BASE}/reactions"
+    """
+    Best-effort LIKE reaction.
+
+    Current LinkedIn Reactions API format:
+        POST /rest/reactions?actor=<encoded actor URN>
+
+    Body:
+        {
+            "root": "<post URN>",
+            "reactionType": "LIKE"
+        }
+    """
+
+    encoded_actor = quote(
+        actor_urn,
+        safe="",
+    )
+
+    endpoint = (
+        f"{LINKEDIN_REST_BASE}"
+        f"/reactions?actor={encoded_actor}"
+    )
 
     body = {
-        "actor": actor_urn,
         "root": post_urn,
         "reactionType": "LIKE",
     }
 
     try:
         response = requests.post(
-            url,
+            endpoint,
             headers=_headers(
                 token,
                 json_content=True,
@@ -359,13 +385,28 @@ def like_post(
     if not response.ok:
         return LinkedInActionResult(
             status="NOT_AUTHORIZED_OR_FAILED",
-            error=str(
-                _payload(response)
+            error=(
+                f"HTTP {response.status_code}: "
+                f"{_payload(response)}"
             ),
         )
 
+    reaction_id = ""
+
+    # LinkedIn may return the reaction resource in the body.
+    try:
+        payload = response.json()
+
+        if isinstance(payload, dict):
+            reaction_id = str(
+                payload.get("id", "")
+            ).strip()
+    except ValueError:
+        pass
+
     return LinkedInActionResult(
         status="LIKED",
+        item_id=reaction_id,
     )
 
 
@@ -378,12 +419,34 @@ def publish_to_linkedin(
     first_comment: str,
 ) -> dict[str, Any]:
     """
-    Complete LinkedIn pipeline:
-      image upload
-      post publication
-      comment best-effort
-      like best-effort
+    Full LinkedIn pipeline:
+
+        1. Initialize image upload
+        2. Upload image
+        3. Publish post
+        4. Add first comment (best effort)
+        5. Like own post (best effort)
+
+    The post is considered successful once step 3 succeeds.
+    Steps 4 and 5 cannot roll back the post.
     """
+
+    token = (token or "").strip()
+    author_urn = (author_urn or "").strip()
+
+    if not token:
+        raise LinkedInPublishError(
+            "LINKEDIN_ACCESS_TOKEN is empty."
+        )
+
+    if not author_urn:
+        raise LinkedInPublishError(
+            "LinkedIn author URN is empty."
+        )
+
+    # ------------------------------------------------------------
+    # IMAGE
+    # ------------------------------------------------------------
 
     upload_url, image_urn = initialize_image_upload(
         token=token,
@@ -396,6 +459,10 @@ def publish_to_linkedin(
         image_path=image_path,
     )
 
+    # ------------------------------------------------------------
+    # POST
+    # ------------------------------------------------------------
+
     post_urn = create_post(
         token=token,
         author_urn=author_urn,
@@ -403,12 +470,20 @@ def publish_to_linkedin(
         image_urn=image_urn,
     )
 
+    # ------------------------------------------------------------
+    # COMMENT
+    # ------------------------------------------------------------
+
     comment = add_comment(
         token=token,
         actor_urn=author_urn,
         post_urn=post_urn,
         message=first_comment,
     )
+
+    # ------------------------------------------------------------
+    # LIKE
+    # ------------------------------------------------------------
 
     like = like_post(
         token=token,
