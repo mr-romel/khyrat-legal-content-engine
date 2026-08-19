@@ -7,6 +7,7 @@ from src.sheets import get_values, insert_row_at_top, row_to_dict
 from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
+DEFAULT_POSTING_TIME = "14:00"
 
 ANGLE_LIBRARY = [
     "خطأ شائع يقع فيه الناس وكيف يتجنبونه",
@@ -126,13 +127,12 @@ def recycle_month_if_needed(
         original_topic = source["الموضوع"].strip()
         angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
         recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
-        posting_time = source.get("ساعة النشر", "").strip() or "14:00"
 
         row = {
             "ID": f"{current_key.replace('-', '')}-R{index + 1:02d}",
             "الموضوع": recycled_topic,
             "تاريخ النشر": f"{current.year:04d}-{current.month:02d}-{day:02d}",
-            "ساعة النشر": posting_time,
+            "ساعة النشر": DEFAULT_POSTING_TIME,
             "نوع الجدولة": "DATE_TIME",
             "الحالة": "READY",
             "المصادر القانونية": source.get("المصادر القانونية", ""),
@@ -141,7 +141,7 @@ def recycle_month_if_needed(
                 f"الموضوع الأصلي: {original_topic} | "
                 f"زاوية: {angle} | "
                 "تم إنشاء النسخة الجديدة دون تعديل صف الشهر السابق | "
-                f"ساعة النشر محفوظة: {posting_time}"
+                f"ساعة النشر مثبتة تلقائيًا: {DEFAULT_POSTING_TIME}"
             ),
         }
 
@@ -153,5 +153,5 @@ def recycle_month_if_needed(
         )
         created += 1
 
-    print(f"Monthly recycler: created {created} rows for {current_key}.")
+    print(f"Monthly recycler: created {created} rows for {current_key} at {DEFAULT_POSTING_TIME} Cairo time.")
     return created
