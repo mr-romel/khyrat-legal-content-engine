@@ -1,0 +1,199 @@
+name: Facebook Tag Diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  facebook-tag-diagnostic:
+    runs-on: ubuntu-latest
+
+    env:
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+      FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Validate Facebook configuration
+        shell: bash
+        run: |
+          set -e
+
+          if [ -z "$FACEBOOK_PAGE_ACCESS_TOKEN" ]; then
+            echo "ERROR: FACEBOOK_PAGE_ACCESS_TOKEN is missing."
+            exit 1
+          fi
+
+          if [ -z "$FACEBOOK_PAGE_ID" ]; then
+            echo "ERROR: FACEBOOK_PAGE_ID is missing."
+            exit 1
+          fi
+
+          echo "Facebook configuration detected."
+          echo "Page ID: $FACEBOOK_PAGE_ID"
+          echo "Graph API version: $FACEBOOK_GRAPH_VERSION"
+
+      - name: Inspect Page token
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token = os.environ["FACEBOOK_PAGE_ACCESS_TOKEN"]
+          page_id = os.environ["FACEBOOK_PAGE_ID"]
+          version = os.environ["FACEBOOK_GRAPH_VERSION"]
+
+          url = f"https://graph.facebook.com/{version}/{page_id}"
+
+          params = {
+              "fields": "id,name,link",
+              "access_token": token,
+          }
+
+          response = requests.get(url, params=params, timeout=30)
+
+          print("HTTP status:", response.status_code)
+
+          try:
+              data = response.json()
+          except Exception:
+              print("Facebook returned a non-JSON response.")
+              print(response.text[:1000])
+              raise SystemExit(1)
+
+          if response.ok:
+              print("Facebook Page access: OK")
+              print("Page ID:", data.get("id"))
+              print("Page name:", data.get("name"))
+              print("Page link:", data.get("link"))
+          else:
+              print("Facebook Page access: FAILED")
+              print("Response:")
+              print(data)
+              raise SystemExit(1)
+          PY
+
+      - name: Inspect available token permissions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token = os.environ["FACEBOOK_PAGE_ACCESS_TOKEN"]
+          version = os.environ["FACEBOOK_GRAPH_VERSION"]
+
+          url = f"https://graph.facebook.com/{version}/me/permissions"
+
+          params = {
+              "access_token": token,
+          }
+
+          response = requests.get(url, params=params, timeout=30)
+
+          print("HTTP status:", response.status_code)
+
+          try:
+              data = response.json()
+          except Exception:
+              print(response.text[:1000])
+              raise SystemExit(1)
+
+          if response.ok:
+              print("Token permissions response:")
+              print(data)
+          else:
+              print("Could not inspect token permissions.")
+              print(data)
+              raise SystemExit(1)
+          PY
+
+      - name: Test personal profile lookup
+        shell: bash
+        env:
+          PERSONAL_PROFILE_URL: "https://www.facebook.com/MODY.ROMEL.UA07"
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token = os.environ["FACEBOOK_PAGE_ACCESS_TOKEN"]
+          version = os.environ["FACEBOOK_GRAPH_VERSION"]
+          profile_url = os.environ["PERSONAL_PROFILE_URL"]
+
+          print("Personal profile under test:")
+          print(profile_url)
+
+          print()
+          print("IMPORTANT:")
+          print("This step does NOT publish a post.")
+          print("This step does NOT create a tag.")
+          print("It only tests whether the current Page access token can resolve")
+          print("the supplied Facebook profile through the Graph API.")
+
+          # The Graph API does not generally allow arbitrary personal-profile
+          # lookup from a Page access token using a public username.
+          # We therefore deliberately test the known username as an API object
+          # only if Meta accepts it, and report the exact response.
+
+          username = "MODY.ROMEL.UA07"
+
+          url = f"https://graph.facebook.com/{version}/{username}"
+
+          params = {
+              "fields": "id,name",
+              "access_token": token,
+          }
+
+          response = requests.get(url, params=params, timeout=30)
+
+          print()
+          print("HTTP status:", response.status_code)
+
+          try:
+              data = response.json()
+          except Exception:
+              print("Non-JSON response:")
+              print(response.text[:1000])
+              raise SystemExit(0)
+
+          print("Facebook response:")
+          print(data)
+
+          if response.ok:
+              print()
+              print("RESULT: Facebook resolved the profile.")
+              print("Profile ID:", data.get("id"))
+              print("Profile name:", data.get("name"))
+          else:
+              print()
+              print("RESULT: Facebook did NOT allow this Page token")
+              print("to resolve the personal profile through this request.")
+              print("This is diagnostic only and does not mean Page tagging")
+              print("is impossible through the Facebook UI.")
+          PY
+
+      - name: Final diagnostic summary
+        run: |
+          echo "=============================================="
+          echo "FACEBOOK TAG DIAGNOSTIC"
+          echo "=============================================="
+          echo "No post was published."
+          echo "No comment was created."
+          echo "No like was created."
+          echo "No tag was created."
+          echo "Production workflow was not touched."
+          echo "=============================================="
