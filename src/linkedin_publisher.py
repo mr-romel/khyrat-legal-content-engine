@@ -11,10 +11,11 @@ LINKEDIN_VERSION = "202607"
 REST_PROTOCOL = "2.0.0"
 
 LINKEDIN_REST_BASE = "https://api.linkedin.com/rest"
+LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 
 
 class LinkedInPublishError(RuntimeError):
-    """Raised when a required LinkedIn publishing operation fails."""
+    """Raised when a required LinkedIn operation fails."""
 
 
 class LinkedInActionResult:
@@ -42,10 +43,6 @@ def _headers(
     *,
     json_content: bool = False,
 ) -> dict[str, str]:
-    """
-    Standard LinkedIn REST headers.
-    """
-
     headers = {
         "Authorization": f"Bearer {token}",
         "Linkedin-Version": LINKEDIN_VERSION,
@@ -71,13 +68,72 @@ def _raise_required_error(
     action: str,
     response: requests.Response,
 ) -> None:
-    payload = _payload(response)
-
     raise LinkedInPublishError(
         f"{action} failed "
         f"(HTTP {response.status_code}): "
-        f"{payload}"
+        f"{_payload(response)}"
     )
+
+
+def resolve_member_urn(
+    token: str,
+) -> str:
+    """
+    Resolve the authenticated LinkedIn member.
+
+    LinkedIn /v2/userinfo returns the OpenID Connect 'sub'
+    identifier when the access token contains the required
+    OpenID scopes.
+
+    Result:
+        urn:li:person:{sub}
+    """
+
+    token = (token or "").strip()
+
+    if not token:
+        raise LinkedInPublishError(
+            "LINKEDIN_ACCESS_TOKEN is empty."
+        )
+
+    try:
+        response = requests.get(
+            LINKEDIN_USERINFO_URL,
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        raise LinkedInPublishError(
+            f"LinkedIn userinfo request failed: {exc}"
+        ) from exc
+
+    if not response.ok:
+        _raise_required_error(
+            "LinkedIn userinfo",
+            response,
+        )
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise LinkedInPublishError(
+            "LinkedIn userinfo returned invalid JSON."
+        ) from exc
+
+    sub = str(
+        payload.get("sub", "")
+    ).strip()
+
+    if not sub:
+        raise LinkedInPublishError(
+            "LinkedIn userinfo did not return 'sub'. "
+            "The LinkedIn token must include "
+            "openid and profile."
+        )
+
+    return f"urn:li:person:{sub}"
 
 
 def initialize_image_upload(
@@ -86,10 +142,11 @@ def initialize_image_upload(
     owner_urn: str,
 ) -> tuple[str, str]:
     """
-    Initialize a LinkedIn image upload.
+    Initialize the LinkedIn image upload.
 
     Returns:
-        upload_url, image_urn
+        upload_url
+        image_urn
     """
 
     endpoint = (
@@ -124,8 +181,17 @@ def initialize_image_upload(
             response,
         )
 
-    payload = response.json()
-    value = payload.get("value", {})
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise LinkedInPublishError(
+            "LinkedIn image initialization returned invalid JSON."
+        ) from exc
+
+    value = payload.get(
+        "value",
+        {},
+    )
 
     upload_url = str(
         value.get("uploadUrl", "")
@@ -155,7 +221,7 @@ def upload_image(
     image_path: str | Path,
 ) -> None:
     """
-    Upload the generated JPG to LinkedIn.
+    Upload the generated JPG to the LinkedIn upload URL.
     """
 
     image = Path(image_path)
@@ -195,7 +261,7 @@ def create_post(
     image_urn: str,
 ) -> str:
     """
-    Publish the image + commentary as a public LinkedIn post.
+    Publish a public LinkedIn image post.
     """
 
     endpoint = (
@@ -271,15 +337,12 @@ def add_comment(
     """
     Best-effort first comment.
 
-    If LinkedIn denies the social-feed permission, the post remains
-    successful and this action is recorded as NOT_AUTHORIZED_OR_FAILED.
+    A failure here does NOT invalidate the successful post.
     """
 
     endpoint = (
         f"{LINKEDIN_REST_BASE}"
-        f"/socialActions/"
-        f"{post_urn}"
-        f"/comments"
+        f"/socialActions/{quote(post_urn, safe='')}/comments"
     )
 
     body = {
@@ -341,10 +404,12 @@ def like_post(
     """
     Best-effort LIKE reaction.
 
-    Current LinkedIn Reactions API format:
+    Current LinkedIn Reactions API structure:
+
         POST /rest/reactions?actor=<encoded actor URN>
 
     Body:
+
         {
             "root": "<post URN>",
             "reactionType": "LIKE"
@@ -393,14 +458,17 @@ def like_post(
 
     reaction_id = ""
 
-    # LinkedIn may return the reaction resource in the body.
     try:
         payload = response.json()
 
-        if isinstance(payload, dict):
+        if isinstance(
+            payload,
+            dict,
+        ):
             reaction_id = str(
                 payload.get("id", "")
             ).strip()
+
     except ValueError:
         pass
 
@@ -419,20 +487,24 @@ def publish_to_linkedin(
     first_comment: str,
 ) -> dict[str, Any]:
     """
-    Full LinkedIn pipeline:
+    Full LinkedIn social publishing pipeline:
 
         1. Initialize image upload
         2. Upload image
-        3. Publish post
-        4. Add first comment (best effort)
-        5. Like own post (best effort)
+        3. Publish image post
+        4. Add first comment
+        5. Like post
 
-    The post is considered successful once step 3 succeeds.
-    Steps 4 and 5 cannot roll back the post.
+    Comment and Like are best-effort operations.
     """
 
-    token = (token or "").strip()
-    author_urn = (author_urn or "").strip()
+    token = (
+        token or ""
+    ).strip()
+
+    author_urn = (
+        author_urn or ""
+    ).strip()
 
     if not token:
         raise LinkedInPublishError(
@@ -444,14 +516,20 @@ def publish_to_linkedin(
             "LinkedIn author URN is empty."
         )
 
-    # ------------------------------------------------------------
-    # IMAGE
-    # ------------------------------------------------------------
+    # ==========================================================
+    # 1. IMAGE INITIALIZATION
+    # ==========================================================
 
-    upload_url, image_urn = initialize_image_upload(
-        token=token,
-        owner_urn=author_urn,
+    upload_url, image_urn = (
+        initialize_image_upload(
+            token=token,
+            owner_urn=author_urn,
+        )
     )
+
+    # ==========================================================
+    # 2. IMAGE UPLOAD
+    # ==========================================================
 
     upload_image(
         token=token,
@@ -459,9 +537,9 @@ def publish_to_linkedin(
         image_path=image_path,
     )
 
-    # ------------------------------------------------------------
-    # POST
-    # ------------------------------------------------------------
+    # ==========================================================
+    # 3. POST
+    # ==========================================================
 
     post_urn = create_post(
         token=token,
@@ -470,9 +548,9 @@ def publish_to_linkedin(
         image_urn=image_urn,
     )
 
-    # ------------------------------------------------------------
-    # COMMENT
-    # ------------------------------------------------------------
+    # ==========================================================
+    # 4. COMMENT
+    # ==========================================================
 
     comment = add_comment(
         token=token,
@@ -481,9 +559,9 @@ def publish_to_linkedin(
         message=first_comment,
     )
 
-    # ------------------------------------------------------------
-    # LIKE
-    # ------------------------------------------------------------
+    # ==========================================================
+    # 5. LIKE
+    # ==========================================================
 
     like = like_post(
         token=token,
