@@ -22,9 +22,8 @@ from image_generator import (
 
 from linkedin_publisher import (
     LinkedInPublishError,
-    add_comment as linkedin_add_comment,
-    like_post as linkedin_like_post,
     publish_to_linkedin,
+    resolve_member_urn,
 )
 
 from sheets import (
@@ -49,7 +48,6 @@ GENERATED_DIR = Path("generated")
 def github_raw_url(
     relative_path: str,
 ) -> str:
-
     repository = os.getenv(
         "GITHUB_REPOSITORY",
         "",
@@ -87,7 +85,6 @@ def process_row(
     row,
     current,
 ):
-
     topic = (
         row.get("الموضوع", "")
         or ""
@@ -117,16 +114,21 @@ def process_row(
     )
 
     try:
-
         # ======================================================
         # 1. CONTENT
         # ======================================================
 
-        print("Generating legal content...")
+        print(
+            "Generating legal content..."
+        )
 
         result = generate_post(
-            api_key=config["gemini_api_key"],
-            model=config["gemini_model"],
+            api_key=config[
+                "gemini_api_key"
+            ],
+            model=config[
+                "gemini_model"
+            ],
             topic=topic,
             legal_sources=row.get(
                 "المصادر القانونية",
@@ -136,12 +138,12 @@ def process_row(
         )
 
         post = (
-            result["post"]
+            result.get("post", "")
             or ""
         ).strip()
 
         image_brief = (
-            result["image_brief"]
+            result.get("image_brief", "")
             or ""
         ).strip()
 
@@ -152,9 +154,9 @@ def process_row(
 
         if review_flags:
             review_text = " | ".join(
-                str(x).strip()
-                for x in review_flags
-                if str(x).strip()
+                str(item).strip()
+                for item in review_flags
+                if str(item).strip()
             )
 
             if review_text:
@@ -177,6 +179,16 @@ def process_row(
 
                 return
 
+        if not post:
+            raise RuntimeError(
+                "Gemini returned an empty post."
+            )
+
+        if not image_brief:
+            raise RuntimeError(
+                "Gemini returned an empty image brief."
+            )
+
         # ======================================================
         # 2. IMAGE
         # ======================================================
@@ -187,11 +199,11 @@ def process_row(
         ).strip()
 
         safe_id = "".join(
-            c
-            if c.isalnum()
-            or c in "-_"
+            char
+            if char.isalnum()
+            or char in "-_"
             else "_"
-            for c in raw_id
+            for char in raw_id
         )
 
         image_path = (
@@ -297,8 +309,7 @@ def process_row(
 
         facebook_comment = (
             facebook_add_comment(
-                post_id=
-                    facebook_post_id,
+                post_id=facebook_post_id,
                 page_access_token=
                     config[
                         "facebook_page_access_token"
@@ -326,8 +337,7 @@ def process_row(
 
         facebook_like = (
             facebook_like_post(
-                post_id=
-                    facebook_post_id,
+                post_id=facebook_post_id,
                 page_access_token=
                     config[
                         "facebook_page_access_token"
@@ -352,17 +362,41 @@ def process_row(
             "Publishing to LinkedIn..."
         )
 
+        linkedin_access_token = (
+            config[
+                "linkedin_access_token"
+            ]
+        )
+
+        linkedin_author_urn = (
+            config.get(
+                "linkedin_author_urn",
+                "",
+            )
+            or ""
+        ).strip()
+
         try:
+            # Resolve automatically if no override is provided.
+            if not linkedin_author_urn:
+
+                print(
+                    "Resolving LinkedIn member identity..."
+                )
+
+                linkedin_author_urn = (
+                    resolve_member_urn(
+                        linkedin_access_token
+                    )
+                )
+
+                print(
+                    "LinkedIn member identity resolved."
+                )
 
             linkedin = publish_to_linkedin(
-                token=
-                    config[
-                        "linkedin_access_token"
-                    ],
-                author_urn=
-                    config[
-                        "linkedin_author_urn"
-                    ],
+                token=linkedin_access_token,
+                author_urn=linkedin_author_urn,
                 image_path=image_path,
                 commentary=post,
                 first_comment=(
@@ -394,16 +428,20 @@ def process_row(
                 {
                     "LinkedIn Status":
                         "PUBLISHED",
+
                     "LinkedIn Post ID":
                         linkedin["post_urn"],
+
                     "LinkedIn Comment Status":
                         linkedin[
                             "comment"
                         ]["status"],
+
                     "LinkedIn Like Status":
                         linkedin[
                             "like"
                         ]["status"],
+
                     "الحالة":
                         "PUBLISHED",
                 },
@@ -412,7 +450,7 @@ def process_row(
         except LinkedInPublishError as exc:
 
             print(
-                "LinkedIn publish failed: "
+                "LinkedIn publishing failed: "
                 f"{exc}"
             )
 
@@ -422,17 +460,20 @@ def process_row(
                 sheet_name,
                 row_number,
                 {
-                    "LinkedIn Status":
-                        "FAILED",
+                    # Facebook remains successful.
                     "الحالة":
                         "PUBLISHED",
+
+                    "LinkedIn Status":
+                        "FAILED",
+
                     "آخر خطأ":
                         f"LinkedIn: {exc}",
                 },
             )
 
         # ======================================================
-        # FINAL
+        # 7. FINAL STATE
         # ======================================================
 
         update_row(
@@ -443,6 +484,13 @@ def process_row(
             {
                 "الحالة":
                     "PUBLISHED",
+
+                "Facebook Status":
+                    "PUBLISHED",
+
+                "Facebook Post ID":
+                    facebook_post_id,
+
                 "وقت آخر تشغيل":
                     current.isoformat(),
             },
@@ -477,10 +525,13 @@ def process_row(
             {
                 "الحالة":
                     "FAILED",
+
                 "Facebook Status":
                     "FAILED",
+
                 "آخر خطأ":
                     error_text,
+
                 "وقت آخر تشغيل":
                     current.isoformat(),
             },
@@ -512,8 +563,10 @@ def process_row(
             {
                 "الحالة":
                     "FAILED",
+
                 "آخر خطأ":
                     error_text,
+
                 "وقت آخر تشغيل":
                     current.isoformat(),
             },
@@ -536,7 +589,9 @@ def main():
     config = load_config()
 
     service = create_service(
-        config["service_account_info"]
+        config[
+            "service_account_info"
+        ]
     )
 
     sheet_name = sheet_name_from_range(
@@ -581,10 +636,7 @@ def main():
         values[1:],
         start=2,
     ):
-
-        row = row_to_dict(
-            raw_row
-        )
+        row = row_to_dict(raw_row)
 
         try:
 
@@ -593,7 +645,10 @@ def main():
                 current,
             ):
                 due_rows.append(
-                    (index, row)
+                    (
+                        index,
+                        row,
+                    )
                 )
 
         except Exception as exc:
@@ -606,8 +661,10 @@ def main():
                 {
                     "الحالة":
                         "FAILED",
+
                     "آخر خطأ":
                         str(exc),
+
                     "وقت آخر تشغيل":
                         current.isoformat(),
                 },
