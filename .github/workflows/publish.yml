@@ -8,7 +8,6 @@ on:
     - cron: "0 10,20 * * *"
       timezone: "Africa/Cairo"
 
-# يمنع تشغيل نسختين من نفس الـPipeline في نفس الوقت.
 concurrency:
   group: khyrat-legal-content-engine
   cancel-in-progress: false
@@ -28,17 +27,9 @@ jobs:
 
     steps:
 
-      # ==========================================================
-      # 1) CHECKOUT
-      # ==========================================================
-
       - name: Checkout repository
         uses: actions/checkout@v7
 
-
-      # ==========================================================
-      # 2) PYTHON
-      # ==========================================================
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -47,19 +38,11 @@ jobs:
           cache: "pip"
 
 
-      # ==========================================================
-      # 3) INSTALL DEPENDENCIES
-      # ==========================================================
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-
-      # ==========================================================
-      # 4) VERIFY ENVIRONMENT
-      # ==========================================================
 
       - name: Verify Python environment
         run: |
@@ -70,76 +53,39 @@ jobs:
           python -c "from PIL import Image; print('Pillow: OK')"
 
 
-      # ==========================================================
-      # 5) RUN KHYRAT LEGAL CONTENT ENGINE
-      # ==========================================================
-
       - name: Run Khyrat Legal Content Engine
         env:
 
-          # ------------------------------------------------------
           # Google Sheets
-          # ------------------------------------------------------
-
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
 
-
-          # ------------------------------------------------------
-          # Gemini - Content Generation
-          # ------------------------------------------------------
-
+          # Gemini
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
 
-
-          # ------------------------------------------------------
-          # Cloudflare Workers AI - Image Generation
-          # ------------------------------------------------------
-
+          # Cloudflare
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-
-          # ------------------------------------------------------
           # Facebook
-          # ------------------------------------------------------
-
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
-
           FACEBOOK_PAGE_ID: "464216073916915"
-
           FACEBOOK_GRAPH_VERSION: "26.0"
 
-
-          # ------------------------------------------------------
           # LinkedIn
-          # ------------------------------------------------------
-
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
-
-          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
-
 
         run: |
           python src/main.py
 
-
-      # ==========================================================
-      # 6) COMMIT GENERATED IMAGES
-      # ==========================================================
 
       - name: Commit generated images
         if: success()
         run: |
 
           git config user.name "github-actions[bot]"
-
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add generated/ || true
@@ -152,18 +98,10 @@ jobs:
           fi
 
 
-      # ==========================================================
-      # 7) FINAL SUMMARY
-      # ==========================================================
-
       - name: Workflow summary
         if: always()
         run: |
-
           echo "=============================================="
-
           echo "KHYRAT LEGAL CONTENT ENGINE"
-
           echo "FULL SOCIAL PIPELINE FINISHED"
-
           echo "=============================================="
