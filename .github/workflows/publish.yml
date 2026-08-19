@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Run twice daily at 10:00 AM and 8:00 PM Cairo time.
+    # Check the Sheet every hour so each recycled post can publish at its original hour.
     # The monthly recycler prepares the new month automatically when needed.
-    - cron: "0 10,20 * * *"
+    - cron: "0 * * * *"
       timezone: "Africa/Cairo"
 
 concurrency:
