@@ -48,6 +48,7 @@ GENERATED_DIR = Path("generated")
 def github_raw_url(
     relative_path: str,
 ) -> str:
+
     repository = os.getenv(
         "GITHUB_REPOSITORY",
         "",
@@ -85,8 +86,12 @@ def process_row(
     row,
     current,
 ):
+
     topic = (
-        row.get("الموضوع", "")
+        row.get(
+            "الموضوع",
+            "",
+        )
         or ""
     ).strip()
 
@@ -105,17 +110,21 @@ def process_row(
         sheet_name,
         row_number,
         {
-            "الحالة": "PROCESSING",
-            "Facebook Status": "PROCESSING",
-            "آخر خطأ": "",
+            "الحالة":
+                "PROCESSING",
+            "Facebook Status":
+                "PROCESSING",
+            "آخر خطأ":
+                "",
             "وقت آخر تشغيل":
                 current.isoformat(),
         },
     )
 
     try:
+
         # ======================================================
-        # 1. CONTENT
+        # 1. CONTENT GENERATION
         # ======================================================
 
         print(
@@ -138,46 +147,50 @@ def process_row(
         )
 
         post = (
-            result.get("post", "")
+            result.get(
+                "post",
+                "",
+            )
             or ""
         ).strip()
 
         image_brief = (
-            result.get("image_brief", "")
+            result.get(
+                "image_brief",
+                "",
+            )
             or ""
         ).strip()
+
+        review_level = (
+            result.get(
+                "review_level",
+                "REVIEW",
+            )
+            or "REVIEW"
+        ).upper()
 
         review_flags = result.get(
             "review_flags",
             [],
         )
 
-        if review_flags:
-            review_text = " | ".join(
-                str(item).strip()
-                for item in review_flags
-                if str(item).strip()
+        review_text = " | ".join(
+            str(item).strip()
+            for item in review_flags
+            if str(item).strip()
+        )
+
+        print(
+            f"Legal review level: "
+            f"{review_level}"
+        )
+
+        if review_text:
+            print(
+                f"Legal review notes: "
+                f"{review_text}"
             )
-
-            if review_text:
-                print(
-                    "Manual legal review required."
-                )
-
-                update_row(
-                    service,
-                    config["sheet_id"],
-                    sheet_name,
-                    row_number,
-                    {
-                        "الحالة":
-                            "NEEDS_REVIEW",
-                        "آخر خطأ":
-                            review_text,
-                    },
-                )
-
-                return
 
         if not post:
             raise RuntimeError(
@@ -190,11 +203,47 @@ def process_row(
             )
 
         # ======================================================
-        # 2. IMAGE
+        # BLOCK = STOP
+        # REVIEW = CONTINUE
+        # CLEAR = CONTINUE
+        # ======================================================
+
+        if review_level == "BLOCK":
+
+            print(
+                "CONTENT BLOCKED: "
+                "manual legal review is required."
+            )
+
+            update_row(
+                service,
+                config["sheet_id"],
+                sheet_name,
+                row_number,
+                {
+                    "الحالة":
+                        "NEEDS_REVIEW",
+
+                    "آخر خطأ":
+                        review_text
+                        or "Legal review required.",
+
+                    "وقت آخر تشغيل":
+                        current.isoformat(),
+                },
+            )
+
+            return
+
+        # ======================================================
+        # 2. IMAGE GENERATION
         # ======================================================
 
         raw_id = (
-            row.get("ID", "")
+            row.get(
+                "ID",
+                "",
+            )
             or f"row-{row_number}"
         ).strip()
 
@@ -233,7 +282,14 @@ def process_row(
 
         image_url = github_raw_url(
             str(image_path)
-            .replace("\\", "/")
+            .replace(
+                "\\",
+                "/",
+            )
+        )
+
+        generation_status = (
+            "READY_FOR_SOCIAL_PUBLISH"
         )
 
         update_row(
@@ -243,28 +299,34 @@ def process_row(
             row_number,
             {
                 "الحالة":
-                    "READY_FOR_SOCIAL_PUBLISH",
+                    generation_status,
+
                 "المحتوى":
                     post,
+
                 "وصف الصورة":
                     image_brief,
+
                 "رابط الصورة":
                     image_url,
+
                 "وقت آخر تشغيل":
                     current.isoformat(),
             },
         )
 
         print(
-            f"Generated image: {image_path}"
+            f"Generated image: "
+            f"{image_path}"
         )
 
         # ======================================================
-        # 3. FACEBOOK PUBLISH
+        # 3. FACEBOOK
         # ======================================================
 
         print(
-            "Publishing image + caption to Facebook..."
+            "Publishing image + caption "
+            "to Facebook..."
         )
 
         facebook = publish_photo(
@@ -282,7 +344,9 @@ def process_row(
         )
 
         facebook_post_id = (
-            facebook["post_id"]
+            facebook[
+                "post_id"
+            ]
         )
 
         update_row(
@@ -293,6 +357,7 @@ def process_row(
             {
                 "Facebook Status":
                     "PUBLISHED",
+
                 "Facebook Post ID":
                     facebook_post_id,
             },
@@ -309,15 +374,19 @@ def process_row(
 
         facebook_comment = (
             facebook_add_comment(
-                post_id=facebook_post_id,
+                post_id=
+                    facebook_post_id,
+
                 page_access_token=
                     config[
                         "facebook_page_access_token"
                     ],
+
                 graph_version=
                     config[
                         "facebook_graph_version"
                     ],
+
                 message=(
                     "لو عندك موقف قانوني مشابه، "
                     "اكتب سؤالك في التعليقات "
@@ -337,11 +406,14 @@ def process_row(
 
         facebook_like = (
             facebook_like_post(
-                post_id=facebook_post_id,
+                post_id=
+                    facebook_post_id,
+
                 page_access_token=
                     config[
                         "facebook_page_access_token"
                     ],
+
                 graph_version=
                     config[
                         "facebook_graph_version"
@@ -377,11 +449,12 @@ def process_row(
         ).strip()
 
         try:
-            # Resolve automatically if no override is provided.
+
             if not linkedin_author_urn:
 
                 print(
-                    "Resolving LinkedIn member identity..."
+                    "Resolving LinkedIn "
+                    "member identity..."
                 )
 
                 linkedin_author_urn = (
@@ -391,18 +464,29 @@ def process_row(
                 )
 
                 print(
-                    "LinkedIn member identity resolved."
+                    "LinkedIn member identity "
+                    "resolved."
                 )
 
-            linkedin = publish_to_linkedin(
-                token=linkedin_access_token,
-                author_urn=linkedin_author_urn,
-                image_path=image_path,
-                commentary=post,
-                first_comment=(
-                    "لو عندك موقف قانوني مشابه، "
-                    "اكتب سؤالك في التعليقات."
-                ),
+            linkedin = (
+                publish_to_linkedin(
+                    token=
+                        linkedin_access_token,
+
+                    author_urn=
+                        linkedin_author_urn,
+
+                    image_path=
+                        image_path,
+
+                    commentary=
+                        post,
+
+                    first_comment=(
+                        "لو عندك موقف قانوني مشابه، "
+                        "اكتب سؤالك في التعليقات."
+                    ),
+                )
             )
 
             print(
@@ -430,7 +514,9 @@ def process_row(
                         "PUBLISHED",
 
                     "LinkedIn Post ID":
-                        linkedin["post_urn"],
+                        linkedin[
+                            "post_urn"
+                        ],
 
                     "LinkedIn Comment Status":
                         linkedin[
@@ -441,9 +527,6 @@ def process_row(
                         linkedin[
                             "like"
                         ]["status"],
-
-                    "الحالة":
-                        "PUBLISHED",
                 },
             )
 
@@ -460,10 +543,6 @@ def process_row(
                 sheet_name,
                 row_number,
                 {
-                    # Facebook remains successful.
-                    "الحالة":
-                        "PUBLISHED",
-
                     "LinkedIn Status":
                         "FAILED",
 
@@ -476,28 +555,38 @@ def process_row(
         # 7. FINAL STATE
         # ======================================================
 
+        update_data = {
+            "الحالة":
+                "PUBLISHED",
+
+            "Facebook Status":
+                "PUBLISHED",
+
+            "Facebook Post ID":
+                facebook_post_id,
+
+            "وقت آخر تشغيل":
+                current.isoformat(),
+        }
+
+        if review_level == "REVIEW":
+
+            print(
+                "Published with legal review note: "
+                f"{review_text}"
+            )
+
         update_row(
             service,
             config["sheet_id"],
             sheet_name,
             row_number,
-            {
-                "الحالة":
-                    "PUBLISHED",
-
-                "Facebook Status":
-                    "PUBLISHED",
-
-                "Facebook Post ID":
-                    facebook_post_id,
-
-                "وقت آخر تشغيل":
-                    current.isoformat(),
-            },
+            update_data,
         )
 
         print(
-            "Full social publishing pipeline completed."
+            "Full social publishing pipeline "
+            "completed successfully."
         )
 
     except (
@@ -506,7 +595,8 @@ def process_row(
     ) as exc:
 
         error_text = (
-            f"{type(exc).__name__}: {exc}"
+            f"{type(exc).__name__}: "
+            f"{exc}"
         )
 
         print(
@@ -542,7 +632,8 @@ def process_row(
     except Exception as exc:
 
         error_text = (
-            f"{type(exc).__name__}: {exc}"
+            f"{type(exc).__name__}: "
+            f"{exc}"
         )
 
         print(
@@ -577,14 +668,18 @@ def process_row(
 
 def main():
 
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
 
     print(
         "KHYRAT LEGAL CONTENT ENGINE - "
         "FULL SOCIAL PIPELINE"
     )
 
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
 
     config = load_config()
 
@@ -594,8 +689,10 @@ def main():
         ]
     )
 
-    sheet_name = sheet_name_from_range(
-        config["sheet_range"]
+    sheet_name = (
+        sheet_name_from_range(
+            config["sheet_range"]
+        )
     )
 
     ensure_headers(
@@ -611,16 +708,22 @@ def main():
     )
 
     if not values:
+
         print(
             "Google Sheet is empty."
         )
+
         return
 
     headers = values[0]
 
-    if headers[:len(HEADERS)] != HEADERS:
+    if headers[
+        :len(HEADERS)
+    ] != HEADERS:
+
         raise RuntimeError(
-            "Sheet headers do not match expected template."
+            "Sheet headers do not match "
+            "expected template."
         )
 
     current = now_cairo()
@@ -636,7 +739,10 @@ def main():
         values[1:],
         start=2,
     ):
-        row = row_to_dict(raw_row)
+
+        row = row_to_dict(
+            raw_row
+        )
 
         try:
 
@@ -644,6 +750,7 @@ def main():
                 row,
                 current,
             ):
+
                 due_rows.append(
                     (
                         index,
@@ -678,7 +785,9 @@ def main():
 
         return
 
-    row_number, row = due_rows[0]
+    row_number, row = (
+        due_rows[0]
+    )
 
     process_row(
         service=service,
@@ -693,6 +802,7 @@ def main():
 if __name__ == "__main__":
 
     try:
+
         main()
 
     except ConfigError as exc:
