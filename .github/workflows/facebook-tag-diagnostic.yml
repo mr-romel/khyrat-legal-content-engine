@@ -9,7 +9,7 @@ jobs:
 
     env:
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
-      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+      FACEBOOK_PAGE_ID: "464216073916915"
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
 
     steps:
@@ -63,7 +63,11 @@ jobs:
               "access_token": token,
           }
 
-          response = requests.get(url, params=params, timeout=30)
+          response = requests.get(
+              url,
+              params=params,
+              timeout=30,
+          )
 
           print("HTTP status:", response.status_code)
 
@@ -102,13 +106,18 @@ jobs:
               "access_token": token,
           }
 
-          response = requests.get(url, params=params, timeout=30)
+          response = requests.get(
+              url,
+              params=params,
+              timeout=30,
+          )
 
           print("HTTP status:", response.status_code)
 
           try:
               data = response.json()
           except Exception:
+              print("Facebook returned a non-JSON response.")
               print(response.text[:1000])
               raise SystemExit(1)
 
@@ -144,11 +153,6 @@ jobs:
           print("It only tests whether the current Page access token can resolve")
           print("the supplied Facebook profile through the Graph API.")
 
-          # The Graph API does not generally allow arbitrary personal-profile
-          # lookup from a Page access token using a public username.
-          # We therefore deliberately test the known username as an API object
-          # only if Meta accepts it, and report the exact response.
-
           username = "MODY.ROMEL.UA07"
 
           url = f"https://graph.facebook.com/{version}/{username}"
@@ -158,7 +162,11 @@ jobs:
               "access_token": token,
           }
 
-          response = requests.get(url, params=params, timeout=30)
+          response = requests.get(
+              url,
+              params=params,
+              timeout=30,
+          )
 
           print()
           print("HTTP status:", response.status_code)
@@ -180,10 +188,14 @@ jobs:
               print("Profile name:", data.get("name"))
           else:
               print()
-              print("RESULT: Facebook did NOT allow this Page token")
-              print("to resolve the personal profile through this request.")
-              print("This is diagnostic only and does not mean Page tagging")
-              print("is impossible through the Facebook UI.")
+              print(
+                  "RESULT: Facebook did NOT allow this Page token "
+                  "to resolve the personal profile through this request."
+              )
+              print(
+                  "This is diagnostic only and does not mean Page tagging "
+                  "is impossible through the Facebook UI."
+              )
           PY
 
       - name: Final diagnostic summary
