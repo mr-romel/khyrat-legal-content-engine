@@ -21,6 +21,8 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
 COMMENT_DELAY_SECONDS = 12
+DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
+
 
 def github_raw_url(relative_path: str) -> str:
     repository = os.getenv("GITHUB_REPOSITORY", "").strip()
@@ -30,9 +32,11 @@ def github_raw_url(relative_path: str) -> str:
     normalized = relative_path.replace("\\", "/").lstrip("/")
     return f"https://raw.githubusercontent.com/{repository}/{branch}/{normalized}"
 
+
 def _normalized_topic(value: str) -> str:
     chars = "".join(ch.lower() if ch.isalnum() or ch.isspace() else " " for ch in (value or ""))
     return " ".join(chars.split())
+
 
 def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float, str]:
     normalized = _normalized_topic(topic)
@@ -48,6 +52,7 @@ def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float
             best_topic = row.get("الموضوع", "")
     return best_score, best_topic
 
+
 def _is_due(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "READY")).strip().upper()
     if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
@@ -60,11 +65,14 @@ def _is_due(row: dict[str, str], current) -> bool:
     delta = (current - target).total_seconds()
     return 0 <= delta < 3600 and current.date() >= target_date
 
+
 def _failed_retry(row: dict[str, str], current) -> bool:
     return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
 
+
 def _notify_review(row_number: int, row: dict[str, str], review_level: str, review_text: str, config) -> None:
     send_review_request(row_number=row_number, topic=row.get("الموضوع", ""), post=row.get("المحتوى", ""), reason=review_text, sheet_id=config["sheet_id"], status=review_level)
+
 
 def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int:
     published = 0
@@ -75,6 +83,7 @@ def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int
         time.sleep(COMMENT_DELAY_SECONDS)
     return published
 
+
 def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: list[str], config) -> int:
     published = 0
     for message in comments[1:5]:
@@ -83,6 +92,7 @@ def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: l
             published += 1
         time.sleep(COMMENT_DELAY_SECONDS)
     return published
+
 
 def _generate_if_needed(*, service, config, sheet_name, row_number, row, current, topic, bank_rows):
     existing_post = str(row.get("المحتوى", "") or "").strip()
@@ -118,11 +128,31 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "READY_FOR_SOCIAL_PUBLISH", "المحتوى": post, "وصف الصورة": image_brief, "رابط الصورة": image_url, "وقت آخر تشغيل": current.isoformat()})
     return post, image_url, image_path, review_level, review_text
 
+
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
     if not topic:
         raise RuntimeError(f"Row {row_number} has no topic.")
     print(f"Processing row {row_number}: {topic}")
+    if DRY_RUN:
+        print("=" * 70)
+        print("KHYRAT LEGAL CONTENT ENGINE - SAFE DRY RUN")
+        print("No Facebook/LinkedIn publishing, likes, or real comments will be performed.")
+        print("Content/image generation and comment generation may still call AI services.")
+        print("=" * 70)
+        bank_rows = get_bank_rows(service, config["sheet_id"])
+        post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
+        if review_level == "BLOCK":
+            print(f"DRY RUN result: BLOCK / review required: {review_text or 'no details'}")
+            return
+        if not post or not image_path:
+            raise RuntimeError("Dry run did not produce content/image assets.")
+        comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=post, legal_sources=row.get("المصادر القانونية", ""))
+        print(f"DRY RUN generated: Facebook comments={len(comments['facebook_comments'])}/5 | LinkedIn comments={len(comments['linkedin_comments'])}/5")
+        print(f"DRY RUN image: {image_path}")
+        print("DRY RUN completed successfully; no social API write was attempted.")
+        return
+
     original_status = str(row.get("الحالة", "")).strip().upper()
     update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "PROCESSING" if original_status not in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else original_status, "آخر خطأ": "", "وقت آخر تشغيل": current.isoformat()})
     bank_rows = get_bank_rows(service, config["sheet_id"])
@@ -198,58 +228,45 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         elif final_status == "PARTIAL_FAILED":
             notify("🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n" f"الموضوع: {topic}")
     except (ImageGenerationError, FacebookPublishError, LinkedInPublishError) as exc:
-        error_text = f"{type(exc).__name__}: {exc}"
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": error_text, "وقت آخر تشغيل": current.isoformat()})
-        notify(f"🚨 Content pipeline failed\nالموضوع: {topic}\nالسبب: {error_text}")
-        raise
-    except Exception as exc:
-        error_text = f"{type(exc).__name__}: {exc}"
-        traceback.print_exc()
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": error_text, "وقت آخر تشغيل": current.isoformat()})
-        notify(f"🚨 Content pipeline failed\nالموضوع: {topic}\nالسبب: {error_text}")
-        raise
+        print(f"Pipeline failed: {exc}")
+        print(traceback.format_exc())
+        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": str(exc), "وقت آخر تشغيل": current.isoformat()})
+        notify(f"❌ Pipeline failed\nالموضوع: {topic}\nالسبب: {exc}")
+
 
 def main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
     print("=" * 70)
-    config = load_config()
-    service = create_service(config["service_account_info"])
-    sheet_name = sheet_name_from_range(config["sheet_range"])
-    ensure_headers(service, config["sheet_id"], sheet_name)
-    values = get_values(service, config["sheet_id"], f"{sheet_name}!A:U")
-    if not values:
-        print("Google Sheet is empty.")
-        return
     current = now_cairo()
     print(f"Current Cairo time: {current.isoformat()}")
-    due_rows: list[tuple[int, dict[str, str]]] = []
-    approved_rows: list[tuple[int, dict[str, str]]] = []
-    failed_rows: list[tuple[int, dict[str, str]]] = []
-    for index, raw_row in enumerate(values[1:], start=2):
-        row = row_to_dict(raw_row)
-        try:
-            if _is_due(row, current):
-                due_rows.append((index, row))
-            elif _failed_retry(row, current):
-                failed_rows.append((index, row))
-            elif str(row.get("الحالة", "")).strip().upper() == "APPROVED":
-                approved_rows.append((index, row))
-        except Exception as exc:
-            update_row(service, config["sheet_id"], sheet_name, index, {"الحالة": "FAILED", "آخر خطأ": str(exc), "وقت آخر تشغيل": current.isoformat()})
-    candidate = due_rows + failed_rows + approved_rows
-    if not candidate:
-        print("No content is due right now.")
+    if DRY_RUN:
+        print("SAFE TEST MODE: social publishing is DISABLED.")
+    config = load_config()
+    service = create_service(config["service_account_info"])
+    ensure_headers(service, config["sheet_id"], config["sheet_name"])
+    values = get_values(service, config["sheet_id"], config["sheet_range"])
+    if not values:
+        print("No rows found.")
         return
-    row_number, row = candidate[0]
-    process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+    rows = [row_to_dict(row) for row in values[1:]]
+    candidates = []
+    for index, row in enumerate(rows, start=2):
+        if _is_due(row, current):
+            candidates.append((index, row))
+    if not candidates:
+        retry_candidates = [(index, row) for index, row in enumerate(rows, start=2) if _failed_retry(row, current)]
+        candidates = retry_candidates[:1]
+    if not candidates:
+        print("No due rows found.")
+        return
+    row_number, row = candidates[0]
+    process_row(service=service, config=config, sheet_name=config["sheet_name"], row_number=row_number, row=row, current=current)
+
 
 if __name__ == "__main__":
     try:
         main()
     except ConfigError as exc:
-        print(f"CONFIGURATION ERROR: {exc}")
-        raise SystemExit(2)
-    except ImageGenerationError as exc:
-        print(f"IMAGE/PIPELINE FAILURE RECORDED — workflow will continue on next cycle: {exc}")
-        raise SystemExit(0)
+        print(f"Configuration error: {exc}")
+        raise
