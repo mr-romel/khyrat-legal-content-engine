@@ -6,7 +6,6 @@ import time
 from typing import Any
 
 from google import genai
-from googleapiclient.errors import HttpError
 
 
 SYSTEM_PROMPT = """
@@ -21,12 +20,46 @@ SYSTEM_PROMPT = """
 {"facebook_comments":["..."],"linkedin_comments":["..."]}
 """
 
-# A single process can request the same comment package for Facebook and
-# LinkedIn. Cache it so the second platform does not trigger another AI call.
+# One generated package is reused across Facebook and LinkedIn so the second
+# platform does not consume another Gemini request.
 _COMMENT_CACHE: dict[tuple[str, str, str, str], dict[str, list[str]]] = {}
 MAX_RETRIES = 4
 INITIAL_BACKOFF_SECONDS = 5.0
-TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+
+
+def _extract_status_code(exc: Exception) -> int | None:
+    """Extract an HTTP-like status from Google GenAI or HTTP client errors."""
+    candidates = [
+        getattr(exc, "status_code", None),
+        getattr(exc, "code", None),
+        getattr(exc, "status", None),
+    ]
+
+    response = getattr(exc, "response", None)
+    if response is not None:
+        candidates.extend([
+            getattr(response, "status_code", None),
+            getattr(response, "status", None),
+        ])
+
+    resp = getattr(exc, "resp", None)
+    if resp is not None:
+        candidates.extend([
+            getattr(resp, "status_code", None),
+            getattr(resp, "status", None),
+        ])
+
+    for candidate in candidates:
+        try:
+            if candidate is not None:
+                return int(candidate)
+        except (TypeError, ValueError):
+            continue
+
+    # Some SDK errors expose the HTTP status only in the exception text.
+    match = re.search(r"\b(?:HTTP\s*)?(408|429|500|502|503|504)\b", str(exc))
+    return int(match.group(1)) if match else None
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -70,8 +103,8 @@ def _generate_with_retry(*, client, model: str, prompt: str):
                     {"role": "user", "parts": [{"text": SYSTEM_PROMPT + "\n" + prompt}]}
                 ],
             )
-        except HttpError as exc:
-            status = getattr(exc.resp, "status", None)
+        except Exception as exc:
+            status = _extract_status_code(exc)
             if status not in TRANSIENT_STATUS_CODES or attempt >= MAX_RETRIES:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
