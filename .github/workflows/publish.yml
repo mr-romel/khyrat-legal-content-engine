@@ -56,7 +56,6 @@ jobs:
           python - <<'PY'
           import json
           import os
-          import urllib.error
           import urllib.parse
           import urllib.request
 
@@ -120,6 +119,7 @@ jobs:
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
@@ -131,7 +131,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
         run: |
-          python src/main.py
+          PYTHONPATH=src python src/run_main.py
 
       - name: Commit generated images
         if: success()
@@ -154,6 +154,7 @@ jobs:
           echo "RESILIENT SCHEDULER: EVERY 15 MINUTES"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
+          echo "GEMINI: RETRY + FALLBACK MODEL"
           echo "POST BANK + AI COMMENTS + RETRY QUEUE"
           echo "TELEGRAM CONTROL + TOKEN HEALTH"
           echo "=============================================="
