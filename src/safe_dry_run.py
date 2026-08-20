@@ -4,7 +4,7 @@ import os
 
 from comment_engine import generate_comments
 from config import load_config
-from gemini import generate_post
+from gemini_runtime import generate_post
 from sheets import create_service, get_values, row_to_dict
 
 
@@ -21,6 +21,7 @@ def main() -> None:
     print("COMMENTS: NO WRITE")
     print("IMAGE GENERATION: DISABLED")
     print("AI CONTENT/COMMENT GENERATION: ENABLED")
+    print("GEMINI: RETRY + FALLBACK MODEL ENABLED")
     print("=" * 70)
 
     if os.getenv("KHYRAT_DRY_RUN", "").strip().lower() not in {"1", "true", "yes", "on"}:
@@ -56,7 +57,7 @@ def main() -> None:
         post = existing_post
         print("Using existing post content from the selected row; no Sheet write will occur.")
     else:
-        print("Generating temporary post content with Gemini...")
+        print("Generating temporary post content with resilient Gemini runtime...")
         result = generate_post(
             api_key=config["gemini_api_key"],
             model=config["gemini_model"],
