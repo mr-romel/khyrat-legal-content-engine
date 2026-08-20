@@ -1,0 +1,57 @@
+name: Khyrat Legal Content Engine - Safe Dry Run
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dry-run:
+    name: Safe AI and Comment Pipeline Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run SAFE DRY RUN
+        env:
+          KHYRAT_DRY_RUN: "true"
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+        run: |
+          python src/main.py
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "KHYRAT LEGAL CONTENT ENGINE - SAFE DRY RUN"
+          echo "SOCIAL PUBLISHING: DISABLED"
+          echo "FACEBOOK: NO WRITE"
+          echo "LINKEDIN: NO WRITE"
+          echo "LIKES: NO WRITE"
+          echo "COMMENTS: NO WRITE"
+          echo "AI CONTENT/IMAGE/COMMENT GENERATION: ENABLED"
+          echo "=============================================="
