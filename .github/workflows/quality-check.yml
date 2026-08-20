@@ -33,3 +33,50 @@ jobs:
         run: |
           python -m compileall -q src
           echo "Python compile check: OK"
+
+      - name: Import application modules
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import analytics
+          import comment_engine
+          import config
+          import content_planner
+          import facebook_publisher
+          import gemini
+          import image_generator
+          import linkedin_publisher
+          import main
+          import monthly_recycler
+          import optimizer
+          import performance
+          import post_bank
+          import sheets
+          import telegram_bot
+          import utils
+          print("Application module import check: OK")
+          PY
+
+      - name: Safe dry-run configuration smoke test
+        env:
+          PYTHONPATH: src
+          KHYRAT_DRY_RUN: "true"
+          GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check"}'
+          GOOGLE_SHEET_ID: "quality-check-sheet"
+          GOOGLE_SHEET_RANGE: "Content!A:U"
+          GEMINI_API_KEY: "quality-check-key"
+          GEMINI_MODEL: "gemini-3.6-flash"
+        run: |
+          python - <<'PY'
+          import os
+          from config import load_config
+
+          config = load_config()
+          assert config["sheet_id"] == "quality-check-sheet"
+          assert config["cloudflare_account_id"] == ""
+          assert config["cloudflare_api_token"] == ""
+          assert config["facebook_page_access_token"] == ""
+          assert config["linkedin_access_token"] == ""
+          print("Safe dry-run configuration check: OK")
+          PY
