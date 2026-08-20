@@ -2,13 +2,3 @@ name = "khyrat-telegram-control"
 main = "src/index.js"
 compatibility_date = "2026-08-20"
 workers_dev = true
-
-[secrets]
-required = [
-  "TELEGRAM_BOT_TOKEN",
-  "TELEGRAM_CHAT_ID",
-  "TELEGRAM_ADMIN_USER_ID",
-  "TELEGRAM_WEBHOOK_SECRET",
-  "GOOGLE_SERVICE_ACCOUNT_JSON",
-  "GOOGLE_SHEET_ID",
-]
