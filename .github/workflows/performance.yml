@@ -1,0 +1,55 @@
+name: Khyrat Social Performance Collector
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 23 * * *"
+      timezone: "Africa/Cairo"
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Collect social metrics
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_GRAPH_VERSION: "26.0"
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from src.sheets import create_service
+          from src.performance import collect
+          service = create_service(json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']))
+          collect(
+              service=service,
+              spreadsheet_id=os.environ['GOOGLE_SHEET_ID'],
+              page_access_token=os.environ['FACEBOOK_PAGE_ACCESS_TOKEN'],
+              graph_version=os.environ.get('FACEBOOK_GRAPH_VERSION', '26.0'),
+              linkedin_access_token=os.environ['LINKEDIN_ACCESS_TOKEN'],
+          )
+          PY
