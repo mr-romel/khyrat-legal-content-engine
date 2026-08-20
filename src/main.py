@@ -15,7 +15,7 @@ from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
 from linkedin_publisher import LinkedInPublishError, add_comment as linkedin_add_comment, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
-from sheets import HEADERS, create_service, ensure_headers, get_values, row_to_dict, update_row
+from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
@@ -55,7 +55,7 @@ def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float
 
 def _is_due(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "READY")).strip().upper()
-    if status not in {"READY", "FAILED"}:
+    if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
         return False
     target_date = parse_date(row.get("تاريخ النشر", ""))
     target_time = parse_time(row.get("ساعة النشر", ""))
@@ -69,7 +69,7 @@ def _is_due(row: dict[str, str], current) -> bool:
 
 
 def _failed_retry(row: dict[str, str], current) -> bool:
-    return str(row.get("الحالة", "")).strip().upper() == "FAILED" and bool(row.get("الموضوع", "").strip())
+    return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
 
 
 def _notify_review(row_number: int, row: dict[str, str], review_level: str, review_text: str, config) -> None:
@@ -113,230 +113,259 @@ def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: l
     return published
 
 
-def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
-    topic = row.get("الموضوع", "").strip()
-    if not topic:
-        raise RuntimeError(f"Row {row_number} has no topic.")
+def _generate_if_needed(*, service, config, sheet_name, row_number, row, current, topic, bank_rows):
+    existing_post = str(row.get("المحتوى", "") or "").strip()
+    existing_image_url = str(row.get("رابط الصورة", "") or "").strip()
+    raw_id = row.get("ID", "") or f"row-{row_number}"
+    safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in raw_id)
+    image_path = GENERATED_DIR / f"{safe_id}.jpg"
+    recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
 
-    print(f"Processing row {row_number}: {topic}")
-    update_row(service, config["sheet_id"], sheet_name, row_number, {
-        "الحالة": "PROCESSING",
-        "Facebook Status": "PROCESSING",
-        "آخر خطأ": "",
-        "وقت آخر تشغيل": current.isoformat(),
-    })
+    if recovery and existing_post and image_path.is_file():
+        print("Recovery mode: reusing existing generated content/image; no duplicate AI generation.")
+        return existing_post, existing_image_url, image_path, "CLEAR", ""
 
-    bank_rows = get_bank_rows(service, config["sheet_id"])
     previous_context = build_previous_context(bank_rows)
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
         print(f"Duplicate guard: similarity={duplicate_score:.2f} with '{duplicate_topic}'.")
         previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
 
-    pillar, objective = classify(topic)
+    result = generate_post(
+        api_key=config["gemini_api_key"],
+        model=config["gemini_model"],
+        topic=topic,
+        legal_sources=row.get("المصادر القانونية", ""),
+        previous_context=previous_context,
+    )
+    post = str(result.get("post", "") or "").strip()
+    image_brief = str(result.get("image_brief", "") or "").strip()
+    review_level = str(result.get("review_level", "REVIEW") or "REVIEW").upper()
+    review_flags = result.get("review_flags", [])
+    review_text = " | ".join(str(item).strip() for item in review_flags if str(item).strip())
+    if not post or not image_brief:
+        raise RuntimeError("Gemini returned incomplete content.")
 
-    try:
-        result = generate_post(
-            api_key=config["gemini_api_key"],
-            model=config["gemini_model"],
-            topic=topic,
-            legal_sources=row.get("المصادر القانونية", ""),
-            previous_context=previous_context,
-        )
-        post = str(result.get("post", "") or "").strip()
-        image_brief = str(result.get("image_brief", "") or "").strip()
-        review_level = str(result.get("review_level", "REVIEW") or "REVIEW").upper()
-        review_flags = result.get("review_flags", [])
-        review_text = " | ".join(str(item).strip() for item in review_flags if str(item).strip())
-        if not post or not image_brief:
-            raise RuntimeError("Gemini returned incomplete content.")
-
-        if review_level == "BLOCK":
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "NEEDS_REVIEW",
-                "المحتوى": post,
-                "وصف الصورة": image_brief,
-                "آخر خطأ": review_text or "Legal review required.",
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-            _notify_review(row_number, {**row, "المحتوى": post}, "BLOCK", review_text, config)
-            print("BLOCK: this row waits for human approval; other scheduled runs remain independent.")
-            return
-
-        if review_level == "REVIEW":
-            notify(
-                "🟡 Review advisory — تم السماح بالنشر تلقائيًا.\n"
-                f"الموضوع: {topic}\n"
-                f"الملاحظة: {review_text or 'مراجعة مستحسنة'}"
-            )
-
-        raw_id = row.get("ID", "") or f"row-{row_number}"
-        safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in raw_id)
-        image_path = GENERATED_DIR / f"{safe_id}.jpg"
-        create_legal_image(
-            topic=topic,
-            image_brief=image_brief,
-            output_path=str(image_path),
-            cloudflare_account_id=config["cloudflare_account_id"],
-            cloudflare_api_token=config["cloudflare_api_token"],
-        )
-        image_url = github_raw_url(str(image_path).replace("\\", "/"))
-
+    if review_level == "BLOCK":
         update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "الحالة": "READY_FOR_SOCIAL_PUBLISH",
+            "الحالة": "NEEDS_REVIEW",
             "المحتوى": post,
             "وصف الصورة": image_brief,
-            "رابط الصورة": image_url,
+            "آخر خطأ": review_text or "Legal review required.",
             "وقت آخر تشغيل": current.isoformat(),
         })
+        _notify_review(row_number, {**row, "المحتوى": post}, "BLOCK", review_text, config)
+        return None, None, None, "BLOCK", review_text
 
-        facebook_post_id = ""
-        linkedin_post_id = ""
+    if review_level == "REVIEW":
+        notify(
+            "🟡 Review advisory — سيتم النشر تلقائيًا لأن الملاحظة لا تستوجب إيقاف التشغيل.\n"
+            f"الموضوع: {topic}\n"
+            f"الملاحظة: {review_text or 'مراجعة مستحسنة'}"
+        )
+
+    create_legal_image(
+        topic=topic,
+        image_brief=image_brief,
+        output_path=str(image_path),
+        cloudflare_account_id=config["cloudflare_account_id"],
+        cloudflare_api_token=config["cloudflare_api_token"],
+    )
+    image_url = github_raw_url(str(image_path).replace("\\", "/"))
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "الحالة": "READY_FOR_SOCIAL_PUBLISH",
+        "المحتوى": post,
+        "وصف الصورة": image_brief,
+        "رابط الصورة": image_url,
+        "وقت آخر تشغيل": current.isoformat(),
+    })
+    return post, image_url, image_path, review_level, review_text
+
+
+def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
+    topic = row.get("الموضوع", "").strip()
+    if not topic:
+        raise RuntimeError(f"Row {row_number} has no topic.")
+
+    print(f"Processing row {row_number}: {topic}")
+    original_status = str(row.get("الحالة", "")).strip().upper()
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "الحالة": "PROCESSING" if original_status not in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else original_status,
+        "آخر خطأ": "",
+        "وقت آخر تشغيل": current.isoformat(),
+    })
+
+    bank_rows = get_bank_rows(service, config["sheet_id"])
+    pillar, objective = classify(topic, row.get("المحتوى", ""))
+
+    try:
+        post, image_url, image_path, review_level, review_text = _generate_if_needed(
+            service=service,
+            config=config,
+            sheet_name=sheet_name,
+            row_number=row_number,
+            row=row,
+            current=current,
+            topic=topic,
+            bank_rows=bank_rows,
+        )
+        if review_level == "BLOCK":
+            return
+        if not post or not image_path:
+            raise RuntimeError("Content/image generation did not produce publishable assets.")
+
+        facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
+        linkedin_post_id = str(row.get("LinkedIn Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         facebook_comments = 0
         linkedin_comments = 0
 
-        # Facebook is isolated from LinkedIn so one platform failure does not stop the other.
-        try:
-            facebook = publish_photo(
-                page_id=config["facebook_page_id"],
-                page_access_token=config["facebook_page_access_token"],
-                graph_version=config["facebook_graph_version"],
-                image_path=image_path,
-                caption=post,
-            )
-            facebook_post_id = facebook["post_id"]
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Facebook Status": "PUBLISHED",
-                "Facebook Post ID": facebook_post_id,
-            })
-
+        if facebook_post_id and str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED":
+            print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
+        else:
             try:
-                comments = generate_comments(
-                    api_key=config["gemini_api_key"],
-                    model=config["gemini_model"],
-                    topic=topic,
-                    post=post,
-                    legal_sources=row.get("المصادر القانونية", ""),
+                facebook = publish_photo(
+                    page_id=config["facebook_page_id"],
+                    page_access_token=config["facebook_page_access_token"],
+                    graph_version=config["facebook_graph_version"],
+                    image_path=image_path,
+                    caption=post,
                 )
-                facebook_comments = _publish_comments_facebook(facebook_post_id, comments["facebook_comments"], config)
-            except Exception as exc:
-                print(f"Facebook comment engine failed: {exc}")
+                facebook_post_id = facebook["post_id"]
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "Facebook Status": "PUBLISHED",
+                    "Facebook Post ID": facebook_post_id,
+                })
+                try:
+                    comments = generate_comments(
+                        api_key=config["gemini_api_key"],
+                        model=config["gemini_model"],
+                        topic=topic,
+                        post=post,
+                        legal_sources=row.get("المصادر القانونية", ""),
+                    )
+                    facebook_comments = _publish_comments_facebook(facebook_post_id, comments["facebook_comments"], config)
+                except Exception as exc:
+                    print(f"Facebook comment engine failed: {exc}")
+                try:
+                    like = facebook_like_post(
+                        post_id=facebook_post_id,
+                        page_access_token=config["facebook_page_access_token"],
+                        graph_version=config["facebook_graph_version"],
+                    )
+                    print(f"Facebook like: {like['status']}")
+                except Exception as exc:
+                    print(f"Facebook like failed: {exc}")
+            except FacebookPublishError as exc:
+                error = f"Facebook: {exc}"
+                print(error)
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "Facebook Status": "FAILED",
+                    "آخر خطأ": error,
+                })
+                notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
-            like = facebook_like_post(
-                post_id=facebook_post_id,
-                page_access_token=config["facebook_page_access_token"],
-                graph_version=config["facebook_graph_version"],
-            )
-            print(f"Facebook like: {like['status']}")
-        except FacebookPublishError as exc:
-            error = f"Facebook: {exc}"
-            print(error)
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Facebook Status": "FAILED",
-                "آخر خطأ": error,
-            })
-            notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
-
-        # LinkedIn is independently attempted even if Facebook failed.
-        try:
-            linkedin_access_token = config["linkedin_access_token"]
-            linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip()
-            if not linkedin_author_urn:
-                linkedin_author_urn = resolve_member_urn(linkedin_access_token)
-
-            linkedin = publish_to_linkedin(
-                token=linkedin_access_token,
-                author_urn=linkedin_author_urn,
-                image_path=image_path,
-                commentary=post,
-                first_comment="لو عندك موقف قانوني مشابه، اكتب سؤالك في التعليقات.",
-            )
-            linkedin_post_id = linkedin["post_urn"]
-            linkedin_comments = 1 if linkedin["comment"]["status"] == "PUBLISHED" else 0
-
+        if linkedin_post_id and str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED":
+            print(f"Idempotency: LinkedIn already published as {linkedin_post_id}; skipping duplicate publish.")
+        else:
             try:
-                comments = generate_comments(
-                    api_key=config["gemini_api_key"],
-                    model=config["gemini_model"],
-                    topic=topic,
-                    post=post,
-                    legal_sources=row.get("المصادر القانونية", ""),
+                linkedin_access_token = config["linkedin_access_token"]
+                linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(linkedin_access_token)
+                linkedin = publish_to_linkedin(
+                    token=linkedin_access_token,
+                    author_urn=linkedin_author_urn,
+                    image_path=image_path,
+                    commentary=post,
+                    first_comment="لو عندك موقف قانوني مشابه، اكتب سؤالك في التعليقات.",
                 )
-                linkedin_comments += _publish_extra_linkedin_comments(
-                    linkedin_post_id,
-                    linkedin_author_urn,
-                    comments["linkedin_comments"],
-                    config,
-                )
-            except Exception as exc:
-                print(f"LinkedIn comment engine failed: {exc}")
+                linkedin_post_id = linkedin["post_urn"]
+                linkedin_comments = 1 if linkedin["comment"]["status"] == "PUBLISHED" else 0
+                try:
+                    comments = generate_comments(
+                        api_key=config["gemini_api_key"],
+                        model=config["gemini_model"],
+                        topic=topic,
+                        post=post,
+                        legal_sources=row.get("المصادر القانونية", ""),
+                    )
+                    linkedin_comments += _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, comments["linkedin_comments"], config)
+                except Exception as exc:
+                    print(f"LinkedIn comment engine failed: {exc}")
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "LinkedIn Status": "PUBLISHED",
+                    "LinkedIn Post ID": linkedin_post_id,
+                    "LinkedIn Comment Status": "PUBLISHED" if linkedin_comments else "FAILED",
+                })
+            except LinkedInPublishError as exc:
+                error = f"LinkedIn: {exc}"
+                print(error)
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "LinkedIn Status": "FAILED",
+                    "آخر خطأ": error,
+                })
+                notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
-            print(f"LinkedIn post succeeded: {linkedin_post_id}")
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "LinkedIn Status": "PUBLISHED",
-                "LinkedIn Post ID": linkedin_post_id,
-                "LinkedIn Comment Status": "PUBLISHED" if linkedin_comments else "FAILED",
-            })
-        except LinkedInPublishError as exc:
-            error = f"LinkedIn: {exc}"
-            print(error)
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "LinkedIn Status": "FAILED",
-                "آخر خطأ": error,
-            })
-            notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
+        fb_ok = bool(facebook_post_id)
+        li_ok = bool(linkedin_post_id)
+        if not fb_ok and not li_ok:
+            final_status = "FAILED"
+        elif fb_ok and li_ok:
+            final_status = "PUBLISHED"
+        else:
+            final_status = "PARTIAL_FAILED"
 
-        if not facebook_post_id and not linkedin_post_id:
-            raise RuntimeError("Both Facebook and LinkedIn publishing failed.")
-
-        final_status = "PUBLISHED" if facebook_post_id or linkedin_post_id else "FAILED"
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "الحالة": final_status,
-            "Facebook Status": "PUBLISHED" if facebook_post_id else "FAILED",
+            "Facebook Status": "PUBLISHED" if fb_ok else "FAILED",
             "Facebook Post ID": facebook_post_id,
-            "LinkedIn Status": "PUBLISHED" if linkedin_post_id else "FAILED",
+            "LinkedIn Status": "PUBLISHED" if li_ok else "FAILED",
             "LinkedIn Post ID": linkedin_post_id,
             "وقت آخر تشغيل": current.isoformat(),
         })
 
-        try:
-            add_published_post(
-                service,
-                config["sheet_id"],
-                source_row_id=row.get("ID", ""),
-                topic=topic,
-                content=post,
-                publish_date=current.date().isoformat(),
-                facebook_post_id=facebook_post_id,
-                linkedin_post_id=linkedin_post_id,
-                image_url=image_url,
-                legal_sources=row.get("المصادر القانونية", ""),
-                angle=row.get("ملاحظات", ""),
-                objective=objective,
-                review_level=review_level,
-            )
-            log_publication(
-                service,
-                config["sheet_id"],
-                source_row_id=row.get("ID", ""),
-                topic=topic,
-                pillar=pillar,
-                objective=objective,
-                facebook_post_id=facebook_post_id,
-                linkedin_post_id=linkedin_post_id,
-                facebook_comments=str(facebook_comments),
-                linkedin_comments=str(linkedin_comments),
-                status=final_status,
-            )
-        except Exception as exc:
-            print(f"PostBank/Analytics logging failed: {exc}")
+        if final_status == "PUBLISHED":
+            try:
+                add_published_post(
+                    service,
+                    config["sheet_id"],
+                    source_row_id=row.get("ID", ""),
+                    topic=topic,
+                    content=post,
+                    publish_date=current.date().isoformat(),
+                    facebook_post_id=facebook_post_id,
+                    linkedin_post_id=linkedin_post_id,
+                    image_url=image_url or "",
+                    legal_sources=row.get("المصادر القانونية", ""),
+                    angle=row.get("ملاحظات", ""),
+                    objective=objective,
+                    review_level=review_level,
+                )
+                log_publication(
+                    service,
+                    config["sheet_id"],
+                    source_row_id=row.get("ID", ""),
+                    topic=topic,
+                    pillar=pillar,
+                    objective=objective,
+                    facebook_post_id=facebook_post_id,
+                    linkedin_post_id=linkedin_post_id,
+                    facebook_comments=str(facebook_comments),
+                    linkedin_comments=str(linkedin_comments),
+                    status=final_status,
+                )
+            except Exception as exc:
+                print(f"PostBank/Analytics logging failed: {exc}")
 
-        notify(
-            "✅ Khyrat Legal Content Engine\n"
-            f"تم نشر: {topic}\n"
-            f"Facebook: {'✅' if facebook_post_id else '❌'} | LinkedIn: {'✅' if linkedin_post_id else '❌'}\n"
-            f"التعليقات: Facebook {facebook_comments}/5 | LinkedIn {linkedin_comments}/5"
-        )
+            notify(
+                "✅ Khyrat Legal Content Engine\n"
+                f"تم نشر: {topic}\n"
+                f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_ok else '❌'}\n"
+                f"التعليقات: Facebook {facebook_comments}/5 | LinkedIn {linkedin_comments}/5"
+            )
+        elif final_status == "PARTIAL_FAILED":
+            notify(
+                "🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n"
+                f"الموضوع: {topic}"
+            )
 
     except (ImageGenerationError, FacebookPublishError, LinkedInPublishError) as exc:
         error_text = f"{type(exc).__name__}: {exc}"
@@ -367,7 +396,6 @@ def main() -> None:
     service = create_service(config["service_account_info"])
     sheet_name = sheet_name_from_range(config["sheet_range"])
     ensure_headers(service, config["sheet_id"], sheet_name)
-
     values = get_values(service, config["sheet_id"], f"{sheet_name}!A:U")
     if not values:
         print("Google Sheet is empty.")
@@ -375,10 +403,9 @@ def main() -> None:
 
     current = now_cairo()
     print(f"Current Cairo time: {current.isoformat()}")
-
     due_rows: list[tuple[int, dict[str, str]]] = []
-    failed_rows: list[tuple[int, dict[str, str]]] = []
     approved_rows: list[tuple[int, dict[str, str]]] = []
+    failed_rows: list[tuple[int, dict[str, str]]] = []
 
     for index, raw_row in enumerate(values[1:], start=2):
         row = row_to_dict(raw_row)
@@ -396,21 +423,13 @@ def main() -> None:
                 "وقت آخر تشغيل": current.isoformat(),
             })
 
-    # Priority: the scheduled post first. Then approved exception items. Then failed backlog.
-    candidate = (due_rows or approved_rows or failed_rows)
+    candidate = due_rows or approved_rows or failed_rows
     if not candidate:
         print("No content is due right now.")
         return
 
     row_number, row = candidate[0]
-    process_row(
-        service=service,
-        config=config,
-        sheet_name=sheet_name,
-        row_number=row_number,
-        row=row,
-        current=current,
-    )
+    process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
 
 
 if __name__ == "__main__":
