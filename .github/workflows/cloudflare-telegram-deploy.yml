@@ -53,6 +53,20 @@ jobs:
       - name: Install Wrangler
         run: npm install --global wrangler@latest
 
+      - name: Enable workers.dev subdomain for the Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/khyrat-telegram-control/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"enabled":true}' || true
+
+      - name: Deploy Worker code
+        working-directory: workers/telegram-control
+        run: npx wrangler deploy --config wrangler.toml --strict
+
       - name: Upload Worker secrets
         working-directory: workers/telegram-control
         shell: bash
@@ -74,17 +88,7 @@ jobs:
           npx wrangler secret bulk /tmp/khyrat-worker-secrets.json --config wrangler.toml
           rm -f /tmp/khyrat-worker-secrets.json
 
-      - name: Enable workers.dev subdomain for the Worker
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail-with-body -sS -X POST \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/khyrat-telegram-control/subdomain" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data '{"enabled":true}'
-
-      - name: Deploy Worker
+      - name: Deploy Worker again with secrets bound
         working-directory: workers/telegram-control
         run: npx wrangler deploy --config wrangler.toml --strict
 
