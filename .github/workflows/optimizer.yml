@@ -1,0 +1,46 @@
+name: Khyrat Monthly Content Intelligence
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 1 1 * *"
+      timezone: "Africa/Cairo"
+
+permissions:
+  contents: read
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate monthly recommendations
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from src.sheets import create_service
+          from src.optimizer import run
+          service = create_service(json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']))
+          run(service=service, spreadsheet_id=os.environ['GOOGLE_SHEET_ID'])
+          PY
