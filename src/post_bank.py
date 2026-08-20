@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 try:
     from .sheets import get_values
@@ -52,6 +51,14 @@ def ensure_post_bank_sheet(service, spreadsheet_id: str) -> None:
     ).execute()
 
 
+def _source_row_already_logged(service, spreadsheet_id: str, source_row_id: str) -> bool:
+    source = str(source_row_id or "").strip()
+    if not source:
+        return False
+    values = get_values(service, spreadsheet_id, f"{BANK_SHEET}!N2:N")
+    return any(str(row[0]).strip() == source for row in values if row)
+
+
 def add_published_post(
     service,
     spreadsheet_id: str,
@@ -67,8 +74,13 @@ def add_published_post(
     angle: str = "",
     objective: str = "",
     review_level: str = "CLEAR",
-) -> None:
+) -> bool:
+    """Add a post once only; retries must never duplicate the same source row in PostBank."""
     ensure_post_bank_sheet(service, spreadsheet_id)
+    if _source_row_already_logged(service, spreadsheet_id, source_row_id):
+        print(f"PostBank idempotency: source row {source_row_id} is already logged; skipping duplicate entry.")
+        return False
+
     row = [
         source_row_id or "",
         topic or "",
@@ -92,6 +104,7 @@ def add_published_post(
         insertDataOption="INSERT_ROWS",
         body={"values": [row]},
     ).execute()
+    return True
 
 
 def get_bank_rows(service, spreadsheet_id: str) -> list[dict[str, str]]:
