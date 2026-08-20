@@ -40,11 +40,29 @@ def ensure_sheet(service, spreadsheet_id: str) -> None:
     ).execute()
 
 
-def log_publication(service, spreadsheet_id: str, **data: str) -> None:
+def _source_row_already_logged(service, spreadsheet_id: str, source_row_id: str) -> bool:
+    source = str(source_row_id or "").strip()
+    if not source:
+        return False
+    values = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=f"{SHEET}!B2:B",
+        majorDimension="ROWS",
+    ).execute().get("values", [])
+    return any(str(row[0]).strip() == source for row in values if row)
+
+
+def log_publication(service, spreadsheet_id: str, **data: str) -> bool:
+    """Log a publication once only; retries must not create duplicate analytics rows."""
     ensure_sheet(service, spreadsheet_id)
+    source_row_id = str(data.get("source_row_id", "") or "").strip()
+    if _source_row_already_logged(service, spreadsheet_id, source_row_id):
+        print(f"Analytics idempotency: source row {source_row_id} is already logged; skipping duplicate entry.")
+        return False
+
     row = [
         data.get("date", datetime.now().astimezone().isoformat()),
-        data.get("source_row_id", ""),
+        source_row_id,
         data.get("topic", ""),
         data.get("pillar", ""),
         data.get("objective", ""),
@@ -61,3 +79,4 @@ def log_publication(service, spreadsheet_id: str, **data: str) -> None:
         insertDataOption="INSERT_ROWS",
         body={"values": [row]},
     ).execute()
+    return True
