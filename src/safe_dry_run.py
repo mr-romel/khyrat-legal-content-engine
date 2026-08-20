@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 
 from comment_engine import generate_comments
 from config import load_config
 from gemini import generate_post
-from post_bank import build_previous_context, get_bank_rows
 from sheets import create_service, get_values, row_to_dict
-from utils import sheet_name_from_range
 
 
 def main() -> None:
@@ -17,12 +14,17 @@ def main() -> None:
     print("=" * 70)
     print("SOCIAL PUBLISHING: DISABLED")
     print("GOOGLE SHEETS WRITE: DISABLED")
+    print("POSTBANK CREATION/UPDATE: DISABLED")
     print("FACEBOOK: NO WRITE")
     print("LINKEDIN: NO WRITE")
     print("LIKES: NO WRITE")
     print("COMMENTS: NO WRITE")
+    print("IMAGE GENERATION: DISABLED")
     print("AI CONTENT/COMMENT GENERATION: ENABLED")
     print("=" * 70)
+
+    if os.getenv("KHYRAT_DRY_RUN", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        raise RuntimeError("Safe dry run requires KHYRAT_DRY_RUN=true.")
 
     config = load_config()
     service = create_service(config["service_account_info"])
@@ -50,9 +52,6 @@ def main() -> None:
     print(f"Selected test row: {row_number}")
     print(f"Test topic: {topic}")
 
-    bank_rows = get_bank_rows(service, config["sheet_id"])
-    previous_context = build_previous_context(bank_rows)
-
     if existing_post:
         post = existing_post
         print("Using existing post content from the selected row; no Sheet write will occur.")
@@ -63,7 +62,7 @@ def main() -> None:
             model=config["gemini_model"],
             topic=topic,
             legal_sources=legal_sources,
-            previous_context=previous_context,
+            previous_context="Safe dry-run: no PostBank access is performed.",
         )
         post = str(result.get("post", "")).strip()
         if not post:
@@ -81,10 +80,21 @@ def main() -> None:
     facebook_comments = comments.get("facebook_comments", [])
     linkedin_comments = comments.get("linkedin_comments", [])
 
-    print(f"SAFE DRY RUN result: Facebook comments={len(facebook_comments)}/5 | LinkedIn comments={len(linkedin_comments)}/5")
+    if len(facebook_comments) != 5 or len(linkedin_comments) != 5:
+        raise RuntimeError(
+            "Safe dry run failed: expected exactly 5 comments per platform."
+        )
+
+    print(
+        "SAFE DRY RUN result: "
+        f"Facebook comments={len(facebook_comments)}/5 | "
+        f"LinkedIn comments={len(linkedin_comments)}/5"
+    )
     print("SAFE DRY RUN completed successfully.")
     print("No Facebook/LinkedIn API write was attempted.")
     print("No Google Sheet write was attempted.")
+    print("No PostBank sheet was created or modified.")
+    print("No Cloudflare image generation was attempted.")
 
 
 if __name__ == "__main__":
