@@ -4,11 +4,14 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Two production publishing windows only: 14:00 and 20:00 Cairo time.
-    # The engine itself respects the exact Sheet date/time and never publishes early.
-    - cron: "0 14 * * *"
+    # Production publishing windows: shortly after 14:00 and 20:00 Cairo time.
+    # We intentionally avoid minute 00 because GitHub documents that scheduled
+    # workflows can be delayed or dropped during high-load periods at the start
+    # of the hour. The engine still uses the exact Sheet date/time as its source
+    # of truth and will never publish early.
+    - cron: "7 14 * * *"
       timezone: "Africa/Cairo"
-    - cron: "0 20 * * *"
+    - cron: "7 20 * * *"
       timezone: "Africa/Cairo"
 
 concurrency:
@@ -93,7 +96,8 @@ jobs:
         run: |
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
-          echo "SMART SCHEDULER: 14:00 + 20:00 CAIRO"
+          echo "SMART SCHEDULER: 14:07 + 20:07 CAIRO"
+          echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
           echo "POST BANK + AI COMMENTS + RETRY QUEUE"
           echo "TELEGRAM CONTROL + TOKEN HEALTH"
           echo "=============================================="
