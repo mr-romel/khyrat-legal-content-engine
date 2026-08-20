@@ -8,7 +8,7 @@ from src.sheets import get_values, insert_row_at_top, row_to_dict
 from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
-DEFAULT_POSTING_TIME = "14:00"
+POSTING_TIMES = ("14:00", "20:00")
 
 ANGLE_LIBRARY = [
     "خطأ شائع يقع فيه الناس وكيف يتجنبونه",
@@ -37,8 +37,8 @@ def _month_key(value: str) -> str:
         return ""
 
 
-def _even_days(year: int, month: int) -> list[int]:
-    return [day for day in range(1, monthrange(year, month)[1] + 1) if day % 2 == 0]
+def _posting_days(year: int, month: int, start_day: int) -> list[int]:
+    return [day for day in range(start_day, monthrange(year, month)[1] + 1)]
 
 
 def _source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -75,52 +75,56 @@ def _already_recycled(values: list[list[str]], month_key: str) -> bool:
 def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, current: date) -> int:
     values = get_values(service, spreadsheet_id, f"{sheet_name}!A:U")
     bank_rows = get_bank_rows(service, spreadsheet_id)
-
     current_key = current.strftime("%Y-%m")
+
     if _already_recycled(values, current_key):
         print(f"Monthly recycler: {current_key} is already prepared.")
         return 0
 
     sources = _source_rows(values, bank_rows)
     if not sources:
-        print("Monthly recycler: no original source topics or PostBank topics found in the Sheet.")
+        print("Monthly recycler: no source topics found in Content or PostBank.")
         return 0
 
-    days = [day for day in _even_days(current.year, current.month) if day >= current.day]
-    if not days:
-        print(f"Monthly recycler: no future posting days remain in {current_key}.")
-        return 0
-
-    required_posts = len(days)
+    days = _posting_days(current.year, current.month, current.day)
+    required_posts = len(days) * len(POSTING_TIMES)
     available_topics = len(sources)
+
     print(
-        f"Monthly recycler: {available_topics} source topics available for {required_posts} required posts."
+        f"Monthly recycler: {available_topics} source topics available for "
+        f"{required_posts} posts ({len(POSTING_TIMES)} per day)."
     )
+
     if available_topics < required_posts:
-        print("Monthly recycler: using round-robin reuse with unique editorial angles.")
+        print("Monthly recycler: using round-robin topic reuse with unique angles.")
 
     created = 0
-    for index, day in enumerate(days):
-        source = sources[index % available_topics]
-        original_topic = source["الموضوع"].strip()
-        angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
-        recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
-        row = {
-            "ID": f"{current_key.replace('-', '')}-R{index + 1:02d}",
-            "الموضوع": recycled_topic,
-            "تاريخ النشر": f"{current.year:04d}-{current.month:02d}-{day:02d}",
-            "ساعة النشر": DEFAULT_POSTING_TIME,
-            "نوع الجدولة": "DATE_TIME",
-            "الحالة": "READY",
-            "المصادر القانونية": source.get("المصادر القانونية", ""),
-            "ملاحظات": (
-                f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
-                f"زاوية: {angle} | المصدر: Content/PostBank | "
-                f"ساعة النشر مثبتة تلقائيًا: {DEFAULT_POSTING_TIME}"
-            ),
-        }
-        insert_row_at_top(service, spreadsheet_id, sheet_name, row)
-        created += 1
+    for day_index, day in enumerate(days):
+        for slot_index, posting_time in enumerate(POSTING_TIMES):
+            index = day_index * len(POSTING_TIMES) + slot_index
+            source = sources[index % available_topics]
+            original_topic = source["الموضوع"].strip()
+            angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
+            recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
+            row = {
+                "ID": f"{current_key.replace('-', '')}-R{index + 1:03d}",
+                "الموضوع": recycled_topic,
+                "تاريخ النشر": f"{current.year:04d}-{current.month:02d}-{day:02d}",
+                "ساعة النشر": posting_time,
+                "نوع الجدولة": "DATE_TIME",
+                "الحالة": "READY",
+                "المصادر القانونية": source.get("المصادر القانونية", ""),
+                "ملاحظات": (
+                    f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
+                    f"زاوية: {angle} | Slot: {posting_time} | المصدر: Content/PostBank | "
+                    "ساعة النشر مثبتة تلقائيًا"
+                ),
+            }
+            insert_row_at_top(service, spreadsheet_id, sheet_name, row)
+            created += 1
 
-    print(f"Monthly recycler: created {created} rows for {current_key} at {DEFAULT_POSTING_TIME} Cairo time.")
+    print(
+        f"Monthly recycler: created {created} rows for {current_key}; "
+        "two publishing slots per day: 14:00 and 20:00 Cairo time."
+    )
     return created
