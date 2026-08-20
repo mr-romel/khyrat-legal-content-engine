@@ -24,123 +24,68 @@ def _required(name: str) -> str:
     return value
 
 
-def _optional(
-    name: str,
-    default: str = "",
-) -> str:
+def _optional(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
 def _normalize_model_name(value: str) -> str:
     model = (value or "").strip()
-
     if model.startswith("models/"):
         model = model[len("models/"):]
-
     return model or DEFAULT_GEMINI_MODEL
 
 
 def load_config() -> dict:
-    service_account_raw = _required(
-        "GOOGLE_SERVICE_ACCOUNT_JSON"
-    )
+    service_account_raw = _required("GOOGLE_SERVICE_ACCOUNT_JSON")
 
     try:
-        service_account_info = json.loads(
-            service_account_raw
-        )
+        service_account_info = json.loads(service_account_raw)
     except json.JSONDecodeError as exc:
-        raise ConfigError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON."
-        ) from exc
+        raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON.") from exc
 
     if not isinstance(service_account_info, dict):
-        raise ConfigError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
-        )
+        raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object.")
 
     dry_run = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {
         "1", "true", "yes", "on"
     }
 
-    # In safe dry-run mode, social write credentials are deliberately optional.
-    # The normal production pipeline still requires them.
-    if dry_run:
-        facebook_page_access_token = _optional("FACEBOOK_PAGE_ACCESS_TOKEN")
-        linkedin_access_token = _optional("LINKEDIN_ACCESS_TOKEN")
-    else:
-        facebook_page_access_token = _required("FACEBOOK_PAGE_ACCESS_TOKEN")
-        linkedin_access_token = _required("LINKEDIN_ACCESS_TOKEN")
+    facebook_page_access_token = (
+        _optional("FACEBOOK_PAGE_ACCESS_TOKEN")
+        if dry_run
+        else _required("FACEBOOK_PAGE_ACCESS_TOKEN")
+    )
+    linkedin_access_token = (
+        _optional("LINKEDIN_ACCESS_TOKEN")
+        if dry_run
+        else _required("LINKEDIN_ACCESS_TOKEN")
+    )
+
+    # Safe comment dry-run does not create an image or publish anything, so
+    # Cloudflare credentials are intentionally optional there. Production
+    # publishing still requires both values.
+    cloudflare_account_id = (
+        _optional("CLOUDFLARE_ACCOUNT_ID")
+        if dry_run
+        else _required("CLOUDFLARE_ACCOUNT_ID")
+    )
+    cloudflare_api_token = (
+        _optional("CLOUDFLARE_API_TOKEN")
+        if dry_run
+        else _required("CLOUDFLARE_API_TOKEN")
+    )
 
     return {
-        # --------------------------------------------------------
-        # Google Sheets
-        # --------------------------------------------------------
-
         "service_account_info": service_account_info,
-
-        "sheet_id": _required(
-            "GOOGLE_SHEET_ID"
-        ),
-
-        "sheet_range": _optional(
-            "GOOGLE_SHEET_RANGE",
-            "Content!A:U",
-        ),
-
-        # --------------------------------------------------------
-        # Gemini
-        # --------------------------------------------------------
-
-        "gemini_api_key": _required(
-            "GEMINI_API_KEY"
-        ),
-
-        "gemini_model": _normalize_model_name(
-            _optional(
-                "GEMINI_MODEL",
-                DEFAULT_GEMINI_MODEL,
-            )
-        ),
-
-        # --------------------------------------------------------
-        # Cloudflare Workers AI
-        # --------------------------------------------------------
-
-        "cloudflare_account_id": _required(
-            "CLOUDFLARE_ACCOUNT_ID"
-        ),
-
-        "cloudflare_api_token": _required(
-            "CLOUDFLARE_API_TOKEN"
-        ),
-
-        # --------------------------------------------------------
-        # Facebook
-        # --------------------------------------------------------
-
-        "facebook_page_id": _optional(
-            "FACEBOOK_PAGE_ID",
-            DEFAULT_FACEBOOK_PAGE_ID,
-        ),
-
+        "sheet_id": _required("GOOGLE_SHEET_ID"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "gemini_api_key": _required("GEMINI_API_KEY"),
+        "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+        "cloudflare_account_id": cloudflare_account_id,
+        "cloudflare_api_token": cloudflare_api_token,
+        "facebook_page_id": _optional("FACEBOOK_PAGE_ID", DEFAULT_FACEBOOK_PAGE_ID),
         "facebook_page_access_token": facebook_page_access_token,
-
-        "facebook_graph_version": _optional(
-            "FACEBOOK_GRAPH_VERSION",
-            DEFAULT_FACEBOOK_GRAPH_VERSION,
-        ),
-
-        # --------------------------------------------------------
-        # LinkedIn
-        # --------------------------------------------------------
-
+        "facebook_graph_version": _optional("FACEBOOK_GRAPH_VERSION", DEFAULT_FACEBOOK_GRAPH_VERSION),
         "linkedin_access_token": linkedin_access_token,
-
-        # Optional override.
-        # Normally we resolve this automatically from /userinfo.
-        "linkedin_author_urn": _optional(
-            "LINKEDIN_AUTHOR_URN",
-            "",
-        ),
+        "linkedin_author_urn": _optional("LINKEDIN_AUTHOR_URN", ""),
     }
