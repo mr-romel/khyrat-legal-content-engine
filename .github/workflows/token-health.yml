@@ -1,0 +1,65 @@
+name: Khyrat Token Health & Auto Renewal
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Lightweight control-plane check; this is NOT a publishing run.
+    - cron: "17 2 * * *"
+      timezone: "Africa/Cairo"
+
+permissions:
+  contents: read
+
+jobs:
+  token-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run token manager
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_SECRET_ROTATION_TOKEN: ${{ secrets.GH_SECRET_ROTATION_TOKEN }}
+
+          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
+          FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
+          FACEBOOK_PAGE_ID: "464216073916915"
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_USER_ACCESS_TOKEN: ${{ secrets.FACEBOOK_USER_ACCESS_TOKEN }}
+
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          LINKEDIN_TOKEN_EXPIRES_AT: ${{ secrets.LINKEDIN_TOKEN_EXPIRES_AT }}
+          LINKEDIN_REFRESH_TOKEN_EXPIRES_AT: ${{ secrets.LINKEDIN_REFRESH_TOKEN_EXPIRES_AT }}
+
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+        run: |
+          python src/token_manager.py
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "TOKEN HEALTH COMPLETE"
+          echo "Facebook: automatic renewal when eligible"
+          echo "LinkedIn: refresh-token renewal when eligible"
+          echo "Telegram: confirmation / manual-action alerts"
+          echo "=============================================="
