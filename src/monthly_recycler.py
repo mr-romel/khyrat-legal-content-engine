@@ -38,7 +38,7 @@ def _month_key(value: str) -> str:
 
 
 def _posting_days(year: int, month: int, start_day: int) -> list[int]:
-    return [day for day in range(start_day, monthrange(year, month)[1] + 1)]
+    return list(range(start_day, monthrange(year, month)[1] + 1))
 
 
 def _source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -67,9 +67,15 @@ def _source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> li
     return result
 
 
-def _already_recycled(values: list[list[str]], month_key: str) -> bool:
+def _prepared_slots(values: list[list[str]], month_key: str) -> set[tuple[str, str]]:
+    prepared: set[tuple[str, str]] = set()
     marker = f"{RECYCLE_MARKER}:{month_key}"
-    return any(marker in row_to_dict(raw).get("ملاحظات", "") for raw in values[1:])
+    for raw in values[1:]:
+        row = row_to_dict(raw)
+        if marker not in row.get("ملاحظات", ""):
+            continue
+        prepared.add((row.get("تاريخ النشر", "").strip(), row.get("ساعة النشر", "").strip()))
+    return prepared
 
 
 def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, current: date) -> int:
@@ -77,54 +83,57 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     bank_rows = get_bank_rows(service, spreadsheet_id)
     current_key = current.strftime("%Y-%m")
 
-    if _already_recycled(values, current_key):
-        print(f"Monthly recycler: {current_key} is already prepared.")
-        return 0
-
     sources = _source_rows(values, bank_rows)
     if not sources:
         print("Monthly recycler: no source topics found in Content or PostBank.")
         return 0
 
     days = _posting_days(current.year, current.month, current.day)
-    required_posts = len(days) * len(POSTING_TIMES)
-    available_topics = len(sources)
+    expected_slots = {
+        (f"{current.year:04d}-{current.month:02d}-{day:02d}", posting_time)
+        for day in days
+        for posting_time in POSTING_TIMES
+    }
+    prepared = _prepared_slots(values, current_key)
+    missing_slots = sorted(expected_slots - prepared)
+
+    if not missing_slots:
+        print(f"Monthly recycler: {current_key} is fully prepared for 14:00 and 20:00 Cairo time.")
+        return 0
 
     print(
-        f"Monthly recycler: {available_topics} source topics available for "
-        f"{required_posts} posts ({len(POSTING_TIMES)} per day)."
+        f"Monthly recycler: {len(prepared)} slots already prepared; "
+        f"creating {len(missing_slots)} missing slots for {current_key}."
     )
 
-    if available_topics < required_posts:
-        print("Monthly recycler: using round-robin topic reuse with unique angles.")
+    if len(sources) < len(missing_slots):
+        print("Monthly recycler: source topics are fewer than required slots; using round-robin reuse with unique angles.")
 
     created = 0
-    for day_index, day in enumerate(days):
-        for slot_index, posting_time in enumerate(POSTING_TIMES):
-            index = day_index * len(POSTING_TIMES) + slot_index
-            source = sources[index % available_topics]
-            original_topic = source["الموضوع"].strip()
-            angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
-            recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
-            row = {
-                "ID": f"{current_key.replace('-', '')}-R{index + 1:03d}",
-                "الموضوع": recycled_topic,
-                "تاريخ النشر": f"{current.year:04d}-{current.month:02d}-{day:02d}",
-                "ساعة النشر": posting_time,
-                "نوع الجدولة": "DATE_TIME",
-                "الحالة": "READY",
-                "المصادر القانونية": source.get("المصادر القانونية", ""),
-                "ملاحظات": (
-                    f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
-                    f"زاوية: {angle} | Slot: {posting_time} | المصدر: Content/PostBank | "
-                    "ساعة النشر مثبتة تلقائيًا"
-                ),
-            }
-            insert_row_at_top(service, spreadsheet_id, sheet_name, row)
-            created += 1
+    for index, (publish_date, posting_time) in enumerate(missing_slots):
+        source = sources[(len(prepared) + index) % len(sources)]
+        original_topic = source["الموضوع"].strip()
+        angle = ANGLE_LIBRARY[(len(prepared) + index) % len(ANGLE_LIBRARY)]
+        recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
+        row = {
+            "ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}",
+            "الموضوع": recycled_topic,
+            "تاريخ النشر": publish_date,
+            "ساعة النشر": posting_time,
+            "نوع الجدولة": "DATE_TIME",
+            "الحالة": "READY",
+            "المصادر القانونية": source.get("المصادر القانونية", ""),
+            "ملاحظات": (
+                f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
+                f"زاوية: {angle} | Slot: {posting_time} | المصدر: Content/PostBank | "
+                "ساعة النشر مثبتة تلقائيًا"
+            ),
+        }
+        insert_row_at_top(service, spreadsheet_id, sheet_name, row)
+        created += 1
 
     print(
-        f"Monthly recycler: created {created} rows for {current_key}; "
-        "two publishing slots per day: 14:00 and 20:00 Cairo time."
+        f"Monthly recycler: created {created} missing rows for {current_key}; "
+        "target is two publishing slots every day: 14:00 and 20:00 Cairo time."
     )
     return created
