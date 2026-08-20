@@ -31,6 +31,7 @@ jobs:
 
       - name: Collect social metrics
         env:
+          PYTHONPATH: src
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
@@ -42,8 +43,8 @@ jobs:
         run: |
           python - <<'PY'
           import json, os
-          from src.sheets import create_service
-          from src.performance import collect
+          from sheets import create_service
+          from performance import collect
           service = create_service(json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']))
           collect(
               service=service,
