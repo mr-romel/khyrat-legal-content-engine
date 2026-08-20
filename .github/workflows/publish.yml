@@ -7,7 +7,6 @@ on:
     # Resilient scheduler: wake the engine every 15 minutes.
     # The engine itself remains the source of truth for the exact Sheet
     # publish date/time, so this does NOT mean 15-minute publishing.
-    # It only prevents a missed GitHub scheduled run from losing a post.
     - cron: "*/15 * * * *"
       timezone: "Africa/Cairo"
 
@@ -46,6 +45,65 @@ jobs:
           python -c "import requests; print('requests:', requests.__version__)"
           python -c "import google.genai; print('google-genai: OK')"
           python -c "from PIL import Image; print('Pillow: OK')"
+
+      - name: Cloudflare Workers AI health check
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
+          token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
+          bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+          url = (
+              "https://api.cloudflare.com/client/v4/accounts/"
+              f"{account_id}/ai/models/search?search="
+              + urllib.parse.quote("black-forest-labs/flux-1-schnell")
+          )
+          request = urllib.request.Request(
+              url,
+              headers={"Authorization": f"Bearer {token}"},
+              method="GET",
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+              if not payload.get("success"):
+                  raise RuntimeError(str(payload.get("errors") or payload))
+              print("Cloudflare Workers AI health: OK")
+          except Exception as exc:
+              message = (
+                  "🚨 Cloudflare Workers AI Health Check FAILED\n"
+                  f"السبب: {exc}\n"
+                  "لن يبدأ النشر حتى يتم إصلاح CLOUDFLARE_API_TOKEN.\n"
+                  "المطلوب: Workers AI Read/Write permission على الحساب."
+              )
+              print(message)
+              if bot_token and chat_id:
+                  try:
+                      body = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode()
+                      telegram_request = urllib.request.Request(
+                          f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                          data=body,
+                          method="POST",
+                      )
+                      urllib.request.urlopen(telegram_request, timeout=15).read()
+                      print("Telegram alert: sent")
+                  except Exception as telegram_exc:
+                      print(f"Telegram alert failed: {telegram_exc}")
+              raise SystemExit(1)
+          PY
 
       - name: Prepare monthly recycled content queue
         env:
@@ -94,6 +152,7 @@ jobs:
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
           echo "RESILIENT SCHEDULER: EVERY 15 MINUTES"
+          echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
           echo "POST BANK + AI COMMENTS + RETRY QUEUE"
           echo "TELEGRAM CONTROL + TOKEN HEALTH"
