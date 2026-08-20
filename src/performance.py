@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from urllib.parse import quote
 
 import requests
 
+from post_bank import ensure_post_bank_sheet
 from sheets import get_values
 from telegram_bot import notify
 
@@ -47,18 +47,16 @@ def _count_summary(value: dict, key: str) -> int:
 
 def collect(*, service, spreadsheet_id: str, page_access_token: str, graph_version: str, linkedin_access_token: str) -> None:
     ensure_sheet(service, spreadsheet_id)
+    ensure_post_bank_sheet(service, spreadsheet_id)
     postbank = get_values(service, spreadsheet_id, "PostBank!A:N")
     if len(postbank) <= 1:
+        print("Performance collector: PostBank is empty.")
         return
 
     rows = []
     for raw in postbank[1:]:
         padded = list(raw) + [""] * (14 - len(raw))
-        rows.append({
-            "topic": padded[1],
-            "facebook": padded[5],
-            "linkedin": padded[6],
-        })
+        rows.append({"topic": padded[1], "facebook": padded[5], "linkedin": padded[6]})
 
     now = datetime.now().astimezone().isoformat()
     output = []
