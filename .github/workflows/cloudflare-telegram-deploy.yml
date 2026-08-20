@@ -1,0 +1,121 @@
+name: Deploy Khyrat Telegram Control API
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "workers/telegram-control/**"
+      - ".github/workflows/cloudflare-telegram-deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khyrat-cloudflare-telegram-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+      TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate required deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_ADMIN_USER_ID TELEGRAM_WEBHOOK_SECRET GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SHEET_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "ERROR: $name is missing."
+              exit 1
+            fi
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@latest
+
+      - name: Enable workers.dev subdomain for the Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/khyrat-telegram-control/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"enabled":true}' || true
+
+      - name: Deploy Worker code
+        working-directory: workers/telegram-control
+        run: npx wrangler deploy --config wrangler.toml --strict
+
+      - name: Upload Worker secrets
+        working-directory: workers/telegram-control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          data = {
+              "TELEGRAM_BOT_TOKEN": os.environ["TELEGRAM_BOT_TOKEN"],
+              "TELEGRAM_CHAT_ID": os.environ["TELEGRAM_CHAT_ID"],
+              "TELEGRAM_ADMIN_USER_ID": os.environ["TELEGRAM_ADMIN_USER_ID"],
+              "TELEGRAM_WEBHOOK_SECRET": os.environ["TELEGRAM_WEBHOOK_SECRET"],
+              "GOOGLE_SERVICE_ACCOUNT_JSON": os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"],
+              "GOOGLE_SHEET_ID": os.environ["GOOGLE_SHEET_ID"],
+          }
+          with open("/tmp/khyrat-worker-secrets.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False)
+          PY
+          npx wrangler secret bulk /tmp/khyrat-worker-secrets.json --config wrangler.toml
+          rm -f /tmp/khyrat-worker-secrets.json
+
+      - name: Deploy Worker again with secrets bound
+        working-directory: workers/telegram-control
+        run: npx wrangler deploy --config wrangler.toml --strict
+
+      - name: Resolve Worker URL and configure Telegram webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN_JSON=$(curl --fail-with-body -sS \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          SUBDOMAIN=$(python -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])' <<< "$SUBDOMAIN_JSON")
+          WORKER_URL="https://khyrat-telegram-control.${SUBDOMAIN}.workers.dev"
+          WEBHOOK_URL="${WORKER_URL}/telegram/webhook"
+          RESPONSE=$(curl --fail-with-body -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+            -H "Content-Type: application/json" \
+            --data "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"allowed_updates\":[\"message\",\"callback_query\"],\"drop_pending_updates\":false}")
+          echo "$RESPONSE"
+          echo "Worker URL: ${WORKER_URL}"
+          echo "Webhook URL: ${WEBHOOK_URL}"
+
+      - name: Verify Worker health
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN_JSON=$(curl --fail-with-body -sS \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          SUBDOMAIN=$(python -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])' <<< "$SUBDOMAIN_JSON")
+          curl --fail-with-body -sS "https://khyrat-telegram-control.${SUBDOMAIN}.workers.dev/health"
