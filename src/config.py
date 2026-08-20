@@ -59,6 +59,19 @@ def load_config() -> dict:
             "GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object."
         )
 
+    dry_run = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+    # In safe dry-run mode, social write credentials are deliberately optional.
+    # The normal production pipeline still requires them.
+    if dry_run:
+        facebook_page_access_token = _optional("FACEBOOK_PAGE_ACCESS_TOKEN")
+        linkedin_access_token = _optional("LINKEDIN_ACCESS_TOKEN")
+    else:
+        facebook_page_access_token = _required("FACEBOOK_PAGE_ACCESS_TOKEN")
+        linkedin_access_token = _required("LINKEDIN_ACCESS_TOKEN")
+
     return {
         # --------------------------------------------------------
         # Google Sheets
@@ -111,9 +124,7 @@ def load_config() -> dict:
             DEFAULT_FACEBOOK_PAGE_ID,
         ),
 
-        "facebook_page_access_token": _required(
-            "FACEBOOK_PAGE_ACCESS_TOKEN"
-        ),
+        "facebook_page_access_token": facebook_page_access_token,
 
         "facebook_graph_version": _optional(
             "FACEBOOK_GRAPH_VERSION",
@@ -124,9 +135,7 @@ def load_config() -> dict:
         # LinkedIn
         # --------------------------------------------------------
 
-        "linkedin_access_token": _required(
-            "LINKEDIN_ACCESS_TOKEN"
-        ),
+        "linkedin_access_token": linkedin_access_token,
 
         # Optional override.
         # Normally we resolve this automatically from /userinfo.
