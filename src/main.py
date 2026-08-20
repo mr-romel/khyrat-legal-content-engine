@@ -8,7 +8,7 @@ from pathlib import Path
 
 from analytics import log_publication
 from comment_engine import generate_comments
-from config import ConfigError, load_config
+from config import load_config
 from content_planner import classify
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
@@ -244,7 +244,8 @@ def main() -> None:
         print("SAFE TEST MODE: social publishing is DISABLED.")
     config = load_config()
     service = create_service(config["service_account_info"])
-    ensure_headers(service, config["sheet_id"], config["sheet_name"])
+    sheet_name = sheet_name_from_range(config["sheet_range"])
+    ensure_headers(service, config["sheet_id"], sheet_name)
     values = get_values(service, config["sheet_id"], config["sheet_range"])
     if not values:
         print("No rows found.")
@@ -261,12 +262,8 @@ def main() -> None:
         print("No due rows found.")
         return
     row_number, row = candidates[0]
-    process_row(service=service, config=config, sheet_name=config["sheet_name"], row_number=row_number, row=row, current=current)
+    process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except ConfigError as exc:
-        print(f"Configuration error: {exc}")
-        raise
+    main()
