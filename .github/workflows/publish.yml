@@ -4,9 +4,11 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Check the Sheet every hour so each post can publish at 14:00 Cairo time.
-    # The monthly recycler prepares the new month automatically when needed.
-    - cron: "0 * * * *"
+    # Two production publishing windows only: 14:00 and 20:00 Cairo time.
+    # The engine itself respects the exact Sheet date/time and never publishes early.
+    - cron: "0 14 * * *"
+      timezone: "Africa/Cairo"
+    - cron: "0 20 * * *"
       timezone: "Africa/Cairo"
 
 concurrency:
@@ -17,20 +19,14 @@ permissions:
   contents: write
 
 jobs:
-
   publish:
-
     name: Generate and Publish Social Content
-
     runs-on: ubuntu-latest
-
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v7
-
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -38,12 +34,10 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
 
       - name: Verify Python environment
         run: |
@@ -53,7 +47,6 @@ jobs:
           python -c "import google.genai; print('google-genai: OK')"
           python -c "from PIL import Image; print('Pillow: OK')"
 
-
       - name: Prepare monthly recycled content queue
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -62,44 +55,32 @@ jobs:
         run: |
           python -c "import json, os; from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.utils import now_cairo, sheet_name_from_range; service_account_info=json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']); sheet_id=os.environ['GOOGLE_SHEET_ID'].strip(); sheet_range=os.environ.get('GOOGLE_SHEET_RANGE','Content!A:U').strip() or 'Content!A:U'; recycle_month_if_needed(service=create_service(service_account_info), spreadsheet_id=sheet_id, sheet_name=sheet_name_from_range(sheet_range), current=now_cairo().date())"
 
-
       - name: Run Khyrat Legal Content Engine
         env:
-
-          # Google Sheets
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
-
-          # Gemini
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
-
-          # Cloudflare
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-          # Facebook
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: "464216073916915"
           FACEBOOK_GRAPH_VERSION: "26.0"
-
-          # LinkedIn
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
-
+          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
         run: |
           python src/main.py
-
 
       - name: Commit generated images
         if: success()
         run: |
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add generated/ || true
-
           if git diff --cached --quiet; then
             echo "No generated image changes."
           else
@@ -107,12 +88,12 @@ jobs:
             git push
           fi
 
-
       - name: Workflow summary
         if: always()
         run: |
           echo "=============================================="
-          echo "KHYRAT LEGAL CONTENT ENGINE"
-          echo "MONTHLY RECYCLER + FULL SOCIAL PIPELINE"
-          echo "ALL GENERATED POSTS: 14:00 CAIRO TIME"
+          echo "KHYRAT LEGAL CONTENT ENGINE V2"
+          echo "SMART SCHEDULER: 14:00 + 20:00 CAIRO"
+          echo "POST BANK + AI COMMENTS + RETRY QUEUE"
+          echo "TELEGRAM CONTROL + TOKEN HEALTH"
           echo "=============================================="
