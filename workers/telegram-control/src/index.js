@@ -6,6 +6,9 @@ const HEADERS = [
   "المصادر القانونية", "ملاحظات",
 ];
 
+const REVIEW_STATUSES = new Set(["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"]);
+const FAILED_STATUSES = new Set(["FAILED", "PARTIAL_FAILED"]);
+
 function b64urlBytes(bytes) {
   let binary = "";
   const chunk = 0x8000;
@@ -54,9 +57,9 @@ async function googleAccessToken(env) {
   return data.access_token;
 }
 
-async function sheetValues(env, range = "A:U") {
+async function sheetValues(env, range = "A:U", sheetOverride = null) {
   const token = await googleAccessToken(env);
-  const sheetName = env.GOOGLE_SHEET_NAME || "Content";
+  const sheetName = sheetOverride || env.GOOGLE_SHEET_NAME || "Content";
   const encoded = encodeURIComponent(`${sheetName}!${range}`);
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -125,6 +128,15 @@ function cairoParts(date = new Date()) {
 
 function dateKey(parts) { return `${parts.year}-${parts.month}-${parts.day}`; }
 
+function inlineButtons(buttons) {
+  return { inline_keyboard: buttons.map((row) => row.map((item) => ({ text: item.text, callback_data: item.data }))) };
+}
+
+function shortText(value, max = 90) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
 async function statusText(env) {
   const values = await sheetValues(env);
   const rows = values.slice(1).map(rowToDict);
@@ -139,7 +151,7 @@ async function statusText(env) {
     if (d === todayKey || d.includes(`${today.day}/${today.month}`)) counts.total++;
     if (["PUBLISHED", "READY_FOR_SOCIAL_PUBLISH", "PUBLISHED_PARTIAL"].includes(status)) counts.published++;
     if (["READY", "PENDING", "APPROVED", "SCHEDULED"].includes(status)) counts.pending++;
-    if (["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"].includes(status)) counts.review++;
+    if (REVIEW_STATUSES.has(status)) counts.review++;
     if (status.includes("FAIL") || status === "ERROR") counts.failed++;
     if (d === todayKey && t && (!next || t < next)) next = t;
   }
@@ -161,6 +173,75 @@ async function statusText(env) {
   ].join("\n");
 }
 
+async function sendReviewList(env) {
+  const values = await sheetValues(env);
+  const matches = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
+    .filter(({ row }) => REVIEW_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
+  if (!matches.length) return send(env, "🟢 لا توجد مراجعات معلقة حاليًا.");
+  for (const { rowNumber, row } of matches.slice(0, 10)) {
+    const status = String(row["الحالة"] || "").trim().toUpperCase();
+    const reason = shortText(row["آخر خطأ"] || "مراجعة مطلوبة", 220);
+    await send(
+      env,
+      `🟡 مراجعة مطلوبة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالحالة: ${status}\nالسبب: ${reason}`,
+      inlineButtons([[{ text: "✅ موافقة", data: `approve:${rowNumber}` }, { text: "❌ رفض", data: `reject:${rowNumber}` }]]),
+    );
+  }
+}
+
+async function sendFailedList(env) {
+  const values = await sheetValues(env);
+  const matches = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
+    .filter(({ row }) => FAILED_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
+  if (!matches.length) return send(env, "🟢 لا توجد منشورات فاشلة حاليًا.");
+  for (const { rowNumber, row } of matches.slice(0, 10)) {
+    const status = String(row["الحالة"] || "").trim().toUpperCase();
+    const error = shortText(row["آخر خطأ"] || "سبب الفشل غير مسجل", 260);
+    await send(
+      env,
+      `🔴 منشور يحتاج إعادة تشغيل\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالحالة: ${status}\nالخطأ: ${error}\n\nإعادة التشغيل ستضعه في طابور النشر القادم، مع الحفاظ على المنصة التي نجحت بالفعل.`,
+      inlineButtons([[{ text: "🔄 إعادة التشغيل", data: `retry:${rowNumber}` }]]),
+    );
+  }
+}
+
+async function sendToday(env) {
+  const values = await sheetValues(env);
+  const today = cairoParts();
+  const todayKey = dateKey(today);
+  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
+    .filter(({ row }) => {
+      const d = String(row["تاريخ النشر"] || "").trim();
+      return d === todayKey || d.includes(`${today.day}/${today.month}`);
+    });
+  if (!rows.length) return send(env, "📅 لا توجد منشورات مسجلة لليوم.");
+  const lines = rows.slice(0, 20).map(({ rowNumber, row }) =>
+    `${row["ساعة النشر"] || "--:--"} | ${shortText(row["الموضوع"], 70)} | ${row["الحالة"] || ""} | صف ${rowNumber}`,
+  );
+  return send(env, `📅 منشورات اليوم (${todayKey})\n\n${lines.join("\n")}`);
+}
+
+async function sendBank(env) {
+  const values = await sheetValues(env, "A:N", "PostBank");
+  const rows = values.slice(1);
+  if (!rows.length) return send(env, "📘 Post Bank موجود لكنه فارغ حاليًا.");
+  const recent = rows.slice(-10).reverse().map((row, i) => `${i + 1}) ${shortText(row[1], 100)} — ${row[3] || ""}`);
+  return send(env, `📘 آخر ${recent.length} موضوعات في Post Bank\n\n${recent.join("\n")}`);
+}
+
+async function retryRow(env, rowNumber) {
+  const values = await sheetValues(env);
+  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1]) : null;
+  if (!row) throw new Error("الصف غير موجود.");
+  const current = String(row["الحالة"] || "").trim().toUpperCase();
+  if (!FAILED_STATUSES.has(current)) return `الحالة الحالية للصف ${rowNumber}: ${current || "غير محددة"}`;
+  await updateSheetRow(env, rowNumber, {
+    "الحالة": "APPROVED",
+    "آخر خطأ": "",
+  });
+  return `🔄 تم تجهيز الصف ${rowNumber} لإعادة التشغيل.\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيتم التقاطه في تشغيل النشر القادم، مع الحفاظ على أي منصة تم نشرها بالفعل.`;
+}
+
 async function handleCommand(env, text) {
   const command = text.split(/\s+/)[0].toLowerCase();
   if (command === "/start" || command === "/help") {
@@ -168,30 +249,21 @@ async function handleCommand(env, text) {
       "🤖 Khyrat Legal Content Engine",
       "",
       "/status — حالة النظام والشيت",
-      "/today — ملخص منشورات اليوم",
-      "/review — عدد المنشورات التي تحتاج مراجعة",
-      "/failed — عدد المنشورات الفاشلة",
+      "/today — منشورات اليوم",
+      "/review — المراجعات المعلقة مع أزرار الموافقة والرفض",
+      "/failed — المنشورات الفاشلة مع إعادة التشغيل",
+      "/bank — آخر موضوعات Post Bank",
       "/tokens — حالة الاتصال الأساسية",
       "/help — هذه القائمة",
     ].join("\n"));
   }
-  if (command === "/status" || command === "/today") return send(env, await statusText(env));
-  if (command === "/review" || command === "/failed") {
-    const values = await sheetValues(env);
-    const rows = values.slice(1).map(rowToDict);
-    const wanted = command === "/review"
-      ? new Set(["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"])
-      : null;
-    const matches = rows.filter((r) => {
-      const s = String(r["الحالة"] || "").trim().toUpperCase();
-      return wanted ? wanted.has(s) : s.includes("FAIL") || s === "ERROR";
-    });
-    if (!matches.length) return send(env, command === "/review" ? "🟢 لا توجد مراجعات معلقة حاليًا." : "🟢 لا توجد منشورات فاشلة حاليًا.");
-    const lines = matches.slice(0, 10).map((r, i) => `${i + 1}) ${r["الموضوع"] || "بدون موضوع"} — ${r["الحالة"] || ""}`);
-    return send(env, `${command === "/review" ? "🟡 المراجعات:" : "🔴 المنشورات الفاشلة:"}\n\n${lines.join("\n")}`);
-  }
+  if (command === "/status") return send(env, await statusText(env));
+  if (command === "/today") return sendToday(env);
+  if (command === "/review") return sendReviewList(env);
+  if (command === "/failed") return sendFailedList(env);
+  if (command === "/bank") return sendBank(env);
   if (command === "/tokens") {
-    return send(env, "🔐 Token Manager\n\n🟡 Facebook: حالة التوكن تُدار من GitHub Secrets حاليًا.\n🟡 LinkedIn: حالة التوكن تُدار من GitHub Secrets حاليًا.\n\nسيتم ربط التجديد التلقائي والتنبيهات الفورية في طبقة Token Manager.");
+    return send(env, "🔐 Token Manager\n\n🟡 Facebook: التوكن الحالي محفوظ في GitHub Secrets، ومراقبة تاريخ الانتهاء تحتاج بيانات OAuth/expiry منفصلة.\n🟡 LinkedIn: التوكن الحالي محفوظ في GitHub Secrets، ومراقبة تاريخ الانتهاء تحتاج بيانات OAuth/expiry منفصلة.\n\nلن نعرض أو نرسل أي Token سري داخل Telegram.");
   }
   return send(env, "❓ أمر غير معروف. اكتب /help لرؤية الأوامر المتاحة.");
 }
@@ -210,10 +282,9 @@ async function handleCallback(env, callback) {
   const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1]) : null;
   if (!row) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "الصف غير موجود.", show_alert: false });
   const current = String(row["الحالة"] || "").trim().toUpperCase();
-  if (!["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"].includes(current)) {
-    return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
-  }
+
   if (action === "approve") {
+    if (!REVIEW_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
     await updateSheetRow(env, rowNumber, { "الحالة": "APPROVED", "آخر خطأ": "" });
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تمت الموافقة.", show_alert: false });
     return telegram(env, "editMessageText", {
@@ -222,7 +293,9 @@ async function handleCallback(env, callback) {
       text: `✅ تمت الموافقة على الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيُنشر في أقرب تشغيل للنشر.`,
     });
   }
+
   if (action === "reject") {
+    if (!REVIEW_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
     await updateSheetRow(env, rowNumber, { "الحالة": "REJECTED", "آخر خطأ": "Rejected from Telegram review." });
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تم الرفض.", show_alert: false });
     return telegram(env, "editMessageText", {
@@ -231,6 +304,18 @@ async function handleCallback(env, callback) {
       text: `❌ تم رفض الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}`,
     });
   }
+
+  if (action === "retry") {
+    if (!FAILED_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
+    const result = await retryRow(env, rowNumber);
+    await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تم تجهيز إعادة التشغيل.", show_alert: false });
+    return telegram(env, "editMessageText", {
+      chat_id: callback.message.chat.id,
+      message_id: callback.message.message_id,
+      text: result,
+    });
+  }
+
   return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "إجراء غير معروف.", show_alert: false });
 }
 
