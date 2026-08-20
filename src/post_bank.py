@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from src.sheets import get_values
+try:
+    from .sheets import get_values
+except ImportError:
+    from sheets import get_values
 
 
 BANK_SHEET = "PostBank"
