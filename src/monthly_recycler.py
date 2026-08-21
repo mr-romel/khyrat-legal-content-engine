@@ -207,14 +207,18 @@ def _brief_notes(current_key: str, brief: dict[str, str], posting_time: str, sou
 
 
 def _replace_remaining_current_month_slots(service, spreadsheet_id: str, sheet_name: str, values: list[list[str]], current: date, current_key: str, topic_pool: list[dict[str, str]]) -> int:
-    """Replace every remaining current-month unpublished slot, regardless of its original source."""
+    """Replace only unprepared current-month slots; prepared recycler rows are immutable/idempotent."""
     historical_used = _historically_used_topics(values, current_key)
+    marker = f"{RECYCLE_MARKER}:{current_key}"
     replacements: list[tuple[int, dict[str, str]]] = []
     for row_number, raw in enumerate(values[1:], start=2):
         row = row_to_dict(raw)
         publish_date = row.get("تاريخ النشر", "").strip()
         posting_time = row.get("ساعة النشر", "").strip()
+        notes = row.get("ملاحظات", "")
         if not publish_date or publish_date < current.isoformat() or posting_time not in POSTING_TIMES:
+            continue
+        if marker in notes:
             continue
         if _is_published(row) or row.get("الحالة", "").strip().upper() in {"CANCELLED", "PARTIAL_FAILED"}:
             continue
