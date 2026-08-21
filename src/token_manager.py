@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -66,7 +65,10 @@ def _facebook_debug(token: str) -> dict[str, Any]:
     app_id = _env("FACEBOOK_APP_ID")
     app_secret = _env("FACEBOOK_APP_SECRET")
     if not app_id or not app_secret:
-        raise RuntimeError("FACEBOOK_APP_ID / FACEBOOK_APP_SECRET are required for automatic Facebook renewal.")
+        raise RuntimeError(
+            "Facebook token validation/renewal is not configured "
+            "(FACEBOOK_APP_ID / FACEBOOK_APP_SECRET missing)."
+        )
     app_access_token = f"{app_id}|{app_secret}"
     response = requests.get(
         "https://graph.facebook.com/v26.0/debug_token",
@@ -121,17 +123,38 @@ def _facebook_page_token(user_token: str) -> tuple[str, str]:
 def renew_facebook() -> str:
     page_token = _env("FACEBOOK_PAGE_ACCESS_TOKEN")
     user_token = _env("FACEBOOK_USER_ACCESS_TOKEN")
-    if not page_token or not user_token:
-        raise RuntimeError("FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_USER_ACCESS_TOKEN are required.")
+
+    # A valid long-lived Page Access Token is sufficient for production
+    # publishing. Automatic renewal is an optional enhancement, not a
+    # prerequisite for using the existing token.
+    if not page_token:
+        raise RuntimeError("FACEBOOK_PAGE_ACCESS_TOKEN is missing.")
+
+    app_id = _env("FACEBOOK_APP_ID")
+    app_secret = _env("FACEBOOK_APP_SECRET")
+    if not user_token or not app_id or not app_secret:
+        return (
+            "Facebook renewal not configured; existing Page Access Token will "
+            "remain in use. Automatic renewal requires FACEBOOK_USER_ACCESS_TOKEN, "
+            "FACEBOOK_APP_ID and FACEBOOK_APP_SECRET."
+        )
 
     now = datetime.now(timezone.utc)
     page_data = _facebook_debug(page_token)
     page_expires = int(page_data.get("expires_at", 0) or 0)
-    page_days = (datetime.fromtimestamp(page_expires, tz=timezone.utc) - now).total_seconds() / 86400 if page_expires else 9999
+    page_days = (
+        (datetime.fromtimestamp(page_expires, tz=timezone.utc) - now).total_seconds() / 86400
+        if page_expires
+        else 9999
+    )
 
     user_data = _facebook_debug(user_token)
     user_expires = int(user_data.get("expires_at", 0) or 0)
-    user_days = (datetime.fromtimestamp(user_expires, tz=timezone.utc) - now).total_seconds() / 86400 if user_expires else 9999
+    user_days = (
+        (datetime.fromtimestamp(user_expires, tz=timezone.utc) - now).total_seconds() / 86400
+        if user_expires
+        else 9999
+    )
 
     if page_days > RENEWAL_DAYS and user_days > RENEWAL_DAYS:
         return f"Facebook tokens healthy: page≈{page_days:.0f}d, user≈{user_days:.0f}d."
@@ -139,8 +162,6 @@ def renew_facebook() -> str:
     if user_days <= RENEWAL_DAYS:
         user_token, _ = _facebook_exchange_user_token(user_token)
         update_github_secret("FACEBOOK_USER_ACCESS_TOKEN", user_token)
-        user_data = _facebook_debug(user_token)
-        user_expires = int(user_data.get("expires_at", 0) or 0)
 
     new_page_token, page_name = _facebook_page_token(user_token)
     _facebook_debug(new_page_token)
@@ -151,19 +172,24 @@ def renew_facebook() -> str:
 
 
 def renew_linkedin() -> str:
+    access_token = _env("LINKEDIN_ACCESS_TOKEN")
     refresh_token = _env("LINKEDIN_REFRESH_TOKEN")
     client_id = _env("LINKEDIN_CLIENT_ID")
     client_secret = _env("LINKEDIN_CLIENT_SECRET")
     expires_at_raw = _env("LINKEDIN_TOKEN_EXPIRES_AT")
 
+    if not access_token:
+        raise RuntimeError("LINKEDIN_ACCESS_TOKEN is missing.")
+
+    # Existing access token is sufficient until its known expiry. Refresh
+    # configuration is optional and is used only when all required values exist.
     if not refresh_token or not client_id or not client_secret or not expires_at_raw:
-        message = (
-            "⚠️ LinkedIn automatic renewal is not fully configured.\n"
-            "Need LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, "
-            "and LINKEDIN_TOKEN_EXPIRES_AT."
+        return (
+            "LinkedIn renewal not configured; existing Access Token will remain "
+            "in use. Automatic renewal requires LINKEDIN_REFRESH_TOKEN, "
+            "LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET and "
+            "LINKEDIN_TOKEN_EXPIRES_AT."
         )
-        notify(message)
-        return message
 
     expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
     remaining = expires_at - datetime.now(timezone.utc)
