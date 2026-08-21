@@ -10,7 +10,7 @@ from src.topic_bank import TOPIC_BANK
 from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
-POSTING_TIMES = ("14:00", "20:00")
+POSTING_TIMES = ("11:00", "19:00")
 
 CATEGORY_ORDER = (
     "القانون الجنائي",
@@ -192,7 +192,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     missing_slots = sorted(expected_slots - prepared)
 
     if not missing_slots:
-        print(f"Monthly recycler: {current_key} is fully prepared for 14:00 and 20:00 Cairo time.")
+        print(f"Monthly recycler: {current_key} is fully prepared for 11:00 and 19:00 Cairo time.")
         return 0
 
     print(
@@ -259,6 +259,6 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     print(
         f"Monthly recycler: created {created} missing rows for {current_key}; "
         "source priority = 200-topic bank, then Content/PostBank fallback; "
-        "target = two publishing slots every day at 14:00 and 20:00 Cairo time."
+        "target = two publishing slots every day at 11:00 and 19:00 Cairo time."
     )
     return created
