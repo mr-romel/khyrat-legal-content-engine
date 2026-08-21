@@ -54,7 +54,6 @@ jobs:
           import optimizer
           import performance
           import post_bank
-          import run_main
           import safe_dry_run
           import sheets
           import telegram_bot
