@@ -12,30 +12,25 @@ class TopicBrief(TypedDict):
     legal_sources: str
 
 
-def _items(category: str, legal_sources: str, rows: list[tuple[str, str, str, str]]) -> list[TopicBrief]:
-    return [
-        {
-            "topic": topic,
-            "category": category,
-            "angle": angle,
-            "format": fmt,
-            "objective": objective,
-            "legal_sources": legal_sources,
-        }
-        for topic, angle, fmt, objective in rows
-    ]
-
-
-# Legacy compatibility bank.
-# The active production bank is src/topic_bank_500.py and must not depend on
-# this legacy dataset. Keep this module import-safe even if the historical
-# hand-maintained list has fewer than 200 entries.
-TOPIC_BANK: list[TopicBrief] = []
-
-# Preserve the historical data when available without making the old 200-item
-# assertion a production blocker. The active recycler imports topic_bank_500.
+# Compatibility adapter only.
+# Production/recycling uses src.topic_bank_500 directly.  This module remains
+# import-safe for older callers and no longer contains a stale 200-topic gate.
+from src.topic_bank_500 import TOPIC_BANK as TOPIC_BANK  # noqa: E402
 
 CATEGORY_COUNTS = {
-    category: sum(1 for item in TOPIC_BANK if item["category"] == category)
-    for category in sorted({item["category"] for item in TOPIC_BANK})
+    "القانون الجنائي": 0,
+    "قانون الشركات والاستثمار": 0,
+    "قانون الأسرة": 0,
+    "قانون العمل الجديد": 0,
+    "القانون الإداري": 0,
 }
+
+for _item in TOPIC_BANK:
+    _category = _item["category"]
+    CATEGORY_COUNTS[_category] = CATEGORY_COUNTS.get(_category, 0) + 1
+
+if len(TOPIC_BANK) != 500:
+    raise RuntimeError(f"Active TOPIC_BANK must contain exactly 500 topics; found {len(TOPIC_BANK)}")
+
+if any(count != 100 for count in CATEGORY_COUNTS.values()):
+    raise RuntimeError(f"Active TOPIC_BANK category distribution must be 100 each; found {CATEGORY_COUNTS}")
