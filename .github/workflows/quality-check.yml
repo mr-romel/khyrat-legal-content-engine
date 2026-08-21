@@ -58,8 +58,48 @@ jobs:
           import sheets
           import telegram_bot
           import token_manager
+          import topic_bank
           import utils
           print("Application module import check: OK")
+          PY
+
+      - name: Verify 200-topic legal content bank
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          from topic_bank import CATEGORY_COUNTS, TOPIC_BANK
+
+          assert len(TOPIC_BANK) == 200
+          assert CATEGORY_COUNTS == {
+              "القانون الجنائي": 40,
+              "قانون الشركات والاستثمار": 40,
+              "قانون الأسرة": 40,
+              "قانون العمل الجديد": 40,
+              "القانون الإداري": 40,
+          }
+          assert all(item["topic"].strip() for item in TOPIC_BANK)
+          assert all(item["angle"].strip() for item in TOPIC_BANK)
+          assert all(item["format"].strip() for item in TOPIC_BANK)
+          assert all(item["objective"].strip() for item in TOPIC_BANK)
+          print("200-topic bank validation: OK")
+          print(f"Category distribution: {CATEGORY_COUNTS}")
+          PY
+
+      - name: Verify monthly diversification architecture
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          from monthly_recycler import _topic_pool_for_month
+
+          pool = _topic_pool_for_month("2026-08", set())
+          assert len(pool) == 200
+          assert len({item["topic"] for item in pool}) == 200
+          first_month = [item["topic"] for item in _topic_pool_for_month("2026-08", set())[:20]]
+          next_month = [item["topic"] for item in _topic_pool_for_month("2026-09", set())[:20]]
+          assert first_month != next_month
+          print("Monthly bank rotation/diversification check: OK")
           PY
 
       - name: Verify Gemini runtime architecture
