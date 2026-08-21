@@ -77,7 +77,9 @@ def _build_bank() -> list[TopicBrief]:
             for angle, fmt, objective in PROFILES:
                 bank.append(
                     {
-                        "topic": f"{seed} — {angle}",
+                        # Category is included in the canonical title to guarantee
+                        # uniqueness even if two legal domains happen to share a seed.
+                        "topic": f"{seed} — {angle} — {category}",
                         "category": category,
                         "angle": angle,
                         "format": fmt,
