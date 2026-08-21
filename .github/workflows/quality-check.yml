@@ -45,6 +45,8 @@ jobs:
           import content_planner
           import facebook_publisher
           import gemini
+          import gemini_chat
+          import gemini_runtime
           import image_generator
           import linkedin_publisher
           import main
@@ -52,10 +54,36 @@ jobs:
           import optimizer
           import performance
           import post_bank
+          import run_main
+          import safe_dry_run
           import sheets
           import telegram_bot
+          import token_manager
           import utils
           print("Application module import check: OK")
+          PY
+
+      - name: Verify Gemini runtime architecture
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import inspect
+          import gemini_chat
+          import gemini_runtime
+          import comment_engine
+
+          chat_source = inspect.getsource(gemini_chat)
+          runtime_source = inspect.getsource(gemini_runtime)
+          comment_source = inspect.getsource(comment_engine)
+
+          assert "client.chats.create" in chat_source
+          assert "chat.send_message" in chat_source
+          assert "import gemini_chat as _gemini" in runtime_source
+          assert "client.chats.create" in comment_source
+          assert "chat.send_message" in comment_source
+          assert "GEMINI_FALLBACK_MODEL" in comment_source
+          print("Gemini Chat API + retry/fallback architecture check: OK")
           PY
 
       - name: Safe dry-run configuration smoke test
@@ -69,7 +97,6 @@ jobs:
           GEMINI_MODEL: "gemini-3.6-flash"
         run: |
           python - <<'PY'
-          import os
           from config import load_config
 
           config = load_config()
