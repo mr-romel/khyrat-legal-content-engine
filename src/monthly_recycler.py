@@ -58,10 +58,45 @@ def _normalize_topic(value: str) -> str:
     return text.casefold()
 
 
+def _is_published(row: dict[str, str]) -> bool:
+    status = row.get("الحالة", "").strip().upper()
+    return status == "PUBLISHED" or bool(row.get("Facebook Post ID", "").strip()) or bool(row.get("LinkedIn Post ID", "").strip())
+
+
+def _historically_used_topics(values: list[list[str]], current_key: str) -> set[str]:
+    """Topics that must never be reused, even with another angle.
+
+    We treat any successfully published row as permanently consumed. We also
+    reserve current-month topics already prepared, so replacing future slots
+    cannot accidentally select the same subject under another angle.
+    """
+    used: set[str] = set()
+    for raw in values[1:]:
+        row = row_to_dict(raw)
+        topic = row.get("الموضوع", "").strip()
+        notes = row.get("ملاحظات", "")
+        if _is_published(row):
+            if topic:
+                used.add(_normalize_topic(topic))
+            prefix = "الموضوع الأصلي:"
+            if prefix in notes:
+                original = notes.split(prefix, 1)[1].split("|", 1)[0].strip()
+                if original:
+                    used.add(_normalize_topic(original))
+        marker = f"{RECYCLE_MARKER}:{current_key}"
+        if marker in notes and topic:
+            used.add(_normalize_topic(topic))
+            prefix = "الموضوع الأصلي:"
+            if prefix in notes:
+                original = notes.split(prefix, 1)[1].split("|", 1)[0].strip()
+                if original:
+                    used.add(_normalize_topic(original))
+    return used
+
+
 def _source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     result: list[dict[str, str]] = []
     seen: set[str] = set()
-
     for raw in values[1:]:
         row = row_to_dict(raw)
         if RECYCLE_MARKER in row.get("ملاحظات", ""):
@@ -71,18 +106,13 @@ def _source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> li
         if key and key not in seen:
             seen.add(key)
             result.append(row)
-
     for bank in bank_rows:
         topic = bank.get("الموضوع", "").strip()
         key = _normalize_topic(topic)
         if not key or key in seen:
             continue
         seen.add(key)
-        result.append({
-            "الموضوع": topic,
-            "المصادر القانونية": bank.get("المصادر القانونية", ""),
-        })
-
+        result.append({"الموضوع": topic, "المصادر القانونية": bank.get("المصادر القانونية", "")})
     return result
 
 
@@ -92,6 +122,8 @@ def _prepared_slots(values: list[list[str]], month_key: str) -> set[tuple[str, s
     for raw in values[1:]:
         row = row_to_dict(raw)
         if marker not in row.get("ملاحظات", ""):
+            continue
+        if row.get("الحالة", "").strip().upper() == "CANCELLED":
             continue
         prepared.add((row.get("تاريخ النشر", "").strip(), row.get("ساعة النشر", "").strip()))
     return prepared
@@ -116,24 +148,10 @@ def _used_month_topics(values: list[list[str]], month_key: str) -> set[str]:
     return used
 
 
-def _migrate_future_slots(
-    service,
-    spreadsheet_id: str,
-    sheet_name: str,
-    values: list[list[str]],
-    current: date,
-    month_key: str,
-) -> int:
-    """Migrate old future monthly slots (14:00/20:00 or other legacy times) in-place.
-
-    If the desired 11:00/19:00 slot already exists for the same date, the legacy
-    duplicate is marked CANCELLED instead of creating two posts for one slot.
-    Already-published historical rows are never changed.
-    """
+def _migrate_future_slots(service, spreadsheet_id: str, sheet_name: str, values: list[list[str]], current: date, month_key: str) -> int:
     marker = f"{RECYCLE_MARKER}:{month_key}"
     desired: set[tuple[str, str]] = set()
     candidates: list[tuple[int, dict[str, str]]] = []
-
     for row_number, raw in enumerate(values[1:], start=2):
         row = row_to_dict(raw)
         if marker not in row.get("ملاحظات", ""):
@@ -143,11 +161,10 @@ def _migrate_future_slots(
         if not publish_date or not publish_time:
             continue
         status = row.get("الحالة", "").strip().upper()
-        if publish_date >= current.isoformat() and publish_time in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED"}:
+        if publish_date >= current.isoformat() and publish_time in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED", "CANCELLED"}:
             desired.add((publish_date, publish_time))
-        if publish_date >= current.isoformat() and publish_time not in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED"}:
+        if publish_date >= current.isoformat() and publish_time not in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED", "CANCELLED"}:
             candidates.append((row_number, row))
-
     changed = 0
     for row_number, row in candidates:
         publish_date = row.get("تاريخ النشر", "").strip()
@@ -156,55 +173,30 @@ def _migrate_future_slots(
         target = (publish_date, target_time)
         notes = row.get("ملاحظات", "")
         if target in desired:
-            update_row(
-                service,
-                spreadsheet_id,
-                sheet_name,
-                row_number,
-                {
-                    "الحالة": "CANCELLED",
-                    "ملاحظات": f"{notes} | تم إلغاء slot قديم {old_time} لتفادي التكرار بعد اعتماد 11:00 و19:00.",
-                },
-            )
+            update_row(service, spreadsheet_id, sheet_name, row_number, {"الحالة": "CANCELLED", "ملاحظات": f"{notes} | تم إلغاء slot قديم {old_time} لتفادي التكرار بعد اعتماد 11:00 و19:00."})
         else:
-            update_row(
-                service,
-                spreadsheet_id,
-                sheet_name,
-                row_number,
-                {
-                    "ساعة النشر": target_time,
-                    "ملاحظات": f"{notes} | تم ترحيل الموعد تلقائيًا من {old_time} إلى {target_time} بتوقيت القاهرة.",
-                },
-            )
+            update_row(service, spreadsheet_id, sheet_name, row_number, {"ساعة النشر": target_time, "ملاحظات": f"{notes} | تم ترحيل الموعد تلقائيًا من {old_time} إلى {target_time} بتوقيت القاهرة."})
             desired.add(target)
         changed += 1
-
     if changed:
-        print(f"Monthly recycler: migrated {changed} future legacy slots to the 11:00/19:00 schedule.")
+        print(f"Monthly recycler: migrated {changed} future legacy slots to 11:00/19:00.")
     return changed
 
 
 def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[str, str]]:
-    """Return a deterministic monthly sequence balanced across the five categories."""
     seed = int(hashlib.sha256(month_key.encode("utf-8")).hexdigest()[:8], 16)
     pools: dict[str, list[dict[str, str]]] = {category: [] for category in CATEGORY_ORDER}
-
     for item in TOPIC_BANK:
         if _normalize_topic(item["topic"]) not in used_topics:
             pools[item["category"]].append(item)
-
     for offset, category in enumerate(CATEGORY_ORDER):
         items = pools[category]
-        if not items:
-            continue
-        rotation = (seed + offset * 17) % len(items)
-        pools[category] = items[rotation:] + items[:rotation]
-
+        if items:
+            rotation = (seed + offset * 17) % len(items)
+            pools[category] = items[rotation:] + items[:rotation]
     category_start = seed % len(CATEGORY_ORDER)
     sequence: list[dict[str, str]] = []
     indexes = {category: 0 for category in CATEGORY_ORDER}
-
     while len(sequence) < len(TOPIC_BANK):
         added = False
         for step in range(len(CATEGORY_ORDER)):
@@ -217,8 +209,71 @@ def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[st
             added = True
         if not added:
             break
-
     return sequence
+
+
+def _brief_notes(current_key: str, brief: dict[str, str], posting_time: str, source: str = "500-Topic-Bank") -> str:
+    return (
+        f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {brief['topic'].strip()} | "
+        f"القسم: {brief['category']} | زاوية: {brief['angle'].strip()} | الصيغة: {brief['format'].strip()} | "
+        f"الهدف: {brief['objective'].strip()} | Slot: {posting_time} | المصدر: {source} | "
+        "لا يعاد استخدام موضوع منشور سابقًا أو نفس الموضوع بزاوية أخرى | ساعة النشر مثبتة تلقائيًا"
+    )
+
+
+def _replace_remaining_current_month_slots(service, spreadsheet_id: str, sheet_name: str, values: list[list[str]], current: date, current_key: str, topic_pool: list[dict[str, str]]) -> int:
+    """Replace all remaining unpublished current-month slots with genuinely new topics.
+
+    Published rows are immutable. Future/current rows that have not been published
+    are updated in-place, preserving their date/time slot. This is intentionally
+    stronger than merely filling missing slots: the user's request is to replace
+    the rest of the current month with topics never published before and never
+    reuse the same subject under a new angle.
+    """
+    marker = f"{RECYCLE_MARKER}:{current_key}"
+    historical_used = _historically_used_topics(values, current_key)
+    replacements: list[tuple[int, dict[str, str]]] = []
+    for row_number, raw in enumerate(values[1:], start=2):
+        row = row_to_dict(raw)
+        if marker not in row.get("ملاحظات", ""):
+            continue
+        publish_date = row.get("تاريخ النشر", "").strip()
+        if not publish_date or publish_date < current.isoformat():
+            continue
+        if _is_published(row) or row.get("الحالة", "").strip().upper() in {"CANCELLED", "PARTIAL_FAILED"}:
+            continue
+        replacements.append((row_number, row))
+
+    if not replacements:
+        return 0
+
+    available = [item for item in topic_pool if _normalize_topic(item["topic"]) not in historical_used]
+    changed = 0
+    for index, (row_number, row) in enumerate(replacements):
+        if index >= len(available):
+            print("Monthly recycler: 500-topic bank has no further never-published topic for a remaining slot.")
+            break
+        brief = available[index]
+        key = _normalize_topic(brief["topic"])
+        historical_used.add(key)
+        posting_time = row.get("ساعة النشر", "").strip()
+        update_row(
+            service,
+            spreadsheet_id,
+            sheet_name,
+            row_number,
+            {
+                "الموضوع": f"{brief['topic'].strip()} — زاوية جديدة: {brief['angle'].strip()}",
+                "المصادر القانونية": brief["legal_sources"].strip(),
+                "الحالة": "READY",
+                "آخر خطأ": "",
+                "ملاحظات": _brief_notes(current_key, brief, posting_time, "500-Topic-Bank replacement"),
+            },
+        )
+        changed += 1
+
+    print(f"Monthly recycler: replaced {changed} remaining current-month unpublished topics with never-published bank topics.")
+    return changed
 
 
 def _legacy_source_for_slot(source_rows: list[dict[str, str]], index: int, used_topics: set[str]) -> dict[str, str] | None:
@@ -240,11 +295,18 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     if migrated:
         values = get_values(service, spreadsheet_id, f"{sheet_name}!A:U")
 
+    historical_used = _historically_used_topics(values, current_key)
     source_rows = _source_rows(values, bank_rows)
-    topic_pool = _topic_pool_for_month(current_key, _used_month_topics(values, current_key))
+    topic_pool = _topic_pool_for_month(current_key, historical_used)
+    replaced = _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, values, current, current_key, topic_pool)
+    if replaced:
+        values = get_values(service, spreadsheet_id, f"{sheet_name}!A:U")
+        historical_used = _historically_used_topics(values, current_key)
+        topic_pool = _topic_pool_for_month(current_key, historical_used)
+
     if not source_rows and not topic_pool:
         print("Monthly recycler: no source topics found in Content, PostBank, or the 500-topic bank.")
-        return migrated
+        return migrated + replaced
 
     days = _posting_days(current.year, current.month, current.day)
     expected_slots = {
@@ -254,41 +316,35 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     }
     prepared = _prepared_slots(values, current_key)
     missing_slots = sorted(expected_slots - prepared)
-
     if not missing_slots:
         print(f"Monthly recycler: {current_key} is fully prepared for 11:00 and 19:00 Cairo time.")
-        return migrated
+        return migrated + replaced
 
-    print(
-        f"Monthly recycler: {len(prepared)} slots already prepared; creating {len(missing_slots)} missing slots for {current_key}."
-    )
-    print(f"Monthly recycler: 500-topic bank active; {len(topic_pool)} unused bank topics available for this month.")
-
+    print(f"Monthly recycler: creating {len(missing_slots)} missing slots for {current_key}.")
+    print(f"Monthly recycler: 500-topic bank active; {len(topic_pool)} never-published topics available.")
     created = 0
-    used_topics = _used_month_topics(values, current_key)
+    used_topics = _historically_used_topics(values, current_key)
     bank_index = 0
-
     for index, (publish_date, posting_time) in enumerate(missing_slots):
         brief = None
         while bank_index < len(topic_pool):
             candidate = topic_pool[bank_index]
             bank_index += 1
-            candidate_key = _normalize_topic(candidate["topic"])
-            if candidate_key not in used_topics:
+            if _normalize_topic(candidate["topic"]) not in used_topics:
                 brief = candidate
                 break
-
         if brief is not None:
             original_topic = brief["topic"].strip()
-            angle = brief["angle"].strip()
-            recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
-            legal_sources = brief["legal_sources"].strip()
-            notes = (
-                f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
-                f"القسم: {brief['category']} | زاوية: {angle} | الصيغة: {brief['format']} | "
-                f"الهدف: {brief['objective']} | Slot: {posting_time} | المصدر: 500-Topic-Bank | "
-                "ساعة النشر مثبتة تلقائيًا"
-            )
+            row = {
+                "ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}",
+                "الموضوع": f"{original_topic} — زاوية جديدة: {brief['angle'].strip()}",
+                "تاريخ النشر": publish_date,
+                "ساعة النشر": posting_time,
+                "نوع الجدولة": "DATE_TIME",
+                "الحالة": "READY",
+                "المصادر القانونية": brief["legal_sources"].strip(),
+                "ملاحظات": _brief_notes(current_key, brief, posting_time),
+            }
             used_topics.add(_normalize_topic(original_topic))
         else:
             legacy = _legacy_source_for_slot(source_rows, index, used_topics)
@@ -297,30 +353,19 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
                 break
             original_topic = legacy["الموضوع"].strip()
             angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
-            recycled_topic = f"{original_topic} — زاوية جديدة: {angle}"
-            legal_sources = legacy.get("المصادر القانونية", "")
-            notes = (
-                f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
-                f"زاوية: {angle} | Slot: {posting_time} | المصدر: Content/PostBank fallback | "
-                "ساعة النشر مثبتة تلقائيًا"
-            )
+            row = {
+                "ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}",
+                "الموضوع": f"{original_topic} — زاوية جديدة: {angle}",
+                "تاريخ النشر": publish_date,
+                "ساعة النشر": posting_time,
+                "نوع الجدولة": "DATE_TIME",
+                "الحالة": "READY",
+                "المصادر القانونية": legacy.get("المصادر القانونية", ""),
+                "ملاحظات": f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | زاوية: {angle} | Slot: {posting_time} | المصدر: Content/PostBank fallback | ساعة النشر مثبتة تلقائيًا",
+            }
             used_topics.add(_normalize_topic(original_topic))
-
-        row = {
-            "ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}",
-            "الموضوع": recycled_topic,
-            "تاريخ النشر": publish_date,
-            "ساعة النشر": posting_time,
-            "نوع الجدولة": "DATE_TIME",
-            "الحالة": "READY",
-            "المصادر القانونية": legal_sources,
-            "ملاحظات": notes,
-        }
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
 
-    print(
-        f"Monthly recycler: created {created} missing rows for {current_key}; source priority = 500-topic bank, "
-        "then Content/PostBank fallback; target = two publishing slots every day at 11:00 and 19:00 Cairo time."
-    )
-    return migrated + created
+    print(f"Monthly recycler: created {created} missing rows for {current_key}; target = 11:00 and 19:00 Cairo time.")
+    return migrated + replaced + created
