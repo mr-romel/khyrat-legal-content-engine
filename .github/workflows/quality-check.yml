@@ -102,6 +102,23 @@ jobs:
           print("Monthly bank rotation/diversification check: OK")
           PY
 
+      - name: Verify publishing schedule is 11:00 and 19:00 Cairo time
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import inspect
+          import monthly_recycler
+
+          assert monthly_recycler.POSTING_TIMES == ("11:00", "19:00")
+          source = inspect.getsource(monthly_recycler)
+          assert "14:00" not in source
+          assert "20:00" not in source
+          assert "11:00" in source
+          assert "19:00" in source
+          print("Publishing schedule check: 11:00 + 19:00 Africa/Cairo: OK")
+          PY
+
       - name: Verify Gemini runtime architecture
         env:
           PYTHONPATH: src
