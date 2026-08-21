@@ -5,8 +5,8 @@ from calendar import monthrange
 from datetime import date
 
 from src.post_bank import get_bank_rows
-from src.sheets import get_values, insert_row_at_top, row_to_dict
-from src.topic_bank import TOPIC_BANK
+from src.sheets import get_values, insert_row_at_top, row_to_dict, update_row
+from src.topic_bank_500 import TOPIC_BANK
 from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
@@ -116,6 +116,75 @@ def _used_month_topics(values: list[list[str]], month_key: str) -> set[str]:
     return used
 
 
+def _migrate_future_slots(
+    service,
+    spreadsheet_id: str,
+    sheet_name: str,
+    values: list[list[str]],
+    current: date,
+    month_key: str,
+) -> int:
+    """Migrate old future monthly slots (14:00/20:00 or other legacy times) in-place.
+
+    If the desired 11:00/19:00 slot already exists for the same date, the legacy
+    duplicate is marked CANCELLED instead of creating two posts for one slot.
+    Already-published historical rows are never changed.
+    """
+    marker = f"{RECYCLE_MARKER}:{month_key}"
+    desired: set[tuple[str, str]] = set()
+    candidates: list[tuple[int, dict[str, str]]] = []
+
+    for row_number, raw in enumerate(values[1:], start=2):
+        row = row_to_dict(raw)
+        if marker not in row.get("ملاحظات", ""):
+            continue
+        publish_date = row.get("تاريخ النشر", "").strip()
+        publish_time = row.get("ساعة النشر", "").strip()
+        if not publish_date or not publish_time:
+            continue
+        status = row.get("الحالة", "").strip().upper()
+        if publish_date >= current.isoformat() and publish_time in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED"}:
+            desired.add((publish_date, publish_time))
+        if publish_date >= current.isoformat() and publish_time not in POSTING_TIMES and status not in {"PUBLISHED", "PARTIAL_FAILED"}:
+            candidates.append((row_number, row))
+
+    changed = 0
+    for row_number, row in candidates:
+        publish_date = row.get("تاريخ النشر", "").strip()
+        old_time = row.get("ساعة النشر", "").strip()
+        target_time = "11:00" if old_time in {"14:00", "08:00", "10:00"} else "19:00"
+        target = (publish_date, target_time)
+        notes = row.get("ملاحظات", "")
+        if target in desired:
+            update_row(
+                service,
+                spreadsheet_id,
+                sheet_name,
+                row_number,
+                {
+                    "الحالة": "CANCELLED",
+                    "ملاحظات": f"{notes} | تم إلغاء slot قديم {old_time} لتفادي التكرار بعد اعتماد 11:00 و19:00.",
+                },
+            )
+        else:
+            update_row(
+                service,
+                spreadsheet_id,
+                sheet_name,
+                row_number,
+                {
+                    "ساعة النشر": target_time,
+                    "ملاحظات": f"{notes} | تم ترحيل الموعد تلقائيًا من {old_time} إلى {target_time} بتوقيت القاهرة.",
+                },
+            )
+            desired.add(target)
+        changed += 1
+
+    if changed:
+        print(f"Monthly recycler: migrated {changed} future legacy slots to the 11:00/19:00 schedule.")
+    return changed
+
+
 def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[str, str]]:
     """Return a deterministic monthly sequence balanced across the five categories."""
     seed = int(hashlib.sha256(month_key.encode("utf-8")).hexdigest()[:8], 16)
@@ -125,8 +194,6 @@ def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[st
         if _normalize_topic(item["topic"]) not in used_topics:
             pools[item["category"]].append(item)
 
-    # Rotate each category independently so the monthly sequence changes from month to month
-    # without relying on non-deterministic random state.
     for offset, category in enumerate(CATEGORY_ORDER):
         items = pools[category]
         if not items:
@@ -138,9 +205,6 @@ def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[st
     sequence: list[dict[str, str]] = []
     indexes = {category: 0 for category in CATEGORY_ORDER}
 
-    # Round-robin categories keeps the month diversified instead of posting one legal area
-    # for several consecutive slots. The bank has 40 topics per category, enough for the
-    # current month and multiple future cycles without immediate repetition.
     while len(sequence) < len(TOPIC_BANK):
         added = False
         for step in range(len(CATEGORY_ORDER)):
@@ -157,11 +221,7 @@ def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[st
     return sequence
 
 
-def _legacy_source_for_slot(
-    source_rows: list[dict[str, str]],
-    index: int,
-    used_topics: set[str],
-) -> dict[str, str] | None:
+def _legacy_source_for_slot(source_rows: list[dict[str, str]], index: int, used_topics: set[str]) -> dict[str, str] | None:
     if not source_rows:
         return None
     for offset in range(len(source_rows)):
@@ -176,11 +236,15 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     bank_rows = get_bank_rows(service, spreadsheet_id)
     current_key = current.strftime("%Y-%m")
 
+    migrated = _migrate_future_slots(service, spreadsheet_id, sheet_name, values, current, current_key)
+    if migrated:
+        values = get_values(service, spreadsheet_id, f"{sheet_name}!A:U")
+
     source_rows = _source_rows(values, bank_rows)
     topic_pool = _topic_pool_for_month(current_key, _used_month_topics(values, current_key))
     if not source_rows and not topic_pool:
-        print("Monthly recycler: no source topics found in Content, PostBank, or the 200-topic bank.")
-        return 0
+        print("Monthly recycler: no source topics found in Content, PostBank, or the 500-topic bank.")
+        return migrated
 
     days = _posting_days(current.year, current.month, current.day)
     expected_slots = {
@@ -193,13 +257,12 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
 
     if not missing_slots:
         print(f"Monthly recycler: {current_key} is fully prepared for 11:00 and 19:00 Cairo time.")
-        return 0
+        return migrated
 
     print(
-        f"Monthly recycler: {len(prepared)} slots already prepared; "
-        f"creating {len(missing_slots)} missing slots for {current_key}."
+        f"Monthly recycler: {len(prepared)} slots already prepared; creating {len(missing_slots)} missing slots for {current_key}."
     )
-    print(f"Monthly recycler: 200-topic bank active; {len(topic_pool)} unused bank topics available for this month.")
+    print(f"Monthly recycler: 500-topic bank active; {len(topic_pool)} unused bank topics available for this month.")
 
     created = 0
     used_topics = _used_month_topics(values, current_key)
@@ -223,7 +286,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
             notes = (
                 f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {original_topic} | "
                 f"القسم: {brief['category']} | زاوية: {angle} | الصيغة: {brief['format']} | "
-                f"الهدف: {brief['objective']} | Slot: {posting_time} | المصدر: 200-Topic-Bank | "
+                f"الهدف: {brief['objective']} | Slot: {posting_time} | المصدر: 500-Topic-Bank | "
                 "ساعة النشر مثبتة تلقائيًا"
             )
             used_topics.add(_normalize_topic(original_topic))
@@ -257,8 +320,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         created += 1
 
     print(
-        f"Monthly recycler: created {created} missing rows for {current_key}; "
-        "source priority = 200-topic bank, then Content/PostBank fallback; "
-        "target = two publishing slots every day at 11:00 and 19:00 Cairo time."
+        f"Monthly recycler: created {created} missing rows for {current_key}; source priority = 500-topic bank, "
+        "then Content/PostBank fallback; target = two publishing slots every day at 11:00 and 19:00 Cairo time."
     )
-    return created
+    return migrated + created
