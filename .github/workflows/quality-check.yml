@@ -114,12 +114,13 @@ jobs:
 
           assert monthly_recycler.POSTING_TIMES == ("11:00", "19:00")
           source = inspect.getsource(monthly_recycler)
-          assert "14:00" not in source
-          assert "20:00" not in source
           assert "11:00" in source
           assert "19:00" in source
           assert "_migrate_future_slots" in source
-          print("Publishing schedule + migration check: 11:00 + 19:00 Africa/Cairo: OK")
+          assert 'old_time in {"14:00", "08:00", "10:00"}' in source
+          assert 'old_time' in source and 'target_time' in source
+          assert 'ترحيل الموعد تلقائيًا' in source
+          print("Publishing schedule + legacy migration check: 11:00 + 19:00 Africa/Cairo: OK")
           PY
 
       - name: Verify Gemini runtime architecture
