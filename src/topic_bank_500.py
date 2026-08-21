@@ -1,69 +1,104 @@
 from __future__ import annotations
 
-from src.topic_bank import CATEGORY_COUNTS as BASE_CATEGORY_COUNTS
-from src.topic_bank import TOPIC_BANK as BASE_TOPIC_BANK
+from typing import TypedDict
 
 
-VARIANT_PROFILES = (
-    {
-        "label": "من منظور القرار الصحيح قبل التصرف",
-        "angle": "قرار عملي قبل اتخاذ خطوة قد يصعب التراجع عنها",
-        "format": "دليل قرار",
-        "objective": "تحويل المشاهد من رد فعل سريع إلى قرار قانوني محسوب",
-    },
-    {
-        "label": "من منظور المستند والدليل",
-        "angle": "ما الذي يجب توثيقه أو الاحتفاظ به قبل النزاع؟",
-        "format": "قائمة فحص",
-        "objective": "زيادة قيمة التوثيق المبكر وحماية الموقف القانوني",
-    },
-    {
-        "label": "من منظور التفاوض والوقاية",
-        "angle": "كيف تمنع المشكلة أو تفاوض على حل أفضل قبل التصعيد؟",
-        "format": "سيناريو تفاوضي",
-        "objective": "إظهار قيمة الاستشارة القانونية المبكرة وتقليل تكلفة النزاع",
-    },
+class TopicBrief(TypedDict):
+    topic: str
+    category: str
+    angle: str
+    format: str
+    objective: str
+    legal_sources: str
+
+
+PROFILES = (
+    ("قرار قبل التصرف", "دليل قرار", "مساعدة المتابع على اختيار الخطوة القانونية الأقل مخاطرة"),
+    ("المستند والدليل", "قائمة فحص", "رفع جودة التوثيق وحماية المركز القانوني"),
+    ("خطأ شائع", "صح أم خطأ", "تصحيح معلومة منتشرة ومنع قرار خاطئ"),
+    ("حالة واقعية", "سيناريو عملي", "ربط القاعدة القانونية بموقف يومي واضح"),
+    ("الوقاية والتفاوض", "3 خطوات", "تشجيع الحل المبكر وإظهار قيمة الاستشارة القانونية"),
 )
 
+SEEDS: dict[str, tuple[str, list[str]]] = {
+    "القانون الجنائي": (
+        "قانون العقوبات المصري وقانون الإجراءات الجنائية والنصوص الخاصة ذات الصلة؛ يجب التحقق من آخر تعديل قبل النشر.",
+        [
+            "محضر الضرب والتقرير الطبي", "التحرش والتحرش الإلكتروني", "السب والقذف على السوشيال ميديا",
+            "إيصال الأمانة", "خيانة الأمانة", "النصب والنزاع المدني", "الشيك بدون رصيد", "البلاغ الكاذب",
+            "القبض والتفتيش", "الاستيقاف وطلب إثبات الشخصية", "الاعتراف في محضر الشرطة", "محضر الشرطة ومسار القضية",
+            "الحفظ والإحالة للنيابة", "التنازل والتصالح", "الحبس الاحتياطي والإفراج", "الحكم الغيابي والمعارضة",
+            "الاستئناف في الجنح", "الطعن بالنقض", "شهادة الشهود وتقييم الدليل", "الدفاع الشرعي وحدوده",
+        ],
+    ),
+    "قانون الشركات والاستثمار": (
+        "قانون الشركات المصري وقوانين الاستثمار واللوائح والقرارات المنظمة؛ يجب التحقق من آخر تعديل ونوع الشركة قبل النشر.",
+        [
+            "اختيار الشكل القانوني للشركة", "عقد التأسيس", "اتفاق الشركاء", "صلاحيات المدير", "مسؤولية الشريك",
+            "دخول شريك جديد", "خروج شريك", "بيع الحصص والأسهم", "زيادة رأس المال", "تخفيض رأس المال",
+            "الجمعية العامة", "مجلس الإدارة", "حوكمة الشركات", "تعارض المصالح", "عقود الشركة مع الأطراف المرتبطة",
+            "توزيع الأرباح", "تصفية الشركة", "منازعات الشركاء", "الاستثمار الأجنبي", "الحوافز والضمانات الاستثمارية",
+        ],
+    ),
+    "قانون الأسرة": (
+        "قوانين الأحوال الشخصية المصرية والنصوص واللوائح والأحكام المنظمة؛ يجب التحقق من آخر تعديل والوقائع الدقيقة قبل النشر.",
+        [
+            "النفقة الزوجية", "نفقة الصغار", "أجر المسكن", "الحضانة", "الرؤية والاستضافة", "الولاية التعليمية",
+            "الولاية على المال", "إثبات الزواج", "الزواج العرفي", "الطلاق الشفهي وإثباته", "الطلاق الغيابي",
+            "التطليق للضرر", "الخلع", "المتعة ومؤخر الصداق", "إثبات النسب", "السفر بالمحضون", "منع السفر",
+            "إعلام الوراثة", "الوصية والهبة", "قسمة التركة",
+        ],
+    ),
+    "قانون العمل الجديد": (
+        "قانون العمل المصري الجديد واللوائح والقرارات التنفيذية ذات الصلة؛ يجب التحقق من النص النافذ وتاريخ سريانه قبل النشر.",
+        [
+            "عقد العمل", "فترة الاختبار", "الأجر ومكوناته", "ساعات العمل", "الراحة والإجازات", "الإجازة السنوية",
+            "الإجازة المرضية", "إجازة الوضع ورعاية الطفل", "العمل الإضافي", "العمل عن بعد", "الجزاءات التأديبية",
+            "التحقيق مع العامل", "الفصل وإنهاء الخدمة", "الاستقالة", "مكافأة نهاية الخدمة", "إصابة العمل",
+            "منازعات الأجور", "النقابات والتمثيل العمالي", "التمييز والتحرش في العمل", "تفتيش العمل",
+        ],
+    ),
+    "القانون الإداري": (
+        "قوانين مجلس الدولة والوظيفة العامة والقرارات الإدارية المنظمة؛ يجب التحقق من النص النافذ والاختصاص قبل النشر.",
+        [
+            "القرار الإداري", "القرار السلبي", "سحب القرار الإداري", "إلغاء القرار الإداري", "عيب الاختصاص",
+            "عيب الشكل والإجراءات", "عيب السبب", "عيب المحل", "الانحراف بالسلطة", "التظلم الإداري",
+            "ميعاد دعوى الإلغاء", "وقف تنفيذ القرار", "دعوى التعويض الإداري", "اختصاص مجلس الدولة", "الإدارية العليا",
+            "تأديب الموظف العام", "الجزاءات التأديبية", "النقل والندب", "الترقية", "المعاشات والحقوق الوظيفية",
+        ],
+    ),
+}
 
-# The original 200 briefs remain the curated base bank. We deliberately derive
-# additional editorial briefs instead of duplicating titles verbatim. Each derived
-# brief changes the angle, format and objective while preserving the legal subject
-# and its source family. This makes the active bank 500 publishable briefs without
-# deleting the proven 200-topic baseline.
-TOPIC_BANK = [dict(item) for item in BASE_TOPIC_BANK]
 
-for category in sorted(BASE_CATEGORY_COUNTS):
-    category_items = [item for item in BASE_TOPIC_BANK if item["category"] == category]
-    # 20 subjects receive two additional editorial variants; the remaining 20
-    # receive one. Thus each of the five categories grows from 40 to exactly 100.
-    for index, base in enumerate(category_items):
-        variant_count = 2 if index < 20 else 1
-        for variant_index in range(variant_count):
-            profile = VARIANT_PROFILES[(index + variant_index) % len(VARIANT_PROFILES)]
-            variant = dict(base)
-            variant["topic"] = f"{base['topic']} — {profile['label']}"
-            variant["angle"] = profile["angle"]
-            variant["format"] = profile["format"]
-            variant["objective"] = profile["objective"]
-            TOPIC_BANK.append(variant)
+def _build_bank() -> list[TopicBrief]:
+    bank: list[TopicBrief] = []
+    for category, (sources, seeds) in SEEDS.items():
+        for seed in seeds:
+            for angle, fmt, objective in PROFILES:
+                bank.append(
+                    {
+                        "topic": f"{seed} — {angle}",
+                        "category": category,
+                        "angle": angle,
+                        "format": fmt,
+                        "objective": objective,
+                        "legal_sources": sources,
+                    }
+                )
+    return bank
 
+
+TOPIC_BANK: list[TopicBrief] = _build_bank()
 
 CATEGORY_COUNTS = {
     category: sum(1 for item in TOPIC_BANK if item["category"] == category)
-    for category in sorted({item["category"] for item in TOPIC_BANK})
+    for category in SEEDS
 }
+
+EXPECTED_COUNTS = {category: 100 for category in SEEDS}
 
 if len(TOPIC_BANK) != 500:
     raise RuntimeError(f"TOPIC_BANK_500 must contain exactly 500 briefs; found {len(TOPIC_BANK)}")
-
-EXPECTED_COUNTS = {
-    "القانون الجنائي": 100,
-    "قانون الأسرة": 100,
-    "قانون العمل الجديد": 100,
-    "قانون الشركات والاستثمار": 100,
-    "القانون الإداري": 100,
-}
 
 if CATEGORY_COUNTS != EXPECTED_COUNTS:
     raise RuntimeError(f"Unexpected 500-topic category distribution: {CATEGORY_COUNTS}")
@@ -71,5 +106,5 @@ if CATEGORY_COUNTS != EXPECTED_COUNTS:
 if len({item["topic"] for item in TOPIC_BANK}) != 500:
     raise RuntimeError("TOPIC_BANK_500 contains duplicate topic titles")
 
-if not all(item["angle"].strip() and item["format"].strip() and item["objective"].strip() for item in TOPIC_BANK):
+if not all(item["topic"].strip() and item["angle"].strip() and item["format"].strip() and item["objective"].strip() for item in TOPIC_BANK):
     raise RuntimeError("TOPIC_BANK_500 contains incomplete editorial metadata")
