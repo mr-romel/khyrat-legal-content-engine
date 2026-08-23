@@ -110,6 +110,32 @@ jobs:
           echo "Worker URL: ${WORKER_URL}"
           echo "Webhook URL: ${WEBHOOK_URL}"
 
+      - name: Configure Telegram command menu
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMANDS='[
+            {"command":"start","description":"🏠 فتح مركز التحكم"},
+            {"command":"status","description":"🩺 حالة النظام والشيت"},
+            {"command":"today","description":"📅 منشورات اليوم"},
+            {"command":"review","description":"🟡 المراجعات المعلقة"},
+            {"command":"failed","description":"🔴 المنشورات الفاشلة"},
+            {"command":"bank","description":"📚 بنك المنشورات"},
+            {"command":"tokens","description":"🔐 حالة الاتصال والتوكنات"},
+            {"command":"help","description":"❓ كل الأوامر"}
+          ]'
+          echo "$COMMANDS" | python -c 'import json,sys; json.dump({"commands":json.load(sys.stdin),"language_code":"ar"},sys.stdout,ensure_ascii=False)' > /tmp/telegram-commands.json
+          curl --fail-with-body -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/telegram-commands.json
+          rm -f /tmp/telegram-commands.json
+
+          curl --fail-with-body -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setChatMenuButton" \
+            -H "Content-Type: application/json" \
+            --data '{"menu_button":{"type":"commands","text":"📋 الأوامر"}}'
+
       - name: Verify Worker health
         shell: bash
         run: |
