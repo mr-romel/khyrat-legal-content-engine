@@ -16,7 +16,7 @@ from image_generator import ImageGenerationError, create_legal_image
 from linkedin_publisher import LinkedInPublishError, add_comment as linkedin_add_comment, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
-from telegram_bot import notify, send_review_request
+from telegram_bot import notify, notify_linkedin_interaction, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
@@ -197,6 +197,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(linkedin_access_token)
                 linkedin = publish_to_linkedin(token=linkedin_access_token, author_urn=linkedin_author_urn, image_path=image_path, commentary=post, first_comment="لو عندك موقف قانوني مشابه، اكتب سؤالك في التعليقات.")
                 linkedin_post_id = linkedin["post_urn"]
+                try:
+                    notify_linkedin_interaction(topic=topic, post_urn=linkedin_post_id, comment=linkedin["comment"], like=linkedin["like"])
+                except Exception as exc:
+                    print(f"Telegram LinkedIn diagnostic failed: {exc}")
                 linkedin_comments = 1 if linkedin["comment"]["status"] == "PUBLISHED" else 0
                 try:
                     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=post, legal_sources=row.get("المصادر القانونية", ""))
