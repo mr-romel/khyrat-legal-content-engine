@@ -59,6 +59,209 @@ def send_message(text: str, *, reply_markup: dict[str, Any] | None = None) -> di
     return _call("sendMessage", payload).get("result")
 
 
+def _main_menu_keyboard() -> dict[str, Any]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "📊 تقرير المنصات", "callback_data": "menu:platforms"},
+                {"text": "📈 الأداء", "callback_data": "menu:performance"},
+            ],
+            [
+                {"text": "📅 جدول اليوم", "callback_data": "menu:today"},
+                {"text": "📝 آخر المنشورات", "callback_data": "menu:recent"},
+            ],
+            [
+                {"text": "🔄 إعادة المحاولة", "callback_data": "menu:retry"},
+                {"text": "🩺 فحص النظام", "callback_data": "menu:health"},
+            ],
+            [
+                {"text": "📚 بنك المنشورات", "callback_data": "menu:bank"},
+                {"text": "📅 خطة الشهر", "callback_data": "menu:month"},
+            ],
+            [
+                {"text": "🔐 حالة التوكنات", "callback_data": "menu:tokens"},
+                {"text": "⚙️ حالة النظام", "callback_data": "menu:system"},
+            ],
+        ]
+    }
+
+
+def _back_keyboard() -> dict[str, Any]:
+    return {"inline_keyboard": [[{"text": "🏠 القائمة الرئيسية", "callback_data": "menu:home"}]]}
+
+
+def menu_text() -> str:
+    return (
+        "🤖 KHYRAT LEGAL CONTENT ENGINE\n"
+        "Control Center\n\n"
+        "اختار العملية من الأزرار — مش محتاج تحفظ أي أمر.\n\n"
+        "📢 النشر والتقارير\n"
+        "📊 متابعة المنصات والأداء\n"
+        "🔧 التحكم والتشخيص\n"
+        "📚 المحتوى وخطة الشهر\n"
+        "🔐 التوكنات وحالة الخدمات"
+    )
+
+
+def _menu_page(action: str) -> str:
+    pages = {
+        "platforms": (
+            "📊 تقرير المنصات\n\n"
+            "📘 FACEBOOK — PAGE\n"
+            "🟢 Publishing\n"
+            "🟢 Likes\n"
+            "🟢 Comments\n\n"
+            "💼 LINKEDIN\n"
+            "🟢 Publishing\n"
+            "⚠️ Likes / Comments: راجع آخر LinkedIn Interaction Diagnostic\n\n"
+            "التقرير التفصيلي بعد كل نشر هو مصدر الحالة الفعلية."
+        ),
+        "performance": (
+            "📈 الأداء\n\n"
+            "Performance Collector يجمع بيانات آخر المنشورات ويحدث بيانات الأداء.\n\n"
+            "الأرقام التفصيلية تظهر في تقارير الأداء الدورية."
+        ),
+        "today": (
+            "📅 جدول اليوم\n\n"
+            "🕚 11:00 صباحًا\n"
+            "🌙 19:00 مساءً\n\n"
+            "الـScheduler يعمل كل 15 دقيقة، والشيت هو مصدر الحقيقة لموعد كل منشور."
+        ),
+        "recent": (
+            "📝 آخر المنشورات\n\n"
+            "يتم تسجيل المنشورات ونتائج المنصات في Google Sheets وPost Bank.\n\n"
+            "التقرير التفصيلي يظهر تلقائيًا بعد عملية النشر."
+        ),
+        "retry": (
+            "🔄 مركز إعادة المحاولة\n\n"
+            "الأخطاء المؤقتة القابلة لإعادة المحاولة تدخل Retry Engine تلقائيًا.\n\n"
+            "⚠️ لا يوجد زر نشر يدوي هنا حاليًا، لتجنب أي نشر مكرر."
+        ),
+        "health": (
+            "🩺 فحص النظام\n\n"
+            "🟢 Scheduler\n"
+            "🟢 Google Sheets\n"
+            "🟢 Gemini + fallback\n"
+            "🟢 Cloudflare health check\n"
+            "🟢 Performance Collector\n"
+            "🟢 Telegram notifications\n\n"
+            "LinkedIn Interaction تتم متابعته بشكل مستقل."
+        ),
+        "bank": (
+            "📚 بنك المنشورات\n\n"
+            "البنك يغذي خطة الشهر بموضوعات غير منشورة مع حماية من التكرار والزوايا المكررة."
+        ),
+        "month": (
+            "📅 خطة الشهر\n\n"
+            "Monthly Recycler يجهز المواعيد المتبقية ويستخدم موضوعات جديدة من البنك.\n\n"
+            "🕚 11:00\n🌙 19:00 — بتوقيت القاهرة."
+        ),
+        "tokens": (
+            "🔐 حالة التوكنات\n\n"
+            "Facebook: Page Access Token\n"
+            "LinkedIn: Access Token\n\n"
+            "401 = Token\n"
+            "403 = Permission / Product Access\n"
+            "429 و5xx = Temporary / Retry\n\n"
+            "أي مشكلة فعلية تظهر في التقرير التفصيلي."
+        ),
+        "system": (
+            "⚙️ حالة النظام\n\n"
+            "🟢 Production Publishing\n"
+            "🟢 Resilient Scheduler\n"
+            "🟢 Post Bank\n"
+            "🟢 Monthly Recycler\n"
+            "🟢 Performance Collector\n"
+            "🟢 Telegram Control Center"
+        ),
+    }
+    return pages.get(action, menu_text())
+
+
+def send_control_center(chat_id: str | None = None) -> None:
+    target = str(chat_id or _chat_id()).strip()
+    if not target:
+        return
+    _call(
+        "sendMessage",
+        {
+            "chat_id": target,
+            "text": menu_text(),
+            "reply_markup": _main_menu_keyboard(),
+            "disable_web_page_preview": True,
+        },
+    )
+
+
+def _authorized(user_id: int | str | None) -> bool:
+    expected = _admin_user_id()
+    if not expected:
+        return True
+    return str(user_id or "") == expected
+
+
+def answer_callback(callback_query_id: str, text: str = "") -> None:
+    _call("answerCallbackQuery", {"callback_query_id": callback_query_id, "text": text[:190], "show_alert": False})
+
+
+def edit_menu_message(chat_id: str, message_id: int, action: str) -> None:
+    if action == "home":
+        text = menu_text()
+        keyboard = _main_menu_keyboard()
+    else:
+        text = _menu_page(action)
+        keyboard = _back_keyboard()
+    _call(
+        "editMessageText",
+        {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "reply_markup": keyboard,
+            "disable_web_page_preview": True,
+        },
+    )
+
+
+def process_updates_once() -> int:
+    """Process pending /start, /menu and Control Center callback updates once."""
+    updates = get_updates()
+    if not updates:
+        return 0
+    processed = 0
+    for update in updates:
+        update_id = int(update.get("update_id", 0))
+        message = update.get("message") or {}
+        callback = update.get("callback_query") or {}
+        user_id = (message.get("from") or {}).get("id") if message else (callback.get("from") or {}).get("id")
+        if not _authorized(user_id):
+            if callback:
+                answer_callback(str(callback.get("id", "")), "غير مصرح")
+            continue
+        text = str(message.get("text", "")).strip() if message else ""
+        if text in {"/start", "/menu", "القائمة", "القائمة الرئيسية"}:
+            chat_id = str((message.get("chat") or {}).get("id", _chat_id()))
+            send_control_center(chat_id)
+            processed += 1
+        elif callback:
+            data = str(callback.get("data", ""))
+            if data.startswith("menu:"):
+                action = data.split(":", 1)[1]
+                answer_callback(str(callback.get("id", "")))
+                callback_message = callback.get("message") or {}
+                chat_id = str((callback_message.get("chat") or {}).get("id", ""))
+                message_id = int(callback_message.get("message_id", 0))
+                if chat_id and message_id:
+                    edit_menu_message(chat_id, message_id, action)
+                processed += 1
+        # Confirm consumption of this update so it is not delivered again.
+        try:
+            get_updates(offset=update_id + 1)
+        except Exception as exc:
+            print(f"Telegram update acknowledgement failed: {exc}")
+    return processed
+
+
 def send_review_request(*, row_number: int, topic: str, post: str, reason: str, sheet_id: str, status: str) -> None:
     if not configured():
         print("Telegram not configured; review notification skipped.")
@@ -84,6 +287,7 @@ def send_review_request(*, row_number: int, topic: str, post: str, reason: str, 
                 {"text": "❌ رفض", "callback_data": f"reject:{row_number}"},
             ],
             [{"text": "📊 فتح Google Sheet", "url": sheet_url}],
+            [{"text": "🏠 Control Center", "callback_data": "menu:home"}],
         ]
     }
     send_message(text, reply_markup=keyboard)
@@ -129,13 +333,14 @@ def _format_publication_report(text: str) -> str:
         "🛡️ Idempotency: ACTIVE\n"
         "🔄 Retry queue: ACTIVE\n"
         "📈 Performance collector: ACTIVE\n\n"
+        "🏠 Control Center: /menu\n\n"
         "✅ النشر الأساسي لا يتأثر بفشل Like أو Comment."
     )
 
 
 def notify(text: str) -> None:
     try:
-        send_message(_format_publication_report(text))
+        send_message(_format_publication_report(text), reply_markup={"inline_keyboard": [[{"text": "🏠 Control Center", "callback_data": "menu:home"}]]})
     except Exception as exc:
         print(f"Telegram notification failed: {exc}")
 
@@ -171,6 +376,7 @@ def notify_linkedin_interaction(*, topic: str, post_urn: str, comment: dict[str,
         "• 403 = Permission / Product access.\n"
         "• 400 = صيغة الطلب أو بيانات غير مقبولة.\n"
         "• 408/429/5xx = خطأ مؤقت ويُعاد المحاولة تلقائيًا.\n\n"
+        "🏠 Control Center: /menu\n\n"
         "النشر الأساسي لا يتأثر بفشل التفاعل."
     )
     notify(text)
