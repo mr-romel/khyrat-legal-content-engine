@@ -58,19 +58,10 @@ def send_message(text: str, *, reply_markup: dict[str, Any] | None = None) -> di
     return _call("sendMessage", payload).get("result")
 
 
-def send_review_request(
-    *,
-    row_number: int,
-    topic: str,
-    post: str,
-    reason: str,
-    sheet_id: str,
-    status: str,
-) -> None:
+def send_review_request(*, row_number: int, topic: str, post: str, reason: str, sheet_id: str, status: str) -> None:
     if not configured():
         print("Telegram not configured; review notification skipped.")
         return
-
     sheet_url = f"https://docs.google.com/spreadsheets/d/{quote(sheet_id, safe='')}/edit"
     text = (
         "🚨 Khyrat Legal Content Engine\n\n"
@@ -102,6 +93,36 @@ def notify(text: str) -> None:
         send_message(text)
     except Exception as exc:
         print(f"Telegram notification failed: {exc}")
+
+
+def notify_linkedin_interaction(*, topic: str, post_urn: str, comment: dict[str, Any], like: dict[str, Any]) -> None:
+    """Send a compact diagnostic report for LinkedIn like/comment actions."""
+    if not configured():
+        return
+
+    def render(label: str, result: dict[str, Any], success_labels: set[str]) -> str:
+        status = str(result.get("status", "UNKNOWN"))
+        http_status = result.get("http_status")
+        error = str(result.get("error", "")).strip()
+        if status in success_labels:
+            return f"{label}: ✅ {status}"
+        line = f"{label}: ❌ {status}"
+        if http_status:
+            line += f" (HTTP {http_status})"
+        if error:
+            line += f"\n   السبب: {error[:700]}"
+        return line
+
+    text = (
+        "💼 LinkedIn Interaction Diagnostic\n\n"
+        f"الموضوع: {topic}\n"
+        f"Post URN: {post_urn}\n\n"
+        f"{render('❤️ Like', like, {'LIKED'})}\n"
+        f"{render('💬 Comment', comment, {'PUBLISHED'})}\n\n"
+        "النشر الأساسي لا يتأثر بفشل التفاعل. "
+        "لو ظهر 401/403 هنا، نعرف أن المشكلة في التوكن/الصلاحيات وليس في الـScheduler."
+    )
+    notify(text)
 
 
 def answer_callback(callback_query_id: str, text: str) -> None:
