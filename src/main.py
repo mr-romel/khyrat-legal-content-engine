@@ -10,6 +10,7 @@ from analytics import log_publication
 from comment_engine import generate_comments
 from config import load_config
 from content_planner import classify
+from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
@@ -94,6 +95,28 @@ def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: l
     return published
 
 
+def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
+    """Generate engagement copy, then run the mandatory final language/editorial gate."""
+    comments = generate_comments(
+        api_key=config["gemini_api_key"],
+        model=config["gemini_model"],
+        topic=topic,
+        post=facebook_post,
+        legal_sources=legal_sources,
+    )
+    reviewed = review_and_prepare(
+        api_key=config["gemini_api_key"],
+        model=config["gemini_model"],
+        topic=topic,
+        facebook_post=facebook_post,
+        facebook_comments=comments["facebook_comments"],
+        linkedin_comments=comments["linkedin_comments"],
+        legal_sources=legal_sources,
+    )
+    print("Editorial gate: spelling/grammar review completed; LinkedIn professional rewrite completed.")
+    return reviewed
+
+
 def _generate_if_needed(*, service, config, sheet_name, row_number, row, current, topic, bank_rows):
     existing_post = str(row.get("المحتوى", "") or "").strip()
     existing_image_url = str(row.get("رابط الصورة", "") or "").strip()
@@ -147,8 +170,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             return
         if not post or not image_path:
             raise RuntimeError("Dry run did not produce content/image assets.")
-        comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=post, legal_sources=row.get("المصادر القانونية", ""))
-        print(f"DRY RUN generated: Facebook comments={len(comments['facebook_comments'])}/5 | LinkedIn comments={len(comments['linkedin_comments'])}/5")
+        editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+        print(f"DRY RUN generated: Facebook comments={len(editorial['facebook_comments'])}/5 | LinkedIn comments={len(editorial['linkedin_comments'])}/5")
+        print(f"DRY RUN LinkedIn post length: {len(editorial['linkedin_post'])} characters")
         print(f"DRY RUN image: {image_path}")
         print("DRY RUN completed successfully; no social API write was attempted.")
         return
@@ -163,6 +187,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             return
         if not post or not image_path:
             raise RuntimeError("Content/image generation did not produce publishable assets.")
+
+        editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+        facebook_post = editorial["facebook_post"]
+        linkedin_post = editorial["linkedin_post"]
+        facebook_comments_ready = editorial["facebook_comments"]
+        linkedin_comments_ready = editorial["linkedin_comments"]
+
         facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         linkedin_post_id = str(row.get("LinkedIn Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         facebook_comments = 0
@@ -171,12 +202,11 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
             try:
-                facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=post)
+                facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
                 facebook_post_id = facebook["post_id"]
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id})
                 try:
-                    comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=post, legal_sources=row.get("المصادر القانونية", ""))
-                    facebook_comments = _publish_comments_facebook(facebook_post_id, comments["facebook_comments"], config)
+                    facebook_comments = _publish_comments_facebook(facebook_post_id, facebook_comments_ready, config)
                 except Exception as exc:
                     print(f"Facebook comment engine failed: {exc}")
                 try:
@@ -195,7 +225,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 linkedin_access_token = config["linkedin_access_token"]
                 linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(linkedin_access_token)
-                linkedin = publish_to_linkedin(token=linkedin_access_token, author_urn=linkedin_author_urn, image_path=image_path, commentary=post, first_comment="لو عندك موقف قانوني مشابه، اكتب سؤالك في التعليقات.")
+                linkedin = publish_to_linkedin(token=linkedin_access_token, author_urn=linkedin_author_urn, image_path=image_path, commentary=linkedin_post, first_comment=linkedin_comments_ready[0])
                 linkedin_post_id = linkedin["post_urn"]
                 try:
                     notify_linkedin_interaction(topic=topic, post_urn=linkedin_post_id, comment=linkedin["comment"], like=linkedin["like"])
@@ -203,8 +233,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     print(f"Telegram LinkedIn diagnostic failed: {exc}")
                 linkedin_comments = 1 if linkedin["comment"]["status"] == "PUBLISHED" else 0
                 try:
-                    comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=post, legal_sources=row.get("المصادر القانونية", ""))
-                    linkedin_comments += _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, comments["linkedin_comments"], config)
+                    linkedin_comments += _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, linkedin_comments_ready, config)
                 except Exception as exc:
                     print(f"LinkedIn comment engine failed: {exc}")
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "PUBLISHED", "LinkedIn Post ID": linkedin_post_id, "LinkedIn Comment Status": "PUBLISHED" if linkedin_comments else "FAILED"})
@@ -224,14 +253,14 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": final_status, "Facebook Status": "PUBLISHED" if fb_ok else "FAILED", "Facebook Post ID": facebook_post_id, "LinkedIn Status": "PUBLISHED" if li_ok else "FAILED", "LinkedIn Post ID": linkedin_post_id, "وقت آخر تشغيل": current.isoformat()})
         if final_status == "PUBLISHED":
             try:
-                add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
+                add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=facebook_post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
                 log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments=str(facebook_comments), linkedin_comments=str(linkedin_comments), status=final_status)
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
             notify("✅ Khyrat Legal Content Engine\n" f"تم نشر: {topic}\n" f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_ok else '❌'}\n" f"التعليقات: Facebook {facebook_comments}/5 | LinkedIn {linkedin_comments}/5")
         elif final_status == "PARTIAL_FAILED":
             notify("🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n" f"الموضوع: {topic}")
-    except (ImageGenerationError, FacebookPublishError, LinkedInPublishError) as exc:
+    except (ImageGenerationError, FacebookPublishError, LinkedInPublishError, RuntimeError) as exc:
         print(f"Pipeline failed: {exc}")
         print(traceback.format_exc())
         update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": str(exc), "وقت آخر تشغيل": current.isoformat()})
@@ -241,7 +270,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
 def main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
-    print("=" * 70)
+    print("=")
     current = now_cairo()
     print(f"Current Cairo time: {current.isoformat()}")
     if DRY_RUN:
