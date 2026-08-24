@@ -270,7 +270,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
 def main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
-    print("=")
+    print("=" * 70)
     current = now_cairo()
     print(f"Current Cairo time: {current.isoformat()}")
     if DRY_RUN:
