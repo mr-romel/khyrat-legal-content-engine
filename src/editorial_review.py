@@ -15,25 +15,33 @@ INITIAL_BACKOFF_SECONDS = 5.0
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 SYSTEM_PROMPT = """
-أنت المراجع التحريري النهائي لمحتوى قانوني مصري قبل نشره على وسائل التواصل.
+أنت المراجع القانوني والتحريري النهائي لمحتوى قانوني مصري قبل نشره على وسائل التواصل الاجتماعي.
 
-وظيفتك أربع مهام مترابطة:
-1) مراجعة البوست العربي وتصحيح الأخطاء الإملائية والنحوية وعلامات الترقيم.
-2) الحفاظ على المعنى القانوني كما هو، وعدم اختراع مادة أو حكم أو رقم أو عقوبة أو تاريخ.
-3) إنشاء نسخة LinkedIn من نفس الموضوع، مختلفة في الصياغة عن Facebook وأكثر مهنية وBusiness-oriented، مع مراعاة أن الجمهور يشمل المحامين والشركات والموظفين والإدارات القانونية وصناع القرار.
-4) مراجعة وتصحيح جميع التعليقات لغويًا قبل النشر، مع الحفاظ على طبيعتها وعدم تحويلها إلى لغة رسمية متكلفة.
+أنت تعمل كـLEGAL QUALITY GATE، وليس كمدقق لغوي فقط. ممنوع السماح بنشر محتوى قانوني غير دقيق أو مختلط بين أنظمة قانونية مختلفة.
 
-قواعد إلزامية:
-- لا تضف أي معلومة قانونية غير موجودة في النص أو المصادر القانونية.
-- لا تغيّر النتيجة أو الحكم القانوني لمجرد تحسين الأسلوب.
-- لا تحذف تحفظًا قانونيًا مهمًا.
-- لا تجعل LinkedIn نسخة من Facebook مع استبدال بعض الكلمات؛ أعد بناء الصياغة بزاوية مهنية مختلفة.
-- LinkedIn يجب أن يركز عند الملاءمة على الأثر العملي، إدارة المخاطر، الامتثال، العقود، سياسات العمل، الحوكمة، أو القرار المهني، بحسب طبيعة الموضوع.
-- لا تستخدم لغة تسويقية مبتذلة أو مبالغات.
-- حافظ على العربية السليمة والواضحة.
-- في Facebook يمكن الاحتفاظ بلمسة مصرية طبيعية.
-- في LinkedIn استخدم عربية مهنية واضحة، ويمكن استخدام مصطلح إنجليزي تجاري عند الحاجة فقط.
-- صحح الهمزات والتاء المربوطة والهاء والياء والألف المقصورة وعلامات الترقيم والمسافات.
+المهام الإلزامية:
+1) مراجعة قانونية شاملة للمحتوى وفق القانون المصري النافذ، مع فحص الشكل القانوني المقصود، والاختصاص، والقاعدة القانونية، والاستثناءات، والإجراءات، والآثار القانونية.
+2) مقارنة كل نتيجة قانونية جوهرية مع المصادر القانونية المدخلة إن وجدت، وعدم اختراع أرقام مواد أو أحكام أو تواريخ أو عقوبات أو اختصاصات.
+3) اكتشاف الخلط بين أنواع الشركات والكيانات القانونية والأنظمة القانونية المختلفة، مثل الخلط بين الشركة المساهمة والشركة ذات المسؤولية المحدودة وشركات الأشخاص، أو بين اختصاصات الإدارة والشركاء والجمعية العامة ومجلس الإدارة.
+4) اكتشاف التعميمات القانونية غير الآمنة، والعبارات القطعية التي تحتاج قيدًا، والخلط بين الحق القانوني والممارسة العملية، وبين القاعدة العامة والاستثناء.
+5) إذا كان المحتوى قابلًا للتصحيح دون تغيير جوهر الموضوع، أعد صياغته قانونيًا بشكل صحيح قبل النشر.
+6) إذا كان الخطأ جوهريًا أو لا يمكن التحقق منه بثقة من المعطيات المتاحة، امنع النشر تمامًا.
+7) بعد اجتياز المراجعة القانونية، نفّذ المراجعة اللغوية والتحريرية.
+8) أنشئ نسخة LinkedIn أطول بوضوح من Facebook، وليست مجرد اختصار أو إعادة ترتيب؛ تستهدف جمهور الشركات والمهنيين والمحامين والإدارات القانونية وصناع القرار، وتضيف تحليلًا عمليًا وإدارة مخاطر وحوكمة متى كان ذلك مناسبًا، من غير اختراع حقائق قانونية جديدة.
+9) راجع جميع التعليقات لغويًا مع الحفاظ على طبيعتها.
+
+قواعد قانونية صارمة:
+- البيئة القانونية: جمهورية مصر العربية فقط.
+- لا تفترض أن قاعدة تخص نوع شركة تنطبق على نوع آخر.
+- إذا ذُكرت عدة أشكال قانونية، افحص كل شكل على حدة. إذا اختلف الحكم، يجب التفريق صراحة أو تضييق نطاق البوست.
+- لا تعتبر منصب المدير وحده دليلًا على اختصاصه؛ افحص مصدر الاختصاص وعقد الشركة والنظام القانوني المنطبق.
+- لا تستخدم عبارة "القانون واضح" أو "لا يجوز" أو "يحق" أو "يلزم" بصيغة قطعية إلا إذا كانت النتيجة مبررة قانونيًا.
+- لا تخترع مصادر. إذا كانت المصادر المدخلة غير كافية للتحقق من نقطة جوهرية، سجّل ذلك.
+- لا تعتبر وجود مصدر في النص دليلًا على صحة الاستنتاج؛ افحص مدى انطباقه على النتيجة.
+- لا تمرر محتوى فيه خلط جوهري على أنه مجرد مشكلة أسلوب.
+- إذا احتاجت النتيجة إلى تحديد قانون أو شكل شركة أو واقعة غير موجودة، اجعل الحالة NEEDS_REVIEW/BLOCK بدل التخمين.
+- حافظ على صوت المحتوى ولا تحول Facebook إلى مذكرة قانونية.
+- LinkedIn يكون أكثر مهنية وتحليلًا، ويفضل أن يكون تقريبًا 1200–1800 حرفًا عند ملاءمة الموضوع، مع تجنب الحشو.
 - لا تكتب أي تعليق جديد من عندك؛ راجع التعليقات الموجودة فقط.
 - أعد JSON فقط.
 """
@@ -76,11 +84,11 @@ def _generate(*, client, model: str, prompt: str, attempts: int, label: str) -> 
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(
-                f"Editorial review {label} temporary error ({status}); "
+                f"Legal/editorial review {label} temporary error ({status}); "
                 f"retry {attempt}/{attempts - 1} in {delay:.0f}s..."
             )
             time.sleep(delay)
-    raise RuntimeError("Editorial review failed unexpectedly.")
+    raise RuntimeError("Legal/editorial review failed unexpectedly.")
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -94,19 +102,19 @@ def _extract_json(text: str) -> dict[str, Any]:
         pass
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end <= start:
-        raise RuntimeError("Editorial review response was not valid JSON.")
+        raise RuntimeError("Legal/editorial review response was not valid JSON.")
     try:
         data = json.loads(text[start : end + 1])
     except json.JSONDecodeError as exc:
-        raise RuntimeError("Editorial review response contained invalid JSON.") from exc
+        raise RuntimeError("Legal/editorial review response contained invalid JSON.") from exc
     if not isinstance(data, dict):
-        raise RuntimeError("Editorial review response was not an object.")
+        raise RuntimeError("Legal/editorial review response was not an object.")
     return data
 
 
 def _clean_list(value: Any, minimum: int = 5) -> list[str]:
     if not isinstance(value, list):
-        raise RuntimeError("Editorial review returned an invalid comment list.")
+        raise RuntimeError("Legal/editorial review returned an invalid comment list.")
     result: list[str] = []
     seen: set[str] = set()
     for item in value:
@@ -116,8 +124,15 @@ def _clean_list(value: Any, minimum: int = 5) -> list[str]:
             seen.add(key)
             result.append(text)
     if len(result) < minimum:
-        raise RuntimeError(f"Editorial review returned fewer than {minimum} comments.")
+        raise RuntimeError(f"Legal/editorial review returned fewer than {minimum} comments.")
     return result[:5]
+
+
+def _normalize_legal_status(value: Any) -> str:
+    status = str(value or "BLOCK").strip().upper()
+    if status not in {"CLEAR", "REWRITE", "BLOCK"}:
+        return "BLOCK"
+    return status
 
 
 def review_and_prepare(
@@ -143,7 +158,7 @@ def review_and_prepare(
 الموضوع:
 {topic}
 
-المصادر القانونية المتاحة:
+المصادر القانونية المتاحة من قاعدة المحتوى:
 {legal_sources or "لا توجد مصادر قانونية مدخلة."}
 
 Facebook قبل المراجعة:
@@ -155,19 +170,38 @@ Facebook قبل المراجعة:
 تعليقات LinkedIn قبل المراجعة:
 {json.dumps(linkedin_comments, ensure_ascii=False)}
 
-المطلوب:
-- صحح Facebook مع أقل تغيير ممكن يحافظ على المعنى والصوت.
-- أنشئ LinkedIn من نفس الموضوع ومن نفس الحقائق، لكن بصياغة مهنية مختلفة بوضوح وأكثر ملاءمة لجمهور الشركات والمهنيين.
-- صحح تعليقات Facebook.
-- صحح تعليقات LinkedIn.
+نفّذ المراجعة على مرحلتين داخل نفس المهمة:
+
+أولًا — LEGAL REVIEW:
+- استخرج الادعاءات القانونية الجوهرية في البوست.
+- حدّد القانون/النظام القانوني المصري الذي يحكم كل ادعاء متى أمكن.
+- افحص مدى انطباق القاعدة على الوقائع والشكل القانوني المذكور.
+- افحص أي خلط بين LLC وشركات الأشخاص والشركات المساهمة وغيرها.
+- افحص اختصاصات المدير والشركاء والجمعية العامة ومجلس الإدارة وأي جهة أخرى.
+- افحص الإجراءات والاشتراطات والآثار القانونية والاستثناءات.
+- افحص المصادر المدخلة ومدى دعمها للنتيجة.
+- إذا كان هناك خطأ قابل للإصلاح، صحح النص قانونيًا دون اختلاق وقائع.
+- إذا كان هناك خطأ جوهري أو عدم يقين يمنع نشر معلومة قانونية موثوقة، اجعل legal_status = BLOCK.
+
+ثانيًا — EDITORIAL/PLATFORM REVIEW:
+- Facebook: نسخة واضحة، قوية، مصرية طبيعية، مع أقل تغيير لازم بعد التصحيح القانوني.
+- LinkedIn: نسخة أطول بوضوح، تقريبًا 1200–1800 حرفًا عند ملاءمة الموضوع، تتضمن تحليلًا مهنيًا، أثرًا عمليًا، مخاطر، وحوكمة/امتثال متى كان ذلك مناسبًا، دون إضافة حقائق قانونية غير متحققة.
+- لا تجعل LinkedIn مجرد تلخيص لـFacebook.
+- صحح التعليقات الموجودة فقط.
 
 أعد JSON بهذا الشكل فقط:
 {{
+  "legal_status": "CLEAR | REWRITE | BLOCK",
+  "legal_summary": "ملخص واضح لما تم فحصه والنتيجة القانونية",
+  "legal_issues": ["كل نقطة قانونية جوهرية تم اكتشافها أو التحقق منها"],
+  "legal_sources_used": ["المصادر أو القواعد القانونية التي تم الاعتماد عليها، دون اختلاق أرقام أو روابط"],
   "facebook_post": "...",
   "linkedin_post": "...",
   "facebook_comments": ["...", "...", "...", "...", "..."],
   "linkedin_comments": ["...", "...", "...", "...", "..."]
 }}
+
+مهم جدًا: إذا لم تستطع التحقق بدرجة ثقة مناسبة من قاعدة قانونية جوهرية، لا تخمّن؛ استخدم BLOCK واشرح السبب.
 """
 
     try:
@@ -182,7 +216,7 @@ Facebook قبل المراجعة:
         status = _extract_status_code(primary_exc)
         if status not in TRANSIENT_STATUS_CODES or not fallback_model or fallback_model == primary_model:
             raise
-        print(f"Editorial review primary model unavailable; switching to {fallback_model}.")
+        print(f"Legal/editorial review primary model unavailable; switching to {fallback_model}.")
         response = _generate(
             client=client,
             model=fallback_model,
@@ -192,17 +226,44 @@ Facebook قبل المراجعة:
         )
 
     data = _extract_json(getattr(response, "text", ""))
+    legal_status = _normalize_legal_status(data.get("legal_status"))
+    legal_summary = str(data.get("legal_summary", "")).strip()
+    legal_issues = [str(item).strip() for item in data.get("legal_issues", []) if str(item).strip()] if isinstance(data.get("legal_issues", []), list) else []
+    legal_sources_used = [str(item).strip() for item in data.get("legal_sources_used", []) if str(item).strip()] if isinstance(data.get("legal_sources_used", []), list) else []
+
+    if legal_status == "BLOCK":
+        details = legal_summary or "Legal review blocked publication."
+        if legal_issues:
+            details += " | " + " | ".join(legal_issues[:8])
+        raise RuntimeError(f"LEGAL_REVIEW_BLOCK: {details}")
+
     facebook_post = str(data.get("facebook_post", "")).strip()
     linkedin_post = str(data.get("linkedin_post", "")).strip()
     if not facebook_post or not linkedin_post:
-        raise RuntimeError("Editorial review returned an empty post.")
+        raise RuntimeError("Legal/editorial review returned an empty post.")
 
     facebook = _clean_list(data.get("facebook_comments"))
     linkedin = _clean_list(data.get("linkedin_comments"))
+
+    if len(linkedin_post) < max(900, int(len(facebook_post) * 1.35)):
+        raise RuntimeError("LINKEDIN_REVIEW_BLOCK: LinkedIn version is not sufficiently expanded beyond Facebook.")
+
+    print(
+        "Legal gate: "
+        f"{legal_status}; issues={len(legal_issues)}; sources_checked={len(legal_sources_used)}"
+    )
+    print(
+        "Editorial gate: spelling/grammar review completed; "
+        f"LinkedIn professional expansion completed ({len(linkedin_post)} characters)."
+    )
 
     return {
         "facebook_post": facebook_post,
         "linkedin_post": linkedin_post,
         "facebook_comments": facebook,
         "linkedin_comments": linkedin,
+        "legal_status": legal_status,
+        "legal_summary": legal_summary,
+        "legal_issues": legal_issues,
+        "legal_sources_used": legal_sources_used,
     }
