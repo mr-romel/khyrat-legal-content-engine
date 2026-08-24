@@ -8,6 +8,8 @@ from typing import Any
 from google import genai
 from google.genai import types
 
+from legal_reference_registry import build_reference_context, extract_grounding_sources, format_grounding_sources
+
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 MAX_PRIMARY_RETRIES = 3
@@ -22,14 +24,14 @@ LEGAL_RESEARCH_PROMPT = """
 
 قواعد البحث الإلزامية:
 1) مصر فقط، مع مراعاة القانون النافذ حتى تاريخ البحث.
-2) ابدأ بالمصادر الأولية والرسمية قدر الإمكان: التشريعات الرسمية والجريدة الرسمية/الوقائع المصرية، الجهات الحكومية المختصة، محكمة النقض المصرية، المحكمة الدستورية العليا، مجلس الدولة، والجهات القضائية أو التنظيمية الرسمية.
-3) استخدم مصادر قانونية متخصصة موثوقة عند الحاجة لتفسير أو الوصول إلى مواد يصعب الوصول إليها رسميًا، لكن لا تجعل مقالًا عامًا وحده أساسًا لنتيجة قانونية حاسمة.
+2) التزم بهرم المصادر المرفق في الطلب: ابدأ بالمصادر الأولية والرسمية، ثم المصادر القانونية المتخصصة، ثم المصادر التفسيرية عند الحاجة.
+3) لا تجعل مقالًا عامًا أو منشورًا على وسائل التواصل أساسًا وحيدًا لنتيجة قانونية حاسمة.
 4) ابحث عن التعديلات الحديثة والإلغاء والاستبدال والنصوص الخاصة والاستثناءات ذات الصلة.
 5) إذا ذُكر حكم أو مبدأ أو رقم مادة أو عقوبة أو ميعاد أو اختصاص، تحقق منه تحديدًا ولا تكتفِ بتشابه الكلمات.
 6) افحص التعارض بين القواعد العامة والقوانين الخاصة، وبين النص الحالي والنصوص السابقة.
 7) لا تستنتج قاعدة لمجرد أن مصدرًا قالها؛ قارِن بين المصادر.
 8) إذا تعذر التحقق من نقطة جوهرية، صرّح بذلك صراحة بدل التخمين.
-9) لا تعتبر نتائج البحث دليلًا نهائيًا إذا كان النص الأصلي غير متاح؛ ميّز بين المؤكد والمحتمل وغير المتحقق.
+9) لا تعتبر نتيجة محرك البحث نفسها مصدرًا؛ المصدر هو الصفحة أو الوثيقة الأصلية التي تقف وراء النتيجة.
 10) البحث هدفه التحقق القانوني وليس كتابة بوست جديد.
 
 أعد تقريرًا منظمًا يتضمن:
@@ -78,7 +80,7 @@ SYSTEM_PROMPT = """
 - LinkedIn: نسخة مستقلة أطول بوضوح، مهنية وتحليلية، ويفضل 1200–1800 حرف عند ملاءمة الموضوع، مع أثر عملي وإدارة مخاطر أو حوكمة/امتثال بحسب الموضوع، دون حشو أو اختراع حقائق.
 - لا تجعل LinkedIn مجرد إعادة ترتيب لـFacebook.
 - لا تكتب أي تعليق جديد؛ راجع التعليقات الموجودة فقط.
-- لا تخترع مادة أو حكمًا أو رقم طعن أو عقوبة أو ميعادًا أو رابط مصدر.
+- لا تخترع مادة أو حكمًا أو رقم طعن أو عقوبة أو ميعاد أو رابط مصدر.
 - أعد JSON فقط.
 """
 
@@ -105,7 +107,7 @@ def _generate(*, client, model: str, prompt: str, attempts: int, label: str, con
             chat = client.chats.create(model=model)
             if config is None:
                 return chat.send_message(SYSTEM_PROMPT + "\n\n" + prompt)
-            return chat.send_message(prompt, config=config)
+            return client.models.generate_content(model=model, contents=prompt, config=config)
         except Exception as exc:
             status = _extract_status_code(exc)
             if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
@@ -158,9 +160,12 @@ def _normalize_status(value: Any, allowed: set[str], default: str) -> str:
     return status if status in allowed else default
 
 
-def _research_web(*, client, model: str, topic: str, facebook_post: str, legal_sources: str) -> str:
+def _research_web(*, client, model: str, topic: str, facebook_post: str, legal_sources: str) -> tuple[str, list[dict[str, str]]]:
+    reference_context = build_reference_context(user_sources=legal_sources)
     prompt = f"""
 {LEGAL_RESEARCH_PROMPT}
+
+{reference_context}
 
 موضوع المحتوى:
 {topic}
@@ -172,6 +177,8 @@ def _research_web(*, client, model: str, topic: str, facebook_post: str, legal_s
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
 نفّذ بحثًا متعدد الزوايا: التشريع الحالي، التعديلات، الاستثناءات، والمبادئ القضائية أو التنظيمية ذات الصلة. لا تكتفِ بنتيجة بحث واحدة.
+
+ابحث أولًا عن المصادر الرسمية ذات الصلة بموضوعك، ثم استخدم المصادر المتخصصة عند الحاجة للتحقق أو المقارنة. إذا كانت المسألة تتعلق بقطاع منظم، ابحث أيضًا في موقع الجهة التنظيمية المختصة. إذا كانت المسألة قضائية، ابحث في محكمة النقض والمحكمة الدستورية ومجلس الدولة بحسب الاختصاص.
 """
     research_config = types.GenerateContentConfig(
         tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -186,9 +193,12 @@ def _research_web(*, client, model: str, topic: str, facebook_post: str, legal_s
         config=research_config,
     )
     text = str(getattr(response, "text", "") or "").strip()
+    sources = extract_grounding_sources(response)
     if len(text) < 300:
         raise RuntimeError("Deep legal web research returned insufficient evidence.")
-    return text
+    if not sources:
+        raise RuntimeError("Deep legal web research returned no verifiable grounding sources.")
+    return text, sources
 
 
 def review_and_prepare(
@@ -212,20 +222,34 @@ def review_and_prepare(
 
     print("Legal research gate: starting deep Egyptian legal web research...")
     try:
-        research = _research_web(client=client, model=primary_model, topic=topic, facebook_post=facebook_post, legal_sources=legal_sources)
+        research, grounded_sources = _research_web(
+            client=client,
+            model=primary_model,
+            topic=topic,
+            facebook_post=facebook_post,
+            legal_sources=legal_sources,
+        )
     except Exception as exc:
         print(f"Legal research gate failed: {exc}")
         raise RuntimeError("Legal research could not be completed; publication blocked.") from exc
-    print("Legal research gate: deep web research completed.")
+    print(f"Legal research gate: completed with {len(grounded_sources)} grounded sources.")
+
+    reference_context = build_reference_context(user_sources=legal_sources)
+    grounded_source_text = format_grounding_sources(grounded_sources)
 
     prompt = f"""
 {SYSTEM_PROMPT}
+
+{reference_context}
 
 الموضوع:
 {topic}
 
 المصادر القانونية المدخلة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
+
+مصادر Grounding التي استخدمها بحث Google داخل Gemini:
+{grounded_source_text}
 
 تقرير البحث القانوني المعمق من الإنترنت:
 {research}
@@ -240,18 +264,21 @@ Facebook قبل المراجعة:
 {json.dumps(linkedin_comments, ensure_ascii=False)}
 
 نفّذ المراجعة على مرحلتين داخلية:
-أولًا: افحص كل ادعاء قانوني مقابل تقرير البحث، وحدد أي تعارض أو نقص أو عدم يقين.
+أولًا: افحص كل ادعاء قانوني مقابل تقرير البحث ومصادره، وحدد أي تعارض أو نقص أو عدم يقين. لا تعتمد على التقرير إذا كان غير مدعوم بمصدر Grounding واضح.
 ثانيًا: بعد ثبوت السلامة القانونية، حسّن البساطة والجاذبية دون إضعاف الدقة.
 
 قواعد قرار النشر:
 - legal_status = CLEAR إذا كانت الادعاءات الجوهرية مدعومة ولا يوجد تعارض جوهري.
 - legal_status = REWRITE إذا كان المحتوى صحيح الاتجاه ويمكن إصلاح صياغته أو تضييق نطاقه دون تغيير جوهره.
-- legal_status = BLOCK إذا كان هناك خطأ جوهري، أو تعارض غير محسوم، أو ادعاء حاسم غير قابل للتحقق.
+- legal_status = BLOCK إذا كان هناك خطأ جوهري، أو تعارض غير محسوم، أو ادعاء حاسم غير قابل للتحقق، أو لم توجد مصادر Grounding كافية لدعم نقطة جوهرية.
+- legal_confidence = LOW إذا كانت أي نقطة جوهرية غير قابلة للتحقق بدرجة مناسبة؛ وعندها يجب BLOCK.
 - readability_status = CLEAR إذا كان سهلًا وغير ممل.
 - readability_status = REWRITE إذا كان صحيحًا لكنه ثقيل أو طويل أو أكاديمي أو مكرر.
 - readability_status = BLOCK فقط إذا كان الشكل نفسه يجعل المعنى مضللًا أو غير قابل للفهم حتى بعد إعادة الصياغة.
+- readability_score من 0 إلى 100.
 
 ممنوع اختراع معلومات جديدة في LinkedIn أو التعليقات.
+ممنوع إضافة مادة قانونية أو حكم أو رقم طعن أو عقوبة أو ميعاد لم يثبت في البحث.
 
 أعد JSON فقط بهذا الشكل:
 {{
@@ -270,20 +297,32 @@ Facebook قبل المراجعة:
 """
 
     try:
-        response = _generate(client=client, model=primary_model, prompt=prompt, attempts=MAX_PRIMARY_RETRIES, label=f"primary model {primary_model}")
+        response = _generate(
+            client=client,
+            model=primary_model,
+            prompt=prompt,
+            attempts=MAX_PRIMARY_RETRIES,
+            label=f"primary model {primary_model}",
+        )
     except Exception as primary_exc:
         status = _extract_status_code(primary_exc)
         if status not in TRANSIENT_STATUS_CODES or fallback_model == primary_model:
             raise
         print(f"Legal/editorial review primary model unavailable; switching to {fallback_model}.")
-        response = _generate(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
+        response = _generate(
+            client=client,
+            model=fallback_model,
+            prompt=prompt,
+            attempts=MAX_FALLBACK_RETRIES,
+            label=f"fallback model {fallback_model}",
+        )
 
     data = _extract_json(getattr(response, "text", ""))
     legal_status = _normalize_status(data.get("legal_status"), {"CLEAR", "REWRITE", "BLOCK"}, "BLOCK")
     readability_status = _normalize_status(data.get("readability_status"), {"CLEAR", "REWRITE", "BLOCK"}, "BLOCK")
     legal_confidence = _normalize_status(data.get("legal_confidence"), {"HIGH", "MEDIUM", "LOW"}, "LOW")
     try:
-        readability_score = int(data.get("readability_score", 0))
+        readability_score = max(0, min(100, int(data.get("readability_score", 0))))
     except (TypeError, ValueError):
         readability_score = 0
 
@@ -292,8 +331,21 @@ Facebook قبل المراجعة:
         findings = [str(findings)] if findings else []
     reason = str(data.get("decision_reason", "")).strip()
 
+    merged_sources: list[str] = []
+    for item in grounded_sources:
+        url = str(item.get("url", "")).strip()
+        if url and url not in merged_sources:
+            merged_sources.append(url)
+    for item in data.get("research_sources", []) if isinstance(data.get("research_sources"), list) else []:
+        url = str(item or "").strip()
+        if url and url not in merged_sources:
+            merged_sources.append(url)
+
     if legal_status == "BLOCK" or readability_status == "BLOCK" or legal_confidence == "LOW":
-        raise RuntimeError("Publication blocked by comprehensive legal/readability gate: " + (reason or "insufficient legal certainty or unacceptable content quality."))
+        raise RuntimeError(
+            "Publication blocked by comprehensive legal/readability gate: "
+            + (reason or "insufficient legal certainty or unacceptable content quality.")
+        )
 
     facebook = str(data.get("facebook_post", "")).strip()
     linkedin = str(data.get("linkedin_post", "")).strip()
@@ -314,8 +366,7 @@ Facebook قبل المراجعة:
     print(f"Legal gate: {legal_status} | confidence={legal_confidence} | findings={len(findings)}")
     if findings:
         print("Legal gate findings: " + " | ".join(str(item) for item in findings[:5]))
-    if data.get("research_sources"):
-        print("Legal research sources checked: " + " | ".join(str(item) for item in data.get("research_sources", [])[:5]))
+    print("Legal research sources checked: " + " | ".join(merged_sources[:8]))
 
     return {
         "facebook_post": facebook,
@@ -325,7 +376,7 @@ Facebook قبل المراجعة:
         "legal_status": legal_status,
         "legal_confidence": legal_confidence,
         "legal_findings": [str(item) for item in findings],
-        "research_sources": [str(item) for item in data.get("research_sources", []) if str(item).strip()],
+        "research_sources": merged_sources,
         "readability_status": readability_status,
         "readability_score": readability_score,
         "decision_reason": reason,
