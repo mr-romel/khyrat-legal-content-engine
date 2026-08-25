@@ -1,10 +1,14 @@
-name: Khyrat Video Layer
+name: Khyrat Video Material Layer
 
 on:
   workflow_dispatch:
   schedule:
-    # Wake every 15 minutes; the Python layer decides when a Reel is due.
-    - cron: "*/15 * * * *"
+    # Check published posts every 30 minutes during the publishing window.
+    # Video creation, upload, and publishing are manual; this workflow only
+    # sends the approved Facebook post and Gemini Notebook prompt to Telegram.
+    - cron: "0,30 10-23 * * *"
+      timezone: "Africa/Cairo"
+    - cron: "0 0 * * *"
       timezone: "Africa/Cairo"
 
 concurrency:
@@ -16,7 +20,7 @@ permissions:
 
 jobs:
   prepare-video-task:
-    name: Prepare Gemini Notebook Video Task
+    name: Prepare Manual Gemini Notebook Material
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -35,7 +39,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Prepare due Gemini Notebook task
+      - name: Prepare manual Gemini Notebook material
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -46,15 +50,15 @@ jobs:
         run: |
           PYTHONPATH=src python src/run_video_layer.py
 
-      - name: Commit video task packages
+      - name: Commit video material task packages
         if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add generated/video_tasks/ generated/videos/ || true
+          git add generated/video_tasks/ || true
           if git diff --cached --quiet; then
-            echo "No new video task packages."
+            echo "No new video material task packages."
           else
-            git commit -m "chore: prepare Gemini Notebook video task"
+            git commit -m "chore: prepare manual video material"
             git push
           fi
