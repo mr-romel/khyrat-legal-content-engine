@@ -28,9 +28,9 @@ def _single_telegram_notify(text: str) -> None:
     """Send one final Telegram package instead of multiple publication diagnostics."""
     compact = str(text or "").strip()
 
-    # Intermediate platform errors are intentionally suppressed. The final
-    # PARTIAL_FAILED / FAILED notification is the single status message.
-    if compact.startswith("🚨") or compact.startswith("❌"):
+    # Intermediate diagnostics are intentionally suppressed. The final
+    # publication result is the single Telegram message for the run.
+    if compact.startswith(("🚨", "❌", "🟡")):
         return
 
     if compact.startswith("🟠"):
