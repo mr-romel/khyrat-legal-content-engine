@@ -13,6 +13,7 @@ VIDEO_TASKS_DIR = Path("generated/video_tasks")
 VIDEO_SOURCE_DIR = Path("generated/videos")
 VIDEO_DELAY_HOURS = 2
 VIDEO_MINUTES = "1–3"
+GITHUB_TASK_URL = "https://github.com/mr-romel/khyrat-legal-content-engine/blob/main/"
 
 
 def _safe_id(value: str, fallback: str) -> str:
@@ -143,17 +144,19 @@ def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -
 
         task_path = build_video_task(row_number=row_number, row=row, current=current)
         video_file = _video_path(task_id)
+        task_url = f"{GITHUB_TASK_URL}{task_path.as_posix()}"
         notify(
             "🎬 VIDEO LAYER — Gemini Notebook\n\n"
             f"الموضوع: {topic}\n"
             f"موعد الريلز المستهدف: {video_at.strftime('%Y-%m-%d %H:%M')} بتوقيت القاهرة\n\n"
             "دورك الآن:\n"
-            "1) افتح ملف مهمة الفيديو من GitHub.\n"
+            "1) افتح ملف مهمة الفيديو من الزر/الرابط.\n"
             "2) انسخ الـAPPROVED FACEBOOK POST والـPrompt إلى Gemini Notebook.\n"
             "3) اختر Video Overview → Explainer → Arabic (Colloquial Egyptian).\n"
             "4) ولّد الفيديو واستهدف مدة 1–3 دقائق.\n"
             "5) نزّل ملف MP4.\n"
             f"6) ارفع الملف إلى: {video_file.as_posix()}\n\n"
+            f"📄 Video Task: {task_url}\n\n"
             "بعد رفع الـMP4 نقدر نكمل مرحلة النشر الآلي كمرحلة مستقلة."
         )
         prepared += 1
