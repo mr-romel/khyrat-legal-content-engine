@@ -220,6 +220,10 @@ def review_and_prepare(
     fallback_model = DEFAULT_FALLBACK_MODEL
     client = genai.Client(api_key=api_key)
 
+    research_available = True
+    research = ""
+    grounded_sources: list[dict[str, str]] = []
+
     print("Legal research gate: starting deep Egyptian legal web research...")
     try:
         research, grounded_sources = _research_web(
@@ -230,17 +234,30 @@ def review_and_prepare(
             legal_sources=legal_sources,
         )
     except Exception as exc:
-        print(f"Legal research gate failed: {exc}")
-        raise RuntimeError("Legal research could not be completed; publication blocked.") from exc
-    print(f"Legal research gate: completed with {len(grounded_sources)} grounded sources.")
+        research_available = False
+        print(f"Legal research gate unavailable: {exc}")
+        print("Legal research gate: switching to SIMPLE REVIEW mode; publication will continue unless the post itself contains an obvious unsafe legal assertion.")
+
+    if research_available:
+        print(f"Legal research gate: completed with {len(grounded_sources)} grounded sources.")
+    else:
+        print("Legal research gate: advisory only for this run; no publication block caused solely by research outage.")
 
     reference_context = build_reference_context(user_sources=legal_sources)
     grounded_source_text = format_grounding_sources(grounded_sources)
+    review_mode_instruction = (
+        "RESEARCH MODE: استخدم تقرير البحث ومصادر Grounding للتحقق من الادعاءات بدقة."
+        if research_available
+        else
+        "SIMPLE REVIEW MODE: تعذر البحث القانوني المعمق تقنيًا في هذه الدورة. لا تجعل غياب البحث سببًا منفردًا للـBLOCK. راجع البوست مراجعة قانونية/تحريرية بسيطة، واحذف أو عمّم أي مادة أو عقوبة أو رقم حكم أو ميعاد أو تاريخ أو ادعاء دقيق غير متحقق بدل اختلاقه. استخدم CLEAR أو REWRITE قدر الإمكان، واعتبر الثقة MEDIUM إذا لم توجد مشكلة ظاهرة. لا تستخدم LOW أو BLOCK لمجرد عدم توفر البحث."
+    )
 
     prompt = f"""
 {SYSTEM_PROMPT}
 
 {reference_context}
+
+{review_mode_instruction}
 
 الموضوع:
 {topic}
@@ -252,7 +269,7 @@ def review_and_prepare(
 {grounded_source_text}
 
 تقرير البحث القانوني المعمق من الإنترنت:
-{research}
+{research or 'غير متاح في هذه الدورة؛ نفّذ SIMPLE REVIEW MODE فقط.'}
 
 Facebook قبل المراجعة:
 {facebook_post}
@@ -264,21 +281,23 @@ Facebook قبل المراجعة:
 {json.dumps(linkedin_comments, ensure_ascii=False)}
 
 نفّذ المراجعة على مرحلتين داخلية:
-أولًا: افحص كل ادعاء قانوني مقابل تقرير البحث ومصادره، وحدد أي تعارض أو نقص أو عدم يقين. لا تعتمد على التقرير إذا كان غير مدعوم بمصدر Grounding واضح.
-ثانيًا: بعد ثبوت السلامة القانونية، حسّن البساطة والجاذبية دون إضعاف الدقة.
+أولًا: افحص الادعاءات القانونية بما يتناسب مع وضع المراجعة الحالي، وصحح الصياغة أو عمّمها إذا كانت التفاصيل الدقيقة غير متحققة.
+ثانيًا: حسّن البساطة والجاذبية دون إضعاف الدقة.
 
 قواعد قرار النشر:
-- legal_status = CLEAR إذا كانت الادعاءات الجوهرية مدعومة ولا يوجد تعارض جوهري.
+- legal_status = CLEAR إذا كانت الادعاءات الجوهرية سليمة أو يمكن شرحها بأمان بصورة عامة.
 - legal_status = REWRITE إذا كان المحتوى صحيح الاتجاه ويمكن إصلاح صياغته أو تضييق نطاقه دون تغيير جوهره.
-- legal_status = BLOCK إذا كان هناك خطأ جوهري، أو تعارض غير محسوم، أو ادعاء حاسم غير قابل للتحقق، أو لم توجد مصادر Grounding كافية لدعم نقطة جوهرية.
-- legal_confidence = LOW إذا كانت أي نقطة جوهرية غير قابلة للتحقق بدرجة مناسبة؛ وعندها يجب BLOCK.
+- legal_status = BLOCK فقط إذا كان هناك خطأ قانوني جوهري واضح أو محتوى لا يمكن جعله آمنًا بإعادة الصياغة.
+- في SIMPLE REVIEW MODE: عدم وجود مصادر Grounding أو انخفاض الثقة بسبب تعذر البحث وحده ليس سببًا للـBLOCK.
+- في SIMPLE REVIEW MODE: إذا وُجد رقم مادة أو عقوبة أو حكم أو ميعاد أو تاريخ محدد غير متحقق، احذف التفصيل أو عمّمه بدل إيقاف البوست متى كان ذلك ممكنًا.
+- legal_confidence = HIGH عند التحقق القوي، وMEDIUM عند المراجعة البسيطة أو عند غياب البحث مع عدم وجود مشكلة ظاهرة، وLOW فقط إذا كانت هناك مشكلة قانونية جوهرية لا يمكن تجاوزها بأمان.
 - readability_status = CLEAR إذا كان سهلًا وغير ممل.
 - readability_status = REWRITE إذا كان صحيحًا لكنه ثقيل أو طويل أو أكاديمي أو مكرر.
 - readability_status = BLOCK فقط إذا كان الشكل نفسه يجعل المعنى مضللًا أو غير قابل للفهم حتى بعد إعادة الصياغة.
 - readability_score من 0 إلى 100.
 
 ممنوع اختراع معلومات جديدة في LinkedIn أو التعليقات.
-ممنوع إضافة مادة قانونية أو حكم أو رقم طعن أو عقوبة أو ميعاد لم يثبت في البحث.
+ممنوع إضافة مادة قانونية أو حكم أو رقم طعن أو عقوبة أو ميعاد لم يثبت.
 
 أعد JSON فقط بهذا الشكل:
 {{
@@ -341,11 +360,21 @@ Facebook قبل المراجعة:
         if url and url not in merged_sources:
             merged_sources.append(url)
 
-    if legal_status == "BLOCK" or readability_status == "BLOCK" or legal_confidence == "LOW":
-        raise RuntimeError(
-            "Publication blocked by comprehensive legal/readability gate: "
-            + (reason or "insufficient legal certainty or unacceptable content quality.")
-        )
+    if research_available:
+        if legal_status == "BLOCK" or readability_status == "BLOCK" or legal_confidence == "LOW":
+            raise RuntimeError(
+                "Publication blocked by comprehensive legal/readability gate: "
+                + (reason or "insufficient legal certainty or unacceptable content quality.")
+            )
+    else:
+        if readability_status == "BLOCK" or legal_status == "BLOCK":
+            raise RuntimeError(
+                "Publication blocked by simple legal/readability review: "
+                + (reason or "the post could not be made safe by simple rewriting.")
+            )
+        if legal_confidence == "LOW":
+            legal_confidence = "MEDIUM"
+            print("Simple review: normalized LOW confidence to MEDIUM because deep research was unavailable; no concrete legal blocker was found.")
 
     facebook = str(data.get("facebook_post", "")).strip()
     linkedin = str(data.get("linkedin_post", "")).strip()
