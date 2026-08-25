@@ -1,0 +1,60 @@
+name: Khyrat Video Layer
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Wake every 15 minutes; the Python layer decides when a Reel is due.
+    - cron: "*/15 * * * *"
+      timezone: "Africa/Cairo"
+
+concurrency:
+  group: khyrat-video-layer
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-video-task:
+    name: Prepare Gemini Notebook Video Task
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare due Gemini Notebook task
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_USER_ID: ${{ secrets.TELEGRAM_ADMIN_USER_ID }}
+        run: |
+          PYTHONPATH=src python src/run_video_layer.py
+
+      - name: Commit video task packages
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/video_tasks/ generated/videos/ || true
+          if git diff --cached --quiet; then
+            echo "No new video task packages."
+          else
+            git commit -m "chore: prepare Gemini Notebook video task"
+            git push
+          fi
