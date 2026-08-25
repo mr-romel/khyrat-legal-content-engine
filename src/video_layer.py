@@ -109,15 +109,14 @@ def build_video_task(*, row_number: int, row: dict[str, str], current: datetime)
     return task_path
 
 
-def prepare_due_video_tasks(*, spreadsheet_id: str, sheet_range: str) -> int:
-    """Prepare exactly one Gemini Notebook task for each eligible published post.
+def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -> int:
+    """Prepare one Gemini Notebook task for each eligible published post.
 
-    This layer deliberately does not pretend Gemini Notebook has a public video-generation
-    API. It prepares the approved source and exact generation prompt, then alerts the owner.
+    Gemini Notebook currently has no public Video Overview generation API in our verified
+    integration surface, so this layer prepares the exact source/prompt and alerts the owner.
     """
     current = now_cairo()
-    sheet_name = sheet_range.split("!", 1)[0] if "!" in sheet_range else "Content"
-    values = get_values(__import__("sheets").create_service(__import__("config").load_config()["service_account_info"]), spreadsheet_id, sheet_range)
+    values = get_values(service, spreadsheet_id, sheet_range)
     if not values:
         return 0
 
@@ -136,11 +135,14 @@ def prepare_due_video_tasks(*, spreadsheet_id: str, sheet_range: str) -> int:
         video_at = written_at + timedelta(hours=VIDEO_DELAY_HOURS)
         if current < video_at:
             continue
+
         task_id = _safe_id(row.get("ID", ""), f"row-{row_number}")
         task_path = _task_path(task_id)
         if task_path.exists():
             continue
+
         task_path = build_video_task(row_number=row_number, row=row, current=current)
+        video_file = _video_path(task_id)
         notify(
             "🎬 VIDEO LAYER — Gemini Notebook\n\n"
             f"الموضوع: {topic}\n"
@@ -151,7 +153,7 @@ def prepare_due_video_tasks(*, spreadsheet_id: str, sheet_range: str) -> int:
             "3) اختر Video Overview → Explainer → Arabic (Colloquial Egyptian).\n"
             "4) ولّد الفيديو واستهدف مدة 1–3 دقائق.\n"
             "5) نزّل ملف MP4.\n"
-            f"6) ارفع الملف إلى: {task_path.parent.as_posix()}/{_video_path(task_id).name}\n\n"
+            f"6) ارفع الملف إلى: {video_file.as_posix()}\n\n"
             "بعد رفع الـMP4 نقدر نكمل مرحلة النشر الآلي كمرحلة مستقلة."
         )
         prepared += 1
