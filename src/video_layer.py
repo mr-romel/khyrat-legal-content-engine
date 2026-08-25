@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from sheets import get_values, row_to_dict
 from telegram_bot import notify, send_message
-from utils import now_cairo, parse_date, parse_time
+from utils import now_cairo
 
 VIDEO_TASKS_DIR = Path("generated/video_tasks")
 VIDEO_SOURCE_DIR = Path("generated/videos")
-VIDEO_DELAY_HOURS = 2
 VIDEO_MINUTES = "1–3"
 GITHUB_TASK_URL = "https://github.com/mr-romel/khyrat-legal-content-engine/blob/main/"
 TELEGRAM_SAFE_LIMIT = 3900
@@ -28,23 +26,6 @@ def _published(row: dict[str, str]) -> bool:
     fb = row.get("Facebook Status", "").strip().upper()
     li = row.get("LinkedIn Status", "").strip().upper()
     return status == "PUBLISHED" or fb == "PUBLISHED" or li == "PUBLISHED"
-
-
-def _written_publish_at(row: dict[str, str]) -> datetime | None:
-    target_date = parse_date(row.get("تاريخ النشر", ""))
-    target_time = parse_time(row.get("ساعة النشر", ""))
-    if target_date is None or target_time is None:
-        return None
-    current = now_cairo()
-    return current.replace(
-        year=target_date.year,
-        month=target_date.month,
-        day=target_date.day,
-        hour=target_time.hour,
-        minute=target_time.minute,
-        second=0,
-        microsecond=0,
-    )
 
 
 def _prompt(topic: str, facebook_post: str) -> str:
@@ -99,27 +80,24 @@ def _mark_telegram_material_sent(task_path: Path) -> None:
     task_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _send_video_material(*, topic: str, video_at: datetime, prompt: str, facebook_post: str, task_url: str, video_file: Path) -> None:
-    """Send the complete Notebook input to Telegram without truncating the source post/prompt."""
+def _send_video_material(*, topic: str, prompt: str, facebook_post: str) -> None:
+    """Send the Prompt and approved Facebook post together in one Telegram message."""
     if not prompt.strip() or not facebook_post.strip():
         return
 
-    send_message(
-        "🎬 VIDEO LAYER — Gemini Notebook\n\n"
-        f"الموضوع: {topic}\n"
-        f"موعد الريلز المستهدف: {video_at.strftime('%Y-%m-%d %H:%M')} بتوقيت القاهرة\n\n"
-        "دورك الآن:\n"
-        "1) استخدم الـPrompt والـFacebook Post الموجودين في الرسالتين التاليتين.\n"
-        "2) افتح Gemini Notebook.\n"
-        "3) اختر Video Overview → Explainer → Arabic (Colloquial Egyptian).\n"
-        "4) ولّد الفيديو واستهدف مدة 1–3 دقائق.\n"
-        "5) نزّل ملف MP4.\n"
-        f"6) ارفع الملف إلى: {video_file.as_posix()}\n\n"
-        f"📄 ملف المهمة على GitHub: {task_url}"
+    message = (
+        "🎬 VIDEO MATERIAL — GEMINI NOTEBOOK\n\n"
+        f"الموضوع: {topic}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🧠 PROMPT\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{prompt}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "📝 APPROVED FACEBOOK POST\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{facebook_post}"
     )
-
-    _send_long_message("🧠 GEMINI NOTEBOOK — PROMPT\n\n" + prompt)
-    _send_long_message("📝 GEMINI NOTEBOOK — APPROVED FACEBOOK POST\n\n" + facebook_post)
+    _send_long_message(message)
 
 
 def _send_long_message(text: str) -> None:
@@ -135,7 +113,7 @@ def _send_long_message(text: str) -> None:
         remaining = remaining[len(chunk):]
 
 
-def build_video_task(*, row_number: int, row: dict[str, str], current: datetime) -> Path:
+def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
     topic = row.get("الموضوع", "").strip()
     post = row.get("المحتوى", "").strip()
     task_id = _safe_id(row.get("ID", ""), f"row-{row_number}")
@@ -143,18 +121,14 @@ def build_video_task(*, row_number: int, row: dict[str, str], current: datetime)
     task_path.parent.mkdir(parents=True, exist_ok=True)
     VIDEO_SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 
-    written_at = _written_publish_at(row) or current
-    video_at = written_at + timedelta(hours=VIDEO_DELAY_HOURS)
     payload: dict[str, Any] = {
         "task_id": task_id,
         "sheet_row": row_number,
         "topic": topic,
-        "written_publish_at": written_at.isoformat(),
-        "video_publish_at": video_at.isoformat(),
         "duration_target_minutes": VIDEO_MINUTES,
         "language": "Arabic (Colloquial Egyptian)",
         "tool": "Gemini Notebook",
-        "status": "AWAITING_GEMINI_NOTEBOOK",
+        "status": "AWAITING_MANUAL_VIDEO_CREATION",
         "source_facebook_post": post,
         "prompt": _prompt(topic, post),
         "video_path": str(_video_path(task_id)),
@@ -166,10 +140,11 @@ def build_video_task(*, row_number: int, row: dict[str, str], current: datetime)
 
 
 def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -> int:
-    """Prepare one Gemini Notebook task for each eligible published post.
+    """Prepare manual Gemini Notebook material for published posts.
 
-    Gemini Notebook currently has no public Video Overview generation API in our verified
-    integration surface, so this layer prepares the exact source/prompt and alerts the owner.
+    Video generation, upload, and video publishing are intentionally manual.
+    This layer only prepares and sends the approved Facebook post plus its prompt
+    to Telegram in one message.
     """
     current = now_cairo()
     values = get_values(service, spreadsheet_id, sheet_range)
@@ -181,15 +156,10 @@ def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -
         row = row_to_dict(raw)
         if not _published(row):
             continue
+
         topic = row.get("الموضوع", "").strip()
         post = row.get("المحتوى", "").strip()
         if not topic or not post:
-            continue
-        written_at = _written_publish_at(row)
-        if written_at is None:
-            continue
-        video_at = written_at + timedelta(hours=VIDEO_DELAY_HOURS)
-        if current < video_at:
             continue
 
         task_id = _safe_id(row.get("ID", ""), f"row-{row_number}")
@@ -202,45 +172,32 @@ def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -
         if existing:
             prompt = str(existing.get("prompt", "")).strip() or _prompt(topic, post)
             source_post = str(existing.get("source_facebook_post", "")).strip() or post
-            task_url = f"{GITHUB_TASK_URL}{task_path.as_posix()}"
             try:
                 _send_video_material(
                     topic=topic,
-                    video_at=video_at,
                     prompt=prompt,
                     facebook_post=source_post,
-                    task_url=task_url,
-                    video_file=_video_path(task_id),
                 )
                 _mark_telegram_material_sent(task_path)
-                print(f"Video Layer: resent missing Telegram material for {task_id}.")
+                print(f"Video Layer: sent combined Telegram material for {task_id}.")
                 prepared += 1
             except Exception as exc:
                 print(f"Video Layer: Telegram resend failed for {task_id}: {exc}")
             continue
 
         task_path = build_video_task(row_number=row_number, row=row, current=current)
-        video_file = _video_path(task_id)
-        task_url = f"{GITHUB_TASK_URL}{task_path.as_posix()}"
 
-        # Keep the concise notification, then send the exact Prompt and approved post
-        # in separate Telegram messages so the user can copy them directly into Gemini Notebook.
         try:
             notify(
-                "🎬 VIDEO LAYER — Gemini Notebook\n\n"
-                f"الموضوع: {topic}\n"
-                f"موعد الريلز المستهدف: {video_at.strftime('%Y-%m-%d %H:%M')} بتوقيت القاهرة\n\n"
-                "تم تجهيز الـPrompt والبوست المعتمد في الرسالتين التاليتين.\n"
-                "بعد التوليد: نزّل MP4 ثم ارفعه للمسار المحدد.\n\n"
-                f"📄 Video Task: {task_url}"
+                "🎬 VIDEO LAYER — MANUAL\n\n"
+                f"الموضوع: {topic}\n\n"
+                "تم تجهيز الـPrompt والبوست المعتمد في رسالة واحدة تالية.\n"
+                "إنشاء الفيديو ورفعه ونشره يتم يدويًا بدون الاعتماد على الـAutomation."
             )
             _send_video_material(
                 topic=topic,
-                video_at=video_at,
                 prompt=_prompt(topic, post),
                 facebook_post=post,
-                task_url=task_url,
-                video_file=video_file,
             )
             _mark_telegram_material_sent(task_path)
             prepared += 1
