@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Resilient scheduler: wake the engine every 15 minutes.
-    # The engine itself remains the source of truth for the exact Sheet
-    # publish date/time, so this does NOT mean 15-minute publishing.
-    - cron: "*/15 * * * *"
+    # Publishing window: every 30 minutes from 10:00 AM through midnight,
+    # Cairo time. The engine itself remains the source of truth for the exact
+    # Sheet publish date/time, so this does NOT mean 30-minute publishing.
+    - cron: "0,30 10-23 * * *"
+      timezone: "Africa/Cairo"
+    - cron: "0 0 * * *"
       timezone: "Africa/Cairo"
 
 concurrency:
@@ -151,7 +153,7 @@ jobs:
         run: |
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
-          echo "RESILIENT SCHEDULER: EVERY 15 MINUTES"
+          echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - MIDNIGHT (CAIRO)"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
           echo "GEMINI: RETRY + FALLBACK MODEL"
