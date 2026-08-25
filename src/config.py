@@ -35,7 +35,7 @@ def _normalize_model_name(value: str) -> str:
     return model or DEFAULT_GEMINI_MODEL
 
 
-def load_config() -> dict:
+def _service_account_info() -> dict:
     service_account_raw = _required("GOOGLE_SERVICE_ACCOUNT_JSON")
 
     try:
@@ -45,6 +45,26 @@ def load_config() -> dict:
 
     if not isinstance(service_account_info, dict):
         raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object.")
+
+    return service_account_info
+
+
+def load_video_config() -> dict:
+    """Load only configuration required by the independent Video Layer.
+
+    The Video Layer reads published content from Google Sheets and sends
+    Gemini Notebook preparation messages through Telegram. It does not
+    publish to Facebook/LinkedIn and therefore must not require their tokens.
+    """
+    return {
+        "service_account_info": _service_account_info(),
+        "sheet_id": _required("GOOGLE_SHEET_ID"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+    }
+
+
+def load_config() -> dict:
+    service_account_info = _service_account_info()
 
     dry_run = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {
         "1", "true", "yes", "on"
