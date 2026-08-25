@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import time
 from typing import Any, Callable, TypeVar
 
@@ -21,9 +22,10 @@ SHEET_LAST_COLUMN = "U"
 
 T = TypeVar("T")
 
-# Google Sheets can occasionally return transient 429/5xx responses.
-# Retry only those temporary failures; authentication, permission, and request
-# errors are allowed to fail immediately so real configuration problems remain visible.
+# Google Sheets can occasionally return transient 429/5xx responses or network
+# read timeouts. Retry only those temporary failures; authentication, permission,
+# and other request errors are allowed to fail immediately so real configuration
+# problems remain visible.
 MAX_RETRIES = 5
 INITIAL_BACKOFF_SECONDS = 2.0
 TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -42,6 +44,20 @@ def _execute_with_retry(request_factory: Callable[[], Any], operation: str) -> A
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(
                 f"Google Sheets temporary error ({status}) during {operation}; "
+                f"retry {attempt}/{MAX_RETRIES - 1} in {delay:.0f}s..."
+            )
+            time.sleep(delay)
+        except (TimeoutError, socket.timeout) as exc:
+            if attempt >= MAX_RETRIES:
+                print(
+                    f"Google Sheets network timeout during {operation}; "
+                    f"retries exhausted after {MAX_RETRIES} attempts."
+                )
+                raise
+
+            delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
+            print(
+                f"Google Sheets network timeout during {operation}; "
                 f"retry {attempt}/{MAX_RETRIES - 1} in {delay:.0f}s..."
             )
             time.sleep(delay)
