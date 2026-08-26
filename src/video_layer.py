@@ -5,13 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from sheets import get_values, row_to_dict
-from telegram_bot import notify, send_message
+from telegram_bot import send_message
 from utils import now_cairo
 
 VIDEO_TASKS_DIR = Path("generated/video_tasks")
-VIDEO_SOURCE_DIR = Path("generated/videos")
 VIDEO_MINUTES = "1–3"
-GITHUB_TASK_URL = "https://github.com/mr-romel/khyrat-legal-content-engine/blob/main/"
 TELEGRAM_SAFE_LIMIT = 3900
 
 
@@ -59,10 +57,6 @@ def _task_path(task_id: str) -> Path:
     return VIDEO_TASKS_DIR / f"{task_id}.json"
 
 
-def _video_path(task_id: str) -> Path:
-    return VIDEO_SOURCE_DIR / f"{task_id}.mp4"
-
-
 def _load_task(task_path: Path) -> dict[str, Any] | None:
     if not task_path.is_file():
         return None
@@ -81,7 +75,7 @@ def _mark_telegram_material_sent(task_path: Path) -> None:
 
 
 def _send_video_material(*, topic: str, prompt: str, facebook_post: str) -> None:
-    """Send the Prompt and approved Facebook post together in one Telegram message."""
+    """Send the complete Prompt and approved Facebook post as one Telegram message."""
     if not prompt.strip() or not facebook_post.strip():
         return
 
@@ -101,7 +95,7 @@ def _send_video_material(*, topic: str, prompt: str, facebook_post: str) -> None
 
 
 def _send_long_message(text: str) -> None:
-    """Split Telegram messages safely below Telegram's message-size limit."""
+    """Split only when Telegram's hard message-size limit requires it."""
     remaining = text
     while remaining:
         chunk = remaining[:TELEGRAM_SAFE_LIMIT]
@@ -119,7 +113,6 @@ def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
     task_id = _safe_id(row.get("ID", ""), f"row-{row_number}")
     task_path = _task_path(task_id)
     task_path.parent.mkdir(parents=True, exist_ok=True)
-    VIDEO_SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 
     payload: dict[str, Any] = {
         "task_id": task_id,
@@ -131,7 +124,6 @@ def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
         "status": "AWAITING_MANUAL_VIDEO_CREATION",
         "source_facebook_post": post,
         "prompt": _prompt(topic, post),
-        "video_path": str(_video_path(task_id)),
         "created_at": current.isoformat(),
         "telegram_material_sent": False,
     }
@@ -142,9 +134,9 @@ def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
 def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -> int:
     """Prepare manual Gemini Notebook material for published posts.
 
-    Video generation, upload, and video publishing are intentionally manual.
-    This layer only prepares and sends the approved Facebook post plus its prompt
-    to Telegram in one message.
+    Video creation, upload, and publishing are intentionally manual.
+    This layer only sends the approved Facebook post and its prompt to Telegram
+    in one logical message.
     """
     current = now_cairo()
     values = get_values(service, spreadsheet_id, sheet_range)
@@ -188,12 +180,6 @@ def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -
         task_path = build_video_task(row_number=row_number, row=row, current=current)
 
         try:
-            notify(
-                "🎬 VIDEO LAYER — MANUAL\n\n"
-                f"الموضوع: {topic}\n\n"
-                "تم تجهيز الـPrompt والبوست المعتمد في رسالة واحدة تالية.\n"
-                "إنشاء الفيديو ورفعه ونشره يتم يدويًا بدون الاعتماد على الـAutomation."
-            )
             _send_video_material(
                 topic=topic,
                 prompt=_prompt(topic, post),
