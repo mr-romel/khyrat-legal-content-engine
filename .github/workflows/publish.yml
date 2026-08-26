@@ -138,15 +138,41 @@ jobs:
       - name: Commit generated images
         if: success()
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add generated/ || true
+
           if git diff --cached --quiet; then
             echo "No generated image changes."
-          else
-            git commit -m "chore: add generated legal image"
-            git push
+            exit 0
           fi
+
+          git commit -m "chore: add generated legal image"
+
+          # Another workflow can update main while this run is generating content.
+          # Rebase our generated-image commit onto the latest remote main before
+          # pushing, instead of using force-push or losing concurrent commits.
+          for attempt in 1 2 3 4 5; do
+            echo "Syncing with origin/main before push (attempt ${attempt}/5)..."
+            git fetch origin main
+
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Generated image commit pushed successfully."
+                exit 0
+              fi
+            else
+              echo "Rebase failed; aborting rebase safely."
+              git rebase --abort || true
+              exit 1
+            fi
+
+            sleep $((attempt * 3))
+          done
+
+          echo "Could not push generated image commit after 5 attempts."
+          exit 1
 
       - name: Workflow summary
         if: always()
@@ -159,4 +185,5 @@ jobs:
           echo "GEMINI: RETRY + FALLBACK MODEL"
           echo "POST BANK + AI COMMENTS + RETRY QUEUE"
           echo "TELEGRAM CONTROL + TOKEN HEALTH"
+          echo "GENERATED IMAGE PUSH: FETCH + REBASE + RETRY"
           echo "=============================================="
