@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: "0,30 10-23 * * *"
-      timezone: "Africa/Cairo"
-    - cron: "0 0 * * *"
-      timezone: "Africa/Cairo"
+    # GitHub Actions cron is UTC. Egypt is UTC+3 on 27 Aug 2026.
+    # 10:00 Cairo = 07:00 UTC; 23:30 Cairo = 20:30 UTC.
+    - cron: "0,30 7-20 * * *"
+    - cron: "0 21 * * *"
 
 concurrency:
   group: khyrat-legal-content-engine
@@ -15,10 +15,6 @@ concurrency:
 
 permissions:
   contents: write
-
-env:
-  PUBLISH_START_MINUTES: "600"
-  PUBLISH_END_MINUTES: "0"
 
 jobs:
   publish:
@@ -46,12 +42,11 @@ jobs:
           print(f"Cairo time: {now.isoformat()}")
           print(f"Publishing window active: {in_window}")
 
-          output_path = os.environ["GITHUB_OUTPUT"]
-          with open(output_path, "a", encoding="utf-8") as output:
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"in_window={'true' if in_window else 'false'}\n")
           PY
 
-      - name: Skip outside publishing window
+      - name: Stop outside Cairo publishing window
         if: steps.window.outputs.in_window != 'true'
         run: |
           echo "Outside Cairo publishing window (10:00 AM - 12:00 AM)."
@@ -104,11 +99,7 @@ jobs:
               f"{account_id}/ai/models/search?search="
               + urllib.parse.quote("black-forest-labs/flux-1-schnell")
           )
-          request = urllib.request.Request(
-              url,
-              headers={"Authorization": f"Bearer {token}"},
-              method="GET",
-          )
+          request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"}, method="GET")
 
           try:
               with urllib.request.urlopen(request, timeout=30) as response:
@@ -128,9 +119,7 @@ jobs:
                   try:
                       body = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode()
                       telegram_request = urllib.request.Request(
-                          f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                          data=body,
-                          method="POST",
+                          f"https://api.telegram.org/bot{bot_token}/sendMessage", data=body, method="POST"
                       )
                       urllib.request.urlopen(telegram_request, timeout=15).read()
                       print("Telegram alert: sent")
@@ -188,7 +177,6 @@ jobs:
           for attempt in 1 2 3 4 5; do
             echo "Syncing with origin/main before push (attempt ${attempt}/5)..."
             git fetch origin main
-
             if git rebase origin/main; then
               if git push origin HEAD:main; then
                 echo "Generated image commit pushed successfully."
@@ -199,7 +187,6 @@ jobs:
               git rebase --abort || true
               exit 1
             fi
-
             sleep $((attempt * 3))
           done
 
@@ -212,6 +199,7 @@ jobs:
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
           echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - MIDNIGHT (CAIRO)"
+          echo "CRON: UTC 07:00-20:30 + 21:00 (Cairo UTC+3)"
           echo "OUTSIDE WINDOW: EXIT BEFORE PROCESSING"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
