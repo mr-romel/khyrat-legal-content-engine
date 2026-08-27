@@ -30,9 +30,6 @@ def _capture_editorial_assets(*args, **kwargs):
 def _single_telegram_notify(text: str) -> None:
     """Send Telegram notifications without ever turning a successful publication into a failed run."""
     compact = str(text or "").strip()
-
-    # Telegram is an auxiliary notification channel. A Telegram outage,
-    # message-size problem, or bot error must never change the publication result.
     try:
         # Intermediate diagnostics are intentionally suppressed. The final
         # publication result is the single Telegram package for the run.
@@ -59,7 +56,7 @@ def _single_telegram_notify(text: str) -> None:
 
         send_single_status_message(text=compact)
     except Exception as exc:
-        # Never let Telegram failure roll back or mark social publication as failed.
+        # Telegram is auxiliary; notification failure must never affect publishing.
         print(f"Telegram notification failed (non-blocking): {exc}")
 
 
@@ -87,36 +84,48 @@ def _smart_target_datetime(row: dict[str, str]):
     )
 
 
-def _wait_until_due(target_datetime, *, tolerance_minutes: int = 2):
-    now = now_cairo()
-    if target_datetime is None:
-        return False
-    delta = target_datetime - now
-    return delta.total_seconds() <= tolerance_minutes * 60
+def _smart_is_due(row: dict[str, str], current) -> bool:
+    """Return True for scheduled posts that are due and still safely catch-up eligible.
 
-
-def _should_process_row(row: dict[str, str]) -> bool:
-    status = str(row.get("الحالة", "")).strip().upper()
-    if status in {"PUBLISHED", "CANCELLED"}:
+    Rules:
+    - READY, READY_FOR_SOCIAL_PUBLISH, FAILED and PARTIAL_FAILED are eligible.
+    - Future posts are never selected early.
+    - A missed post remains eligible for catch-up for 16 hours after its exact
+      scheduled time. This covers the full 10:00-00:00 publishing window and
+      a reasonable overnight recovery without publishing stale content days later.
+    - The exact scheduled date/time is used; the old implementation incorrectly
+      rebuilt the target timestamp on the current date, which could make a missed
+      post disappear after the one-hour window.
+    """
+    status = str(row.get("الحالة", "READY")).strip().upper()
+    if status not in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}:
         return False
+
     target = _smart_target_datetime(row)
     if target is None:
         return False
-    return _wait_until_due(target)
+
+    if current < target:
+        return False
+
+    age = current - target
+    return age <= timedelta(hours=16)
 
 
-def _process_due_rows(*args, **kwargs):
-    return production_main._process_due_rows(*args, **kwargs)
+def _smart_failed_retry(row: dict[str, str], current) -> bool:
+    """Retry only failed rows that are actually due under the same catch-up policy."""
+    status = str(row.get("الحالة", "")).strip().upper()
+    if status not in {"FAILED", "PARTIAL_FAILED"}:
+        return False
+    return _smart_is_due(row, current)
 
 
-def main() -> None:
-    print("=" * 70)
-    print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
-    print("=" * 70)
-    current = now_cairo()
-    print(f"Current Cairo time: {current.isoformat()}")
-    production_main.main()
+production_main._prepare_editorial_assets = _capture_editorial_assets
+production_main.notify = _single_telegram_notify
+production_main.notify_linkedin_interaction = _suppress_linkedin_diagnostic
 
+# Replace the old one-hour Due policy with the complete catch-up policy above.
+production_main._is_due = _smart_is_due
+production_main._failed_retry = _smart_failed_retry
 
-if __name__ == "__main__":
-    main()
+production_main.main()
