@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Publishing window: every 30 minutes from 10:00 AM through midnight,
-    # Cairo time. GitHub Actions cron supports timezone-aware schedules.
     - cron: "0,30 10-23 * * *"
       timezone: "Africa/Cairo"
     - cron: "0 0 * * *"
@@ -37,20 +35,19 @@ jobs:
         run: |
           set -e
           python - <<'PY'
+          import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
 
           now = datetime.now(ZoneInfo("Africa/Cairo"))
           minutes = now.hour * 60 + now.minute
-
-          # Publishing window is 10:00 through 00:00 Cairo time.
-          # At exactly 00:00 the midnight run is allowed; after 00:00 it stops.
           in_window = minutes == 0 or 600 <= minutes < 1440
 
           print(f"Cairo time: {now.isoformat()}")
           print(f"Publishing window active: {in_window}")
 
-          with open("$GITHUB_OUTPUT", "a", encoding="utf-8") as output:
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as output:
               output.write(f"in_window={'true' if in_window else 'false'}\n")
           PY
 
