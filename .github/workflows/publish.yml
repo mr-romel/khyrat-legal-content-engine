@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
 
   schedule:
-    # GitHub Actions cron is UTC. Egypt is UTC+3 on 27 Aug 2026.
-    # 10:00 Cairo = 07:00 UTC; 23:30 Cairo = 20:30 UTC.
-    - cron: "0,30 7-20 * * *"
-    - cron: "0 21 * * *"
+    # Cairo-local schedule. Staggered by 5 minutes to reduce GitHub's
+    # top-of-hour scheduler congestion and automatically handle DST changes.
+    - cron: "5,35 10-23 * * *"
+      timezone: "Africa/Cairo"
+    - cron: "5 0 * * *"
+      timezone: "Africa/Cairo"
 
 concurrency:
   group: khyrat-legal-content-engine
@@ -199,7 +201,8 @@ jobs:
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
           echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - MIDNIGHT (CAIRO)"
-          echo "CRON: UTC 07:00-20:30 + 21:00 (Cairo UTC+3)"
+          echo "SCHEDULE MINUTES: :05 and :35 to avoid top-of-hour congestion"
+          echo "TIMEZONE: Africa/Cairo (DST-aware)"
           echo "OUTSIDE WINDOW: EXIT BEFORE PROCESSING"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
