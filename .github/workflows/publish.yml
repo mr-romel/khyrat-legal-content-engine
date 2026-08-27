@@ -3,10 +3,11 @@ name: Khyrat Legal Content Engine
 on:
   workflow_dispatch:
   schedule:
-    # GitHub Actions cron is UTC. Cairo is UTC+3 during the current period.
+    # GitHub supports IANA timezones for scheduled workflows.
     # Run every 30 minutes from 10:00 Cairo through 23:30 Cairo.
-    # Scheduler anchor: keep this workflow active on the default branch.
-    - cron: "*/30 7-20 * * *"
+    # Changing the cron syntax also reactivates a disabled scheduled workflow.
+    - cron: "*/30 10-23 * * *"
+      timezone: "Africa/Cairo"
 
 concurrency:
   group: khyrat-legal-content-engine
@@ -198,8 +199,7 @@ jobs:
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
           echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - 11:30 PM (CAIRO)"
-          echo "CRON: */30 7-20 UTC"
-          echo "TIMEZONE GUARD: Africa/Cairo"
+          echo "TIMEZONE: Africa/Cairo"
           echo "PUBLISHING WINDOW: 10:00 AM - MIDNIGHT (CAIRO)"
           echo "OUTSIDE WINDOW: EXIT BEFORE PROCESSING"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
