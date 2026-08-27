@@ -5,6 +5,7 @@ on:
   schedule:
     # GitHub Actions cron is UTC. Cairo is UTC+3 during the current period.
     # Run every 30 minutes from 10:00 Cairo through 23:30 Cairo.
+    # Scheduler anchor: keep this workflow active on the default branch.
     - cron: "*/30 7-20 * * *"
 
 concurrency:
