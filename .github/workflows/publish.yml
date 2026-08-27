@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub Actions cron is UTC. Cairo is UTC+3 during the current period.
-    # Run every 30 minutes from 10:00 Cairo through 00:00 Cairo.
-    - cron: "*/30 7-21 * * *"
+    # Run every 30 minutes from 10:00 Cairo through 23:30 Cairo.
+    - cron: "*/30 7-20 * * *"
 
 concurrency:
   group: khyrat-legal-content-engine
@@ -35,7 +35,7 @@ jobs:
 
           now = datetime.now(ZoneInfo("Africa/Cairo"))
           minutes = now.hour * 60 + now.minute
-          in_window = minutes == 0 or 600 <= minutes < 1440
+          in_window = 600 <= minutes < 1440
 
           print(f"Cairo time: {now.isoformat()}")
           print(f"Publishing window active: {in_window}")
@@ -196,9 +196,10 @@ jobs:
         run: |
           echo "=============================================="
           echo "KHYRAT LEGAL CONTENT ENGINE V2"
-          echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - MIDNIGHT (CAIRO)"
-          echo "CRON: */30 7-21 UTC"
+          echo "SCHEDULE: EVERY 30 MINUTES, 10:00 AM - 11:30 PM (CAIRO)"
+          echo "CRON: */30 7-20 UTC"
           echo "TIMEZONE GUARD: Africa/Cairo"
+          echo "PUBLISHING WINDOW: 10:00 AM - MIDNIGHT (CAIRO)"
           echo "OUTSIDE WINDOW: EXIT BEFORE PROCESSING"
           echo "CLOUDFLARE HEALTH CHECK: BEFORE PUBLISHING"
           echo "SHEET SOURCE OF TRUTH: EXACT POST DATE/TIME"
