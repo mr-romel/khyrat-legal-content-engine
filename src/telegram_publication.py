@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from telegram_bot import configured, send_message
 
 
@@ -34,26 +32,30 @@ def build_reels_prompt(*, topic: str, post: str) -> str:
 
 
 def send_single_publication_message(*, topic: str, post: str, status_text: str = "") -> None:
+    """Send a compact Telegram package: the approved post appears only inside the Reels prompt."""
     if not configured():
         print("Telegram not configured; publication package skipped.")
         return
+
+    # The approved post is already included once inside the prompt. Do not print
+    # it separately, which previously duplicated a long post and could exceed
+    # Telegram's 4096-character single-message limit.
     prompt = build_reels_prompt(topic=topic, post=post)
     text = (
         "🎬 KHYRAT LEGAL CONTENT ENGINE — CONTENT PACKAGE\n\n"
-        f"📌 الموضوع:\n{topic}\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "📝 البوست الذي تم تأليفه\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"{post}\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
+        f"📌 الموضوع: {topic}\n\n"
         "🎥 PROMPT — GEMINI NOTEBOOK\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"{prompt}"
     )
     if status_text:
-        text += f"\n\n━━━━━━━━━━━━━━━━━━\n📊 الحالة:\n{status_text}"
-    if len(text) > 4096:
-        raise RuntimeError("Telegram publication package exceeds the single-message limit of 4096 characters.")
+        text += f"\n\n━━━━━━━━━━━━━━━━━━\n📊 الحالة: {status_text}"
+
+    # Keep a safety margin below Telegram's hard 4096-character limit.
+    if len(text) > 4000:
+        raise RuntimeError(
+            f"Telegram publication package is too long ({len(text)} characters) even after removing duplicate post text."
+        )
     send_message(text)
 
 
