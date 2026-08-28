@@ -3,7 +3,9 @@ name: Khyrat Legal Content Engine
 on:
   workflow_dispatch:
   schedule:
-    - cron: "11,41 7-20 * * *"
+    # GitHub Actions uses UTC. Cairo is UTC+3 during the current period.
+    # Single production scheduler: every 30 minutes during the Cairo publishing window.
+    - cron: "24,54 7-20 * * *"
 
 permissions:
   contents: write
@@ -16,6 +18,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,15 +46,16 @@ jobs:
           utc = datetime.now(timezone.utc)
           print(f"GitHub event: {os.environ.get('GITHUB_EVENT_NAME', '')}")
           print(f"GitHub run ID: {os.environ.get('GITHUB_RUN_ID', '')}")
+          print(f"GitHub SHA: {os.environ.get('GITHUB_SHA', '')}")
           print(f"Cairo time: {cairo.isoformat()}")
           print(f"UTC time: {utc.isoformat()}")
-          PY
 
       - name: Cloudflare health check
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
+          set -e
           python - <<'PY'
           import os
           import urllib.request
