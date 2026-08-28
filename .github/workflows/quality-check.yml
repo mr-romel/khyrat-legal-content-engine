@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONPATH: .:src
+
 jobs:
   python-quality:
     runs-on: ubuntu-latest
@@ -35,8 +38,6 @@ jobs:
           echo "Python compile check: OK"
 
       - name: Import application modules
-        env:
-          PYTHONPATH: src
         run: |
           python - <<'PY'
           import analytics
@@ -65,8 +66,6 @@ jobs:
           PY
 
       - name: Verify 500-topic legal content bank
-        env:
-          PYTHONPATH: src
         run: |
           python - <<'PY'
           from topic_bank_500 import CATEGORY_COUNTS, TOPIC_BANK
@@ -89,8 +88,6 @@ jobs:
           PY
 
       - name: Verify monthly diversification architecture
-        env:
-          PYTHONPATH: src
         run: |
           python - <<'PY'
           from monthly_recycler import _topic_pool_for_month
@@ -105,8 +102,6 @@ jobs:
           PY
 
       - name: Verify publishing schedule is 11:00 and 19:00 Cairo time
-        env:
-          PYTHONPATH: src
         run: |
           python - <<'PY'
           import inspect
@@ -120,12 +115,10 @@ jobs:
           assert 'old_time in {"14:00", "08:00", "10:00"}' in source
           assert 'old_time' in source and 'target_time' in source
           assert 'ترحيل الموعد تلقائيًا' in source
-          print("Publishing schedule + legacy migration check: 11:00 + 19:00 Africa/Cairo: OK")
+          print("Publishing schedule + legacy migration check: 11:00 + 19:00 Cairo time: OK")
           PY
 
       - name: Verify Gemini runtime architecture
-        env:
-          PYTHONPATH: src
         run: |
           python - <<'PY'
           import inspect
@@ -148,7 +141,6 @@ jobs:
 
       - name: Safe dry-run configuration smoke test
         env:
-          PYTHONPATH: src
           KHYRAT_DRY_RUN: "true"
           GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check"}'
           GOOGLE_SHEET_ID: "quality-check-sheet"
