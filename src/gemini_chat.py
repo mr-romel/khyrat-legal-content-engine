@@ -4,14 +4,8 @@ from typing import Any
 
 from google import genai
 
-from gemini import (
-    DEFAULT_TEXT_MODEL,
-    SYSTEM_PROMPT,
-    _extract_json,
-    _normalize_list,
-    _normalize_review_level,
-    _validate_image_brief,
-)
+from gemini_prompts import DEFAULT_TEXT_MODEL, SYSTEM_PROMPT
+from gemini_validation import extract_json, normalize_list, normalize_review_level, validate_image_brief
 
 
 def generate_post(
@@ -77,7 +71,7 @@ def generate_post(
     if not raw_text:
         raise RuntimeError("Gemini returned an empty response.")
 
-    data = _extract_json(raw_text)
+    data = extract_json(raw_text)
     required_fields = (
         "post",
         "image_brief",
@@ -89,14 +83,13 @@ def generate_post(
         if field not in data:
             raise RuntimeError(f"Gemini JSON is missing required field: {field}")
 
-    data["review_level"] = _normalize_review_level(data.get("review_level"))
-    data["review_flags"] = _normalize_list(data.get("review_flags"))
-    data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
+    data["review_level"] = normalize_review_level(data.get("review_level"))
+    data["review_flags"] = normalize_list(data.get("review_flags"))
+    data["legal_sources_used"] = normalize_list(data.get("legal_sources_used"))
     data["post"] = str(data.get("post", "") or "").strip()
     data["image_brief"] = str(data.get("image_brief", "") or "").strip()
 
     if not data["post"]:
         raise RuntimeError("Gemini returned an empty post.")
-    _validate_image_brief(data["image_brief"])
-
+    validate_image_brief(data["image_brief"])
     return data

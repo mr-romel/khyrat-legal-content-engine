@@ -2,7 +2,7 @@ name: Khyrat Engine Quality Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, refactor-safe-300-lines]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -28,6 +28,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Enforce Python file size limit
+        run: |
+          python scripts/check_line_limits.py
 
       - name: Compile Python modules
         run: |
@@ -104,23 +108,17 @@ jobs:
           print("500-topic monthly rotation/diversification check: OK")
           PY
 
-      - name: Verify publishing schedule is 11:00 and 19:00 Cairo time
+      - name: Verify publishing schedule is every 15 minutes
         env:
           PYTHONPATH: src
         run: |
           python - <<'PY'
-          import inspect
-          import monthly_recycler
+          from pathlib import Path
 
-          assert monthly_recycler.POSTING_TIMES == ("11:00", "19:00")
-          source = inspect.getsource(monthly_recycler)
-          assert "11:00" in source
-          assert "19:00" in source
-          assert "_migrate_future_slots" in source
-          assert 'old_time in {"14:00", "08:00", "10:00"}' in source
-          assert 'old_time' in source and 'target_time' in source
-          assert 'ترحيل الموعد تلقائيًا' in source
-          print("Publishing schedule + legacy migration check: 11:00 + 19:00 Africa/Cairo: OK")
+          workflow = Path(".github/workflows/publish-scheduled.yml").read_text(encoding="utf-8")
+          assert 'cron: "*/15 * * * *"' in workflow
+          assert "workflow_dispatch:" in workflow
+          print("Publisher schedule check: every 15 minutes, all day OK")
           PY
 
       - name: Verify Gemini runtime architecture
