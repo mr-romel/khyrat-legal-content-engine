@@ -114,12 +114,11 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           workflow = Path(".github/workflows/publish-scheduled.yml").read_text(encoding="utf-8")
-          assert 'cron: "7,22,37,52 * * * *"' in workflow
+          assert 'cron: "*/15 * * * *"' in workflow
           assert "workflow_dispatch:" in workflow
-          print("Publisher schedule check: every 15 minutes at :07/:22/:37/:52 OK")
+          print("Publisher schedule check: every 15 minutes, all day OK")
           PY
 
       - name: Verify Gemini runtime architecture
