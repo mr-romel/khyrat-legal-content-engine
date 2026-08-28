@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Telegram transport/control module. Reporting implementations live in telegram_reports.py.
+
 import os
 from typing import Any
 
@@ -214,5 +216,4 @@ def authorized_user(user_id: int | str) -> bool:
     return bool(expected and str(user_id) == expected)
 
 
-# Backward-compatible public reporting API. Implementations live in telegram_reports.py.
 from src.telegram_reports import notify, notify_linkedin_interaction, send_review_request
