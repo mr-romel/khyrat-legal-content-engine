@@ -6,8 +6,9 @@ on:
   schedule:
     # GitHub Actions cron is UTC. Egypt is UTC+3 during the current publishing period.
     # 07:00-20:30 UTC = 10:00-23:30 Cairo.
-    # Keep the minute field explicit so the scheduler is unambiguous.
-    - cron: "0,30 7-20 * * *"
+    # Use non-round minutes because GitHub may delay or drop jobs scheduled at :00 or :30 during peak load.
+    # 07/37 UTC = every 30 minutes, corresponding to 10:07/10:37 through 23:37 Cairo.
+    - cron: "7,37 7-20 * * *"
 
 permissions:
   contents: write
