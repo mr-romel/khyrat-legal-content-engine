@@ -1,0 +1,39 @@
+name: Deploy External Scheduler
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "workers/github-scheduler-dispatch/**"
+      - ".github/workflows/deploy-external-scheduler.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Deploy Cloudflare Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/github-scheduler-dispatch
+          command: deploy
+
+      - name: Configure GitHub dispatch token
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_DISPATCH_TOKEN: ${{ secrets.GITHUB_DISPATCH_TOKEN }}
+        run: |
+          test -n "$GITHUB_DISPATCH_TOKEN"
+          test -n "$CF_API_TOKEN"
+          test -n "$CF_ACCOUNT_ID"
+          npx wrangler secret put GITHUB_DISPATCH_TOKEN --config wrangler.jsonc --name khyrat-github-scheduler-dispatch <<< "$GITHUB_DISPATCH_TOKEN"
