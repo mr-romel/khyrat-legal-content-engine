@@ -30,8 +30,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Enforce Python file size limit
-        run: |
-          python scripts/check_line_limits.py
+        run: python scripts/check_line_limits.py
 
       - name: Compile Python modules
         run: |
@@ -40,7 +39,7 @@ jobs:
 
       - name: Import application modules
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
         run: |
           python - <<'PY'
           import analytics
@@ -70,7 +69,7 @@ jobs:
 
       - name: Verify 500-topic legal content bank
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
         run: |
           python - <<'PY'
           from topic_bank_500 import CATEGORY_COUNTS, TOPIC_BANK
@@ -94,7 +93,7 @@ jobs:
 
       - name: Verify monthly diversification architecture
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
         run: |
           python - <<'PY'
           from monthly_recycler import topic_pool_for_month
@@ -110,7 +109,7 @@ jobs:
 
       - name: Verify publishing schedule is every 15 minutes
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -123,7 +122,7 @@ jobs:
 
       - name: Verify Gemini runtime architecture
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
         run: |
           python - <<'PY'
           import inspect
@@ -146,7 +145,7 @@ jobs:
 
       - name: Safe dry-run configuration smoke test
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .:src
           KHYRAT_DRY_RUN: "true"
           GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check"}'
           GOOGLE_SHEET_ID: "quality-check-sheet"
