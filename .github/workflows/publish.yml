@@ -3,9 +3,9 @@ name: Khyrat Legal Content Engine
 on:
   workflow_dispatch:
   schedule:
-    # GitHub Actions uses UTC. Cairo is UTC+3 during the current period.
-    # Single production scheduler: every 30 minutes during the Cairo publishing window.
-    - cron: "24,54 7-20 * * *"
+    # GitHub Actions uses UTC. Production heartbeat: every 15 minutes, all day.
+    # run_main.py remains responsible for deciding whether a post is actually due.
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
