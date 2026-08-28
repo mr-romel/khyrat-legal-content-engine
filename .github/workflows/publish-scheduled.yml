@@ -1,8 +1,6 @@
 name: Khyrat Legal Content Engine Scheduled
 
 on:
-  schedule:
-    - cron: "4,19,34,49 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -49,8 +47,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           echo "GitHub event: ${{ github.event_name }}"
-          echo "Scheduled publisher heartbeat: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          echo "Scheduled cadence: every 15 minutes at :04, :19, :34, :49 UTC (Cairo +3)"
+          echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           PYTHONPATH=src python src/run_main.py
       - name: Commit generated images
         if: success()
