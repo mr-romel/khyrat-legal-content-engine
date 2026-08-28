@@ -25,7 +25,8 @@ def _required(name: str) -> str:
 
 
 def _optional(name: str, default: str = "") -> str:
-    return os.getenv(name, default).strip()
+    value = os.getenv(name, "").strip()
+    return value or default
 
 
 def _normalize_model_name(value: str) -> str:
