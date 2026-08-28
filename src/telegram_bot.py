@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-import re
 from typing import Any
-from urllib.parse import quote
 
 import requests
 
@@ -105,75 +103,16 @@ def menu_text() -> str:
 
 def _menu_page(action: str) -> str:
     pages = {
-        "platforms": (
-            "📊 تقرير المنصات\n\n"
-            "📘 FACEBOOK — PAGE\n"
-            "🟢 Publishing\n"
-            "🟢 Likes\n"
-            "🟢 Comments\n\n"
-            "💼 LINKEDIN\n"
-            "🟢 Publishing\n"
-            "⚠️ Likes / Comments: راجع آخر LinkedIn Interaction Diagnostic\n\n"
-            "التقرير التفصيلي بعد كل نشر هو مصدر الحالة الفعلية."
-        ),
-        "performance": (
-            "📈 الأداء\n\n"
-            "Performance Collector يجمع بيانات آخر المنشورات ويحدث بيانات الأداء.\n\n"
-            "الأرقام التفصيلية تظهر في تقارير الأداء الدورية."
-        ),
-        "today": (
-            "📅 جدول اليوم\n\n"
-            "🕚 11:00 صباحًا\n"
-            "🌙 19:00 مساءً\n\n"
-            "الـScheduler يعمل كل 15 دقيقة، والشيت هو مصدر الحقيقة لموعد كل منشور."
-        ),
-        "recent": (
-            "📝 آخر المنشورات\n\n"
-            "يتم تسجيل المنشورات ونتائج المنصات في Google Sheets وPost Bank.\n\n"
-            "التقرير التفصيلي يظهر تلقائيًا بعد عملية النشر."
-        ),
-        "retry": (
-            "🔄 مركز إعادة المحاولة\n\n"
-            "الأخطاء المؤقتة القابلة لإعادة المحاولة تدخل Retry Engine تلقائيًا.\n\n"
-            "⚠️ لا يوجد زر نشر يدوي هنا حاليًا، لتجنب أي نشر مكرر."
-        ),
-        "health": (
-            "🩺 فحص النظام\n\n"
-            "🟢 Scheduler\n"
-            "🟢 Google Sheets\n"
-            "🟢 Gemini + fallback\n"
-            "🟢 Cloudflare health check\n"
-            "🟢 Performance Collector\n"
-            "🟢 Telegram notifications\n\n"
-            "LinkedIn Interaction تتم متابعته بشكل مستقل."
-        ),
-        "bank": (
-            "📚 بنك المنشورات\n\n"
-            "البنك يغذي خطة الشهر بموضوعات غير منشورة مع حماية من التكرار والزوايا المكررة."
-        ),
-        "month": (
-            "📅 خطة الشهر\n\n"
-            "Monthly Recycler يجهز المواعيد المتبقية ويستخدم موضوعات جديدة من البنك.\n\n"
-            "🕚 11:00\n🌙 19:00 — بتوقيت القاهرة."
-        ),
-        "tokens": (
-            "🔐 حالة التوكنات\n\n"
-            "Facebook: Page Access Token\n"
-            "LinkedIn: Access Token\n\n"
-            "401 = Token\n"
-            "403 = Permission / Product Access\n"
-            "429 و5xx = Temporary / Retry\n\n"
-            "أي مشكلة فعلية تظهر في التقرير التفصيلي."
-        ),
-        "system": (
-            "⚙️ حالة النظام\n\n"
-            "🟢 Production Publishing\n"
-            "🟢 Resilient Scheduler\n"
-            "🟢 Post Bank\n"
-            "🟢 Monthly Recycler\n"
-            "🟢 Performance Collector\n"
-            "🟢 Telegram Control Center"
-        ),
+        "platforms": "📊 تقرير المنصات\n\n📘 FACEBOOK — PAGE\n🟢 Publishing\n🟢 Likes\n🟢 Comments\n\n💼 LINKEDIN\n🟢 Publishing\n⚠️ Likes / Comments: راجع آخر LinkedIn Interaction Diagnostic\n\nالتقرير التفصيلي بعد كل نشر هو مصدر الحالة الفعلية.",
+        "performance": "📈 الأداء\n\nPerformance Collector يجمع بيانات آخر المنشورات ويحدث بيانات الأداء.\n\nالأرقام التفصيلية تظهر في تقارير الأداء الدورية.",
+        "today": "📅 جدول اليوم\n\n🕚 11:00 صباحًا\n🌙 19:00 مساءً\n\nالـScheduler يعمل كل 15 دقيقة، والشيت هو مصدر الحقيقة لموعد كل منشور.",
+        "recent": "📝 آخر المنشورات\n\nيتم تسجيل المنشورات ونتائج المنصات في Google Sheets وPost Bank.\n\nالتقرير التفصيلي يظهر تلقائيًا بعد عملية النشر.",
+        "retry": "🔄 مركز إعادة المحاولة\n\nالأخطاء المؤقتة القابلة لإعادة المحاولة تدخل Retry Engine تلقائيًا.\n\n⚠️ لا يوجد زر نشر يدوي هنا حاليًا، لتجنب أي نشر مكرر.",
+        "health": "🩺 فحص النظام\n\n🟢 Scheduler\n🟢 Google Sheets\n🟢 Gemini + fallback\n🟢 Cloudflare health check\n🟢 Performance Collector\n🟢 Telegram notifications\n\nLinkedIn Interaction تتم متابعته بشكل مستقل.",
+        "bank": "📚 بنك المنشورات\n\nالبنك يغذي خطة الشهر بموضوعات غير منشورة مع حماية من التكرار والزوايا المكررة.",
+        "month": "📅 خطة الشهر\n\nMonthly Recycler يجهز المواعيد المتبقية ويستخدم موضوعات جديدة من البنك.\n\n🕚 11:00\n🌙 19:00 — بتوقيت القاهرة.",
+        "tokens": "🔐 حالة التوكنات\n\nFacebook: Page Access Token\nLinkedIn: Access Token\n\n401 = Token\n403 = Permission / Product Access\n429 و5xx = Temporary / Retry\n\nأي مشكلة فعلية تظهر في التقرير التفصيلي.",
+        "system": "⚙️ حالة النظام\n\n🟢 Production Publishing\n🟢 Resilient Scheduler\n🟢 Post Bank\n🟢 Monthly Recycler\n🟢 Performance Collector\n🟢 Telegram Control Center",
     }
     return pages.get(action, menu_text())
 
@@ -205,12 +144,8 @@ def answer_callback(callback_query_id: str, text: str = "") -> None:
 
 
 def edit_menu_message(chat_id: str, message_id: int, action: str) -> None:
-    if action == "home":
-        text = menu_text()
-        keyboard = _main_menu_keyboard()
-    else:
-        text = _menu_page(action)
-        keyboard = _back_keyboard()
+    text = menu_text() if action == "home" else _menu_page(action)
+    keyboard = _main_menu_keyboard() if action == "home" else _back_keyboard()
     _call(
         "editMessageText",
         {
@@ -254,136 +189,11 @@ def process_updates_once() -> int:
                 if chat_id and message_id:
                     edit_menu_message(chat_id, message_id, action)
                 processed += 1
-        # Confirm consumption of this update so it is not delivered again.
         try:
             get_updates(offset=update_id + 1)
         except Exception as exc:
             print(f"Telegram update acknowledgement failed: {exc}")
     return processed
-
-
-def send_review_request(*, row_number: int, topic: str, post: str, reason: str, sheet_id: str, status: str) -> None:
-    if not configured():
-        print("Telegram not configured; review notification skipped.")
-        return
-    sheet_url = f"https://docs.google.com/spreadsheets/d/{quote(sheet_id, safe='')}/edit"
-    text = (
-        "🚨 Khyrat Legal Content Engine\n\n"
-        f"الحالة: {status}\n"
-        f"الصف: {row_number}\n"
-        f"الموضوع: {topic}\n\n"
-        f"سبب المراجعة:\n{reason or 'يحتاج مراجعة قانونية.'}\n\n"
-        f"محتوى المنشور:\n{post[:3500]}\n\n"
-        "الخطوات:\n"
-        "1) افتح المحتوى من الزر.\n"
-        "2) راجع النص والمصادر.\n"
-        "3) اختر موافقة أو رفض.\n"
-        "4) الموافقة تسمح بنشر هذا البوست فقط؛ باقي الأتمتة تستمر طبيعيًا."
-    )
-    keyboard = {
-        "inline_keyboard": [
-            [
-                {"text": "✅ موافقة ونشر", "callback_data": f"approve:{row_number}"},
-                {"text": "❌ رفض", "callback_data": f"reject:{row_number}"},
-            ],
-            [{"text": "📊 فتح Google Sheet", "url": sheet_url}],
-            [{"text": "🏠 Control Center", "callback_data": "menu:home"}],
-        ]
-    }
-    send_message(text, reply_markup=keyboard)
-
-
-def _format_publication_report(text: str) -> str:
-    """Turn the compact production notification into a detailed multi-platform report."""
-    if not text.startswith("✅ Khyrat Legal Content Engine"):
-        return text
-
-    topic_match = re.search(r"تم نشر:\s*(.+?)(?:\n|Facebook:)", text, re.DOTALL)
-    platform_match = re.search(r"Facebook:\s*(✅|❌)\s*\|\s*LinkedIn:\s*(✅|❌)", text)
-    comments_match = re.search(r"التعليقات:\s*Facebook\s*(\d+)\/5\s*\|\s*LinkedIn\s*(\d+)\/5", text)
-
-    topic = topic_match.group(1).strip() if topic_match else "غير متاح"
-    fb_ok = platform_match.group(1) == "✅" if platform_match else False
-    li_ok = platform_match.group(2) == "✅" if platform_match else False
-    fb_comments = comments_match.group(1) if comments_match else "0"
-    li_comments = comments_match.group(2) if comments_match else "0"
-
-    return (
-        "📊 KHYRAT LEGAL CONTENT ENGINE — DETAILED PLATFORM REPORT\n\n"
-        f"📌 الموضوع:\n{topic}\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "📘 FACEBOOK — PAGE\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"📝 النشر: {'✅ PUBLISHED' if fb_ok else '❌ FAILED'}\n"
-        f"💬 التعليقات: {fb_comments}/5\n"
-        "❤️ Like: تم تنفيذ الطلب أثناء النشر؛ الحالة التفصيلية ستظهر فقط إذا أبلغت API عن خطأ.\n"
-        "🔁 Duplicate protection: ACTIVE\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "💼 LINKEDIN\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"📝 النشر: {'✅ PUBLISHED' if li_ok else '❌ FAILED'}\n"
-        f"💬 التعليقات: {li_comments}/5\n"
-        "❤️ Like: يتم تشخيصه في رسالة LinkedIn Interaction Diagnostic المستقلة.\n"
-        "🔁 Retry/permission diagnostics: ACTIVE\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "⚙️ ENGINE STATUS\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "🕒 Scheduler: ACTIVE\n"
-        "📅 Sheet source of truth: ACTIVE\n"
-        "🛡️ Idempotency: ACTIVE\n"
-        "🔄 Retry queue: ACTIVE\n"
-        "📈 Performance collector: ACTIVE\n\n"
-        "🏠 Control Center: /menu\n\n"
-        "✅ النشر الأساسي لا يتأثر بفشل Like أو Comment."
-    )
-
-
-def notify(text: str) -> None:
-    try:
-        send_message(_format_publication_report(text), reply_markup={"inline_keyboard": [[{"text": "🏠 Control Center", "callback_data": "menu:home"}]]})
-    except Exception as exc:
-        print(f"Telegram notification failed: {exc}")
-
-
-def notify_linkedin_interaction(*, topic: str, post_urn: str, comment: dict[str, Any], like: dict[str, Any]) -> None:
-    """Send a detailed diagnostic report for LinkedIn like/comment actions."""
-    if not configured():
-        return
-
-    def render(label: str, result: dict[str, Any], success_labels: set[str]) -> str:
-        status = str(result.get("status", "UNKNOWN"))
-        http_status = result.get("http_status")
-        error = str(result.get("error", "")).strip()
-        attempts = result.get("attempts")
-        line = f"{label}: {'✅' if status in success_labels else '❌'} {status}"
-        if http_status:
-            line += f" (HTTP {http_status})"
-        if attempts:
-            line += f" | محاولات: {attempts}"
-        if error:
-            line += f"\n   السبب: {error[:900]}"
-        return line
-
-    text = (
-        "🔎 LINKEDIN — INTERACTION DIAGNOSTIC\n\n"
-        f"📌 الموضوع: {topic}\n"
-        f"🆔 Post URN: {post_urn}\n\n"
-        f"{render('❤️ Like', like, {'LIKED'})}\n\n"
-        f"{render('💬 First Comment', comment, {'PUBLISHED'})}\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "التفسير التشغيلي:\n"
-        "• 401 = مشكلة Token / انتهاء أو عدم صلاحية التوكن.\n"
-        "• 403 = Permission / Product access.\n"
-        "• 400 = صيغة الطلب أو بيانات غير مقبولة.\n"
-        "• 408/429/5xx = خطأ مؤقت ويُعاد المحاولة تلقائيًا.\n\n"
-        "🏠 Control Center: /menu\n\n"
-        "النشر الأساسي لا يتأثر بفشل التفاعل."
-    )
-    notify(text)
-
-
-def answer_callback(callback_query_id: str, text: str) -> None:
-    _call("answerCallbackQuery", {"callback_query_id": callback_query_id, "text": text, "show_alert": False})
 
 
 def edit_message(chat_id: str, message_id: int, text: str) -> None:
@@ -402,3 +212,7 @@ def get_updates(offset: int | None = None) -> list[dict[str, Any]]:
 def authorized_user(user_id: int | str) -> bool:
     expected = _admin_user_id()
     return bool(expected and str(user_id) == expected)
+
+
+# Backward-compatible public reporting API. Implementations live in telegram_reports.py.
+from src.telegram_reports import notify, notify_linkedin_interaction, send_review_request
