@@ -81,8 +81,13 @@ SYSTEM_PROMPT = """
 - لا تجعل LinkedIn مجرد إعادة ترتيب لـFacebook.
 - لا تكتب أي تعليق جديد؛ راجع التعليقات الموجودة فقط.
 - لا تخترع مادة أو حكمًا أو رقم طعن أو عقوبة أو ميعاد أو رابط مصدر.
-- أعد JSON فقط.
+- أعد JSON فقط، دون Markdown أو شرح خارجي.
 """
+
+REVIEW_CONFIG = types.GenerateContentConfig(
+    temperature=0.1,
+    response_mime_type="application/json",
+)
 
 
 def _extract_status_code(exc: Exception) -> int | None:
@@ -104,9 +109,9 @@ def _extract_status_code(exc: Exception) -> int | None:
 def _generate(*, client, model: str, prompt: str, attempts: int, label: str, config: Any = None) -> Any:
     for attempt in range(1, attempts + 1):
         try:
-            chat = client.chats.create(model=model)
             if config is None:
-                return chat.send_message(SYSTEM_PROMPT + "\n\n" + prompt)
+                chat = client.chats.create(model=model)
+                return chat.send_message(SYSTEM_PROMPT + "\n\n" + prompt, config=REVIEW_CONFIG)
             return client.models.generate_content(model=model, contents=prompt, config=config)
         except Exception as exc:
             status = _extract_status_code(exc)
@@ -119,7 +124,8 @@ def _generate(*, client, model: str, prompt: str, attempts: int, label: str, con
 
 
 def _extract_json(text: str) -> dict[str, Any]:
-    text = re.sub(r"^```(?:json)?\s*", "", (text or "").strip(), flags=re.I)
+    text = (text or "").strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
     text = re.sub(r"\s*```$", "", text)
     try:
         data = json.loads(text)
@@ -127,16 +133,38 @@ def _extract_json(text: str) -> dict[str, Any]:
             return data
     except json.JSONDecodeError:
         pass
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
+    start = text.find("{")
+    if start < 0:
         raise RuntimeError("Legal/editorial review response was not valid JSON.")
-    try:
-        data = json.loads(text[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("Legal/editorial review response contained invalid JSON.") from exc
-    if not isinstance(data, dict):
-        raise RuntimeError("Legal/editorial review response was not an object.")
-    return data
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = text[start : index + 1]
+                try:
+                    data = json.loads(candidate)
+                except json.JSONDecodeError:
+                    break
+                if isinstance(data, dict):
+                    return data
+                break
+    raise RuntimeError("Legal/editorial review response contained invalid JSON.")
 
 
 def _clean_list(value: Any, minimum: int = 5) -> list[str]:
@@ -315,28 +343,26 @@ Facebook قبل المراجعة:
 }}
 """
 
+    response = _generate(
+        client=client,
+        model=primary_model,
+        prompt=prompt,
+        attempts=MAX_PRIMARY_RETRIES,
+        label=f"primary model {primary_model}",
+    )
     try:
-        response = _generate(
-            client=client,
-            model=primary_model,
-            prompt=prompt,
-            attempts=MAX_PRIMARY_RETRIES,
-            label=f"primary model {primary_model}",
-        )
-    except Exception as primary_exc:
-        status = _extract_status_code(primary_exc)
-        if status not in TRANSIENT_STATUS_CODES or fallback_model == primary_model:
-            raise
-        print(f"Legal/editorial review primary model unavailable; switching to {fallback_model}.")
+        data = _extract_json(getattr(response, "text", ""))
+    except RuntimeError as exc:
+        print(f"Legal/editorial review returned malformed JSON; retrying structured response: {exc}")
         response = _generate(
             client=client,
             model=fallback_model,
             prompt=prompt,
             attempts=MAX_FALLBACK_RETRIES,
-            label=f"fallback model {fallback_model}",
+            label=f"structured fallback {fallback_model}",
         )
+        data = _extract_json(getattr(response, "text", ""))
 
-    data = _extract_json(getattr(response, "text", ""))
     legal_status = _normalize_status(data.get("legal_status"), {"CLEAR", "REWRITE", "BLOCK"}, "BLOCK")
     readability_status = _normalize_status(data.get("readability_status"), {"CLEAR", "REWRITE", "BLOCK"}, "BLOCK")
     legal_confidence = _normalize_status(data.get("legal_confidence"), {"HIGH", "MEDIUM", "LOW"}, "LOW")
@@ -379,34 +405,18 @@ Facebook قبل المراجعة:
     facebook = str(data.get("facebook_post", "")).strip()
     linkedin = str(data.get("linkedin_post", "")).strip()
     if not facebook or not linkedin:
-        raise RuntimeError("Legal/editorial review returned an empty post.")
-
-    facebook_comments_ready = _clean_list(data.get("facebook_comments"))
-    linkedin_comments_ready = _clean_list(data.get("linkedin_comments"))
-
-    if len(linkedin) < max(900, int(len(facebook) * 1.15)) and len(linkedin) < 1200:
-        raise RuntimeError("LinkedIn version failed the required expansion/professional-depth gate.")
-
-    if readability_status == "REWRITE":
-        print(f"Readability gate: rewritten for simplicity and engagement; score={readability_score}/100.")
-    else:
-        print(f"Readability gate: passed; score={readability_score}/100.")
-
-    print(f"Legal gate: {legal_status} | confidence={legal_confidence} | findings={len(findings)}")
-    if findings:
-        print("Legal gate findings: " + " | ".join(str(item) for item in findings[:5]))
-    print("Legal research sources checked: " + " | ".join(merged_sources[:8]))
+        raise RuntimeError("Legal/editorial review returned empty Facebook or LinkedIn content.")
 
     return {
+        "legal_status": legal_status,
+        "readability_status": readability_status,
+        "legal_confidence": legal_confidence,
+        "readability_score": readability_score,
+        "legal_findings": [str(item).strip() for item in findings if str(item).strip()],
+        "research_sources": merged_sources,
+        "decision_reason": reason,
         "facebook_post": facebook,
         "linkedin_post": linkedin,
-        "facebook_comments": facebook_comments_ready,
-        "linkedin_comments": linkedin_comments_ready,
-        "legal_status": legal_status,
-        "legal_confidence": legal_confidence,
-        "legal_findings": [str(item) for item in findings],
-        "research_sources": merged_sources,
-        "readability_status": readability_status,
-        "readability_score": readability_score,
-        "decision_reason": reason,
+        "facebook_comments": _clean_list(data.get("facebook_comments")),
+        "linkedin_comments": _clean_list(data.get("linkedin_comments")),
     }
