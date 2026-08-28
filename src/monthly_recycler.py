@@ -4,7 +4,7 @@ import hashlib
 from datetime import date
 
 from src.post_bank import get_bank_rows
-from src.sheets import get_values, insert_row_at_top, update_row
+from src.sheets import get_values, insert_row_at_top, row_to_dict, update_row
 from src.topic_bank_500 import TOPIC_BANK
 from src.recycler_rules import (
     ANGLE_LIBRARY,
@@ -26,7 +26,7 @@ def _migrate_future_slots(service, spreadsheet_id: str, sheet_name: str, values:
     desired: set[tuple[str, str]] = set()
     candidates: list[tuple[int, dict[str, str]]] = []
     for row_number, raw in enumerate(values[1:], start=2):
-        row = __import__("src.sheets", fromlist=["row_to_dict"]).row_to_dict(raw)
+        row = row_to_dict(raw)
         if marker not in row.get("ملاحظات", ""):
             continue
         publish_date = row.get("تاريخ النشر", "").strip()
@@ -59,11 +59,11 @@ def _migrate_future_slots(service, spreadsheet_id: str, sheet_name: str, values:
 
 def _topic_pool_for_month(month_key: str, used_topics: set[str]) -> list[dict[str, str]]:
     seed = int(hashlib.sha256(month_key.encode("utf-8")).hexdigest()[:8], 16)
-    pools: dict[str, list[dict[str, str]]] = {category: [] for category in ("القانون الجنائي", "قانون الشركات والاستثمار", "قانون الأسرة", "قانون العمل الجديد", "القانون الإداري")}
+    categories = ("القانون الجنائي", "قانون الشركات والاستثمار", "قانون الأسرة", "قانون العمل الجديد", "القانون الإداري")
+    pools: dict[str, list[dict[str, str]]] = {category: [] for category in categories}
     for item in TOPIC_BANK:
         if normalize_topic(item["topic"]) not in used_topics:
             pools[item["category"]].append(item)
-    categories = tuple(pools)
     for offset, category in enumerate(categories):
         items = pools[category]
         if items:
@@ -91,7 +91,6 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id: str, sheet_n
     historical_used = historically_used_topics(values, current_key)
     marker = f"{RECYCLE_MARKER}:{current_key}"
     replacements: list[tuple[int, dict[str, str]]] = []
-    from src.sheets import row_to_dict
     for row_number, raw in enumerate(values[1:], start=2):
         row = row_to_dict(raw)
         publish_date = row.get("تاريخ النشر", "").strip()
@@ -157,11 +156,19 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
             original_topic = legacy["الموضوع"].strip()
             angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
             source = legacy.get("المصادر القانونية", "")
+            category = "Content/PostBank"
+            fmt = ""
+            objective = ""
+            source_label = "Content/PostBank fallback"
         else:
             original_topic = brief["topic"].strip()
             angle = brief["angle"].strip()
             source = brief["legal_sources"].strip()
-        row = {"ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}", "الموضوع": f"{original_topic} — زاوية جديدة: {angle}", "تاريخ النشر": publish_date, "ساعة النشر": posting_time, "نوع الجدولة": "DATE_TIME", "الحالة": "READY", "المصادر القانونية": source, "ملاحظات": brief_notes(current_key, {"topic": original_topic, "category": brief.get("category", "Content/PostBank") if brief else "Content/PostBank", "angle": angle, "format": brief.get("format", "") if brief else "", "objective": brief.get("objective", "") if brief else ""}, posting_time, "500-Topic-Bank" if brief else "Content/PostBank fallback")}
+            category = brief["category"]
+            fmt = brief["format"]
+            objective = brief["objective"]
+            source_label = "500-Topic-Bank"
+        row = {"ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}", "الموضوع": f"{original_topic} — زاوية جديدة: {angle}", "تاريخ النشر": publish_date, "ساعة النشر": posting_time, "نوع الجدولة": "DATE_TIME", "الحالة": "READY", "المصادر القانونية": source, "ملاحظات": brief_notes(current_key, {"topic": original_topic, "category": category, "angle": angle, "format": fmt, "objective": objective}, posting_time, source_label)}
         used_topics.add(normalize_topic(original_topic))
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
