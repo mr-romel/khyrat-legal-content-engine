@@ -3,6 +3,7 @@ const REPO = "khyrat-legal-content-engine";
 const WORKFLOW = "publish-scheduled.yml";
 const REF = "main";
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
+const ACTIVE_WINDOW_MS = 20 * 60 * 1000;
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -11,7 +12,9 @@ export default {
 };
 
 async function dispatch(env) {
-  if (!env.GITHUB_DISPATCH_TOKEN) throw new Error("GITHUB_DISPATCH_TOKEN is missing");
+  if (!env.GITHUB_DISPATCH_TOKEN) {
+    throw new Error("GITHUB_DISPATCH_TOKEN is missing");
+  }
 
   const headers = {
     Accept: "application/vnd.github+json",
@@ -20,16 +23,24 @@ async function dispatch(env) {
     "User-Agent": "khyrat-github-scheduler-dispatch",
   };
 
+  console.log(`Scheduler heartbeat: ${new Date().toISOString()}`);
+
   const runs = await github(
     `${API}/actions/workflows/${WORKFLOW}/runs?branch=${REF}&event=workflow_dispatch&per_page=10`,
     { headers },
   );
-  const active = (runs.workflow_runs || []).some((run) =>
-    run.status === "queued" || run.status === "in_progress",
-  );
+
+  const now = Date.now();
+  const active = (runs.workflow_runs || []).find((run) => {
+    if (run.status !== "queued" && run.status !== "in_progress") return false;
+    const stamp = Date.parse(run.updated_at || run.created_at || "");
+    return Number.isFinite(stamp) && now - stamp < ACTIVE_WINDOW_MS;
+  });
 
   if (active) {
-    console.log("Publisher already queued/running; skipping duplicate dispatch.");
+    console.log(
+      `Publisher active recently (${active.status}, ${active.id}); skipping duplicate dispatch.`,
+    );
     return;
   }
 
