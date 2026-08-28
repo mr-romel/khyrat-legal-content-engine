@@ -1,9 +1,9 @@
 name: Khyrat Legal Content Engine Scheduled
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,75 +14,27 @@ concurrency:
 
 jobs:
   publish:
+    name: Scheduled publisher
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check Cairo publishing window
-        id: cairo_window
-        shell: bash
-        run: |
-          set -e
-          python - <<'PY'
-          import os
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
-          now = datetime.now(ZoneInfo("Africa/Cairo"))
-          active = 10 <= now.hour < 24
-          print(f"Cairo time: {now.isoformat()}")
-          print(f"Publishing window active: {active}")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"active={'true' if active else 'false'}\n")
-          PY
-
-      - name: Stop outside Cairo publishing window
-        if: steps.cairo_window.outputs.active != 'true'
-        run: exit 0
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Cloudflare health check
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -e
-          python - <<'PY'
-          import os, urllib.request
-          token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
-          if not token:
-              print("Cloudflare credentials are not configured; skipping health check.")
-              raise SystemExit(0)
-          request = urllib.request.Request(
-              "https://api.cloudflare.com/client/v4/user/tokens/verify",
-              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-          )
-          with urllib.request.urlopen(request, timeout=30) as response:
-              if response.status != 200:
-                  raise RuntimeError(f"Cloudflare token verification failed: HTTP {response.status}")
-          print("Cloudflare Workers AI health: OK")
-          PY
-
-      - name: Monthly recycler
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
-        run: |
-          python -c "import json, os; from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.utils import now_cairo, sheet_name_from_range; info=json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']); sid=os.environ['GOOGLE_SHEET_ID'].strip(); rng=os.environ.get('GOOGLE_SHEET_RANGE','Content!A:U').strip() or 'Content!A:U'; recycle_month_if_needed(service=create_service(info), spreadsheet_id=sid, sheet_name=sheet_name_from_range(rng), current=now_cairo().date())"
-
-      - name: Run main publishing engine
+      - name: Run publishing engine
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -98,22 +50,20 @@ jobs:
           LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: PYTHONPATH=src python src/run_main.py
-
-      - name: Commit generated image changes
-        if: success()
-        shell: bash
         run: |
-          set -e
+          echo "GitHub event: ${{ github.event_name }}"
+          echo "Scheduled publisher heartbeat: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          PYTHONPATH=src python src/run_main.py
+
+      - name: Commit generated images
+        if: success()
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add generated/
-          if git diff --cached --quiet; then exit 0; fi
+          if git diff --cached --quiet; then
+            echo "No generated image changes."
+            exit 0
+          fi
           git commit -m "chore: add generated legal image"
-          for attempt in 1 2 3; do
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort || true; git reset --hard origin/main; git add generated/; git commit -m "chore: add generated legal image" || true; }
-            if git push origin HEAD:main; then exit 0; fi
-            sleep 5
-          done
-          exit 1
+          git push origin HEAD:main
