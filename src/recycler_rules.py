@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 from calendar import monthrange
 
 from src.sheets import row_to_dict
+from src.topic_bank_500 import TOPIC_BANK
 from src.utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
@@ -56,10 +58,7 @@ def is_published(row: dict[str, str]) -> bool:
     status = row.get("الحالة", "").strip().upper()
     facebook_status = row.get("Facebook Status", "").strip().upper()
     linkedin_status = row.get("LinkedIn Status", "").strip().upper()
-    return (
-        status == "PUBLISHED" or facebook_status == "PUBLISHED" or linkedin_status == "PUBLISHED"
-        or bool(row.get("Facebook Post ID", "").strip()) or bool(row.get("LinkedIn Post ID", "").strip())
-    )
+    return status == "PUBLISHED" or facebook_status == "PUBLISHED" or linkedin_status == "PUBLISHED" or bool(row.get("Facebook Post ID", "").strip()) or bool(row.get("LinkedIn Post ID", "").strip())
 
 
 def historically_used_topics(values: list[list[str]], current_key: str) -> set[str]:
@@ -81,54 +80,53 @@ def historically_used_topics(values: list[list[str]], current_key: str) -> set[s
 
 
 def source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    result: list[dict[str, str]] = []
-    seen: set[str] = set()
+    result, seen = [], set()
     for raw in values[1:]:
         row = row_to_dict(raw)
-        if RECYCLE_MARKER in row.get("ملاحظات", ""):
-            continue
-        topic = row.get("الموضوع", "").strip()
-        key = normalize_topic(topic)
-        if key and key not in seen:
-            seen.add(key)
-            result.append(row)
+        if RECYCLE_MARKER in row.get("ملاحظات", ""): continue
+        topic = row.get("الموضوع", "").strip(); key = normalize_topic(topic)
+        if key and key not in seen: seen.add(key); result.append(row)
     for bank in bank_rows:
-        topic = bank.get("الموضوع", "").strip()
-        key = normalize_topic(topic)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        result.append({"الموضوع": topic, "المصادر القانونية": bank.get("المصادر القانونية", "")})
+        topic = bank.get("الموضوع", "").strip(); key = normalize_topic(topic)
+        if key and key not in seen:
+            seen.add(key); result.append({"الموضوع": topic, "المصادر القانونية": bank.get("المصادر القانونية", "")})
     return result
 
 
 def prepared_slots(values: list[list[str]], month_key_value: str) -> set[tuple[str, str]]:
-    prepared: set[tuple[str, str]] = set()
     marker = f"{RECYCLE_MARKER}:{month_key_value}"
-    for raw in values[1:]:
-        row = row_to_dict(raw)
-        if marker not in row.get("ملاحظات", ""):
-            continue
-        if row.get("الحالة", "").strip().upper() == "CANCELLED":
-            continue
-        prepared.add((row.get("تاريخ النشر", "").strip(), row.get("ساعة النشر", "").strip()))
-    return prepared
+    return {(row_to_dict(raw).get("تاريخ النشر", "").strip(), row_to_dict(raw).get("ساعة النشر", "").strip()) for raw in values[1:] if marker in row_to_dict(raw).get("ملاحظات", "") and row_to_dict(raw).get("الحالة", "").strip().upper() != "CANCELLED"}
 
 
 def brief_notes(current_key: str, brief: dict[str, str], posting_time: str, source: str = "500-Topic-Bank") -> str:
-    return (
-        f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {brief['topic'].strip()} | "
-        f"القسم: {brief['category']} | زاوية: {brief['angle'].strip()} | الصيغة: {brief['format'].strip()} | "
-        f"الهدف: {brief['objective'].strip()} | Slot: {posting_time} | المصدر: {source} | "
-        "لا يعاد استخدام موضوع منشور سابقًا أو نفس الموضوع بزاوية أخرى | ساعة النشر مثبتة تلقائيًا"
-    )
+    return f"{RECYCLE_MARKER}:{current_key} | الموضوع الأصلي: {brief['topic'].strip()} | القسم: {brief['category']} | زاوية: {brief['angle'].strip()} | الصيغة: {brief['format'].strip()} | الهدف: {brief['objective'].strip()} | Slot: {posting_time} | المصدر: {source} | لا يعاد استخدام موضوع منشور سابقًا أو نفس الموضوع بزاوية أخرى | ساعة النشر مثبتة تلقائيًا"
 
 
 def legacy_source_for_slot(source_rows_list: list[dict[str, str]], index: int, used_topics: set[str]) -> dict[str, str] | None:
-    if not source_rows_list:
-        return None
+    if not source_rows_list: return None
     for offset in range(len(source_rows_list)):
         candidate = source_rows_list[(index + offset) % len(source_rows_list)]
-        if normalize_topic(candidate.get("الموضوع", "")) not in used_topics:
-            return candidate
+        if normalize_topic(candidate.get("الموضوع", "")) not in used_topics: return candidate
     return None
+
+
+def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[str, str]]:
+    seed = int(hashlib.sha256(current_key.encode("utf-8")).hexdigest()[:8], 16)
+    pools = {category: [] for category in CATEGORY_ORDER}
+    for item in TOPIC_BANK:
+        if normalize_topic(item["topic"]) not in used_topics:
+            pools[item["category"]].append(item)
+    for offset, category in enumerate(CATEGORY_ORDER):
+        items = pools[category]
+        if items:
+            rotation = (seed + offset * 17) % len(items)
+            pools[category] = items[rotation:] + items[:rotation]
+    start = seed % len(CATEGORY_ORDER); indexes = {c: 0 for c in CATEGORY_ORDER}; sequence = []
+    while len(sequence) < len(TOPIC_BANK):
+        added = False
+        for step in range(len(CATEGORY_ORDER)):
+            category = CATEGORY_ORDER[(start + step) % len(CATEGORY_ORDER)]
+            if indexes[category] < len(pools[category]):
+                sequence.append(pools[category][indexes[category]]); indexes[category] += 1; added = True
+        if not added: break
+    return sequence
