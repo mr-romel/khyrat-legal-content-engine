@@ -12,6 +12,7 @@ from editorial_research import (
     SYSTEM_PROMPT,
     _clean_list,
     _extract_json,
+    _extract_status_code,
     _generate,
     _normalize_status,
     _research_web,
@@ -37,20 +38,13 @@ def review_and_prepare(
     primary_model = (model or "").strip() or DEFAULT_FALLBACK_MODEL
     fallback_model = DEFAULT_FALLBACK_MODEL
     client = genai.Client(api_key=api_key)
-
     research_available = True
     research = ""
     grounded_sources: list[dict[str, str]] = []
 
     print("Legal research gate: starting deep Egyptian legal web research...")
     try:
-        research, grounded_sources = _research_web(
-            client=client,
-            model=primary_model,
-            topic=topic,
-            facebook_post=facebook_post,
-            legal_sources=legal_sources,
-        )
+        research, grounded_sources = _research_web(client=client, model=primary_model, topic=topic, facebook_post=facebook_post, legal_sources=legal_sources)
     except Exception as exc:
         research_available = False
         print(f"Legal research gate unavailable: {exc}")
@@ -65,8 +59,7 @@ def review_and_prepare(
     grounded_source_text = format_grounding_sources(grounded_sources)
     review_mode_instruction = (
         "RESEARCH MODE: استخدم تقرير البحث ومصادر Grounding للتحقق من الادعاءات بدقة."
-        if research_available
-        else
+        if research_available else
         "SIMPLE REVIEW MODE: تعذر البحث القانوني المعمق تقنيًا في هذه الدورة. لا تجعل غياب البحث سببًا منفردًا للـBLOCK. راجع البوست مراجعة قانونية/تحريرية بسيطة، واحذف أو عمّم أي مادة أو عقوبة أو رقم حكم أو ميعاد أو تاريخ أو ادعاء دقيق غير متحقق بدل اختلاقه. استخدم CLEAR أو REWRITE قدر الإمكان، واعتبر الثقة MEDIUM إذا لم توجد مشكلة ظاهرة. لا تستخدم LOW أو BLOCK لمجرد عدم توفر البحث."
     )
 
@@ -134,29 +127,13 @@ Facebook قبل المراجعة:
 """
 
     try:
-        response = _generate(
-            client=client,
-            model=primary_model,
-            prompt=prompt,
-            attempts=MAX_PRIMARY_RETRIES,
-            label=f"primary model {primary_model}",
-        )
+        response = _generate(client=client, model=primary_model, prompt=prompt, attempts=MAX_PRIMARY_RETRIES, label=f"primary model {primary_model}")
     except Exception as primary_exc:
-        status = getattr(primary_exc, "status_code", None)
-        try:
-            status = int(status) if status is not None else None
-        except (TypeError, ValueError):
-            status = None
+        status = _extract_status_code(primary_exc)
         if status not in {408, 429, 500, 502, 503, 504} or fallback_model == primary_model:
             raise
         print(f"Legal/editorial review primary model unavailable; switching to {fallback_model}.")
-        response = _generate(
-            client=client,
-            model=fallback_model,
-            prompt=prompt,
-            attempts=MAX_FALLBACK_RETRIES,
-            label=f"fallback model {fallback_model}",
-        )
+        response = _generate(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
 
     data = _extract_json(getattr(response, "text", ""))
     legal_status = _normalize_status(data.get("legal_status"), {"CLEAR", "REWRITE", "BLOCK"}, "BLOCK")
@@ -199,7 +176,6 @@ Facebook قبل المراجعة:
 
     facebook_comments_ready = _clean_list(data.get("facebook_comments"))
     linkedin_comments_ready = _clean_list(data.get("linkedin_comments"))
-
     if len(linkedin) < max(900, int(len(facebook) * 1.15)) and len(linkedin) < 1200:
         raise RuntimeError("LinkedIn version failed the required expansion/professional-depth gate.")
 
@@ -207,7 +183,6 @@ Facebook قبل المراجعة:
         print(f"Readability gate: rewritten for simplicity and engagement; score={readability_score}/100.")
     else:
         print(f"Readability gate: passed; score={readability_score}/100.")
-
     print(f"Legal gate: {legal_status} | confidence={legal_confidence} | findings={len(findings)}")
     if findings:
         print("Legal gate findings: " + " | ".join(str(item) for item in findings[:5]))
