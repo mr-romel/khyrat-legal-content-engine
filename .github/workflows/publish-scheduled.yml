@@ -2,8 +2,8 @@ name: Khyrat Legal Content Engine Scheduled
 
 on:
   schedule:
-    # GitHub Actions standard cron: run every 30 minutes, all day, in UTC.
-    - cron: "*/30 * * * *"
+    # GitHub Actions standard cron: run every 15 minutes, all day, in UTC.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -54,7 +54,7 @@ jobs:
         run: |
           echo "GitHub event: ${{ github.event_name }}"
           echo "Scheduled publisher heartbeat: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          echo "Scheduled cron: */30 * * * * UTC"
+          echo "Scheduled cron: */15 * * * * UTC"
           PYTHONPATH=src python src/run_main.py
 
       - name: Commit generated images
