@@ -6,7 +6,8 @@ on:
   schedule:
     # GitHub Actions cron is UTC. Egypt is UTC+3 during the current publishing period.
     # 07:00-20:30 UTC = 10:00-23:30 Cairo.
-    - cron: "*/30 7-20 * * *"
+    # Keep the minute field explicit so the scheduler is unambiguous.
+    - cron: "0,30 7-20 * * *"
 
 permissions:
   contents: write
@@ -41,6 +42,7 @@ jobs:
 
           print(f"Cairo time: {now.isoformat()}")
           print(f"Publishing window active: {active}")
+          print(f"GitHub Actions UTC time: {datetime.utcnow().isoformat()}Z")
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"active={'true' if active else 'false'}\n")
