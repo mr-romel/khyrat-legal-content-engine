@@ -18,25 +18,31 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      GITHUB_DISPATCH_TOKEN: ${{ secrets.GITHUB_DISPATCH_TOKEN }}
+      GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
     steps:
       - uses: actions/checkout@v6
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+
       - name: Install Wrangler
         run: npm install --global wrangler@latest
+
       - name: Validate deployment secrets
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$GITHUB_DISPATCH_TOKEN"
+          test -n "$GH_DISPATCH_TOKEN"
+
       - name: Validate Worker
         working-directory: workers/github-scheduler-dispatch
         run: wrangler deploy --dry-run --config wrangler.jsonc
+
       - name: Upload GitHub dispatch token
         working-directory: workers/github-scheduler-dispatch
-        run: printf '%s' "$GITHUB_DISPATCH_TOKEN" | wrangler secret put GITHUB_DISPATCH_TOKEN --config wrangler.jsonc
+        run: printf '%s' "$GH_DISPATCH_TOKEN" | wrangler secret put GITHUB_DISPATCH_TOKEN --config wrangler.jsonc
+
       - name: Deploy scheduler Worker
         working-directory: workers/github-scheduler-dispatch
         run: wrangler deploy --config wrangler.jsonc
