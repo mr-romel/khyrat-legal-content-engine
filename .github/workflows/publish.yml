@@ -2,24 +2,23 @@ name: Khyrat Legal Content Engine
 
 on:
   workflow_dispatch:
-
   schedule:
-    # GitHub Actions cron is UTC. Egypt is UTC+3 during the current publishing period.
-    # 07:00-20:59 UTC = 10:00-23:59 Cairo.
-    # Use off-peak, non-round minutes to reduce schedule contention.
-    # 11/41 UTC = every 30 minutes, corresponding to 10:11/10:41 through 23:41 Cairo.
+    # GitHub Actions schedule is UTC. Cairo is UTC+3 during the current period.
+    # Run every 30 minutes during the 10:00 AM - 11:59 PM Cairo publishing window.
+    # The engine itself decides whether a Sheet row is actually due.
     - cron: "11,41 7-20 * * *"
 
 permissions:
   contents: write
 
 concurrency:
-  group: khyrat-legal-content-engine
+  group: khyrat-legal-content-engine-publish
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -27,23 +26,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Cairo publishing window
+      - name: Verify trigger and Cairo time
         id: cairo_window
         shell: bash
         run: |
           set -e
-
           python - <<'PY'
           import os
-          from datetime import datetime
+          from datetime import datetime, timezone
           from zoneinfo import ZoneInfo
 
           now = datetime.now(ZoneInfo("Africa/Cairo"))
+          utc = datetime.now(timezone.utc)
           active = 10 <= now.hour < 24
 
+          print(f"GitHub event: {os.environ.get('GITHUB_EVENT_NAME', '')}")
+          print(f"GitHub run ID: {os.environ.get('GITHUB_RUN_ID', '')}")
+          print(f"GitHub ref: {os.environ.get('GITHUB_REF', '')}")
           print(f"Cairo time: {now.isoformat()}")
+          print(f"UTC time: {utc.isoformat()}")
           print(f"Publishing window active: {active}")
-          print(f"GitHub Actions UTC time: {datetime.utcnow().isoformat()}Z")
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"active={'true' if active else 'false'}\n")
@@ -52,30 +54,25 @@ jobs:
       - name: Stop outside Cairo publishing window
         if: steps.cairo_window.outputs.active != 'true'
         run: |
-          echo "Outside Cairo publishing window (10:00 AM - 12:00 AM)."
-          echo "Stopping before dependencies, Google Sheets, Gemini, Cloudflare, or social APIs are used."
+          echo "Outside Cairo publishing window. Nothing to publish."
           exit 0
 
       - name: Set up Python
-        if: steps.cairo_window.outputs.active == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        if: steps.cairo_window.outputs.active == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Cloudflare health check
-        if: steps.cairo_window.outputs.active == 'true'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -e
-
           python - <<'PY'
           import os
           import urllib.request
@@ -87,24 +84,20 @@ jobs:
               print("Cloudflare credentials are not configured; skipping health check.")
               raise SystemExit(0)
 
-          url = "https://api.cloudflare.com/client/v4/user/tokens/verify"
           request = urllib.request.Request(
-              url,
+              "https://api.cloudflare.com/client/v4/user/tokens/verify",
               headers={
                   "Authorization": f"Bearer {token}",
                   "Content-Type": "application/json",
               },
           )
-
           with urllib.request.urlopen(request, timeout=30) as response:
               if response.status != 200:
                   raise RuntimeError(f"Cloudflare token verification failed: HTTP {response.status}")
-
           print("Cloudflare Workers AI health: OK")
           PY
 
       - name: Monthly recycler
-        if: steps.cairo_window.outputs.active == 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -113,46 +106,35 @@ jobs:
           python -c "import json, os; from src.monthly_recycler import recycle_month_if_needed; from src.sheets import create_service; from src.utils import now_cairo, sheet_name_from_range; service_account_info=json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_JSON']); sheet_id=os.environ['GOOGLE_SHEET_ID'].strip(); sheet_range=os.environ.get('GOOGLE_SHEET_RANGE','Content!A:U').strip() or 'Content!A:U'; recycle_month_if_needed(service=create_service(service_account_info), spreadsheet_id=sheet_id, sheet_name=sheet_name_from_range(sheet_range), current=now_cairo().date())"
 
       - name: Run main publishing engine
-        if: steps.cairo_window.outputs.active == 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
-
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
-
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
-
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           PYTHONPATH=src python src/run_main.py
 
       - name: Commit generated image changes
-        if: steps.cairo_window.outputs.active == 'true' && success()
+        if: success()
         shell: bash
         run: |
           set -e
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add generated/
-
           if git diff --cached --quiet; then
             echo "No generated image changes."
             exit 0
           fi
-
           git commit -m "chore: add generated legal image"
-
           for attempt in 1 2 3; do
             git fetch origin main
             git rebase origin/main || {
@@ -161,15 +143,12 @@ jobs:
               git add generated/
               git commit -m "chore: add generated legal image" || true
             }
-
             if git push origin HEAD:main; then
               echo "Generated image pushed successfully."
               exit 0
             fi
-
             echo "Push attempt ${attempt} failed; retrying..."
             sleep 5
           done
-
           echo "Unable to push generated image after 3 attempts."
           exit 1
