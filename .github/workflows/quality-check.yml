@@ -97,13 +97,13 @@ jobs:
           PYTHONPATH: src
         run: |
           python - <<'PY'
-          from monthly_recycler import _topic_pool_for_month
+          from monthly_recycler import topic_pool_for_month
 
-          pool = _topic_pool_for_month("2026-08", set())
+          pool = topic_pool_for_month("2026-08", set())
           assert len(pool) == 500
           assert len({item["topic"] for item in pool}) == 500
-          first_month = [item["topic"] for item in _topic_pool_for_month("2026-08", set())[:30]]
-          next_month = [item["topic"] for item in _topic_pool_for_month("2026-09", set())[:30]]
+          first_month = [item["topic"] for item in topic_pool_for_month("2026-08", set())[:30]]
+          next_month = [item["topic"] for item in topic_pool_for_month("2026-09", set())[:30]]
           assert first_month != next_month
           print("500-topic monthly rotation/diversification check: OK")
           PY
