@@ -37,7 +37,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GITHUB_DISPATCH_TOKEN: ${{ secrets.GITHUB_DISPATCH_TOKEN }}
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         run: |
-          test -n "$GITHUB_DISPATCH_TOKEN"
-          wrangler secret put GITHUB_DISPATCH_TOKEN --config wrangler.jsonc --name khyrat-github-scheduler-dispatch <<< "$GITHUB_DISPATCH_TOKEN"
+          test -n "$GH_DISPATCH_TOKEN"
+          printf '%s' "$GH_DISPATCH_TOKEN" | wrangler secret put GITHUB_DISPATCH_TOKEN --config wrangler.jsonc --name khyrat-github-scheduler-dispatch
