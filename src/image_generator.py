@@ -8,7 +8,7 @@ from typing import Any
 import requests
 from PIL import Image, ImageOps
 
-from .image_branding import add_page_branding
+from image_branding import add_page_branding
 
 IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 IMAGE_ENDPOINT = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
