@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import gemini
 import main as production_main
 from content_similarity import highest_similarity
-from content_style import build_style_context
+from content_style_v3 import build_style_context
 from gemini_runtime import generate_post as resilient_generate_post
 from post_bank import build_previous_context, get_bank_rows
 from sheets import create_service
@@ -43,11 +43,7 @@ def _capture_editorial_assets(*args, **kwargs):
         config = kwargs.get("config") or {}
         service = create_service(config["service_account_info"])
         bank_rows = get_bank_rows(service, config["sheet_id"])
-        previous_posts = [
-            str(row.get("المحتوى", "") or "").strip()
-            for row in bank_rows
-            if str(row.get("المحتوى", "") or "").strip()
-        ]
+        previous_posts = [str(row.get("المحتوى", "") or "").strip() for row in bank_rows if str(row.get("المحتوى", "") or "").strip()]
         candidate = str(result.get("facebook_post", "") or "").strip()
         if not candidate or not previous_posts:
             return result
@@ -61,21 +57,14 @@ def _capture_editorial_assets(*args, **kwargs):
         print(f"Similarity gate: REWRITE requested ({score:.2f} >= {threshold:.2f}).")
         context = build_previous_context(bank_rows, limit=8)
         context += (
-            "\n\nPRE-PUBLICATION SIMILARITY WARNING. "
-            "Rewrite the post from scratch while preserving the legal meaning. "
-            "Use a materially different hook, sentence rhythm, ordering of ideas, "
-            "examples, and CTA. Do not reuse distinctive phrases from previous posts. "
+            "\n\nPRE-PUBLICATION SIMILARITY WARNING. Rewrite the post from scratch while preserving the legal meaning. "
+            "Use a materially different hook, sentence rhythm, ordering of ideas, examples, and CTA. "
+            "Do not reuse distinctive phrases from previous posts. "
             f"The closest previous post begins: {match[:350]}"
         )
 
         try:
-            rewritten = _diverse_generate_post(
-                api_key=config["gemini_api_key"],
-                model=config["gemini_model"],
-                topic=topic,
-                legal_sources=legal_sources,
-                previous_context=context,
-            )
+            rewritten = _diverse_generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=legal_sources, previous_context=context)
             rewritten_post = str(rewritten.get("post", "") or "").strip()
             if not rewritten_post:
                 print("Similarity gate: rewrite returned empty content; publishing original.")
@@ -84,27 +73,16 @@ def _capture_editorial_assets(*args, **kwargs):
             score_after, _ = highest_similarity(rewritten_post, previous_posts, threshold)
             if score_after < threshold:
                 print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
-                refreshed = _original_prepare_editorial_assets(
-                    config=config,
-                    topic=topic,
-                    facebook_post=rewritten_post,
-                    legal_sources=legal_sources,
-                )
+                refreshed = _original_prepare_editorial_assets(config=config, topic=topic, facebook_post=rewritten_post, legal_sources=legal_sources)
                 refreshed["similarity_score"] = score_after
                 _latest_editorial = dict(refreshed)
                 _latest_editorial["legal_sources"] = legal_sources
                 return refreshed
 
-            print(
-                f"Similarity gate: rewrite still similar ({score_after:.2f} >= {threshold:.2f}); "
-                "publishing original as required by continuous-publishing policy."
-            )
+            print(f"Similarity gate: rewrite still similar ({score_after:.2f} >= {threshold:.2f}); publishing original as required by continuous-publishing policy.")
             return result
         except Exception as rewrite_exc:
-            print(
-                f"Similarity gate rewrite unavailable; publishing original as required by "
-                f"continuous-publishing policy: {rewrite_exc}"
-            )
+            print(f"Similarity gate rewrite unavailable; publishing original as required by continuous-publishing policy: {rewrite_exc}")
             return result
     except Exception as exc:
         print(f"Similarity gate unavailable; preserving publication flow: {exc}")
@@ -124,12 +102,7 @@ def _single_telegram_notify(text: str) -> None:
             topic = compact.split(marker, 1)[1].split("\n", 1)[0].strip() if marker in compact else "غير متاح"
             post = str(_latest_editorial.get("facebook_post", "")).strip()
             if post:
-                send_single_publication_message(
-                    topic=topic,
-                    post=post,
-                    legal_sources=str(_latest_editorial.get("legal_sources", "")),
-                    status_text="Facebook + LinkedIn: تم النشر بنجاح",
-                )
+                send_single_publication_message(topic=topic, post=post, legal_sources=str(_latest_editorial.get("legal_sources", "")), status_text="Facebook + LinkedIn: تم النشر بنجاح")
             else:
                 send_single_status_message(text=compact)
             return
