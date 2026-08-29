@@ -90,6 +90,23 @@ def historically_used_categories(values: list[list[str]], current_key: str) -> d
     return counts
 
 
+def historically_used_angles(values: list[list[str]], current_key: str) -> dict[str, int]:
+    """Count used angles for the current cycle so selection can prefer underused angles."""
+    counts: dict[str, int] = {angle: 0 for angle in ANGLE_LIBRARY}
+    marker = f"{RECYCLE_MARKER}:{current_key}"
+    for raw in values[1:]:
+        row = row_to_dict(raw)
+        notes = row.get("ملاحظات", "")
+        if not (is_published(row) or marker in notes):
+            continue
+        angle = ""
+        if "زاوية:" in notes:
+            angle = notes.split("زاوية:", 1)[1].split("|", 1)[0].strip()
+        if angle:
+            counts[angle] = counts.get(angle, 0) + 1
+    return counts
+
+
 def source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     result, seen = [], set()
     for raw in values[1:]:
@@ -157,16 +174,22 @@ def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[s
     return result
 
 
-def adaptive_topic_pool(current_key: str, used_topics: set[str], category_counts: dict[str, int] | None = None) -> list[dict[str, str]]:
-    """Balance the next candidates toward underused categories without blocking publication."""
+def adaptive_topic_pool(
+    current_key: str,
+    used_topics: set[str],
+    category_counts: dict[str, int] | None = None,
+    angle_counts: dict[str, int] | None = None,
+) -> list[dict[str, str]]:
+    """Balance candidates toward underused categories and angles without blocking publication."""
     pool = topic_pool_for_month(current_key, used_topics)
-    if not category_counts:
-        return pool
+    category_counts = category_counts or {}
+    angle_counts = angle_counts or {}
     counts = {category: int(category_counts.get(category, 0)) for category in CATEGORY_ORDER}
     return sorted(
         pool,
         key=lambda item: (
             counts.get(item.get("category", ""), 0),
+            int(angle_counts.get(item.get("angle", ""), 0)),
             hashlib.sha256(f"{current_key}|{item['topic']}|{item['angle']}".encode("utf-8")).hexdigest(),
         ),
     )
