@@ -9,8 +9,10 @@ from recycler_rules import (
     ANGLE_LIBRARY,
     POSTING_TIMES,
     RECYCLE_MARKER,
+    adaptive_topic_pool,
     brief_notes,
     historically_used_base_topics,
+    historically_used_categories,
     historically_used_topics,
     is_published,
     legacy_source_for_slot,
@@ -70,13 +72,7 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, 
             continue
         replacements.append((row_number, row))
 
-    # Exact brief identity is the rotation unit. Base-topic history is used only
-    # as a preference, never as a hard exclusion; otherwise the 500-bank's five
-    # angles per core topic would collapse back to only 100 usable topics.
-    available = [
-        item for item in topic_pool
-        if normalize_topic(item["topic"]) not in historical_used
-    ]
+    available = [item for item in topic_pool if normalize_topic(item["topic"]) not in historical_used]
     used_bases = historically_used_base_topics(values, current_key)
     preferred = [item for item in available if item["topic"].strip().casefold() not in used_bases]
     ordered = preferred + [item for item in available if item not in preferred]
@@ -140,6 +136,8 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     print(f"Monthly recycler: creating {len(missing_slots)} missing slots for {current_key}.")
     used_topics = historically_used_topics(values, current_key)
     used_bases = historically_used_base_topics(values, current_key)
+    category_counts = historically_used_categories(values, current_key)
+    topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts)
     source_rows_list = source_rows(values, bank_rows)
     created = 0
     for index, (publish_date, posting_time) in enumerate(missing_slots):
@@ -151,13 +149,13 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
             category = brief["category"]
             fmt = brief["format"]
             objective = brief["objective"]
-            source_label = "500-Topic-Bank"
+            source_label = "500-Topic-Bank adaptive rotation"
             topic_pool.remove(brief)
         else:
             legacy = legacy_source_for_slot(source_rows_list, index, used_topics)
             if legacy is None:
                 print("Monthly recycler: no unused topic remains; starting a fresh 500-bank cycle.")
-                topic_pool = topic_pool_for_month(current_key, set())
+                topic_pool = adaptive_topic_pool(current_key, set(), {category: 0 for category in historically_used_categories(values, current_key)})
                 brief = _select_next_brief(topic_pool, set(), set())
                 if brief:
                     topic = brief["topic"].strip()
@@ -188,6 +186,8 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         }
         used_topics.add(normalize_topic(topic))
         used_bases.add(topic.casefold())
+        category_counts[category] = category_counts.get(category, 0) + 1
+        topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts)
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
 
