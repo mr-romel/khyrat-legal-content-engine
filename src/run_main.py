@@ -6,24 +6,18 @@ import gemini
 import main as production_main
 from content_similarity import highest_similarity
 from content_style_v3 import build_style_context
+from decision_engine import choose_due_row
 from gemini_runtime import generate_post as resilient_generate_post
 from post_bank import build_previous_context, get_bank_rows
-from sheets import create_service
+from sheets import create_service, ensure_headers, get_values, row_to_dict
 from telegram_publication import send_single_publication_message, send_single_status_message
-from utils import now_cairo, parse_date, parse_time
+from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 
 def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_context="", **kwargs):
     style_context = build_style_context(topic, salt=now_cairo().strftime("%Y-%m-%d-%H"))
     combined_context = f"{previous_context}\n\n{style_context}".strip()
-    return resilient_generate_post(
-        api_key=api_key,
-        model=model,
-        topic=topic,
-        legal_sources=legal_sources,
-        previous_context=combined_context,
-        **kwargs,
-    )
+    return resilient_generate_post(api_key=api_key, model=model, topic=topic, legal_sources=legal_sources, previous_context=combined_context, **kwargs)
 
 
 gemini.generate_post = _diverse_generate_post
@@ -43,7 +37,6 @@ def _capture_editorial_assets(*args, **kwargs):
     _latest_editorial.setdefault("rewrite_applied", "NO")
     if "زاوية جديدة:" in topic:
         _latest_editorial["angle"] = topic.split("زاوية جديدة:", 1)[1].strip()
-
     try:
         config = kwargs.get("config") or {}
         service = create_service(config["service_account_info"])
@@ -52,52 +45,34 @@ def _capture_editorial_assets(*args, **kwargs):
         candidate = str(result.get("facebook_post", "") or "").strip()
         if not candidate or not previous_posts:
             return result
-
         threshold = 0.72
         score, match = highest_similarity(candidate, previous_posts, threshold)
         _latest_editorial["similarity_score"] = f"{score:.4f}"
         if score < threshold:
             print(f"Similarity gate: PASS ({score:.2f} < {threshold:.2f}).")
             return result
-
         print(f"Similarity gate: REWRITE requested ({score:.2f} >= {threshold:.2f}).")
         context = build_previous_context(bank_rows, limit=8)
-        context += (
-            "\n\nPRE-PUBLICATION SIMILARITY WARNING. Rewrite the post from scratch while preserving the legal meaning. "
-            "Use a materially different hook, sentence rhythm, ordering of ideas, examples, and CTA. "
-            "Do not reuse distinctive phrases from previous posts. "
-            f"The closest previous post begins: {match[:350]}"
-        )
-
+        context += ("\n\nPRE-PUBLICATION SIMILARITY WARNING. Rewrite the post from scratch while preserving the legal meaning. "
+                    "Use a materially different hook, sentence rhythm, ordering of ideas, examples, and CTA. "
+                    "Do not reuse distinctive phrases from previous posts. "
+                    f"The closest previous post begins: {match[:350]}")
         try:
-            rewritten = _diverse_generate_post(
-                api_key=config["gemini_api_key"],
-                model=config["gemini_model"],
-                topic=topic,
-                legal_sources=legal_sources,
-                previous_context=context,
-            )
+            rewritten = _diverse_generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=legal_sources, previous_context=context)
             rewritten_post = str(rewritten.get("post", "") or "").strip()
             if not rewritten_post:
                 print("Similarity gate: rewrite returned empty content; publishing original.")
                 return result
-
             score_after, _ = highest_similarity(rewritten_post, previous_posts, threshold)
             if score_after < threshold:
                 print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
-                refreshed = _original_prepare_editorial_assets(
-                    config=config,
-                    topic=topic,
-                    facebook_post=rewritten_post,
-                    legal_sources=legal_sources,
-                )
+                refreshed = _original_prepare_editorial_assets(config=config, topic=topic, facebook_post=rewritten_post, legal_sources=legal_sources)
                 refreshed["similarity_score"] = f"{score_after:.4f}"
                 refreshed["rewrite_applied"] = "YES"
                 _latest_editorial = dict(refreshed)
                 _latest_editorial["legal_sources"] = legal_sources
                 _latest_editorial["angle"] = topic.split("زاوية جديدة:", 1)[1].strip() if "زاوية جديدة:" in topic else ""
                 return refreshed
-
             print(f"Similarity gate: rewrite still similar ({score_after:.2f} >= {threshold:.2f}); publishing original as required by continuous-publishing policy.")
             return result
         except Exception as rewrite_exc:
@@ -123,13 +98,7 @@ def _capture_publication_analytics(service, spreadsheet_id: str, **data: str) ->
 def _single_telegram_notify(text: str) -> None:
     compact = str(text or "").strip()
     try:
-        if compact.startswith("🟡"):
-            send_single_status_message(text=compact)
-            return
-        if compact.startswith("🟠"):
-            send_single_status_message(text=compact)
-            return
-        if compact.startswith("🚨") or compact.startswith("❌"):
+        if compact.startswith(("🟡", "🟠", "🚨", "❌")):
             send_single_status_message(text=compact)
             return
         if compact.startswith("✅"):
@@ -137,12 +106,7 @@ def _single_telegram_notify(text: str) -> None:
             topic = compact.split(marker, 1)[1].split("\n", 1)[0].strip() if marker in compact else "غير متاح"
             post = str(_latest_editorial.get("facebook_post", "")).strip()
             if post:
-                send_single_publication_message(
-                    topic=topic,
-                    post=post,
-                    legal_sources=str(_latest_editorial.get("legal_sources", "")),
-                    status_text="Facebook + LinkedIn: تم النشر بنجاح",
-                )
+                send_single_publication_message(topic=topic, post=post, legal_sources=str(_latest_editorial.get("legal_sources", "")), status_text="Facebook + LinkedIn: تم النشر بنجاح")
             else:
                 send_single_status_message(text=compact)
             return
@@ -178,10 +142,42 @@ def _smart_failed_retry(row: dict[str, str], current) -> bool:
     return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and _smart_is_due(row, current)
 
 
+def _smart_main() -> None:
+    print("=" * 70)
+    print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
+    print("=" * 70)
+    current = now_cairo()
+    print(f"Current Cairo time: {current.isoformat()}")
+    config = production_main.load_config()
+    service = create_service(config["service_account_info"])
+    sheet_name = sheet_name_from_range(config["sheet_range"])
+    ensure_headers(service, config["sheet_id"], sheet_name)
+    values = get_values(service, config["sheet_id"], config["sheet_range"])
+    if not values:
+        print("No rows found.")
+        return
+    rows = [row_to_dict(row) for row in values[1:]]
+    candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    if not candidates:
+        candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_failed_retry(r, current)]
+    if not candidates:
+        print("No due rows found.")
+        return
+    history = get_bank_rows(service, config["sheet_id"])
+    selected = choose_due_row(candidates, history)
+    if selected is None:
+        selected = candidates[0]
+    row_number, row = selected
+    print(f"Decision engine: selected row {row_number} using historical topic/category/angle signals.")
+    production_main.process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+
+
 production_main._prepare_editorial_assets = _capture_editorial_assets
 production_main.log_publication = _capture_publication_analytics
 production_main.notify = _single_telegram_notify
 production_main.notify_linkedin_interaction = _suppress_linkedin_diagnostic
 production_main._is_due = _smart_is_due
 production_main._failed_retry = _smart_failed_retry
-production_main.main()
+
+if __name__ == "__main__":
+    _smart_main()
