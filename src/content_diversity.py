@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 
 
@@ -15,35 +16,37 @@ STYLES = (
 )
 
 FORBIDDEN_OPENERS = (
-    "في هذا المقال",
-    "في عالمنا اليوم",
-    "دعونا نتعرف",
-    "من الجدير بالذكر",
-    "لا شك أن",
-    "يُعد هذا الموضوع من",
-    "يعتبر هذا الموضوع من",
+    "في هذا المقال", "في عالمنا اليوم", "دعونا نتعرف", "من الجدير بالذكر",
+    "لا شك أن", "يُعد هذا الموضوع من", "يعتبر هذا الموضوع من",
 )
 
 FORBIDDEN_AI_MARKERS = (
-    "بدايةً",
-    "ختامًا",
-    "وفي الختام",
-    "أود أن أوضح",
-    "سوف نستعرض",
-    "سنستعرض",
-    "لنستعرض",
-    "من المهم جدًا أن نعلم",
+    "بدايةً", "ختامًا", "وفي الختام", "أود أن أوضح", "سوف نستعرض",
+    "سنستعرض", "لنستعرض", "من المهم جدًا أن نعلم",
 )
 
 
 def _recent_angles(previous_context: str) -> list[str]:
     angles: list[str] = []
     for line in (previous_context or "").splitlines():
-        if ":" in line:
-            angle = line.rsplit(":", 1)[-1].strip()
+        match = re.search(r"\|\s*الزاوية:\s*(.*?)\s*\|", line)
+        if match:
+            angle = match.group(1).strip()
             if angle:
                 angles.append(angle)
     return angles[-12:]
+
+
+def _recent_openings(previous_context: str) -> list[str]:
+    openings: list[str] = []
+    for line in (previous_context or "").splitlines():
+        match = re.search(r"\|\s*النص السابق:\s*(.*)$", line)
+        if not match:
+            continue
+        text = match.group(1).strip()
+        if text:
+            openings.append(" ".join(text.split()[:12]))
+    return openings[-8:]
 
 
 def choose_style(topic: str, previous_context: str = "") -> tuple[str, str]:
@@ -60,19 +63,24 @@ def choose_style(topic: str, previous_context: str = "") -> tuple[str, str]:
 def build_diversity_context(topic: str, previous_context: str = "") -> str:
     style_name, instruction = choose_style(topic, previous_context)
     recent = _recent_angles(previous_context)
+    openings = _recent_openings(previous_context)
     recent_text = "، ".join(recent[-6:]) if recent else "لا يوجد سجل كافٍ"
+    openings_text = " | ".join(openings[-5:]) if openings else "لا يوجد سجل كافٍ"
     return f"""
 EDITORIAL DIVERSITY CONTROL
 الأسلوب المختار لهذا المنشور: {style_name}
 التوجيه: {instruction}
 
-المنشورات/الزوايا الأخيرة: {recent_text}
+الزوايا الأخيرة: {recent_text}
+افتتاحيات/بدايات حديثة يجب عدم تقليدها: {openings_text}
 
 قواعد التنويع:
-- لا تكرر افتتاحية أو قالب منشور حديث حتى لو كان الموضوع مختلفًا.
+- لا تكرر افتتاحية أو أول جملة من منشور حديث.
+- لا تعيد نفس تركيب الجمل أو نفس ترتيب الأفكار لمجرد أن الموضوع مختلف.
 - لا تجعل كل منشور قائمة مرقمة أو عناوين فرعية.
-- لا تستخدم نبرة أكاديمية أو لغة مذكرة قانونية.
+- نوّع بين سؤال، موقف، حكاية، تصحيح اعتقاد، ومسار قرار حسب الأسلوب المختار.
 - اكتب كأن محاميًا مصريًا يشرح لواحد من الناس، مع الحفاظ على المهنية والدقة.
+- استخدم لغة مصرية طبيعية عند الحاجة، بدون مبالغة أو عامية مصطنعة.
 - تجنب أي عبارة توحي بأن النص مولد آليًا.
 - لا تذكر "الذكاء الاصطناعي" أو "AI" أو طريقة إنتاج المحتوى.
 - لا تستخدم أيًا من الافتتاحيات أو العبارات النمطية التالية: {" | ".join(FORBIDDEN_OPENERS + FORBIDDEN_AI_MARKERS)}
