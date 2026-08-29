@@ -98,10 +98,11 @@ def _capture_publication_analytics(service, spreadsheet_id: str, **data: str) ->
     enriched = dict(data)
     enriched.setdefault("similarity_score", str(_latest_editorial.get("similarity_score", "")))
     enriched.setdefault("rewrite_applied", str(_latest_editorial.get("rewrite_applied", "NO")))
+    enriched.setdefault("legal_sources", str(_latest_editorial.get("legal_sources", "")))
+    enriched.setdefault("angle", str(_latest_editorial.get("angle", "")))
     try:
         _original_log_publication(service, spreadsheet_id, **enriched)
     except Exception as exc:
-        # Analytics must never block successful publication.
         print(f"Analytics logging failed (non-blocking): {exc}")
 
 
