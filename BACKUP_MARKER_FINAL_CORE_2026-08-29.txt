@@ -1,0 +1,2 @@
+Final core checkpoint created 2026-08-29 before architecture freeze work.
+Pre-core stable commit reference: 92b0865174ad77b215413430e63c5753095db791
