@@ -11,6 +11,7 @@ from recycler_rules import (
     RECYCLE_MARKER,
     adaptive_topic_pool,
     brief_notes,
+    historically_used_angles,
     historically_used_base_topics,
     historically_used_categories,
     historically_used_topics,
@@ -137,7 +138,8 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     used_topics = historically_used_topics(values, current_key)
     used_bases = historically_used_base_topics(values, current_key)
     category_counts = historically_used_categories(values, current_key)
-    topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts)
+    angle_counts = historically_used_angles(values, current_key)
+    topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts, angle_counts)
     source_rows_list = source_rows(values, bank_rows)
     created = 0
     for index, (publish_date, posting_time) in enumerate(missing_slots):
@@ -155,7 +157,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
             legacy = legacy_source_for_slot(source_rows_list, index, used_topics)
             if legacy is None:
                 print("Monthly recycler: no unused topic remains; starting a fresh 500-bank cycle.")
-                topic_pool = adaptive_topic_pool(current_key, set(), {category: 0 for category in historically_used_categories(values, current_key)})
+                topic_pool = adaptive_topic_pool(current_key, set(), {category: 0 for category in historically_used_categories(values, current_key)}, {angle: 0 for angle in ANGLE_LIBRARY})
                 brief = _select_next_brief(topic_pool, set(), set())
                 if brief:
                     topic = brief["topic"].strip()
@@ -187,7 +189,8 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         used_topics.add(normalize_topic(topic))
         used_bases.add(topic.casefold())
         category_counts[category] = category_counts.get(category, 0) + 1
-        topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts)
+        angle_counts[angle] = angle_counts.get(angle, 0) + 1
+        topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts, angle_counts)
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
 
