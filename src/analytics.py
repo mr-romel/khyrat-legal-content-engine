@@ -15,6 +15,8 @@ HEADERS = [
     "Facebook Comments Created",
     "LinkedIn Comments Created",
     "Status",
+    "Similarity Score",
+    "Rewrite Applied",
 ]
 
 
@@ -34,7 +36,7 @@ def ensure_sheet(service, spreadsheet_id: str) -> None:
         ).execute()
     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
-        range=f"{SHEET}!A1:J1",
+        range=f"{SHEET}!A1:L1",
         valueInputOption="RAW",
         body={"values": [HEADERS]},
     ).execute()
@@ -53,10 +55,12 @@ def log_publication(service, spreadsheet_id: str, **data: str) -> None:
         data.get("facebook_comments", "0"),
         data.get("linkedin_comments", "0"),
         data.get("status", "PUBLISHED"),
+        data.get("similarity_score", ""),
+        data.get("rewrite_applied", "NO"),
     ]
     service.spreadsheets().values().append(
         spreadsheetId=spreadsheet_id,
-        range=f"{SHEET}!A:J",
+        range=f"{SHEET}!A:L",
         valueInputOption="RAW",
         insertDataOption="INSERT_ROWS",
         body={"values": [row]},
