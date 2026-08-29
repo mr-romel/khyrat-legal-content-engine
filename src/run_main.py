@@ -28,6 +28,7 @@ def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_con
 
 gemini.generate_post = _diverse_generate_post
 _original_prepare_editorial_assets = production_main._prepare_editorial_assets
+_original_log_publication = production_main.log_publication
 _latest_editorial: dict = {}
 
 
@@ -38,6 +39,8 @@ def _capture_editorial_assets(*args, **kwargs):
     legal_sources = str(kwargs.get("legal_sources", "") or "").strip()
     _latest_editorial = dict(result)
     _latest_editorial["legal_sources"] = legal_sources
+    _latest_editorial.setdefault("similarity_score", "")
+    _latest_editorial.setdefault("rewrite_applied", "NO")
 
     try:
         config = kwargs.get("config") or {}
@@ -50,6 +53,7 @@ def _capture_editorial_assets(*args, **kwargs):
 
         threshold = 0.72
         score, match = highest_similarity(candidate, previous_posts, threshold)
+        _latest_editorial["similarity_score"] = f"{score:.4f}"
         if score < threshold:
             print(f"Similarity gate: PASS ({score:.2f} < {threshold:.2f}).")
             return result
@@ -74,7 +78,8 @@ def _capture_editorial_assets(*args, **kwargs):
             if score_after < threshold:
                 print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
                 refreshed = _original_prepare_editorial_assets(config=config, topic=topic, facebook_post=rewritten_post, legal_sources=legal_sources)
-                refreshed["similarity_score"] = score_after
+                refreshed["similarity_score"] = f"{score_after:.4f}"
+                refreshed["rewrite_applied"] = "YES"
                 _latest_editorial = dict(refreshed)
                 _latest_editorial["legal_sources"] = legal_sources
                 return refreshed
@@ -87,6 +92,17 @@ def _capture_editorial_assets(*args, **kwargs):
     except Exception as exc:
         print(f"Similarity gate unavailable; preserving publication flow: {exc}")
         return result
+
+
+def _capture_publication_analytics(service, spreadsheet_id: str, **data: str) -> None:
+    enriched = dict(data)
+    enriched.setdefault("similarity_score", str(_latest_editorial.get("similarity_score", "")))
+    enriched.setdefault("rewrite_applied", str(_latest_editorial.get("rewrite_applied", "NO")))
+    try:
+        _original_log_publication(service, spreadsheet_id, **enriched)
+    except Exception as exc:
+        # Analytics must never block successful publication.
+        print(f"Analytics logging failed (non-blocking): {exc}")
 
 
 def _single_telegram_notify(text: str) -> None:
@@ -139,6 +155,7 @@ def _smart_failed_retry(row: dict[str, str], current) -> bool:
 
 
 production_main._prepare_editorial_assets = _capture_editorial_assets
+production_main.log_publication = _capture_publication_analytics
 production_main.notify = _single_telegram_notify
 production_main.notify_linkedin_interaction = _suppress_linkedin_diagnostic
 production_main._is_due = _smart_is_due
