@@ -84,10 +84,8 @@ def _capture_editorial_assets(*args, **kwargs):
         _latest_editorial["legal_sources"] = legal_sources
         return refreshed
     except Exception as exc:
-        if isinstance(exc, RuntimeError) and "similarity gate" in str(exc).lower():
-            raise
-        print(f"Similarity gate unavailable; preserving production flow: {exc}")
-        return result
+        print(f"Similarity gate unavailable: {exc}")
+        raise RuntimeError(f"Pre-publication similarity gate unavailable; publication blocked: {exc}") from exc
 
 
 def _single_telegram_notify(text: str) -> None:
