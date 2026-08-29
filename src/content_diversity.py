@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from content_similarity import build_similarity_gate_context
 
 STYLES = (
     ("موقف يومي", "ابدأ بموقف واقعي قصير كأن المتابع يحكيه لمحامٍ، ثم اشرح أين تكمن المشكلة القانونية."),
@@ -41,11 +42,10 @@ def _recent_openings(previous_context: str) -> list[str]:
     openings: list[str] = []
     for line in (previous_context or "").splitlines():
         match = re.search(r"\|\s*النص السابق:\s*(.*)$", line)
-        if not match:
-            continue
-        text = match.group(1).strip()
-        if text:
-            openings.append(" ".join(text.split()[:12]))
+        if match:
+            text = match.group(1).strip()
+            if text:
+                openings.append(" ".join(text.split()[:12]))
     return openings[-8:]
 
 
@@ -53,10 +53,7 @@ def choose_style(topic: str, previous_context: str = "") -> tuple[str, str]:
     recent = _recent_angles(previous_context)
     counts = Counter(recent)
     seed = sum(ord(ch) for ch in (topic or ""))
-    ranked = sorted(
-        STYLES,
-        key=lambda item: (counts.get(item[0], 0), (seed + len(item[0]) * 17) % len(STYLES)),
-    )
+    ranked = sorted(STYLES, key=lambda item: (counts.get(item[0], 0), (seed + len(item[0]) * 17) % len(STYLES)))
     return ranked[0]
 
 
@@ -66,6 +63,13 @@ def build_diversity_context(topic: str, previous_context: str = "") -> str:
     openings = _recent_openings(previous_context)
     recent_text = "، ".join(recent[-6:]) if recent else "لا يوجد سجل كافٍ"
     openings_text = " | ".join(openings[-5:]) if openings else "لا يوجد سجل كافٍ"
+    previous_posts = [
+        match.group(1).strip()
+        for line in (previous_context or "").splitlines()
+        for match in [re.search(r"\|\s*النص السابق:\s*(.*)$", line)]
+        if match and match.group(1).strip()
+    ]
+    similarity_context = build_similarity_gate_context(previous_posts)
     return f"""
 EDITORIAL DIVERSITY CONTROL
 الأسلوب المختار لهذا المنشور: {style_name}
@@ -85,4 +89,6 @@ EDITORIAL DIVERSITY CONTROL
 - لا تذكر "الذكاء الاصطناعي" أو "AI" أو طريقة إنتاج المحتوى.
 - لا تستخدم أيًا من الافتتاحيات أو العبارات النمطية التالية: {" | ".join(FORBIDDEN_OPENERS + FORBIDDEN_AI_MARKERS)}
 - اجعل الـCTA خفيفة وطبيعية، وليست دعوة مباشرة للبيع.
+
+{similarity_context}
 """.strip()
