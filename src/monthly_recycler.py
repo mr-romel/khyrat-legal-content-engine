@@ -58,7 +58,6 @@ def _migrate_future_slots(service, spreadsheet_id, sheet_name, values, current, 
 
 def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, values, current, current_key, topic_pool):
     historical_used = historically_used_topics(values, current_key)
-    historical_bases = historically_used_base_topics(values, current_key)
     marker = f"{RECYCLE_MARKER}:{current_key}"
     replacements = []
     for row_number, raw in enumerate(values[1:], start=2):
@@ -70,14 +69,24 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, 
         if is_published(row) or row.get("الحالة", "").strip().upper() in {"CANCELLED", "PARTIAL_FAILED"}:
             continue
         replacements.append((row_number, row))
-    available = [item for item in topic_pool if normalize_topic(item["topic"]) not in historical_used and item["topic"].strip().casefold() not in historical_bases]
+
+    # Exact brief identity is the rotation unit. Base-topic history is used only
+    # as a preference, never as a hard exclusion; otherwise the 500-bank's five
+    # angles per core topic would collapse back to only 100 usable topics.
+    available = [
+        item for item in topic_pool
+        if normalize_topic(item["topic"]) not in historical_used
+    ]
+    used_bases = historically_used_base_topics(values, current_key)
+    preferred = [item for item in available if item["topic"].strip().casefold() not in used_bases]
+    ordered = preferred + [item for item in available if item not in preferred]
+
     changed = 0
     for index, (row_number, row) in enumerate(replacements):
-        if index >= len(available):
+        if index >= len(ordered):
             break
-        brief = available[index]
+        brief = ordered[index]
         historical_used.add(normalize_topic(brief["topic"]))
-        historical_bases.add(brief["topic"].strip().casefold())
         posting_time = row.get("ساعة النشر", "").strip()
         update_row(service, spreadsheet_id, sheet_name, row_number, {
             "الموضوع": f"{brief['topic'].strip()} — زاوية جديدة: {brief['angle'].strip()}",
@@ -89,6 +98,19 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, 
         changed += 1
     print(f"Monthly recycler: replaced {changed} remaining current-month unpublished slots with diverse bank topics.")
     return changed
+
+
+def _select_next_brief(topic_pool, used_topics, used_bases):
+    """Select an exact unused 500-bank brief, preferring a new core topic."""
+    used = {normalize_topic(value) for value in (used_topics or set())}
+    bases = {str(value).strip().casefold() for value in (used_bases or set()) if str(value).strip()}
+    for brief in topic_pool:
+        if normalize_topic(brief["topic"]) not in used and brief["topic"].strip().casefold() not in bases:
+            return brief
+    for brief in topic_pool:
+        if normalize_topic(brief["topic"]) not in used:
+            return brief
+    return None
 
 
 def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, current: date) -> int:
@@ -121,7 +143,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     source_rows_list = source_rows(values, bank_rows)
     created = 0
     for index, (publish_date, posting_time) in enumerate(missing_slots):
-        brief = next((item for item in topic_pool if normalize_topic(item["topic"]) not in used_topics and item["topic"].strip().casefold() not in used_bases), None)
+        brief = _select_next_brief(topic_pool, used_topics, used_bases)
         if brief:
             topic = brief["topic"].strip()
             angle = brief["angle"].strip()
@@ -134,12 +156,25 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         else:
             legacy = legacy_source_for_slot(source_rows_list, index, used_topics)
             if legacy is None:
-                print("Monthly recycler: no unused topic remains; stopping safely.")
-                break
-            topic = legacy["الموضوع"].strip()
-            angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
-            source = legacy.get("المصادر القانونية", "")
-            category, fmt, objective, source_label = "Content/PostBank", "", "", "Content/PostBank fallback"
+                print("Monthly recycler: no unused topic remains; starting a fresh 500-bank cycle.")
+                topic_pool = topic_pool_for_month(current_key, set())
+                brief = _select_next_brief(topic_pool, set(), set())
+                if brief:
+                    topic = brief["topic"].strip()
+                    angle = brief["angle"].strip()
+                    source = brief["legal_sources"].strip()
+                    category = brief["category"]
+                    fmt = brief["format"]
+                    objective = brief["objective"]
+                    source_label = "500-Topic-Bank new cycle"
+                    topic_pool.remove(brief)
+                else:
+                    break
+            else:
+                topic = legacy["الموضوع"].strip()
+                angle = ANGLE_LIBRARY[index % len(ANGLE_LIBRARY)]
+                source = legacy.get("المصادر القانونية", "")
+                category, fmt, objective, source_label = "Content/PostBank", "", "", "Content/PostBank fallback"
 
         row = {
             "ID": f"{publish_date.replace('-', '')}-{posting_time.replace(':', '')}-R{index + 1:03d}",
