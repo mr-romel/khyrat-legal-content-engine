@@ -6,15 +6,13 @@ from telegram_bot import configured, send_message
 
 
 def build_reels_prompt(*, topic: str, post: str) -> str:
-    return f"""أنشئ Reels قانوني احترافي عن الموضوع التالي اعتمادًا على المحتوى المعتمد فقط.
+    return f"""اعمل فيديو Reels قانوني عن الموضوع التالي اعتمادًا على المحتوى المعتمد فقط.
 
 الموضوع: {topic}
-المحتوى المعتمد:
+المحتوى:
 {post}
 
-التزم بـ: فيديو 9:16، 45–75 ثانية، باللهجة المصرية الطبيعية، Hook قوي، شرح مبسط، خلاصة/CTA. لا تضف أو تغيّر مادة أو حكمًا أو عقوبة أو ميعادًا أو استثناءً. اقترح لقطات بسيطة ونصوص شاشة قصيرة. بدون موسيقى أو إعلان مباشر. حافظ على هوية «اسأل محمود».
-
-أخرج فيديو Reels جاهزًا للنشر."""
+المطلوب: 9:16، 45–75 ثانية، باللهجة المصرية الطبيعية. ابدأ بـHook واضح، ثم شرح بسيط، ثم خلاصة وCTA. لا تضف أي حكم أو مادة أو عقوبة أو ميعاد أو استثناء غير موجود في المحتوى. اقترح لقطات بسيطة ونصوص شاشة قصيرة. بدون موسيقى أو إعلان مباشر. حافظ على هوية «اسأل محمود»."""
 
 
 def _source_links(value: str) -> list[str]:
@@ -24,7 +22,7 @@ def _source_links(value: str) -> list[str]:
 
 
 def send_single_publication_message(*, topic: str, post: str, status_text: str = "", legal_sources: str = "") -> None:
-    """Send one compact Telegram package with the approved post prompt and source links."""
+    """Send one compact Telegram package with the approved post, prompt and source links."""
     if not configured():
         print("Telegram not configured; publication package skipped.")
         return
