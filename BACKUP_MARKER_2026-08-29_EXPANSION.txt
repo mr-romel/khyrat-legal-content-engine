@@ -1,0 +1,1 @@
+Production backup checkpoint before topic-bank expansion. Restore from commit immediately preceding this marker if rollback is required.
