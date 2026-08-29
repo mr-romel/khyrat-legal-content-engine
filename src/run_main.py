@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 
 import gemini
 import main as production_main
-from content_similarity import highest_similarity, passes_similarity_gate
+from content_similarity import highest_similarity
+from content_style import build_style_context
 from gemini_runtime import generate_post as resilient_generate_post
 from post_bank import build_previous_context, get_bank_rows
 from sheets import create_service
@@ -12,7 +13,20 @@ from telegram_publication import send_single_publication_message, send_single_st
 from utils import now_cairo, parse_date, parse_time
 
 
-gemini.generate_post = resilient_generate_post
+def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_context="", **kwargs):
+    style_context = build_style_context(topic, salt=now_cairo().strftime("%Y-%m-%d-%H"))
+    combined_context = f"{previous_context}\n\n{style_context}".strip()
+    return resilient_generate_post(
+        api_key=api_key,
+        model=model,
+        topic=topic,
+        legal_sources=legal_sources,
+        previous_context=combined_context,
+        **kwargs,
+    )
+
+
+gemini.generate_post = _diverse_generate_post
 _original_prepare_editorial_assets = production_main._prepare_editorial_assets
 _latest_editorial: dict = {}
 
@@ -55,7 +69,7 @@ def _capture_editorial_assets(*args, **kwargs):
         )
 
         try:
-            rewritten = resilient_generate_post(
+            rewritten = _diverse_generate_post(
                 api_key=config["gemini_api_key"],
                 model=config["gemini_model"],
                 topic=topic,
