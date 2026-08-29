@@ -42,7 +42,6 @@ ANGLE_FORMATS = {
 
 
 def _expanded_bank() -> list[dict[str, str]]:
-    """Build a subject-diverse extension without altering the legacy 500-bank."""
     sources = {
         "القانون الجنائي": "قانون العقوبات المصري وقانون الإجراءات الجنائية والنصوص الخاصة ذات الصلة؛ تحقق من النص النافذ قبل النشر.",
         "قانون الشركات والاستثمار": "قانون الشركات المصري وقوانين الاستثمار واللوائح والقرارات المنظمة؛ تحقق من نوع الشركة والنص النافذ قبل النشر.",
@@ -57,20 +56,12 @@ def _expanded_bank() -> list[dict[str, str]]:
         for subject in EXTRA_TOPICS[offset:offset + size]:
             for angle in ANGLE_LIBRARY:
                 fmt, label, objective = ANGLE_FORMATS[angle]
-                result.append({
-                    "topic": subject,
-                    "category": category,
-                    "angle": angle,
-                    "format": label,
-                    "objective": objective,
-                    "legal_sources": sources[category],
-                })
+                result.append({"topic": subject, "category": category, "angle": angle, "format": label, "objective": objective, "legal_sources": sources[category]})
         offset += size
     return result
 
 
 EXPANDED_TOPIC_BANK = TOPIC_BANK + _expanded_bank()
-
 if len(EXPANDED_TOPIC_BANK) != 2068:
     raise RuntimeError(f"Expanded bank invariant failed: expected 2068 briefs, found {len(EXPANDED_TOPIC_BANK)}")
 if len(set(EXTRA_TOPICS)) != len(EXTRA_TOPICS):
@@ -90,6 +81,10 @@ def normalize_topic(value: str) -> str:
     text = " ".join((value or "").split()).strip()
     if " — زاوية جديدة:" in text: text = text.split(" — زاوية جديدة:", 1)[0].strip()
     return text.casefold()
+
+
+def brief_key(item: dict[str, str]) -> tuple[str, str, str]:
+    return (str(item.get("category", "")).strip().casefold(), normalize_topic(item.get("topic", "")), str(item.get("angle", "")).strip().casefold())
 
 
 def is_published(row: dict[str, str]) -> bool:
@@ -122,8 +117,7 @@ def historically_used_base_topics(values: list[list[str]], current_key: str) -> 
 
 
 def historically_used_categories(values: list[list[str]], current_key: str) -> dict[str, int]:
-    counts = {category: 0 for category in CATEGORY_ORDER}
-    marker = f"{RECYCLE_MARKER}:{current_key}"
+    counts = {category: 0 for category in CATEGORY_ORDER}; marker = f"{RECYCLE_MARKER}:{current_key}"
     for raw in values[1:]:
         row = row_to_dict(raw); notes = row.get("ملاحظات", "")
         if not (is_published(row) or marker in notes): continue
@@ -133,8 +127,7 @@ def historically_used_categories(values: list[list[str]], current_key: str) -> d
 
 
 def historically_used_angles(values: list[list[str]], current_key: str) -> dict[str, int]:
-    counts: dict[str, int] = {angle: 0 for angle in ANGLE_LIBRARY}
-    marker = f"{RECYCLE_MARKER}:{current_key}"
+    counts: dict[str, int] = {angle: 0 for angle in ANGLE_LIBRARY}; marker = f"{RECYCLE_MARKER}:{current_key}"
     for raw in values[1:]:
         row = row_to_dict(raw); notes = row.get("ملاحظات", "")
         if not (is_published(row) or marker in notes): continue
@@ -181,16 +174,12 @@ def base_topic_key(value: str) -> str:
 
 
 def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[str, str]]:
-    """Return the full expanded bank in deterministic category-balanced order."""
     used = {str(value).strip().casefold() for value in (used_topics or set()) if str(value).strip()}
     available = [item for item in EXPANDED_TOPIC_BANK if normalize_topic(item["topic"]) not in used]
     if not available: available = list(EXPANDED_TOPIC_BANK)
-    def rank(item):
-        return hashlib.sha256(f"{current_key}|{item['category']}|{item['topic']}|{item['angle']}".encode("utf-8")).hexdigest()
-    buckets = {category: [] for category in CATEGORY_ORDER}
-    extras = []
-    for item in available:
-        (buckets[item["category"]] if item["category"] in buckets else extras).append(item)
+    def rank(item): return hashlib.sha256(f"{current_key}|{item['category']}|{item['topic']}|{item['angle']}".encode("utf-8")).hexdigest()
+    buckets = {category: [] for category in CATEGORY_ORDER}; extras = []
+    for item in available: (buckets[item["category"]] if item["category"] in buckets else extras).append(item)
     for bucket in buckets.values(): bucket.sort(key=rank)
     extras.sort(key=rank)
     start = int(hashlib.sha256(current_key.encode("utf-8")).hexdigest()[:8], 16) % len(CATEGORY_ORDER)
@@ -200,7 +189,7 @@ def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[s
         for category in ordered_categories:
             if buckets[category]: result.append(buckets[category].pop(0))
     result.extend(extras)
-    if len(result) != len(available) or len({normalize_topic(item["topic"]) for item in result}) != len(available):
+    if len(result) != len(available) or len({brief_key(item) for item in result}) != len(available):
         raise RuntimeError("Topic rotation invariant failed: briefs were lost or duplicated")
     return result
 
