@@ -57,7 +57,7 @@ jobs:
           from monthly_recycler import _topic_pool_for_month
           pool = _topic_pool_for_month("2026-08", set())
           assert len(pool) == 2068
-          assert len({item["topic"] for item in pool}) == 198
+          assert len({item["topic"] for item in pool}) == 598
           first_month = [(item["topic"], item["angle"]) for item in pool[:50]]
           next_month = [(item["topic"], item["angle"]) for item in _topic_pool_for_month("2026-09", set())[:50]]
           assert first_month != next_month
