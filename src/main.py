@@ -10,6 +10,7 @@ from analytics import log_publication
 from comment_engine import generate_comments
 from config import load_config
 from content_planner import classify
+from content_diversity import build_diversity_context
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
@@ -128,6 +129,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         print("Recovery mode: reusing existing generated content/image; no duplicate AI generation.")
         return existing_post, existing_image_url, image_path, "CLEAR", ""
     previous_context = build_previous_context(bank_rows)
+    previous_context += "\n" + build_diversity_context(topic, previous_context)
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
         print(f"Duplicate guard: similarity={duplicate_score:.2f} with '{duplicate_topic}'.")
