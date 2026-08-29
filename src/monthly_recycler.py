@@ -97,17 +97,57 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, 
     return changed
 
 
-def _select_next_brief(topic_pool, used_topics, used_bases):
-    """Select an exact unused 500-bank brief, preferring a new core topic."""
+def _recent_published_signature(values: list[list[str]], current_key: str) -> tuple[str, str, str]:
+    """Return the latest published base topic/category/angle for adjacency avoidance."""
+    marker = f"{RECYCLE_MARKER}:{current_key}"
+    latest: tuple[str, str, str] = ("", "", "")
+    for raw in values[1:]:
+        row = row_to_dict(raw)
+        if not is_published(row):
+            continue
+        topic = row.get("الموضوع", "").strip()
+        if not topic:
+            continue
+        notes = row.get("ملاحظات", "")
+        category = notes.split("القسم:", 1)[1].split("|", 1)[0].strip() if "القسم:" in notes else ""
+        angle = notes.split("زاوية:", 1)[1].split("|", 1)[0].strip() if "زاوية:" in notes else ""
+        latest = (base_topic_key(topic), category, angle)
+    return latest
+
+
+def base_topic_key(value: str) -> str:
+    text = normalize_topic(value)
+    parts = [part.strip() for part in text.split(" — ") if part.strip()]
+    return parts[0] if parts else text
+
+
+def _select_next_brief(topic_pool, used_topics, used_bases, recent_signature=("", "", "")):
+    """Select an unused brief while strongly avoiding immediate topic/category/angle repetition."""
     used = {normalize_topic(value) for value in (used_topics or set())}
     bases = {str(value).strip().casefold() for value in (used_bases or set()) if str(value).strip()}
-    for brief in topic_pool:
-        if normalize_topic(brief["topic"]) not in used and brief["topic"].strip().casefold() not in bases:
-            return brief
-    for brief in topic_pool:
-        if normalize_topic(brief["topic"]) not in used:
-            return brief
-    return None
+    recent_base, recent_category, recent_angle = (str(v).strip().casefold() for v in recent_signature)
+
+    candidates = [
+        brief for brief in topic_pool
+        if normalize_topic(brief["topic"]) not in used
+        and brief["topic"].strip().casefold() not in bases
+    ]
+    if not candidates:
+        candidates = [brief for brief in topic_pool if normalize_topic(brief["topic"]) not in used]
+    if not candidates:
+        return None
+
+    def penalty(brief):
+        base = brief["topic"].strip().casefold()
+        category = brief.get("category", "").strip().casefold()
+        angle = brief.get("angle", "").strip().casefold()
+        return (
+            int(base == recent_base) * 1000
+            + int(category == recent_category) * 100
+            + int(angle == recent_angle) * 50
+        )
+
+    return min(candidates, key=lambda brief: (penalty(brief), brief["category"], brief["angle"], brief["topic"]))
 
 
 def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, current: date) -> int:
@@ -141,9 +181,10 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     angle_counts = historically_used_angles(values, current_key)
     topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts, angle_counts)
     source_rows_list = source_rows(values, bank_rows)
+    recent_signature = _recent_published_signature(values, current_key)
     created = 0
     for index, (publish_date, posting_time) in enumerate(missing_slots):
-        brief = _select_next_brief(topic_pool, used_topics, used_bases)
+        brief = _select_next_brief(topic_pool, used_topics, used_bases, recent_signature)
         if brief:
             topic = brief["topic"].strip()
             angle = brief["angle"].strip()
@@ -158,7 +199,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
             if legacy is None:
                 print("Monthly recycler: no unused topic remains; starting a fresh 500-bank cycle.")
                 topic_pool = adaptive_topic_pool(current_key, set(), {category: 0 for category in historically_used_categories(values, current_key)}, {angle: 0 for angle in ANGLE_LIBRARY})
-                brief = _select_next_brief(topic_pool, set(), set())
+                brief = _select_next_brief(topic_pool, set(), set(), recent_signature)
                 if brief:
                     topic = brief["topic"].strip()
                     angle = brief["angle"].strip()
@@ -190,6 +231,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         used_bases.add(topic.casefold())
         category_counts[category] = category_counts.get(category, 0) + 1
         angle_counts[angle] = angle_counts.get(angle, 0) + 1
+        recent_signature = (topic.casefold(), category, angle)
         topic_pool = adaptive_topic_pool(current_key, used_topics, category_counts, angle_counts)
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
