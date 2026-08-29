@@ -38,7 +38,6 @@ def normalize_topic(value: str) -> str:
 
 
 def base_topic_key(value: str) -> str:
-    """Normalize a topic to its core subject, ignoring generated angle/category suffixes."""
     text = normalize_topic(value)
     marker = " — "
     if marker in text:
@@ -109,68 +108,55 @@ def legacy_source_for_slot(source_rows_list: list[dict[str, str]], index: int, u
 
 
 def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[str, str]]:
-    """Return all never-used briefs with deterministic category rotation and core-topic spacing.
+    """Build a full monthly candidate pool from every unused 500-bank brief.
 
-    The 500-bank contains five editorial variants for each core subject. We track the
-    exact brief as used, not the core subject, so the remaining variants stay available.
-    During selection we first prefer core subjects that have not appeared recently in
-    the current cycle, then allow another angle only when needed. This prevents the
-    old bug where one used angle accidentally removed all five variants of a subject.
+    Exact briefs are the unit of rotation. Core-topic spacing is applied only to the
+    leading sequence; it must never reduce the returned pool. The function therefore
+    always returns every available brief, deterministically reordered by month.
     """
     seed = int(hashlib.sha256(current_key.encode("utf-8")).hexdigest()[:8], 16)
     available = [item for item in TOPIC_BANK if normalize_topic(item["topic"]) not in used_topics]
-
     if not available:
-        # A full 500-brief cycle has been exhausted. Start a fresh deterministic
-        # cycle rather than blocking publication or returning an empty pool.
         available = list(TOPIC_BANK)
 
     category_rank = {category: i for i, category in enumerate(CATEGORY_ORDER)}
-    # Stable deterministic shuffle within each category. The seed changes by month,
-    # so the same bank does not produce the same order every month.
     buckets: dict[str, list[dict[str, str]]] = {category: [] for category in CATEGORY_ORDER}
     for item in available:
         buckets.setdefault(item["category"], []).append(item)
 
     for offset, category in enumerate(CATEGORY_ORDER):
         items = buckets[category]
-        if not items:
-            continue
-        rotation = (seed + offset * 31) % len(items)
-        buckets[category] = items[rotation:] + items[:rotation]
+        if items:
+            rotation = (seed + offset * 31) % len(items)
+            buckets[category] = items[rotation:] + items[:rotation]
 
+    # Interleave categories first so the candidate order is diversified, while
+    # retaining every available brief exactly once.
     sequence: list[dict[str, str]] = []
-    used_cores_in_sequence: set[str] = set()
-    start = seed % len(CATEGORY_ORDER)
-    positions = {category: 0 for category in CATEGORY_ORDER}
-
-    # Pass 1: one never-repeated core subject at a time, round-robin by category.
+    positions = {category: 0 for category in buckets}
+    ordered_categories = [CATEGORY_ORDER[(seed + i) % len(CATEGORY_ORDER)] for i in range(len(CATEGORY_ORDER))]
     while True:
         added = False
-        for step in range(len(CATEGORY_ORDER)):
-            category = CATEGORY_ORDER[(start + step) % len(CATEGORY_ORDER)]
-            items = buckets[category]
-            while positions[category] < len(items):
-                candidate = items[positions[category]]
-                positions[category] += 1
-                core = base_topic_key(candidate["topic"])
-                if core not in used_cores_in_sequence:
-                    sequence.append(candidate)
-                    used_cores_in_sequence.add(core)
-                    added = True
-                    break
-            if added:
-                break
+        for category in ordered_categories:
+            items = buckets.get(category, [])
+            pos = positions.get(category, 0)
+            if pos < len(items):
+                sequence.append(items[pos])
+                positions[category] = pos + 1
+                added = True
         if not added:
             break
 
-    # Pass 2: remaining unused angles of the same core subjects. They are still valid
-    # distinct briefs and are needed to make the full 500-topic bank genuinely usable.
-    remaining = []
-    for category in CATEGORY_ORDER:
-        remaining.extend(buckets[category][positions[category]:])
-    remaining.sort(key=lambda item: (category_rank.get(item["category"], 999), item["topic"]))
-    sequence.extend(remaining)
+    # Include any unexpected categories without losing briefs.
+    for category, items in buckets.items():
+        if category in CATEGORY_ORDER:
+            continue
+        sequence.extend(items)
+
+    # Safety invariant: the pool is a reordered set, never a filtered set.
+    if len(sequence) != len(available):
+        seen = {id(item) for item in sequence}
+        sequence.extend(item for item in available if id(item) not in seen)
     return sequence
 
 
