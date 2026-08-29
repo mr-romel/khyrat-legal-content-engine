@@ -74,6 +74,22 @@ def historically_used_base_topics(values: list[list[str]], current_key: str) -> 
     return used
 
 
+def historically_used_categories(values: list[list[str]], current_key: str) -> dict[str, int]:
+    """Count published/current-cycle category usage for adaptive topic selection."""
+    counts = {category: 0 for category in CATEGORY_ORDER}
+    marker = f"{RECYCLE_MARKER}:{current_key}"
+    for raw in values[1:]:
+        row = row_to_dict(raw); notes = row.get("ملاحظات", "")
+        if not (is_published(row) or marker in notes):
+            continue
+        category = ""
+        if "القسم:" in notes:
+            category = notes.split("القسم:", 1)[1].split("|", 1)[0].strip()
+        if category in counts:
+            counts[category] += 1
+    return counts
+
+
 def source_rows(values: list[list[str]], bank_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     result, seen = [], set()
     for raw in values[1:]:
@@ -139,6 +155,21 @@ def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[s
     if len(result) != len(available) or len({normalize_topic(item["topic"]) for item in result}) != len(available):
         raise RuntimeError("Topic rotation invariant failed: briefs were lost or duplicated")
     return result
+
+
+def adaptive_topic_pool(current_key: str, used_topics: set[str], category_counts: dict[str, int] | None = None) -> list[dict[str, str]]:
+    """Balance the next candidates toward underused categories without blocking publication."""
+    pool = topic_pool_for_month(current_key, used_topics)
+    if not category_counts:
+        return pool
+    counts = {category: int(category_counts.get(category, 0)) for category in CATEGORY_ORDER}
+    return sorted(
+        pool,
+        key=lambda item: (
+            counts.get(item.get("category", ""), 0),
+            hashlib.sha256(f"{current_key}|{item['topic']}|{item['angle']}".encode("utf-8")).hexdigest(),
+        ),
+    )
 
 
 _topic_pool_for_month = topic_pool_for_month
