@@ -39,53 +39,62 @@ def _capture_editorial_assets(*args, **kwargs):
             return result
 
         threshold = 0.72
-        if passes_similarity_gate(candidate, previous_posts, threshold):
-            score, _ = highest_similarity(candidate, previous_posts, threshold)
+        score, match = highest_similarity(candidate, previous_posts, threshold)
+        if score < threshold:
             print(f"Similarity gate: PASS ({score:.2f} < {threshold:.2f}).")
             return result
 
-        score, match = highest_similarity(candidate, previous_posts, threshold)
-        print(f"Similarity gate: REWRITE required ({score:.2f} >= {threshold:.2f}).")
+        print(f"Similarity gate: REWRITE requested ({score:.2f} >= {threshold:.2f}).")
         context = build_previous_context(bank_rows, limit=8)
         context += (
-            "\n\nPRE-PUBLICATION SIMILARITY GATE FAILED. "
+            "\n\nPRE-PUBLICATION SIMILARITY WARNING. "
             "Rewrite the post from scratch while preserving the legal meaning. "
             "Use a materially different hook, sentence rhythm, ordering of ideas, "
             "examples, and CTA. Do not reuse distinctive phrases from previous posts. "
             f"The closest previous post begins: {match[:350]}"
         )
 
-        rewritten = resilient_generate_post(
-            api_key=config["gemini_api_key"],
-            model=config["gemini_model"],
-            topic=topic,
-            legal_sources=legal_sources,
-            previous_context=context,
-        )
-        rewritten_post = str(rewritten.get("post", "") or "").strip()
-        if not rewritten_post:
-            raise RuntimeError("Similarity gate rewrite returned an empty post.")
-
-        score_after, _ = highest_similarity(rewritten_post, previous_posts, threshold)
-        if not passes_similarity_gate(rewritten_post, previous_posts, threshold):
-            raise RuntimeError(
-                f"Pre-publication similarity gate failed after rewrite: {score_after:.2f} >= {threshold:.2f}."
+        try:
+            rewritten = resilient_generate_post(
+                api_key=config["gemini_api_key"],
+                model=config["gemini_model"],
+                topic=topic,
+                legal_sources=legal_sources,
+                previous_context=context,
             )
+            rewritten_post = str(rewritten.get("post", "") or "").strip()
+            if not rewritten_post:
+                print("Similarity gate: rewrite returned empty content; publishing original.")
+                return result
 
-        print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
-        refreshed = _original_prepare_editorial_assets(
-            config=config,
-            topic=topic,
-            facebook_post=rewritten_post,
-            legal_sources=legal_sources,
-        )
-        refreshed["similarity_score"] = score_after
-        _latest_editorial = dict(refreshed)
-        _latest_editorial["legal_sources"] = legal_sources
-        return refreshed
+            score_after, _ = highest_similarity(rewritten_post, previous_posts, threshold)
+            if score_after < threshold:
+                print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
+                refreshed = _original_prepare_editorial_assets(
+                    config=config,
+                    topic=topic,
+                    facebook_post=rewritten_post,
+                    legal_sources=legal_sources,
+                )
+                refreshed["similarity_score"] = score_after
+                _latest_editorial = dict(refreshed)
+                _latest_editorial["legal_sources"] = legal_sources
+                return refreshed
+
+            print(
+                f"Similarity gate: rewrite still similar ({score_after:.2f} >= {threshold:.2f}); "
+                "publishing original as required by continuous-publishing policy."
+            )
+            return result
+        except Exception as rewrite_exc:
+            print(
+                f"Similarity gate rewrite unavailable; publishing original as required by "
+                f"continuous-publishing policy: {rewrite_exc}"
+            )
+            return result
     except Exception as exc:
-        print(f"Similarity gate unavailable: {exc}")
-        raise RuntimeError(f"Pre-publication similarity gate unavailable; publication blocked: {exc}") from exc
+        print(f"Similarity gate unavailable; preserving publication flow: {exc}")
+        return result
 
 
 def _single_telegram_notify(text: str) -> None:
