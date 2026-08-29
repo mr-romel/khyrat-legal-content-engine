@@ -106,10 +106,19 @@ def get_bank_rows(service, spreadsheet_id: str) -> list[dict[str, str]]:
     return rows
 
 
+def _compact_text(value: str, limit: int = 420) -> str:
+    text = " ".join(str(value or "").split())
+    return text if len(text) <= limit else text[:limit].rstrip() + "…"
+
+
 def build_previous_context(rows: list[dict[str, str]], limit: int = 12) -> str:
     selected = rows[-limit:]
-    return "\n".join(
-        f"- {row.get('الموضوع','')}: {row.get('زاوية المحتوى','')}"
-        for row in selected
-        if row.get("الموضوع", "").strip()
-    )
+    lines: list[str] = []
+    for row in selected:
+        topic = str(row.get("الموضوع", "")).strip()
+        if not topic:
+            continue
+        angle = _compact_text(row.get("زاوية المحتوى", ""), 120)
+        content = _compact_text(row.get("المحتوى", ""), 420)
+        lines.append(f"- الموضوع: {topic} | الزاوية: {angle} | النص السابق: {content}")
+    return "\n".join(lines)
