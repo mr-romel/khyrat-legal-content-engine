@@ -39,11 +39,9 @@ def normalize_topic(value: str) -> str:
 
 def base_topic_key(value: str) -> str:
     text = normalize_topic(value)
-    marker = " — "
-    if marker in text:
-        parts = [part.strip() for part in text.split(marker) if part.strip()]
-        if len(parts) >= 3:
-            return parts[0]
+    parts = [part.strip() for part in text.split(" — ") if part.strip()]
+    if len(parts) >= 3:
+        return parts[0]
     return text
 
 
@@ -108,56 +106,39 @@ def legacy_source_for_slot(source_rows_list: list[dict[str, str]], index: int, u
 
 
 def topic_pool_for_month(current_key: str, used_topics: set[str]) -> list[dict[str, str]]:
-    """Build a full monthly candidate pool from every unused 500-bank brief.
-
-    Exact briefs are the unit of rotation. Core-topic spacing is applied only to the
-    leading sequence; it must never reduce the returned pool. The function therefore
-    always returns every available brief, deterministically reordered by month.
-    """
-    seed = int(hashlib.sha256(current_key.encode("utf-8")).hexdigest()[:8], 16)
-    available = [item for item in TOPIC_BANK if normalize_topic(item["topic"]) not in used_topics]
+    """Return every available 500-bank brief in a deterministic, category-balanced order."""
+    used = {str(value).strip().casefold() for value in (used_topics or set()) if str(value).strip()}
+    available = [item for item in TOPIC_BANK if normalize_topic(item["topic"]) not in used]
     if not available:
         available = list(TOPIC_BANK)
 
-    category_rank = {category: i for i, category in enumerate(CATEGORY_ORDER)}
+    def rank(item: dict[str, str]) -> str:
+        payload = f"{current_key}|{item['category']}|{item['topic']}|{item['angle']}".encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
     buckets: dict[str, list[dict[str, str]]] = {category: [] for category in CATEGORY_ORDER}
+    extras: list[dict[str, str]] = []
     for item in available:
-        buckets.setdefault(item["category"], []).append(item)
+        if item["category"] in buckets:
+            buckets[item["category"]].append(item)
+        else:
+            extras.append(item)
+    for bucket in buckets.values():
+        bucket.sort(key=rank)
+    extras.sort(key=rank)
 
-    for offset, category in enumerate(CATEGORY_ORDER):
-        items = buckets[category]
-        if items:
-            rotation = (seed + offset * 31) % len(items)
-            buckets[category] = items[rotation:] + items[:rotation]
-
-    # Interleave categories first so the candidate order is diversified, while
-    # retaining every available brief exactly once.
-    sequence: list[dict[str, str]] = []
-    positions = {category: 0 for category in buckets}
-    ordered_categories = [CATEGORY_ORDER[(seed + i) % len(CATEGORY_ORDER)] for i in range(len(CATEGORY_ORDER))]
-    while True:
-        added = False
+    start = int(hashlib.sha256(current_key.encode("utf-8")).hexdigest()[:8], 16) % len(CATEGORY_ORDER)
+    ordered_categories = [CATEGORY_ORDER[(start + i) % len(CATEGORY_ORDER)] for i in range(len(CATEGORY_ORDER))]
+    result: list[dict[str, str]] = []
+    while any(buckets[category] for category in ordered_categories):
         for category in ordered_categories:
-            items = buckets.get(category, [])
-            pos = positions.get(category, 0)
-            if pos < len(items):
-                sequence.append(items[pos])
-                positions[category] = pos + 1
-                added = True
-        if not added:
-            break
+            if buckets[category]:
+                result.append(buckets[category].pop(0))
+    result.extend(extras)
 
-    # Include any unexpected categories without losing briefs.
-    for category, items in buckets.items():
-        if category in CATEGORY_ORDER:
-            continue
-        sequence.extend(items)
-
-    # Safety invariant: the pool is a reordered set, never a filtered set.
-    if len(sequence) != len(available):
-        seen = {id(item) for item in sequence}
-        sequence.extend(item for item in available if id(item) not in seen)
-    return sequence
+    if len(result) != len(available) or len({normalize_topic(item["topic"]) for item in result}) != len(available):
+        raise RuntimeError("Topic rotation invariant failed: briefs were lost or duplicated")
+    return result
 
 
 _topic_pool_for_month = topic_pool_for_month
