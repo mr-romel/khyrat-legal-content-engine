@@ -158,3 +158,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
 
     print(f"Monthly recycler: created {created} missing rows for {current_key}; target = 11:00 and 19:00 Cairo time.")
     return migrated + replaced + created
+
+
+# Backward-compatible alias used by the existing quality gate.
+_topic_pool_for_month = topic_pool_for_month
