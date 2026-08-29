@@ -22,11 +22,37 @@ def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, left, right).ratio()
 
 
+def _ngram_similarity(a: str, b: str, n: int = 3) -> float:
+    left = normalize_text(a).split()
+    right = normalize_text(b).split()
+    if len(left) < n or len(right) < n:
+        return similarity(a, b)
+    left_grams = {" ".join(left[i:i + n]) for i in range(len(left) - n + 1)}
+    right_grams = {" ".join(right[i:i + n]) for i in range(len(right) - n + 1)}
+    if not left_grams or not right_grams:
+        return 0.0
+    return len(left_grams & right_grams) / len(left_grams | right_grams)
+
+
+def _hook(text: str) -> str:
+    normalized = normalize_text(text)
+    words = normalized.split()
+    return " ".join(words[:28])
+
+
+def content_similarity(a: str, b: str) -> float:
+    """Score semantic/structural text overlap without changing the legal meaning."""
+    overall = similarity(a, b)
+    hook = similarity(_hook(a), _hook(b))
+    grams = _ngram_similarity(a, b)
+    return min(1.0, (overall * 0.55) + (hook * 0.25) + (grams * 0.20))
+
+
 def highest_similarity(candidate: str, previous_posts: list[str], threshold: float = DEFAULT_THRESHOLD) -> tuple[float, str]:
     best_score = 0.0
     best_match = ""
     for previous in previous_posts:
-        score = similarity(candidate, previous)
+        score = content_similarity(candidate, previous)
         if score > best_score:
             best_score = score
             best_match = previous
