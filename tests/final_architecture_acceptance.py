@@ -40,3 +40,10 @@ def test_monitoring_reports_duplicate_topics():
     summary = summarize_publications(rows, recent_limit=20)
     assert summary["healthy_diversity"] is False
     assert summary["duplicate_recent_topics"] == {"أ": 2}
+
+
+if __name__ == "__main__":
+    test_feedback_loop_prefers_fresh_base_topic()
+    test_similarity_rewrite_contract_is_present()
+    test_monitoring_reports_duplicate_topics()
+    print("Final architecture acceptance tests: OK")
