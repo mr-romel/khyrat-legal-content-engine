@@ -35,7 +35,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, comment_engine, config, content_planner, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, comment_engine, config, content_planner, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify expanded legal subject bank
@@ -62,6 +62,19 @@ jobs:
           next_month = [(item["topic"], item["angle"]) for item in _topic_pool_for_month("2026-09", set())[:50]]
           assert first_month != next_month
           print("Expanded topic monthly rotation/diversification check: OK")
+          PY
+      - name: Verify final architecture acceptance tests
+        run: |
+          python tests/final_architecture_acceptance.py
+          python - <<'PY'
+          from decision_engine import choose_due_row
+          from production_monitor import summarize_publications
+          history = [{"الموضوع": "أ — زاوية جديدة: الوقاية", "التصنيف": "جنائي", "زاوية المحتوى": "الوقاية"}]
+          candidates = [(2, {"الموضوع": "أ — زاوية جديدة: حالة واقعية", "التصنيف": "جنائي", "زاوية المحتوى": "حالة واقعية"}), (3, {"الموضوع": "ب — زاوية جديدة: الوقاية", "التصنيف": "أسرة", "زاوية المحتوى": "الوقاية"})]
+          assert choose_due_row(candidates, history)[1]["الموضوع"].startswith("ب")
+          summary = summarize_publications([{"الحالة": "PUBLISHED", "الموضوع": "أ"}, {"الحالة": "PUBLISHED", "الموضوع": "ب"}])
+          assert summary["healthy_diversity"] is True
+          print("Final feedback + similarity + monitoring acceptance check: OK")
           PY
       - name: Verify publishing schedule is 11:00 and 19:00 Cairo time
         run: |
