@@ -46,6 +46,7 @@ jobs:
           from src.video_module.tts import EdgeTTSProvider, synthesize_with_fallback
           from src.video_module.captions import caption_from_tts
           from src.video_module.render import render_vertical, validate_mp4
+          from src.video_module.brand import logo_path
 
           posts = [p for p in posts_from_rows(read_rows()) if is_published(p) and p.image_url]
           if not posts:
@@ -62,13 +63,15 @@ jobs:
           image = out / 'source.jpg'
           with urlopen(post.image_url, timeout=20) as response:
               image.write_bytes(response.read())
-          video = render_vertical(image, audio, out / 'reel_captioned.mp4', captions)
+          logo = logo_path()
+          video = render_vertical(image, audio, out / 'reel_captioned.mp4', captions, logo)
           meta = validate_mp4(video)
           print(f'RESERVED_POST_ID={post.post_id}')
           print(f'RESERVED_ROW={post.row_number}')
           print(f'SCRIPT_WORDS={len(script.split())}')
           print(f'AUDIO_BYTES={audio.stat().st_size}')
           print(f'CAPTIONS_FILE={captions}')
+          print(f'LOGO_USED={logo if logo else "NONE"}')
           print(f'VIDEO_BYTES={video.stat().st_size}')
           print(f'MP4_VALIDATION={meta}')
           PY
