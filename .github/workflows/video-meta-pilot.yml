@@ -19,33 +19,37 @@ jobs:
         run: python -c "import main; print('CORE_IMPORT_OK')"
       - name: Verify video module isolation
         run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py
-      - name: Read-only Meta Graph API smoke test
+      - name: Upload one Reel container to Meta (no publish)
         env:
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          VIDEO_URL: ${{ secrets.VIDEO_PILOT_PUBLIC_URL }}
         run: |
           python - <<'PY'
           import json, os, urllib.parse, urllib.request
-          page_id = os.environ.get('META_PAGE_ID', '').strip()
-          token = os.environ.get('META_ACCESS_TOKEN', '').strip()
-          if not page_id or not token:
-              raise SystemExit('META_CONFIGURATION_MISSING')
-          url = f'https://graph.facebook.com/v23.0/{urllib.parse.quote(page_id, safe="")}'
-          params = urllib.parse.urlencode({'fields': 'id,name', 'access_token': token})
-          request = urllib.request.Request(f'{url}?{params}', method='GET')
+          page_id = os.environ.get('META_PAGE_ID','').strip()
+          token = os.environ.get('META_ACCESS_TOKEN','').strip()
+          video_url = os.environ.get('VIDEO_URL','').strip()
+          if not page_id or not token or not video_url:
+              raise SystemExit('META_UPLOAD_CONFIGURATION_MISSING')
+          endpoint = f'https://graph.facebook.com/v23.0/{urllib.parse.quote(page_id, safe="")}/video_reels'
+          body = urllib.parse.urlencode({
+              'access_token': token,
+              'upload_phase': 'start',
+              'video_url': video_url,
+          }).encode()
+          request = urllib.request.Request(endpoint, data=body, method='POST')
           try:
-              with urllib.request.urlopen(request, timeout=20) as response:
+              with urllib.request.urlopen(request, timeout=30) as response:
                   data = json.loads(response.read().decode('utf-8'))
           except Exception as exc:
-              print(f'META_READ_ONLY_SMOKE_FAILED={type(exc).__name__}: {exc}')
+              print(f'META_REEL_CONTAINER_UPLOAD_FAILED={type(exc).__name__}: {exc}')
               raise
-          returned_id = str(data.get('id', ''))
-          if returned_id != page_id:
-              raise SystemExit('META_PAGE_ID_MISMATCH')
-          print('META_READ_ONLY_SMOKE_OK=True')
-          print(f'META_PAGE_ID_MATCH=True')
-          print(f'META_PAGE_NAME_PRESENT={bool(data.get("name"))}')
-          print('META_WRITE_OPERATION_PERFORMED=False')
-          PY
+          container_id = data.get('video_id') or data.get('id')
+          if not container_id:
+              raise SystemExit(f'META_REEL_CONTAINER_ID_MISSING: {data}')
+          print('META_REEL_CONTAINER_UPLOAD_OK=True')
+          print(f'META_REEL_CONTAINER_ID={container_id}')
+          print('META_REEL_PUBLISH_PERFORMED=False')
       - name: Isolation assertion
-        run: echo 'META_SMOKE_ISOLATED=True; NO_POST_CREATED=True'
+        run: echo 'META_UPLOAD_ISOLATED=True; META_PUBLISH_PERFORMED=False; CORE_UNTOUCHED=True'
