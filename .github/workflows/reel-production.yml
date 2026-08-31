@@ -5,6 +5,12 @@ on:
     - cron: '0 11 * * *'
     - cron: '0 12 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and validate the Reel without publishing to Meta'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -66,8 +72,15 @@ jobs:
           if result.get('status') not in {'READY_FOR_META', 'QUEUE_EMPTY'}: raise SystemExit('VIDEO_BUILD_FAILED')
           PY
           echo "status=$(cat /tmp/video_status)" >> "$GITHUB_OUTPUT"
+      - name: Upload dry-run Reel artifact
+        if: steps.build.outputs.status == 'READY_FOR_META' && github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-production-dry-run
+          path: video_artifacts/
+          if-no-files-found: error
       - name: Publish exactly one Reel
-        if: steps.build.outputs.status == 'READY_FOR_META'
+        if: steps.build.outputs.status == 'READY_FOR_META' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run == true)
         env:
           META_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           META_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
@@ -90,7 +103,7 @@ jobs:
           mark_used(post.post_id)
           PY
       - name: Persist Reel state
-        if: success() && steps.build.outputs.status == 'READY_FOR_META'
+        if: success() && steps.build.outputs.status == 'READY_FOR_META' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run == true)
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
