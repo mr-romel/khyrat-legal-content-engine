@@ -13,17 +13,18 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
 
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio)], check=True, text=True, capture_output=True)
     total = float(json.loads(probe.stdout)["format"]["duration"])
+    if total < 45:
+        raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
+
     count = min(max(len(sources), 1), 5)
     scene = max(total / count, 1.0)
-    transition = min(0.45, scene / 4)
-
+    transition = min(0.5, max(0.25, scene / 8))
     inputs: list[str] = []
     filters: list[str] = []
     for i, image in enumerate(sources[:count]):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         filters.append(
-            f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-            f"zoompan=z='min(zoom+0.0008,1.08)':d=1:s=1080x1920:fps=30,setsar=1[v{i}]"
+            f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v{i}]"
         )
 
     current = "v0"
@@ -39,13 +40,14 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
 
     if logo:
         inputs += ["-i", str(logo)]
-        filters.append(f"[{audio_index+1}:v]format=rgba,scale=300:-1[lg]")
-        filters.append(f"[{current}][lg]overlay=W-w-50:50[branded]")
+        filters.append(f"[{audio_index+1}:v]format=rgba,colorkey=0xFFFFFF:0.08:0.02,scale=360:-1[lg]")
+        filters.append(f"[{current}][lg]overlay=W-w-45:45[branded]")
         current = "branded"
 
     if captions:
         cap = captions.as_posix().replace("\\", "/").replace(":", "\\:")
-        filters.append(f"[{current}]subtitles='{cap}'[final]")
+        style = "FontName=Noto Sans Arabic,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=150,Spacing=0"
+        filters.append(f"[{current}]subtitles='{cap}':force_style='{style}'[final]")
         current = "final"
 
     cmd = [
@@ -70,4 +72,7 @@ def validate_mp4(path: Path) -> dict[str, object]:
         raise ValueError("MP4 must contain video and audio streams")
     if video.get("width") != 1080 or video.get("height") != 1920:
         raise ValueError("MP4 must be 1080x1920 (9:16)")
-    return {"width": video["width"], "height": video["height"], "video": True, "audio": True}
+    duration = float(video.get("duration") or audio_stream.get("duration") or 0)
+    if duration < 45:
+        raise ValueError(f"MP4 duration too short: {duration:.1f}s")
+    return {"width": video["width"], "height": video["height"], "video": True, "audio": True, "duration": duration}
