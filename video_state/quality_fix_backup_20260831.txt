@@ -1,0 +1,1 @@
+Backup marker for Reel quality overhaul on 2026-08-31. Original production files are preserved in Git history immediately before the quality-fix commit.
