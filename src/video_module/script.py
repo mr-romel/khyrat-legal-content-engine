@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-import re
 import os
+import re
+from pathlib import Path
+
 from google import genai
+
+
+CACHE_DIR = Path(os.getenv("VIDEO_SCRIPT_CACHE_DIR", "video_script_cache"))
 
 
 def _clean(text: str) -> str:
@@ -12,11 +17,32 @@ def _clean(text: str) -> str:
     return " ".join(text.split()).strip()
 
 
-def build_script(topic: str, approved_post: str, max_words: int = 180) -> str:
+def _cache_path(post_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(post_id)).strip("._") or "post"
+    return CACHE_DIR / f"{safe}.txt"
+
+
+def _cached_script(post_id: str) -> str | None:
+    path = _cache_path(post_id)
+    if not path.is_file():
+        return None
+    result = _clean(path.read_text(encoding="utf-8"))
+    if len(result.split()) < 120:
+        return None
+    return result
+
+
+def build_script(topic: str, approved_post: str, max_words: int = 180, post_id: str = "") -> str:
     """Create a concise spoken Egyptian-Arabic version of the whole approved post."""
     text = _clean(approved_post)
     if not text:
         raise ValueError("approved_post is required")
+
+    if post_id:
+        cached = _cached_script(post_id)
+        if cached:
+            return " ".join(cached.split()[:max_words]).strip()
+
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
@@ -40,9 +66,21 @@ def build_script(topic: str, approved_post: str, max_words: int = 180) -> str:
 المنشور المعتمد:
 {text}
 """
-    response = client.models.generate_content(model=model, contents=prompt)
+    try:
+        response = client.models.generate_content(model=model, contents=prompt)
+    except Exception as exc:
+        message = str(exc)
+        if "429" in message or "RESOURCE_EXHAUSTED" in message or "quota" in message.lower():
+            raise RuntimeError("GEMINI_QUOTA_EXHAUSTED") from exc
+        raise
+
     result = _clean(getattr(response, "text", ""))
     words = result.split()
     if len(words) < 120:
         raise RuntimeError("Gemini returned a Reel script that is too short.")
-    return " ".join(words[:max_words]).strip()
+    result = " ".join(words[:max_words]).strip()
+
+    if post_id:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _cache_path(post_id).write_text(result + "\n", encoding="utf-8")
+    return result
