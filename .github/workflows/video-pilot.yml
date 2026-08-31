@@ -1,0 +1,49 @@
+name: Video Pilot (isolated)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  video-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install video module dependencies only
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install google-api-python-client google-auth
+
+      - name: Import Core smoke test
+        run: python -c "import src.main; print('CORE_IMPORT_OK')"
+
+      - name: Video module tests
+        run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py
+
+      - name: Read-only Sheet selection smoke test
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+        run: |
+          python - <<'PY'
+          from src.video_module.sheets_adapter import read_rows, posts_from_rows
+          rows = read_rows()
+          posts = posts_from_rows(rows)
+          published = [p for p in posts if p.status.upper() == "PUBLISHED"]
+          print(f"SHEET_ROWS={len(rows)}")
+          print(f"PUBLISHED_POSTS={len(published)}")
+          if published:
+              p = published[0]
+              print(f"FIRST_PUBLISHED_ROW={p.row_number}")
+              print(f"FIRST_PUBLISHED_POST_ID={p.post_id}")
+              print(f"FIRST_PUBLISHED_TOPIC={p.topic}")
+              print(f"HAS_IMAGE_URL={bool(p.image_url)}")
+          PY
