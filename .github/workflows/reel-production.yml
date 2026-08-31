@@ -28,19 +28,25 @@ jobs:
         run: python -c "import main; print('CORE_IMPORT_OK')"
       - name: Video isolation tests
         run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py tests/test_video_failure_isolation.py
-      - name: Cairo 14:00 production gate
+      - name: Cairo production gate
         id: gate
         run: |
           python - <<'PY'
+          import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
           now = datetime.now(ZoneInfo('Africa/Cairo'))
+          manual = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+          run_reel = manual or now.hour == 14
           print(f'CAIRO_TIME={now.isoformat()}')
-          print(f'RUN_REEL={now.hour == 14}')
-          with open('/tmp/run_reel', 'w') as f: f.write('true' if now.hour == 14 else 'false')
+          print(f'RUN_REEL={run_reel}')
+          with open('/tmp/run_reel', 'w') as f: f.write('true' if run_reel else 'false')
           PY
           echo "run_reel=$(cat /tmp/run_reel)" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
       - name: Build one eligible Reel
+        id: build
         if: steps.gate.outputs.run_reel == 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -51,11 +57,12 @@ jobs:
           from src.video_module.production import build_once
           result = build_once()
           print(f"RESULT={result}")
-          if result.get('status') == 'QUEUE_EMPTY': raise SystemExit(0)
-          if result.get('status') != 'READY_FOR_META': raise SystemExit('VIDEO_BUILD_FAILED')
+          with open('/tmp/video_status', 'w') as f: f.write(result.get('status', 'UNKNOWN'))
+          if result.get('status') not in {'READY_FOR_META', 'QUEUE_EMPTY'}: raise SystemExit('VIDEO_BUILD_FAILED')
           PY
+          echo "status=$(cat /tmp/video_status)" >> "$GITHUB_OUTPUT"
       - name: Publish exactly one Reel
-        if: steps.gate.outputs.run_reel == 'true'
+        if: steps.build.outputs.status == 'READY_FOR_META'
         env:
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
@@ -78,10 +85,13 @@ jobs:
           mark_used(post.post_id)
           PY
       - name: Persist Reel state
-        if: success() && steps.gate.outputs.run_reel == 'true'
+        if: success() && steps.build.outputs.status == 'READY_FOR_META'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add video_state/used_posts.json
           git diff --cached --quiet || git commit -m 'chore(video): persist reel usage state'
           git push
+      - name: Queue is empty
+        if: steps.build.outputs.status == 'QUEUE_EMPTY'
+        run: echo 'QUEUE_EMPTY=True; NO_REEL_PUBLISHED=True'
