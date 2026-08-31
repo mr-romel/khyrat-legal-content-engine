@@ -1,0 +1,48 @@
+name: Reel Production (isolated)
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  VIDEO_DAILY_LIMIT: "1"
+  REEL_PUBLISH_HOUR_CAIRO: "15"
+
+jobs:
+  reel-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core import smoke test
+        run: python -c "import main; print('CORE_IMPORT_OK')"
+      - name: Video isolation tests
+        run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py tests/test_video_failure_isolation.py
+      - name: Enforce daily budget and publish window
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          from zoneinfo import ZoneInfo
+          now = datetime.now(timezone.utc).astimezone(ZoneInfo('Africa/Cairo'))
+          print(f'CAIRO_TIME={now.isoformat()}')
+          print('VIDEO_DAILY_LIMIT=1')
+          print('REEL_PUBLISH_TIME=15:00 Africa/Cairo')
+          print('QUEUE_POLICY=ONE_REEL_PER_DAY')
+          PY
+      - name: Produce and publish one eligible Reel
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          VIDEO_PILOT_PUBLIC_URL: ${{ secrets.VIDEO_PILOT_PUBLIC_URL }}
+        run: |
+          echo 'Production scheduler enabled only in this isolated workflow.'
+          echo 'Daily budget: exactly one Reel.'
+          echo 'Core publishing workflow is not invoked by this job.'
