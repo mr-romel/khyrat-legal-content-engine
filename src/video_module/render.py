@@ -11,42 +11,66 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     if not sources:
         raise ValueError("at least one image is required")
 
-    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio)], check=True, text=True, capture_output=True)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
     total = float(json.loads(probe.stdout)["format"]["duration"])
     if total < 45:
         raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
 
+    # Keep the edit dynamic without the distracting Ken-Burns/zoom effect.
     count = min(max(len(sources), 1), 5)
     scene = max(total / count, 1.0)
-    transition = min(0.5, max(0.25, scene / 8))
+    transition = min(0.45, max(0.28, scene / 10))
+    transitions = ["fade", "wipeleft", "slideright", "fade"]
+
     inputs: list[str] = []
     filters: list[str] = []
     for i, image in enumerate(sources[:count]):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         filters.append(
-            f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v{i}]"
+            f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p[v{i}]"
         )
 
     current = "v0"
     offset = scene - transition
     for i in range(1, count):
         out = f"xf{i}"
-        filters.append(f"[{current}][v{i}]xfade=transition=fade:duration={transition:.3f}:offset={max(offset,0):.3f}[{out}]")
+        transition_name = transitions[(i - 1) % len(transitions)]
+        filters.append(
+            f"[{current}][v{i}]xfade=transition={transition_name}:duration={transition:.3f}:offset={max(offset, 0):.3f}[{out}]"
+        )
         current = out
         offset += scene - transition
+
+    # Very light finishing pass: a restrained vignette keeps attention centered
+    # without changing framing or introducing any zoom/pan movement.
+    filters.append(f"[{current}]vignette=PI/5:0.65[finished]")
+    current = "finished"
 
     audio_index = count
     inputs += ["-i", str(audio)]
 
     if logo:
         inputs += ["-i", str(logo)]
-        filters.append(f"[{audio_index+1}:v]format=rgba,colorkey=0xFFFFFF:0.08:0.02,scale=360:-1[lg]")
-        filters.append(f"[{current}][lg]overlay=W-w-45:45[branded]")
+        filters.append(
+            f"[{audio_index+1}:v]format=rgba,colorkey=0xFFFFFF:0.10:0.03,scale=380:-1[lg]"
+        )
+        filters.append(f"[{current}][lg]overlay=W-w-45:45:format=auto[branded]")
         current = "branded"
 
     if captions:
         cap = captions.as_posix().replace("\\", "/").replace(":", "\\:")
-        style = "FontName=Noto Sans Arabic,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=150,Spacing=0"
+        # Cleaner Arabic caption treatment: larger, heavier, high-contrast, and
+        # lower on screen so it reads naturally without covering the visual focus.
+        style = (
+            "FontName=Noto Sans Arabic,FontSize=24,Bold=1,"
+            "PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,"
+            "BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=170,Spacing=0"
+        )
         filters.append(f"[{current}]subtitles='{cap}':force_style='{style}'[final]")
         current = "final"
 
@@ -64,7 +88,12 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
 def validate_mp4(path: Path) -> dict[str, object]:
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError("MP4 missing or empty")
-    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height,duration", "-of", "json", str(path)], check=True, text=True, capture_output=True)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height,duration", "-of", "json", str(path)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
     streams = json.loads(probe.stdout).get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), None)
     audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
