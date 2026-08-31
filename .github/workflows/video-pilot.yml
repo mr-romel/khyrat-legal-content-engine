@@ -30,7 +30,7 @@ jobs:
         run: python -c "import main; print('CORE_IMPORT_OK')"
       - name: Video module tests
         run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py
-      - name: Build and render first pilot Reel
+      - name: Build, caption and render first pilot Reel
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -44,6 +44,7 @@ jobs:
           from src.video_module.reservation import ReservationStore
           from src.video_module.script import build_script
           from src.video_module.tts import EdgeTTSProvider, synthesize_with_fallback
+          from src.video_module.captions import caption_from_tts
           from src.video_module.render import render_vertical, validate_mp4
 
           posts = [p for p in posts_from_rows(read_rows()) if is_published(p) and p.image_url]
@@ -57,15 +58,17 @@ jobs:
           out = Path('video_artifacts'); out.mkdir(exist_ok=True)
           (out / 'script.txt').write_text(script, encoding='utf-8')
           audio = synthesize_with_fallback(script, out / 'voice.mp3', [EdgeTTSProvider()])
+          captions = caption_from_tts(script, audio, out / 'captions.srt')
           image = out / 'source.jpg'
           with urlopen(post.image_url, timeout=20) as response:
               image.write_bytes(response.read())
-          video = render_vertical(image, audio, out / 'reel.mp4')
+          video = render_vertical(image, audio, out / 'reel_captioned.mp4', captions)
           meta = validate_mp4(video)
           print(f'RESERVED_POST_ID={post.post_id}')
           print(f'RESERVED_ROW={post.row_number}')
           print(f'SCRIPT_WORDS={len(script.split())}')
           print(f'AUDIO_BYTES={audio.stat().st_size}')
+          print(f'CAPTIONS_FILE={captions}')
           print(f'VIDEO_BYTES={video.stat().st_size}')
           print(f'MP4_VALIDATION={meta}')
           PY
