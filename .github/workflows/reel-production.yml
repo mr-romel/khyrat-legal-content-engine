@@ -1,0 +1,97 @@
+name: Reel Production (isolated)
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHONPATH: src
+  VIDEO_DAILY_LIMIT: "1"
+
+jobs:
+  reel-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated video dependency
+        run: pip install edge-tts
+      - name: Core import smoke test
+        run: python -c "import main; print('CORE_IMPORT_OK')"
+      - name: Video isolation tests
+        run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py tests/test_video_failure_isolation.py
+      - name: Cairo production gate
+        id: gate
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          now = datetime.now(ZoneInfo('Africa/Cairo'))
+          manual = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+          run_reel = manual or now.hour == 14
+          print(f'CAIRO_TIME={now.isoformat()}')
+          print(f'RUN_REEL={run_reel}')
+          with open('/tmp/run_reel', 'w') as f: f.write('true' if run_reel else 'false')
+          PY
+          echo "run_reel=$(cat /tmp/run_reel)" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+      - name: Build one eligible Reel
+        id: build
+        if: steps.gate.outputs.run_reel == 'true'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+        run: |
+          python - <<'PY'
+          from src.video_module.production import build_once
+          result = build_once()
+          print(f"RESULT={result}")
+          with open('/tmp/video_status', 'w') as f: f.write(result.get('status', 'UNKNOWN'))
+          if result.get('status') not in {'READY_FOR_META', 'QUEUE_EMPTY'}: raise SystemExit('VIDEO_BUILD_FAILED')
+          PY
+          echo "status=$(cat /tmp/video_status)" >> "$GITHUB_OUTPUT"
+      - name: Publish exactly one Reel
+        if: steps.build.outputs.status == 'READY_FOR_META'
+        env:
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from src.video_module.production import choose, mark_used
+          from src.video_module.meta_reels import publish_reel
+          chosen = choose()
+          if chosen is None: raise SystemExit('QUEUE_EMPTY_AFTER_BUILD')
+          post, _ = chosen
+          result = publish_reel(os.environ['META_PAGE_ID'], os.environ['META_ACCESS_TOKEN'], Path('video_artifacts/reel_final.mp4'), post.content)
+          print('META_REEL_PUBLISHED=True')
+          print(f"META_VIDEO_ID={result['video_id']}")
+          print(f"META_POST_ID={result['post_id']}")
+          mark_used(post.post_id)
+          PY
+      - name: Persist Reel state
+        if: success() && steps.build.outputs.status == 'READY_FOR_META'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add video_state/used_posts.json
+          git diff --cached --quiet || git commit -m 'chore(video): persist reel usage state'
+          git push
+      - name: Queue is empty
+        if: steps.build.outputs.status == 'QUEUE_EMPTY'
+        run: echo 'QUEUE_EMPTY=True; NO_REEL_PUBLISHED=True'

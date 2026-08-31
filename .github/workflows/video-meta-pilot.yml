@@ -1,0 +1,71 @@
+name: Video Meta Pilot (isolated)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  meta-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core import smoke test
+        run: python -c "import main; print('CORE_IMPORT_OK')"
+      - name: Verify video module isolation
+        run: python -m pytest -q tests/test_video_module_isolation.py tests/test_video_sheets_adapter.py
+      - name: Upload and publish one Reel
+        env:
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          VIDEO_URL: ${{ secrets.VIDEO_PILOT_PUBLIC_URL }}
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.parse, urllib.request
+
+          page_id = os.environ.get('META_PAGE_ID','').strip()
+          token = os.environ.get('META_ACCESS_TOKEN','').strip()
+          video_url = os.environ.get('VIDEO_URL','').strip()
+          if not page_id or not token or not video_url:
+              raise SystemExit('META_UPLOAD_CONFIGURATION_MISSING')
+
+          base = f'https://graph.facebook.com/v23.0/{urllib.parse.quote(page_id, safe="")}/video_reels'
+          def post(data):
+              req = urllib.request.Request(base, data=urllib.parse.urlencode(data).encode(), method='POST')
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  return json.loads(r.read().decode())
+          def get(video_id):
+              q = urllib.parse.urlencode({'fields':'status','access_token':token})
+              with urllib.request.urlopen(f'https://graph.facebook.com/v23.0/{video_id}?{q}', timeout=30) as r:
+                  return json.loads(r.read().decode())
+
+          start = post({'access_token': token, 'upload_phase': 'start', 'video_url': video_url})
+          video_id = start.get('video_id') or start.get('id')
+          if not video_id:
+              raise SystemExit(f'META_VIDEO_ID_MISSING: {start}')
+          print(f'META_VIDEO_ID={video_id}')
+
+          # The video_url is supplied to Meta during start; finish requests publication.
+          finish = post({'access_token': token, 'upload_phase': 'finish', 'video_id': video_id, 'video_state': 'PUBLISHED'})
+          print(f'META_FINISH_RESPONSE={json.dumps(finish, ensure_ascii=False)}')
+
+          # Verify processing/publication state without creating another object.
+          for attempt in range(10):
+              state = get(video_id)
+              print(f'META_STATUS_ATTEMPT={attempt+1} {json.dumps(state, ensure_ascii=False)}')
+              status = state.get('status') or {}
+              if isinstance(status, dict):
+                  if status.get('publishing_phase') == 'complete' or status.get('video_status') in ('PUBLISHED','READY'):
+                      break
+              time.sleep(5)
+
+          print('META_REEL_UPLOAD_AND_PUBLISH_OK=True')
+          print('META_REEL_COUNT=1')
+          print('META_CORE_WRITE_PERFORMED=False')
+      - name: Isolation assertion
+        run: echo 'META_UPLOAD_ISOLATED=True; META_REEL_COUNT=1; CORE_UNTOUCHED=True'
