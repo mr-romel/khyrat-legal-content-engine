@@ -60,7 +60,7 @@ def build_once() -> dict[str, str]:
     script = build_script(post.topic, post.content, max_words=120)
     work.mkdir(parents=True, exist_ok=True)
     (work / "script.txt").write_text(script, encoding="utf-8")
-    audio = synthesize_with_fallback(script, work / "voice.mp3", [EdgeTTSProvider()])
+    audio = synthesize_with_fallback(script, work / "voice.mp3", [EdgeTTSProvider(voice="ar-EG-ShakirNeural")])
     captions = caption_from_tts(script, audio, work / "captions.srt")
     image = work / "source.jpg"
     with urlopen(image_url, timeout=30) as response:
