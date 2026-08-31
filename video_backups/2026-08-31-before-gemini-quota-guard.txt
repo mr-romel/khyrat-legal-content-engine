@@ -1,0 +1,1 @@
+Backup marker for the video pipeline before Gemini quota-guard/cache hardening. Source state preserved in Git history and main branch before subsequent changes.
