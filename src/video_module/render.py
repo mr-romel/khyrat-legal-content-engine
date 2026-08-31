@@ -4,13 +4,16 @@ import subprocess
 from pathlib import Path
 
 
-def render_vertical(image: Path, audio: Path, output: Path, captions: Path | None = None) -> Path:
+def render_vertical(image: Path, audio: Path, output: Path, captions: Path | None = None, logo: Path | None = None) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     vf = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2"
     if captions:
         vf += f",subtitles={captions.as_posix()}"
-    cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image), "-i", str(audio), "-vf", vf,
-           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(output)]
+    inputs = ["-loop", "1", "-i", str(image), "-i", str(audio)]
+    if logo:
+        inputs += ["-i", str(logo)]
+        vf += ",[2:v]scale=220:-1[lg];[0:v][lg]overlay=W-w-50:50"
+    cmd = ["ffmpeg", "-y", *inputs, "-vf", vf, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(output)]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return output
 
