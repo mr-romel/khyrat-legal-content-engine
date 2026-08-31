@@ -13,7 +13,7 @@ from .scene_planner import plan_scenes
 from .script import build_script
 from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
-from .tts import LahgtnaChatterboxProvider, EdgeTTSProvider, synthesize_with_fallback
+from .tts import LahgtnaChatterboxProvider, synthesize_with_fallback
 from .render import render_vertical, validate_mp4
 from src.image_generator import create_legal_image
 
@@ -80,11 +80,7 @@ def build_once() -> dict[str, str]:
     work.mkdir(parents=True, exist_ok=True)
     script = build_script(post.topic, post.content, max_words=180)
     (work / "script.txt").write_text(script, encoding="utf-8")
-    audio = synthesize_with_fallback(
-        script,
-        work / "voice.mp3",
-        [LahgtnaChatterboxProvider(), EdgeTTSProvider(voice="ar-EG-SalmaNeural")],
-    )
+    audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider()])
     captions = caption_from_tts(script, audio, work / "captions.srt")
     source = work / "source.jpg"
     with urlopen(image_url, timeout=30) as response:
