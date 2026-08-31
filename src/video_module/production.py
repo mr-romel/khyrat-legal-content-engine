@@ -31,7 +31,10 @@ def load_used() -> set[str]:
 
 def save_used(values: set[str]) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps({"used_post_ids": sorted(values)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    STATE_PATH.write_text(
+        json.dumps({"used_post_ids": sorted(values)}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def mark_used(post_id: str) -> None:
@@ -42,7 +45,11 @@ def mark_used(post_id: str) -> None:
 
 def choose() -> tuple[PublishedPost, str] | None:
     posts = posts_from_rows(read_rows())
-    eligible = [PublishedPost(p.post_id, p.topic, p.content) for p in posts if is_published(p) and p.content and p.image_url]
+    eligible = [
+        PublishedPost(p.post_id, p.topic, p.content)
+        for p in posts
+        if is_published(p) and p.content and p.image_url
+    ]
     post = first_eligible_post(eligible, load_used())
     if post is None:
         return None
@@ -78,7 +85,14 @@ def build_once() -> dict[str, str]:
     post, image_url = chosen
     work = Path("video_artifacts")
     work.mkdir(parents=True, exist_ok=True)
-    script = build_script(post.topic, post.content, max_words=180)
+
+    try:
+        script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
+    except RuntimeError as exc:
+        if str(exc) == "GEMINI_QUOTA_EXHAUSTED":
+            return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
+        raise
+
     (work / "script.txt").write_text(script, encoding="utf-8")
     audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider()])
     captions = caption_from_tts(script, audio, work / "captions.srt")
@@ -91,4 +105,9 @@ def build_once() -> dict[str, str]:
     output = work / "reel_final.mp4"
     render_vertical(visuals, audio, output, captions, logo if logo.exists() else None)
     validation = validate_mp4(output)
-    return {"status": "READY_FOR_META", "post_id": post.post_id, "video": str(output), "duration": str(validation["duration"])}
+    return {
+        "status": "READY_FOR_META",
+        "post_id": post.post_id,
+        "video": str(output),
+        "duration": str(validation["duration"]),
+    }
