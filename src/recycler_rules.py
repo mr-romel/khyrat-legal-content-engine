@@ -49,15 +49,22 @@ def _expanded_bank() -> list[dict[str, str]]:
         "قانون العمل الجديد": "قانون العمل المصري الجديد واللوائح والقرارات التنفيذية ذات الصلة؛ تحقق من النص النافذ وتاريخ سريانه قبل النشر.",
         "القانون الإداري": "قوانين مجلس الدولة والوظيفة العامة والقرارات الإدارية المنظمة؛ تحقق من النص النافذ والاختصاص قبل النشر.",
     }
-    sizes = (80, 80, 80, 80, 80)
+    # EXTRA_TOPICS keeps the historical first 98 subjects, then the new
+    # category-specific additions. Explicit ranges prevent category drift.
+    groups = (
+        ("القانون الجنائي", 0, 20), ("قانون الشركات والاستثمار", 20, 40),
+        ("قانون الأسرة", 40, 60), ("قانون العمل الجديد", 60, 80),
+        ("القانون الإداري", 80, 98),
+        ("القانون الجنائي", 98, 157), ("قانون الشركات والاستثمار", 157, 217),
+        ("قانون الأسرة", 217, 278), ("قانون العمل الجديد", 278, 338),
+        ("القانون الإداري", 338, 400),
+    )
     result: list[dict[str, str]] = []
-    offset = 0
-    for category, size in zip(CATEGORY_ORDER, sizes):
-        for subject in EXTRA_TOPICS[offset:offset + size]:
+    for category, start, end in groups:
+        for subject in EXTRA_TOPICS[start:end]:
             for angle in ANGLE_LIBRARY:
                 fmt, label, objective = ANGLE_FORMATS[angle]
                 result.append({"topic": subject, "category": category, "angle": angle, "format": label, "objective": objective, "legal_sources": sources[category]})
-        offset += size
     return result
 
 
