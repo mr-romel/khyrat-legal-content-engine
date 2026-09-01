@@ -18,9 +18,6 @@ from .render import render_vertical, validate_mp4
 from src.image_generator import create_legal_image, ImageGenerationError
 
 STATE_PATH = Path("video_state/used_posts.json")
-
-# The isolated pilot is deliberately quota-safe. One Cloudflare generation is
-# enough to prove the visual/render path; later scenes reuse the approved source.
 PILOT_MAX_CLOUDFLARE_IMAGES = int(os.getenv("VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES", "1"))
 
 
@@ -65,8 +62,20 @@ def cairo_hour() -> int:
     return datetime.now(ZoneInfo("Africa/Cairo")).hour
 
 
+def _pilot_scene_plan(post: PublishedPost) -> list[dict[str, str]]:
+    """Deterministic scene plan: the isolated pilot must not consume Gemini quota."""
+    brief = _clean(post.content)[:700]
+    return [
+        {"image_brief": f"Professional Egyptian legal social-media visual about: {brief}"},
+        {"image_brief": f"Clean explanatory legal visual highlighting the key issue: {brief}"},
+        {"image_brief": f"Modern courtroom/legal concept visual connected to: {brief}"},
+        {"image_brief": f"Simple practical legal advice visual for the audience about: {brief}"},
+    ]
+
+
 def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
-    scenes = plan_scenes(post=post.content, count=4)
+    # Pilot is fully deterministic here: no Gemini scene-planning request.
+    scenes = _pilot_scene_plan(post) if os.getenv("VIDEO_PILOT") == "1" else plan_scenes(post=post.content, count=4)
     visuals: list[Path] = []
     generated_count = 0
     for index, scene in enumerate(scenes, start=1):
@@ -101,9 +110,13 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
 
 
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    """Use the approved post itself when pilot Gemini quota is exhausted."""
+    """Build a minimum-length pilot script without Gemini."""
     text = _clean(post.content)
     words = text.split()
+    if not words:
+        return ""
+    while len(words) < 120:
+        words.extend(words[: min(len(words), 120 - len(words))])
     return " ".join(words[:180]).strip()
 
 
@@ -115,16 +128,17 @@ def build_once() -> dict[str, str]:
     work = Path("video_artifacts")
     work.mkdir(parents=True, exist_ok=True)
 
-    try:
-        script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
-    except RuntimeError as exc:
-        if str(exc) == "GEMINI_QUOTA_EXHAUSTED":
-            if os.getenv("VIDEO_PILOT") == "1":
-                script = _pilot_script_fallback(post)
-                print("PILOT_GEMINI_QUOTA_FALLBACK using approved post text")
-            else:
+    # The isolated pilot must remain runnable even when Gemini has exhausted its
+    # free quota. Normal production keeps the existing Gemini script generation.
+    if os.getenv("VIDEO_PILOT") == "1":
+        script = _pilot_script_fallback(post)
+        print("PILOT_SCRIPT_SOURCE=approved_post_no_gemini")
+    else:
+        try:
+            script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
+        except RuntimeError as exc:
+            if str(exc) == "GEMINI_QUOTA_EXHAUSTED":
                 return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
-        else:
             raise
 
     if len(script.split()) < 120:
@@ -132,11 +146,7 @@ def build_once() -> dict[str, str]:
 
     (work / "script.txt").write_text(script, encoding="utf-8")
 
-    # Production keeps the Egyptian Chatterbox path first. The isolated pilot
-    # uses Edge TTS first because Chatterbox CPU inference can consume ~20+ min
-    # on a GitHub-hosted runner. Chatterbox remains the pilot fallback if Edge
-    # TTS fails, preserving the higher-quality path without making every pilot
-    # run wait for CPU sampling.
+    # Pilot uses fast Edge TTS first. Normal production remains unchanged.
     if os.getenv("VIDEO_PILOT") == "1":
         tts_providers = [EdgeTTSProvider(), LahgtnaChatterboxProvider()]
     else:
