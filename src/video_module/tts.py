@@ -11,11 +11,10 @@ class TTSProvider(Protocol):
 
 
 class LahgtnaChatterboxProvider:
-    """Egyptian-Arabic TTS using the open Lahgtna/Chatterbox stack."""
+    """Egyptian-Arabic TTS using Lahgtna/Chatterbox v1 with expressive delivery."""
 
     def synthesize(self, text: str, output_path: Path) -> Path:
         import tempfile
-        import shutil
 
         repo = Path(tempfile.gettempdir()) / "lahgtna-chatterbox"
         if not repo.exists():
@@ -30,7 +29,7 @@ class LahgtnaChatterboxProvider:
                 ["python", "-m", "pip", "install", "-r", str(repo / "requirments.txt")],
                 check=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
             )
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -42,9 +41,9 @@ class LahgtnaChatterboxProvider:
                 "python", str(repo / "src" / "inference.py"),
                 "--text", text,
                 "--dialect", "eg",
-                "--exaggeration", "0.72",
+                "--exaggeration", "0.68",
                 "--temperature", "0.72",
-                "--cfg-weight", "0.38",
+                "--cfg-weight", "0.32",
                 "--output", str(wav),
             ],
             check=True,
@@ -53,8 +52,14 @@ class LahgtnaChatterboxProvider:
             stderr=subprocess.STDOUT,
             text=True,
         )
+        # Gentle mastering only: consistent loudness and headroom, without
+        # changing pitch, timing, or the speaker character.
         subprocess.run(
-            ["ffmpeg", "-y", "-i", str(wav), "-codec:a", "libmp3lame", "-q:a", "3", str(output_path)],
+            [
+                "ffmpeg", "-y", "-i", str(wav),
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
+                "-codec:a", "libmp3lame", "-q:a", "3", str(output_path),
+            ],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -66,7 +71,7 @@ class LahgtnaChatterboxProvider:
 
 
 class EdgeTTSProvider:
-    """Fallback only; the production pipeline prefers Egyptian Chatterbox."""
+    """Optional fallback only; production prefers Egyptian Lahgtna."""
 
     def __init__(self, voice: str = "ar-EG-ShakirNeural") -> None:
         self.voice = voice
