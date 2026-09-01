@@ -60,16 +60,6 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
         target.write_text(patched, encoding="utf-8")
 
 
-def _resolve_lahgtna_ref_audio(repo: Path, configured_ref: str) -> Path:
-    relative = Path(configured_ref.lstrip("./"))
-    candidates = (repo / "src" / relative, repo / relative)
-    for candidate in candidates:
-        if candidate.is_file() and candidate.stat().st_size > 0:
-            return candidate
-    checked = ", ".join(str(path) for path in candidates)
-    raise FileNotFoundError(f"Egyptian reference audio not found. Checked: {checked}")
-
-
 class LahgtnaChatterboxProvider:
     """Egyptian-Arabic TTS using Lahgtna/Chatterbox with short-form chunks."""
 
@@ -143,11 +133,19 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
         if completed.stdout:
             print(completed.stdout, end="")
 
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(wav), "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
-             "-codec:a", "libmp3lame", "-q:a", "3", str(output_path.resolve())],
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
+        # Keep this conversion intentionally lightweight. The previous loudnorm
+        # filter caused ffmpeg to exit 254 on the pilot runner after a long CPU
+        # TTS pass. Render-time audio is already 24 kHz PCM; stereo expansion and
+        # loudness normalization are not required for the pilot acceptance gate.
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
+                 "-codec:a", "libmp3lame", "-q:a", "4", str(output_path.resolve())],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr = (exc.stderr or "").strip()
+            raise RuntimeError(f"TTS WAV->MP3 conversion failed (exit {exc.returncode}): {stderr[-4000:]}") from exc
         if not output_path.is_file() or output_path.stat().st_size == 0:
             raise RuntimeError("Egyptian TTS produced no audio")
         return output_path
