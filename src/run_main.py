@@ -8,6 +8,7 @@ from content_similarity import highest_similarity
 from content_style_v3 import build_style_context
 from decision_engine import choose_due_row
 from gemini_runtime import generate_post as resilient_generate_post
+from monthly_recycler import recycle_month_if_needed
 from post_bank import build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict
 from telegram_publication import send_single_publication_message, send_single_status_message
@@ -156,6 +157,23 @@ def _smart_main() -> None:
     if not values:
         print("No rows found.")
         return
+
+    # Always reconcile the current month before choosing a due row. This makes
+    # the first run of a new month self-healing instead of depending on a manual
+    # planner invocation. Existing published rows remain untouched.
+    try:
+        prepared = recycle_month_if_needed(
+            service=service,
+            spreadsheet_id=config["sheet_id"],
+            sheet_name=sheet_name,
+            current=current.date(),
+        )
+        print(f"Monthly planner: reconciled current month; changes={prepared}.")
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+    except Exception as planner_exc:
+        # Planning failure must never stop an already-prepared publishing row.
+        print(f"Monthly planner unavailable; preserving publishing flow: {planner_exc}")
+
     rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     if not candidates:
