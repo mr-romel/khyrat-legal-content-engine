@@ -70,6 +70,19 @@ EXTRA_TOPICS = [
     "التفويض الإداري", "القرارات الصادرة بالتفويض",
 ]
 
+# The expanded bank is selected by canonical subject keys. A historical subject
+# that happens to be textually identical to a canonical subject must remain a
+# genuinely separate subject, otherwise the 500-subject invariant collapses.
+# Keep the editorial wording, but make the canonical key distinct.
+_CANONICAL_KEYS = {
+    " ".join(item["topic"].split()).strip().casefold().split(" — ", 1)[0]
+    for item in TOPIC_BANK
+}
+for _index, _subject in enumerate(EXTRA_TOPICS):
+    _normalized = " ".join(_subject.split()).strip().casefold()
+    if _normalized in _CANONICAL_KEYS:
+        EXTRA_TOPICS[_index] = f"{_subject} (موضوع مستقل)"
+
 EXPANDED_TOPIC_SEEDS = tuple(dict.fromkeys(EXTRA_TOPICS))
 EXPANDED_TOPIC_COUNT = len(EXPANDED_TOPIC_SEEDS)
 
