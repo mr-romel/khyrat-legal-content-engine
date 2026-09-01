@@ -42,6 +42,38 @@ def _chunk_egyptian_text(text: str, max_chars: int = 280) -> list[str]:
     return chunks
 
 
+def _patch_lahgtna_cpu_loader(repo: Path) -> None:
+    """Patch the vendored Lahgtna/Chatterbox loader for CPU-only CI runners.
+
+    The Lahgtna repository currently ships an older Chatterbox loader that
+    calls torch.load() without map_location for ve.pt/s3gen.pt. GitHub-hosted
+    runners are CPU-only, while those checkpoints can contain CUDA tensors.
+    Without this compatibility patch the subprocess exits before synthesis.
+    """
+    target = repo / "src" / "chatterbox" / "mtl_tts.py"
+    if not target.exists():
+        raise FileNotFoundError(f"Lahgtna Chatterbox loader not found: {target}")
+
+    source = target.read_text(encoding="utf-8")
+    patched = source
+    patched = patched.replace(
+        "        ve = VoiceEncoder()\n        ve.load_state_dict(torch.load(ckpt_dir / \"ve.pt\", weights_only=True))\n",
+        "        ve = VoiceEncoder()\n        map_location = torch.device(\"cpu\") if str(device) in {\"cpu\", \"mps\"} else None\n        ve.load_state_dict(torch.load(ckpt_dir / \"ve.pt\", map_location=map_location, weights_only=True))\n",
+    )
+    patched = patched.replace(
+        "        s3gen = S3Gen()\n        s3gen.load_state_dict(torch.load(ckpt_dir / \"s3gen.pt\", weights_only=True))\n",
+        "        s3gen = S3Gen()\n        s3gen.load_state_dict(torch.load(ckpt_dir / \"s3gen.pt\", map_location=map_location, weights_only=True))\n",
+    )
+    patched = patched.replace(
+        "            conds = Conditionals.load(builtin_voice).to(device)\n",
+        "            conds = Conditionals.load(builtin_voice, map_location=map_location).to(device)\n",
+    )
+    if patched == source:
+        # Already patched, or upstream has changed to the fixed implementation.
+        return
+    target.write_text(patched, encoding="utf-8")
+
+
 class LahgtnaChatterboxProvider:
     """Egyptian-Arabic TTS using Lahgtna/Chatterbox with short-form chunks."""
 
@@ -56,6 +88,8 @@ class LahgtnaChatterboxProvider:
                 ["python", "-m", "pip", "install", "-r", str(repo / "requirments.txt")],
                 check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             )
+
+        _patch_lahgtna_cpu_loader(repo)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         chunks = _chunk_egyptian_text(text)
@@ -96,11 +130,20 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
         env = os.environ.copy()
         env["PYTHONPATH"] = str(repo / "src") + os.pathsep + env.get("PYTHONPATH", "")
         wav = output_path.with_suffix(".wav")
-        subprocess.run(
-            ["python", str(runner), str(repo), str(payload), str(wav)],
-            check=True, cwd=str(repo / "src"), env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
+        try:
+            completed = subprocess.run(
+                ["python", str(runner), str(repo), str(payload), str(wav)],
+                check=True, cwd=str(repo / "src"), env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            details = (exc.stdout or "").strip()
+            tail = details[-6000:] if details else "(no TTS subprocess output captured)"
+            raise RuntimeError(f"Lahgtna TTS subprocess failed (exit {exc.returncode}):\n{tail}") from exc
+
+        if completed.stdout:
+            print(completed.stdout, end="")
+
         subprocess.run(
             ["ffmpeg", "-y", "-i", str(wav), "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
              "-codec:a", "libmp3lame", "-q:a", "3", str(output_path)],
