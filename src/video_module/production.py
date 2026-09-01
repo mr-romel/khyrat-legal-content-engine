@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from .captions import caption_from_tts
 from .models import PublishedPost
 from .scene_planner import plan_scenes
-from .script import build_script, _clean
+from .script import build_script, _clean, to_egyptian_spoken
 from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
 from .tts import EdgeTTSProvider, LahgtnaChatterboxProvider, synthesize_with_fallback
@@ -76,10 +76,14 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
 
 
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    text = _clean(post.content); words = text.split()
-    if not words: return ""
-    # Never duplicate legal text just to reach an arbitrary word count.
-    return " ".join(words[:180]).strip()
+    # The pilot must never cut the legal explanation mid-sentence. Keep the whole
+    # approved post, then conservatively convert common formal constructions to
+    # spoken Egyptian Arabic without inventing or deleting legal substance.
+    spoken = to_egyptian_spoken(post.content)
+    if not spoken:
+        return ""
+    print(f"PILOT_SCRIPT_WORDS={len(spoken.split())}")
+    return spoken
 
 
 def build_once() -> dict[str, str]:
@@ -88,19 +92,16 @@ def build_once() -> dict[str, str]:
     post, image_url = chosen; work = Path("video_artifacts"); work.mkdir(parents=True, exist_ok=True)
 
     if os.getenv("VIDEO_PILOT") == "1":
-        script = _pilot_script_fallback(post); print("PILOT_SCRIPT_SOURCE=approved_post_no_gemini")
+        script = _pilot_script_fallback(post); print("PILOT_SCRIPT_SOURCE=approved_post_egyptian_normalized")
     else:
         try: script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
         except RuntimeError as exc:
             if str(exc) == "GEMINI_QUOTA_EXHAUSTED": return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
             raise
 
-    # Pilot accepts a shorter complete approved post; no artificial repetition.
     if len(script.split()) < 70: raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
     (work / "script.txt").write_text(script, encoding="utf-8")
 
-    # Quality-first: Pilot is Egyptian Edge TTS only. It must never silently fall back
-    # to the slower/robotic CPU Chatterbox voice. Normal production is untouched.
     if os.getenv("VIDEO_PILOT") == "1":
         audio = EdgeTTSProvider(voice="ar-EG-ShakirNeural").synthesize(script, work / "voice.mp3")
         print("PILOT_TTS_PROVIDER=EdgeTTS"); print("PILOT_TTS_VOICE=ar-EG-ShakirNeural")
