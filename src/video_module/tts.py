@@ -132,11 +132,6 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 
         if completed.stdout:
             print(completed.stdout, end="")
-
-        # Keep this conversion intentionally lightweight. The previous loudnorm
-        # filter caused ffmpeg to exit 254 on the pilot runner after a long CPU
-        # TTS pass. Render-time audio is already 24 kHz PCM; stereo expansion and
-        # loudness normalization are not required for the pilot acceptance gate.
         try:
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
@@ -158,10 +153,30 @@ class EdgeTTSProvider:
     def synthesize(self, text: str, output_path: Path) -> Path:
         import asyncio
         import edge_tts
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        timing_path = output_path.with_suffix(".words.json")
+
         async def _run() -> None:
-            await edge_tts.Communicate(text, self.voice).save(str(output_path))
+            communicate = edge_tts.Communicate(text, self.voice)
+            timings: list[dict[str, object]] = []
+            with output_path.open("wb") as audio_file:
+                async for message in communicate.stream():
+                    if message["type"] == "audio":
+                        audio_file.write(message["data"])
+                    elif message["type"] == "WordBoundary":
+                        timings.append({
+                            "text": str(message.get("text", "")),
+                            "offset_100ns": int(message.get("offset", 0)),
+                            "duration_100ns": int(message.get("duration", 0)),
+                        })
+            timing_path.write_text(json.dumps(timings, ensure_ascii=False), encoding="utf-8")
+
         asyncio.run(_run())
+        if not output_path.is_file() or output_path.stat().st_size == 0:
+            raise RuntimeError("Edge TTS produced no audio")
+        if not timing_path.is_file():
+            raise RuntimeError("Edge TTS produced no word timing data")
         return output_path
 
 
