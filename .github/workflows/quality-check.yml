@@ -38,30 +38,39 @@ jobs:
           import analytics, comment_engine, config, content_planner, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
-      - name: Verify expanded legal subject bank
+      - name: Verify 500 distinct legal subject bank
         run: |
           python - <<'PY'
           from recycler_rules import EXPANDED_TOPIC_BANK
+          from topic_bank_500 import TOPIC_BANK
           from topic_bank_expanded import EXTRA_TOPICS
-          assert len(EXTRA_TOPICS) == 98
-          assert len(EXPANDED_TOPIC_BANK) == 2068
-          assert len(set(EXTRA_TOPICS)) == 98
+          base_topics = {item["topic"].strip().casefold() for item in TOPIC_BANK}
+          extra_topics = {item.strip().casefold() for item in EXTRA_TOPICS}
+          assert len(EXTRA_TOPICS) == 400
+          assert len(extra_topics) == 400
+          assert len(base_topics) == 100
+          assert not (base_topics & extra_topics)
+          assert len(EXPANDED_TOPIC_BANK) == 6900
+          assert len({item["topic"] for item in EXPANDED_TOPIC_BANK}) == 500
           assert all(item["topic"].strip() and item["category"].strip() and item["angle"].strip() for item in EXPANDED_TOPIC_BANK)
-          print("Expanded subject bank validation: OK")
-          print(f"Unique new subject seeds: {len(EXTRA_TOPICS)}")
+          print("500-base-subject bank validation: OK")
+          print(f"Canonical subjects: {len(base_topics)}")
+          print(f"Expansion subjects: {len(extra_topics)}")
+          print(f"Distinct base subjects: {len(base_topics | extra_topics)}")
           print(f"Total selectable briefs: {len(EXPANDED_TOPIC_BANK)}")
           PY
-      - name: Verify monthly diversification architecture
+      - name: Verify base-topic-first diversification
         run: |
           python - <<'PY'
           from monthly_recycler import _topic_pool_for_month
           pool = _topic_pool_for_month("2026-08", set())
-          assert len(pool) == 2068
-          assert len({item["topic"] for item in pool}) == 598
-          first_month = [(item["topic"], item["angle"]) for item in pool[:50]]
-          next_month = [(item["topic"], item["angle"]) for item in _topic_pool_for_month("2026-09", set())[:50]]
-          assert first_month != next_month
-          print("Expanded topic monthly rotation/diversification check: OK")
+          assert len(pool) == 6900
+          assert len({item["topic"] for item in pool}) == 500
+          topics = [item["topic"] for item in pool[:500]]
+          assert len(set(topics)) == 500
+          next_month = _topic_pool_for_month("2026-09", set())
+          assert [(item["topic"], item["angle"]) for item in pool[:50]] != [(item["topic"], item["angle"]) for item in next_month[:50]]
+          print("Base-topic-first monthly rotation/diversification check: OK")
           PY
       - name: Verify final architecture acceptance tests
         run: |
