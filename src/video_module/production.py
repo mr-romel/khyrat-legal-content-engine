@@ -19,6 +19,12 @@ from src.image_generator import create_legal_image, ImageGenerationError
 
 STATE_PATH = Path("video_state/used_posts.json")
 
+# The isolated pilot is deliberately quota-safe. One Cloudflare generation is
+# enough to prove the complete visual/render path; the remaining scenes reuse
+# the approved source image. This prevents repeated pilot runs from consuming
+# the production account's daily Workers AI allocation.
+PILOT_MAX_CLOUDFLARE_IMAGES = int(os.getenv("VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES", "1"))
+
 
 def load_used() -> set[str]:
     if not STATE_PATH.exists():
@@ -64,8 +70,21 @@ def cairo_hour() -> int:
 def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
     scenes = plan_scenes(post=post.content, count=4)
     visuals: list[Path] = []
+    generated_count = 0
     for index, scene in enumerate(scenes, start=1):
         output = work / f"scene_{index:02d}.jpg"
+
+        # In the isolated pilot, generate at most one fresh visual. Reusing the
+        # approved source for later scenes still exercises scene planning,
+        # captioning, rendering and MP4 validation without burning the daily
+        # Cloudflare AI allocation on four near-identical test generations.
+        if os.getenv("VIDEO_PILOT") == "1" and generated_count >= PILOT_MAX_CLOUDFLARE_IMAGES:
+            if fallback is None:
+                raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
+            print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}: using approved source image")
+            visuals.append(fallback)
+            continue
+
         try:
             create_legal_image(
                 topic=post.content,
@@ -76,10 +95,8 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
                 page_name="اسأل محمود",
             )
             visuals.append(output)
+            generated_count += 1
         except ImageGenerationError as exc:
-            # The isolated pilot must still validate the complete TTS/caption/render
-            # path when the Cloudflare free allocation is exhausted. Never use this
-            # degradation in the normal production path.
             if os.getenv("VIDEO_PILOT") != "1" or fallback is None:
                 raise
             print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}")
