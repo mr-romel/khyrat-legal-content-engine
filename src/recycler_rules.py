@@ -49,7 +49,7 @@ def _expanded_bank() -> list[dict[str, str]]:
         "قانون العمل الجديد": "قانون العمل المصري الجديد واللوائح والقرارات التنفيذية ذات الصلة؛ تحقق من النص النافذ وتاريخ سريانه قبل النشر.",
         "القانون الإداري": "قوانين مجلس الدولة والوظيفة العامة والقرارات الإدارية المنظمة؛ تحقق من النص النافذ والاختصاص قبل النشر.",
     }
-    sizes = (20, 20, 20, 20, 18)
+    sizes = (80, 80, 80, 80, 80)
     result: list[dict[str, str]] = []
     offset = 0
     for category, size in zip(CATEGORY_ORDER, sizes):
@@ -62,8 +62,8 @@ def _expanded_bank() -> list[dict[str, str]]:
 
 
 EXPANDED_TOPIC_BANK = TOPIC_BANK + _expanded_bank()
-if len(EXPANDED_TOPIC_BANK) != 2068:
-    raise RuntimeError(f"Expanded bank invariant failed: expected 2068 briefs, found {len(EXPANDED_TOPIC_BANK)}")
+if len(EXPANDED_TOPIC_BANK) != 6900:
+    raise RuntimeError(f"Expanded bank invariant failed: expected 6900 briefs, found {len(EXPANDED_TOPIC_BANK)}")
 if len(set(EXTRA_TOPICS)) != len(EXTRA_TOPICS):
     raise RuntimeError("Expanded subject catalog contains duplicate subjects")
 
