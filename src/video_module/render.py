@@ -25,8 +25,12 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     total = float(json.loads(probe.stdout)["format"]["duration"])
     if total < 45: raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
 
-    count = min(max(len(sources), 1), 5); scene = max(total / count, 1.0)
-    transition = min(0.45, max(0.28, scene / 10)); transitions = ["fade", "wipeleft", "slideright", "fade"]
+    count = min(max(len(sources), 1), 5)
+    # xfade consumes transition seconds at every join. Increase each scene so
+    # the final composed video is exactly the full audio duration, not shorter.
+    transition = min(0.45, max(0.28, (total / count) / 10)) if count > 1 else 0.0
+    scene = max((total + (count - 1) * transition) / count, 1.0)
+    transitions = ["fade", "wipeleft", "slideright", "fade"]
     inputs: list[str] = []; filters: list[str] = []
     for i, image in enumerate(sources[:count]):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
@@ -43,7 +47,6 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
         try: transparent_logo = _prepare_logo(logo, output.parent)
         except Exception: transparent_logo = logo
         inputs += ["-i", str(transparent_logo)]
-        # Smaller logo, top-left, inside a safe margin.
         filters.append(f"[{audio_index+1}:v]format=rgba,scale=300:-1[lg]")
         filters.append(f"[{current}][lg]overlay=40:40:format=auto[branded]"); current = "branded"
     if captions:
