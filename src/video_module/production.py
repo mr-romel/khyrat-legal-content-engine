@@ -75,8 +75,6 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
         if os.getenv("VIDEO_PILOT") == "1" and generated_count >= PILOT_MAX_CLOUDFLARE_IMAGES:
             if fallback is None:
                 raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
-            # Materialize a real scene file. The workflow validates scene_*.jpg,
-            # so merely returning the same fallback path is not sufficient.
             output.write_bytes(fallback.read_bytes())
             print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}: copied approved source image")
             visuals.append(output)
@@ -96,8 +94,6 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
         except ImageGenerationError as exc:
             if os.getenv("VIDEO_PILOT") != "1" or fallback is None:
                 raise
-            # Same rule as the budget path: create an actual scene artifact so
-            # downstream validation sees the planned number of scenes.
             output.write_bytes(fallback.read_bytes())
             print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}; copied approved source image")
             visuals.append(output)
@@ -105,11 +101,7 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
 
 
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    """Use the approved post itself when pilot Gemini quota is exhausted.
-
-    This is intentionally pilot-only: production must still report Gemini quota
-    exhaustion rather than silently changing the generated script.
-    """
+    """Use the approved post itself when pilot Gemini quota is exhausted."""
     text = _clean(post.content)
     words = text.split()
     return " ".join(words[:180]).strip()
@@ -139,11 +131,18 @@ def build_once() -> dict[str, str]:
         raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
 
     (work / "script.txt").write_text(script, encoding="utf-8")
-    audio = synthesize_with_fallback(
-        script,
-        work / "voice.mp3",
-        [LahgtnaChatterboxProvider(), EdgeTTSProvider()],
-    )
+
+    # Production keeps the Egyptian Chatterbox path first. The isolated pilot
+    # uses Edge TTS first because Chatterbox CPU inference can consume ~20+ min
+    # on a GitHub-hosted runner. Chatterbox remains the pilot fallback if Edge
+    # TTS fails, preserving the higher-quality path without making every pilot
+    # run wait for CPU sampling.
+    if os.getenv("VIDEO_PILOT") == "1":
+        tts_providers = [EdgeTTSProvider(), LahgtnaChatterboxProvider()]
+    else:
+        tts_providers = [LahgtnaChatterboxProvider(), EdgeTTSProvider()]
+    audio = synthesize_with_fallback(script, work / "voice.mp3", tts_providers)
+
     captions = caption_from_tts(script, audio, work / "captions.srt")
     source = work / "source.jpg"
     with urlopen(image_url, timeout=30) as response:
