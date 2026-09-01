@@ -15,7 +15,7 @@ from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
 from .tts import EdgeTTSProvider, LahgtnaChatterboxProvider, synthesize_with_fallback
 from .render import render_vertical, validate_mp4
-from src.image_generator import create_legal_image
+from src.image_generator import create_legal_image, ImageGenerationError
 
 STATE_PATH = Path("video_state/used_posts.json")
 
@@ -61,20 +61,29 @@ def cairo_hour() -> int:
     return datetime.now(ZoneInfo("Africa/Cairo")).hour
 
 
-def _build_visuals(post: PublishedPost, work: Path) -> list[Path]:
+def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
     scenes = plan_scenes(post=post.content, count=4)
     visuals: list[Path] = []
     for index, scene in enumerate(scenes, start=1):
         output = work / f"scene_{index:02d}.jpg"
-        create_legal_image(
-            topic=post.content,
-            image_brief=scene["image_brief"],
-            output_path=str(output),
-            cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"),
-            cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"),
-            page_name="اسأل محمود",
-        )
-        visuals.append(output)
+        try:
+            create_legal_image(
+                topic=post.content,
+                image_brief=scene["image_brief"],
+                output_path=str(output),
+                cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"),
+                cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"),
+                page_name="اسأل محمود",
+            )
+            visuals.append(output)
+        except ImageGenerationError as exc:
+            # The isolated pilot must still validate the complete TTS/caption/render
+            # path when the Cloudflare free allocation is exhausted. Never use this
+            # degradation in the normal production path.
+            if os.getenv("VIDEO_PILOT") != "1" or fallback is None:
+                raise
+            print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}")
+            visuals.append(fallback)
     return visuals
 
 
@@ -103,7 +112,7 @@ def build_once() -> dict[str, str]:
     source = work / "source.jpg"
     with urlopen(image_url, timeout=30) as response:
         source.write_bytes(response.read())
-    generated = _build_visuals(post, work)
+    generated = _build_visuals(post, work, fallback=source)
     visuals = [source, *generated[:4]]
     logo = Path("generated/ask mahmoud logo.png")
     output = work / "reel_final.mp4"
