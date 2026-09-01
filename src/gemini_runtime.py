@@ -10,9 +10,12 @@ import gemini_chat as _gemini
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
-PRIMARY_ATTEMPTS = 3
-FALLBACK_ATTEMPTS = 2
-INITIAL_BACKOFF_SECONDS = 5.0
+# Budget guard: one normal attempt + one retry on the primary model, then at
+# most one attempt on the fallback model. This prevents a temporary provider
+# outage from multiplying API usage during scheduled runs.
+PRIMARY_ATTEMPTS = 2
+FALLBACK_ATTEMPTS = 1
+INITIAL_BACKOFF_SECONDS = 8.0
 
 
 def _status_code(exc: Exception) -> int | None:
@@ -60,7 +63,7 @@ def _run_attempts(
 
 
 def generate_post(**kwargs: Any) -> dict[str, Any]:
-    """Reliable Gemini content generation using the Chat API, retries and fallback."""
+    """Reliable Gemini generation with a strict per-run request budget."""
     primary_model = str(kwargs.get("model") or "").strip()
     fallback_model = (
         os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip()
@@ -82,7 +85,7 @@ def generate_post(**kwargs: Any) -> dict[str, Any]:
         fallback_kwargs = dict(kwargs)
         fallback_kwargs["model"] = fallback_model
         print(
-            f"Gemini primary model remained unavailable; switching to fallback model {fallback_model}."
+            f"Gemini primary model remained unavailable; one final attempt on fallback model {fallback_model}."
         )
         return _run_attempts(
             _gemini.generate_post,
