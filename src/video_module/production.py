@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from .captions import caption_from_tts
 from .models import PublishedPost
 from .scene_planner import plan_scenes
-from .script import build_script
+from .script import build_script, _clean
 from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
 from .tts import EdgeTTSProvider, LahgtnaChatterboxProvider, synthesize_with_fallback
@@ -20,9 +20,7 @@ from src.image_generator import create_legal_image, ImageGenerationError
 STATE_PATH = Path("video_state/used_posts.json")
 
 # The isolated pilot is deliberately quota-safe. One Cloudflare generation is
-# enough to prove the complete visual/render path; the remaining scenes reuse
-# the approved source image. This prevents repeated pilot runs from consuming
-# the production account's daily Workers AI allocation.
+# enough to prove the visual/render path; later scenes reuse the approved source.
 PILOT_MAX_CLOUDFLARE_IMAGES = int(os.getenv("VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES", "1"))
 
 
@@ -74,15 +72,14 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
     for index, scene in enumerate(scenes, start=1):
         output = work / f"scene_{index:02d}.jpg"
 
-        # In the isolated pilot, generate at most one fresh visual. Reusing the
-        # approved source for later scenes still exercises scene planning,
-        # captioning, rendering and MP4 validation without burning the daily
-        # Cloudflare AI allocation on four near-identical test generations.
         if os.getenv("VIDEO_PILOT") == "1" and generated_count >= PILOT_MAX_CLOUDFLARE_IMAGES:
             if fallback is None:
                 raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
-            print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}: using approved source image")
-            visuals.append(fallback)
+            # Materialize a real scene file. The workflow validates scene_*.jpg,
+            # so merely returning the same fallback path is not sufficient.
+            output.write_bytes(fallback.read_bytes())
+            print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}: copied approved source image")
+            visuals.append(output)
             continue
 
         try:
@@ -99,9 +96,23 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
         except ImageGenerationError as exc:
             if os.getenv("VIDEO_PILOT") != "1" or fallback is None:
                 raise
-            print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}")
-            visuals.append(fallback)
+            # Same rule as the budget path: create an actual scene artifact so
+            # downstream validation sees the planned number of scenes.
+            output.write_bytes(fallback.read_bytes())
+            print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}; copied approved source image")
+            visuals.append(output)
     return visuals
+
+
+def _pilot_script_fallback(post: PublishedPost) -> str:
+    """Use the approved post itself when pilot Gemini quota is exhausted.
+
+    This is intentionally pilot-only: production must still report Gemini quota
+    exhaustion rather than silently changing the generated script.
+    """
+    text = _clean(post.content)
+    words = text.split()
+    return " ".join(words[:180]).strip()
 
 
 def build_once() -> dict[str, str]:
@@ -116,8 +127,16 @@ def build_once() -> dict[str, str]:
         script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
     except RuntimeError as exc:
         if str(exc) == "GEMINI_QUOTA_EXHAUSTED":
-            return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
-        raise
+            if os.getenv("VIDEO_PILOT") == "1":
+                script = _pilot_script_fallback(post)
+                print("PILOT_GEMINI_QUOTA_FALLBACK using approved post text")
+            else:
+                return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
+        else:
+            raise
+
+    if len(script.split()) < 120:
+        raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
 
     (work / "script.txt").write_text(script, encoding="utf-8")
     audio = synthesize_with_fallback(
@@ -129,6 +148,7 @@ def build_once() -> dict[str, str]:
     source = work / "source.jpg"
     with urlopen(image_url, timeout=30) as response:
         source.write_bytes(response.read())
+
     generated = _build_visuals(post, work, fallback=source)
     visuals = [source, *generated[:4]]
     logo = Path("generated/ask mahmoud logo.png")
