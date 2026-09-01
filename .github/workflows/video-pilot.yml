@@ -8,6 +8,7 @@ permissions:
 
 env:
   PYTHONPATH: src
+  VIDEO_PILOT: "1"
 
 jobs:
   video-pilot:
@@ -45,6 +46,7 @@ jobs:
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VIDEO_PILOT: "1"
         run: |
           python - <<'PY'
           from pathlib import Path
