@@ -10,6 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  GEMINI_PRIMARY_ATTEMPTS: "2"
+  GEMINI_FALLBACK_ATTEMPTS: "1"
+  CLOUDFLARE_IMAGE_STEPS: "4"
+
 jobs:
   publish:
     name: Scheduled publisher
@@ -45,6 +50,9 @@ jobs:
           LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_PRIMARY_ATTEMPTS: "2"
+          GEMINI_FALLBACK_ATTEMPTS: "1"
+          CLOUDFLARE_IMAGE_STEPS: "4"
         run: |
           echo "GitHub event: ${{ github.event_name }}"
           echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
