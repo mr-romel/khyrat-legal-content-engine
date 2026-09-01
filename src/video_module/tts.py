@@ -69,9 +69,25 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
         "            conds = Conditionals.load(builtin_voice, map_location=map_location).to(device)\n",
     )
     if patched == source:
-        # Already patched, or upstream has changed to the fixed implementation.
         return
     target.write_text(patched, encoding="utf-8")
+
+
+def _resolve_lahgtna_ref_audio(repo: Path, configured_ref: str) -> Path:
+    """Resolve Lahgtna's reference audio from its actual repository layout.
+
+    Lahgtna stores bundled references under ``src/wavs`` while its config
+    exposes paths relative to the Python package root (``wavs/...``). The
+    previous implementation joined that path directly to the repository root,
+    producing ``repo/wavs/...`` and failing even though the reference existed.
+    """
+    relative = Path(configured_ref.lstrip("./"))
+    candidates = (repo / "src" / relative, repo / relative)
+    for candidate in candidates:
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    checked = ", ".join(str(path) for path in candidates)
+    raise FileNotFoundError(f"Egyptian reference audio not found. Checked: {checked}")
 
 
 class LahgtnaChatterboxProvider:
@@ -111,9 +127,12 @@ repo, payload, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 chunks = json.loads(payload.read_text(encoding='utf-8'))
 engine = TTSEngine()
 lang_cfg = LANGUAGE_CODES['eg']
-ref_audio = repo / lang_cfg['ref'].lstrip('./')
-if not ref_audio.exists():
-    raise FileNotFoundError(f'Egyptian reference audio not found: {ref_audio}')
+relative_ref = Path(lang_cfg['ref'].lstrip('./'))
+ref_candidates = (repo / 'src' / relative_ref, repo / relative_ref)
+ref_audio = next((p for p in ref_candidates if p.is_file() and p.stat().st_size > 0), None)
+if ref_audio is None:
+    checked = ', '.join(str(p) for p in ref_candidates)
+    raise FileNotFoundError(f'Egyptian reference audio not found. Checked: {checked}')
 parts = []
 for index, chunk in enumerate(chunks, 1):
     wav = engine.synthesise(chunk, language_code=lang_cfg['code'], ref_audio_path=ref_audio,
