@@ -5,6 +5,28 @@ import subprocess
 from pathlib import Path
 
 
+def _prepare_logo(logo: Path, work: Path) -> Path:
+    """Remove white matte from the supplied logo and keep a clean alpha channel."""
+    prepared = work / "logo_transparent.png"
+    from PIL import Image
+
+    image = Image.open(logo).convert("RGBA")
+    pixels = image.load()
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b, a = pixels[x, y]
+            # Make near-white matte pixels transparent while preserving colored
+            # logo pixels and anti-aliased edges.
+            whiteness = min(r, g, b)
+            if whiteness >= 245:
+                pixels[x, y] = (r, g, b, 0)
+            elif whiteness >= 225:
+                alpha = int(a * (255 - whiteness) / 30)
+                pixels[x, y] = (r, g, b, max(0, min(255, alpha)))
+    image.save(prepared)
+    return prepared
+
+
 def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captions: Path | None = None, logo: Path | None = None) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     sources = images if isinstance(images, list) else [images]
@@ -21,7 +43,8 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     if total < 45:
         raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
 
-    # Keep the edit dynamic without the distracting Ken-Burns/zoom effect.
+    # Five visual beats max. No zoom/pan: movement comes only from restrained
+    # transitions so the reel stays clean and professional.
     count = min(max(len(sources), 1), 5)
     scene = max(total / count, 1.0)
     transition = min(0.45, max(0.28, scene / 10))
@@ -46,8 +69,7 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
         current = out
         offset += scene - transition
 
-    # Very light finishing pass: a restrained vignette keeps attention centered
-    # without changing framing or introducing any zoom/pan movement.
+    # Very light finishing pass. No artificial zoom or motion.
     filters.append(f"[{current}]vignette=PI/5:0.65[finished]")
     current = "finished"
 
@@ -55,21 +77,23 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     inputs += ["-i", str(audio)]
 
     if logo:
-        inputs += ["-i", str(logo)]
+        try:
+            transparent_logo = _prepare_logo(logo, output.parent)
+        except Exception:
+            transparent_logo = logo
+        inputs += ["-i", str(transparent_logo)]
         filters.append(
-            f"[{audio_index+1}:v]format=rgba,colorkey=0xFFFFFF:0.10:0.03,scale=380:-1[lg]"
+            f"[{audio_index+1}:v]format=rgba,scale=460:-1[lg]"
         )
         filters.append(f"[{current}][lg]overlay=W-w-45:45:format=auto[branded]")
         current = "branded"
 
     if captions:
         cap = captions.as_posix().replace("\\", "/").replace(":", "\\:")
-        # Cleaner Arabic caption treatment: larger, heavier, high-contrast, and
-        # lower on screen so it reads naturally without covering the visual focus.
         style = (
-            "FontName=Noto Sans Arabic,FontSize=24,Bold=1,"
-            "PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,"
-            "BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=170,Spacing=0"
+            "FontName=Noto Sans Arabic,FontSize=25,Bold=1,"
+            "PrimaryColour=&H00FFFFFF,OutlineColour=&H00090909,"
+            "BorderStyle=1,Outline=3,Shadow=0,Alignment=2,MarginV=175,Spacing=0"
         )
         filters.append(f"[{current}]subtitles='{cap}':force_style='{style}'[final]")
         current = "final"
