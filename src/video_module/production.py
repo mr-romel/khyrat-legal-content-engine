@@ -22,40 +22,26 @@ PILOT_MAX_CLOUDFLARE_IMAGES = int(os.getenv("VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES",
 
 
 def load_used() -> set[str]:
-    if not STATE_PATH.exists():
-        return set()
-    try:
-        return set(json.loads(STATE_PATH.read_text(encoding="utf-8")).get("used_post_ids", []))
-    except Exception:
-        return set()
+    if not STATE_PATH.exists(): return set()
+    try: return set(json.loads(STATE_PATH.read_text(encoding="utf-8")).get("used_post_ids", []))
+    except Exception: return set()
 
 
 def save_used(values: set[str]) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(
-        json.dumps({"used_post_ids": sorted(values)}, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    STATE_PATH.write_text(json.dumps({"used_post_ids": sorted(values)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def mark_used(post_id: str) -> None:
-    used = load_used()
-    used.add(post_id)
-    save_used(used)
+    used = load_used(); used.add(post_id); save_used(used)
 
 
 def choose() -> tuple[PublishedPost, str] | None:
     posts = posts_from_rows(read_rows())
-    eligible = [
-        PublishedPost(p.post_id, p.topic, p.content)
-        for p in posts
-        if is_published(p) and p.content and p.image_url
-    ]
+    eligible = [PublishedPost(p.post_id, p.topic, p.content) for p in posts if is_published(p) and p.content and p.image_url]
     post = first_eligible_post(eligible, load_used())
-    if post is None:
-        return None
-    image_url = next(p.image_url for p in posts if p.post_id == post.post_id)
-    return post, image_url
+    if post is None: return None
+    return post, next(p.image_url for p in posts if p.post_id == post.post_id)
 
 
 def cairo_hour() -> int:
@@ -63,7 +49,6 @@ def cairo_hour() -> int:
 
 
 def _pilot_scene_plan(post: PublishedPost) -> list[dict[str, str]]:
-    """Deterministic scene plan: the isolated pilot must not consume Gemini quota."""
     brief = _clean(post.content)[:700]
     return [
         {"image_brief": f"Professional Egyptian legal social-media visual about: {brief}"},
@@ -74,99 +59,60 @@ def _pilot_scene_plan(post: PublishedPost) -> list[dict[str, str]]:
 
 
 def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
-    # Pilot is fully deterministic here: no Gemini scene-planning request.
     scenes = _pilot_scene_plan(post) if os.getenv("VIDEO_PILOT") == "1" else plan_scenes(post=post.content, count=4)
-    visuals: list[Path] = []
-    generated_count = 0
+    visuals: list[Path] = []; generated_count = 0
     for index, scene in enumerate(scenes, start=1):
         output = work / f"scene_{index:02d}.jpg"
-
         if os.getenv("VIDEO_PILOT") == "1" and generated_count >= PILOT_MAX_CLOUDFLARE_IMAGES:
-            if fallback is None:
-                raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
-            output.write_bytes(fallback.read_bytes())
-            print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}: copied approved source image")
-            visuals.append(output)
-            continue
-
+            if fallback is None: raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
+            output.write_bytes(fallback.read_bytes()); visuals.append(output); print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}"); continue
         try:
-            create_legal_image(
-                topic=post.content,
-                image_brief=scene["image_brief"],
-                output_path=str(output),
-                cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"),
-                cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"),
-                page_name="اسأل محمود",
-            )
-            visuals.append(output)
-            generated_count += 1
+            create_legal_image(topic=post.content, image_brief=scene["image_brief"], output_path=str(output), cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"), cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"), page_name="اسأل محمود")
+            visuals.append(output); generated_count += 1
         except ImageGenerationError as exc:
-            if os.getenv("VIDEO_PILOT") != "1" or fallback is None:
-                raise
-            output.write_bytes(fallback.read_bytes())
-            print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}; copied approved source image")
-            visuals.append(output)
+            if os.getenv("VIDEO_PILOT") != "1" or fallback is None: raise
+            output.write_bytes(fallback.read_bytes()); visuals.append(output); print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}")
     return visuals
 
 
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    """Build a minimum-length pilot script without Gemini."""
-    text = _clean(post.content)
-    words = text.split()
-    if not words:
-        return ""
-    while len(words) < 120:
-        words.extend(words[: min(len(words), 120 - len(words))])
+    text = _clean(post.content); words = text.split()
+    if not words: return ""
+    # Never duplicate legal text just to reach an arbitrary word count.
     return " ".join(words[:180]).strip()
 
 
 def build_once() -> dict[str, str]:
     chosen = choose()
-    if chosen is None:
-        return {"status": "QUEUE_EMPTY"}
-    post, image_url = chosen
-    work = Path("video_artifacts")
-    work.mkdir(parents=True, exist_ok=True)
+    if chosen is None: return {"status": "QUEUE_EMPTY"}
+    post, image_url = chosen; work = Path("video_artifacts"); work.mkdir(parents=True, exist_ok=True)
 
-    # The isolated pilot must remain runnable even when Gemini has exhausted its
-    # free quota. Normal production keeps the existing Gemini script generation.
     if os.getenv("VIDEO_PILOT") == "1":
-        script = _pilot_script_fallback(post)
-        print("PILOT_SCRIPT_SOURCE=approved_post_no_gemini")
+        script = _pilot_script_fallback(post); print("PILOT_SCRIPT_SOURCE=approved_post_no_gemini")
     else:
-        try:
-            script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
+        try: script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
         except RuntimeError as exc:
-            if str(exc) == "GEMINI_QUOTA_EXHAUSTED":
-                return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
+            if str(exc) == "GEMINI_QUOTA_EXHAUSTED": return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
             raise
 
-    if len(script.split()) < 120:
-        raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
-
+    # Pilot accepts a shorter complete approved post; no artificial repetition.
+    if len(script.split()) < 70: raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
     (work / "script.txt").write_text(script, encoding="utf-8")
 
-    # Pilot uses fast Edge TTS first. Normal production remains unchanged.
+    # Quality-first: Pilot is Egyptian Edge TTS only. It must never silently fall back
+    # to the slower/robotic CPU Chatterbox voice. Normal production is untouched.
     if os.getenv("VIDEO_PILOT") == "1":
-        tts_providers = [EdgeTTSProvider(), LahgtnaChatterboxProvider()]
+        audio = EdgeTTSProvider(voice="ar-EG-ShakirNeural").synthesize(script, work / "voice.mp3")
+        print("PILOT_TTS_PROVIDER=EdgeTTS"); print("PILOT_TTS_VOICE=ar-EG-ShakirNeural")
     else:
-        tts_providers = [LahgtnaChatterboxProvider(), EdgeTTSProvider()]
-    audio = synthesize_with_fallback(script, work / "voice.mp3", tts_providers)
+        audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider(), EdgeTTSProvider()])
 
     captions = caption_from_tts(script, audio, work / "captions.srt")
     source = work / "source.jpg"
-    with urlopen(image_url, timeout=30) as response:
-        source.write_bytes(response.read())
-
+    with urlopen(image_url, timeout=30) as response: source.write_bytes(response.read())
     generated = _build_visuals(post, work, fallback=source)
     visuals = [source, *generated[:4]]
-    logo = Path("generated/ask mahmoud logo.png")
-    output = work / "reel_final.mp4"
+    logo = Path("generated/ask mahmoud logo.png"); output = work / "reel_final.mp4"
     render_vertical(visuals, audio, output, captions, logo if logo.exists() else None)
     validation = validate_mp4(output)
-    return {
-        "status": "READY_FOR_META",
-        "post_id": post.post_id,
-        "video": str(output),
-        "duration": str(validation["duration"]),
-    }
+    return {"status": "READY_FOR_META", "post_id": post.post_id, "video": str(output), "duration": str(validation["duration"])}
