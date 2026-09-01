@@ -9,6 +9,9 @@ permissions:
 env:
   PYTHONPATH: src
   VIDEO_PILOT: "1"
+  VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES: "1"
+  VIDEO_GEMINI_MAX_ATTEMPTS: "2"
+  VIDEO_GEMINI_RETRY_DELAY_SECONDS: "8"
 
 jobs:
   video-pilot:
@@ -47,6 +50,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           VIDEO_PILOT: "1"
+          VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES: "1"
+          VIDEO_GEMINI_MAX_ATTEMPTS: "2"
+          VIDEO_GEMINI_RETRY_DELAY_SECONDS: "8"
         run: |
           python - <<'PY'
           from pathlib import Path
