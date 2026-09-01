@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 
 from google import genai
 
 
 CACHE_DIR = Path(os.getenv("VIDEO_SCRIPT_CACHE_DIR", "video_script_cache"))
+GEMINI_MAX_ATTEMPTS = max(1, int(os.getenv("VIDEO_GEMINI_MAX_ATTEMPTS", "2")))
+GEMINI_RETRY_DELAY_SECONDS = max(1, int(os.getenv("VIDEO_GEMINI_RETRY_DELAY_SECONDS", "8")))
 
 
 def _clean(text: str) -> str:
@@ -30,6 +33,23 @@ def _cached_script(post_id: str) -> str | None:
     if len(result.split()) < 120:
         return None
     return result
+
+
+def _is_retryable(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(
+        marker in message
+        for marker in (
+            "503",
+            "unavailable",
+            "429",
+            "resource_exhausted",
+            "temporarily",
+            "timeout",
+            "deadline",
+            "internal",
+        )
+    )
 
 
 def build_script(topic: str, approved_post: str, max_words: int = 180, post_id: str = "") -> str:
@@ -66,21 +86,29 @@ def build_script(topic: str, approved_post: str, max_words: int = 180, post_id: 
 المنشور المعتمد:
 {text}
 """
-    try:
-        response = client.models.generate_content(model=model, contents=prompt)
-    except Exception as exc:
-        message = str(exc)
-        if "429" in message or "RESOURCE_EXHAUSTED" in message or "quota" in message.lower():
-            raise RuntimeError("GEMINI_QUOTA_EXHAUSTED") from exc
-        raise
 
-    result = _clean(getattr(response, "text", ""))
-    words = result.split()
-    if len(words) < 120:
-        raise RuntimeError("Gemini returned a Reel script that is too short.")
-    result = " ".join(words[:max_words]).strip()
+    last_error: Exception | None = None
+    for attempt in range(1, GEMINI_MAX_ATTEMPTS + 1):
+        try:
+            response = client.models.generate_content(model=model, contents=prompt)
+            result = _clean(getattr(response, "text", ""))
+            words = result.split()
+            if len(words) < 120:
+                raise RuntimeError("Gemini returned a Reel script that is too short.")
+            result = " ".join(words[:max_words]).strip()
+            if post_id:
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                _cache_path(post_id).write_text(result + "\n", encoding="utf-8")
+            return result
+        except Exception as exc:
+            last_error = exc
+            message = str(exc)
+            if "429" in message or "RESOURCE_EXHAUSTED" in message or "quota" in message.lower():
+                raise RuntimeError("GEMINI_QUOTA_EXHAUSTED") from exc
+            if attempt >= GEMINI_MAX_ATTEMPTS or not _is_retryable(exc):
+                raise
+            delay = GEMINI_RETRY_DELAY_SECONDS * (2 ** (attempt - 1))
+            print(f"Gemini transient failure attempt={attempt}/{GEMINI_MAX_ATTEMPTS}; retrying in {delay}s")
+            time.sleep(delay)
 
-    if post_id:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        _cache_path(post_id).write_text(result + "\n", encoding="utf-8")
-    return result
+    raise RuntimeError("Gemini content generation failed") from last_error
