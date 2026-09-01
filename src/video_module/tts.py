@@ -43,17 +43,9 @@ def _chunk_egyptian_text(text: str, max_chars: int = 280) -> list[str]:
 
 
 def _patch_lahgtna_cpu_loader(repo: Path) -> None:
-    """Patch the vendored Lahgtna/Chatterbox loader for CPU-only CI runners.
-
-    The Lahgtna repository currently ships an older Chatterbox loader that
-    calls torch.load() without map_location for ve.pt/s3gen.pt. GitHub-hosted
-    runners are CPU-only, while those checkpoints can contain CUDA tensors.
-    Without this compatibility patch the subprocess exits before synthesis.
-    """
     target = repo / "src" / "chatterbox" / "mtl_tts.py"
     if not target.exists():
         raise FileNotFoundError(f"Lahgtna Chatterbox loader not found: {target}")
-
     source = target.read_text(encoding="utf-8")
     patched = source
     patched = patched.replace(
@@ -64,23 +56,11 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
         "        s3gen = S3Gen()\n        s3gen.load_state_dict(torch.load(ckpt_dir / \"s3gen.pt\", weights_only=True))\n",
         "        s3gen = S3Gen()\n        s3gen.load_state_dict(torch.load(ckpt_dir / \"s3gen.pt\", map_location=map_location, weights_only=True))\n",
     )
-    patched = patched.replace(
-        "            conds = Conditionals.load(builtin_voice).to(device)\n",
-        "            conds = Conditionals.load(builtin_voice, map_location=map_location).to(device)\n",
-    )
-    if patched == source:
-        return
-    target.write_text(patched, encoding="utf-8")
+    if patched != source:
+        target.write_text(patched, encoding="utf-8")
 
 
 def _resolve_lahgtna_ref_audio(repo: Path, configured_ref: str) -> Path:
-    """Resolve Lahgtna's reference audio from its actual repository layout.
-
-    Lahgtna stores bundled references under ``src/wavs`` while its config
-    exposes paths relative to the Python package root (``wavs/...``). The
-    previous implementation joined that path directly to the repository root,
-    producing ``repo/wavs/...`` and failing even though the reference existed.
-    """
     relative = Path(configured_ref.lstrip("./"))
     candidates = (repo / "src" / relative, repo / relative)
     for candidate in candidates:
@@ -106,7 +86,7 @@ class LahgtnaChatterboxProvider:
             )
 
         _patch_lahgtna_cpu_loader(repo)
-
+        output_path = output_path.resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
         chunks = _chunk_egyptian_text(text)
         if not chunks:
@@ -148,7 +128,7 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(repo / "src") + os.pathsep + env.get("PYTHONPATH", "")
-        wav = output_path.with_suffix(".wav")
+        wav = (output_path.with_suffix(".wav")).resolve()
         try:
             completed = subprocess.run(
                 ["python", str(runner), str(repo), str(payload), str(wav)],
@@ -165,7 +145,7 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 
         subprocess.run(
             ["ffmpeg", "-y", "-i", str(wav), "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
-             "-codec:a", "libmp3lame", "-q:a", "3", str(output_path)],
+             "-codec:a", "libmp3lame", "-q:a", "3", str(output_path.resolve())],
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         if not output_path.is_file() or output_path.stat().st_size == 0:
@@ -174,7 +154,6 @@ print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 
 
 class EdgeTTSProvider:
-    """Optional fallback; production remains Egyptian Lahgtna-first."""
     def __init__(self, voice: str = "ar-EG-ShakirNeural") -> None:
         self.voice = voice
 
