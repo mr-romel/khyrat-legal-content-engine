@@ -33,7 +33,6 @@ def _ass_time(value: str) -> str:
 
 
 def _srt_to_ass(srt: Path, work: Path) -> Path:
-    """Convert SRT to explicit ASS coordinates so captions stay in the lower safe-third."""
     ass = work / "captions_safe_third.ass"
     lines = srt.read_text(encoding="utf-8-sig").replace("\r\n", "\n").split("\n")
     events: list[str] = []
@@ -56,7 +55,7 @@ def _srt_to_ass(srt: Path, work: Path) -> Path:
             events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
         i += 1
     ass.write_text(
-        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,0,1,2,0,2,70,70,300,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
+        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,2,1,2,0,2,70,70,240,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
     return ass
 
 
@@ -79,7 +78,16 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     for i, image in enumerate(sources[:count]):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         if animated:
-            filters.append(f"[{i}:v]scale=1160:2062:force_original_aspect_ratio=increase,crop=1080:1920:x='40+35*sin(t*0.55)':y='71+28*cos(t*0.43)',setsar=1,format=yuv420p[v{i}]")
+            # Whiteboard action: slow linear push/slide, not a circular orbit.
+            # The hand is drawn into each board scene and remains visible while
+            # the camera travels across the written information.
+            zoom = 1.0 + 0.055 * min(max((t := "t"), "t"), "t") if False else 1.0
+            filters.append(
+                f"[{i}:v]scale=1180:2098:force_original_aspect_ratio=increase," 
+                f"crop=1080:1920:x='50+75*t/{scene:.3f}':y='70+35*t/{scene:.3f}'," 
+                f"zoompan=z='1.0+0.055*on/({scene*25:.1f})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=25," 
+                f"setsar=1,format=yuv420p[v{i}]"
+            )
         else:
             filters.append(f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p[v{i}]")
     current = "v0"
