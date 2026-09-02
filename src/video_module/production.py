@@ -76,9 +76,8 @@ def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None
 
 
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    # The pilot must never cut the legal explanation mid-sentence. Keep the whole
-    # approved post, then conservatively convert common formal constructions to
-    # spoken Egyptian Arabic without inventing or deleting legal substance.
+    # Keep the complete approved legal explanation and normalize only common
+    # written/formal constructions into Egyptian spoken phrasing.
     spoken = to_egyptian_spoken(post.content)
     if not spoken:
         return ""
@@ -103,8 +102,13 @@ def build_once() -> dict[str, str]:
     (work / "script.txt").write_text(script, encoding="utf-8")
 
     if os.getenv("VIDEO_PILOT") == "1":
-        audio = EdgeTTSProvider(voice="ar-EG-ShakirNeural").synthesize(script, work / "voice.mp3")
-        print("PILOT_TTS_PROVIDER=EdgeTTS"); print("PILOT_TTS_VOICE=ar-EG-ShakirNeural")
+        # Pilot explicitly uses the open-source Lahgtna Egyptian-Arabic model.
+        # Do not silently switch to Edge TTS: a pilot run is accepted only when
+        # the Egyptian open-source path actually produced the audio.
+        audio = LahgtnaChatterboxProvider().synthesize(script, work / "voice.mp3")
+        print("PILOT_TTS_PROVIDER=Lahgtna-Chatterbox")
+        print("PILOT_TTS_DIALECT=Egyptian (eg/ms)")
+        print("PILOT_TTS_EXPRESSIVE=0.72")
     else:
         audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider(), EdgeTTSProvider()])
 
