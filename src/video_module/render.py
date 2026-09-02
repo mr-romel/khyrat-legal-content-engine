@@ -55,7 +55,7 @@ def _srt_to_ass(srt: Path, work: Path) -> Path:
             events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
         i += 1
     ass.write_text(
-        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,2,70,70,240,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
+        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,2,1,2,0,2,70,70,240,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
     return ass
 
 
@@ -70,9 +70,6 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     if total < 45:
         raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
 
-    # Normal production intentionally uses a small number of source images.
-    # Pilot whiteboard uses every progressive drawing frame so the hand and
-    # information visibly appear over time instead of being a static card.
     count = len(sources) if animated else min(len(sources), 5)
     sources = sources[:count]
     transition = min(0.35, max(0.18, (total / count) / 14)) if count > 1 else 0.0
@@ -84,11 +81,9 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         if animated:
             filters.append(
-                f"[{i}:v]scale=1120:1992:force_original_aspect_ratio=increase," 
-                f"crop=1120:1992," 
+                f"[{i}:v]scale=1120:1992:force_original_aspect_ratio=increase,crop=1120:1992," 
                 f"zoompan=z='1.0+0.025*on/({scene*25:.1f})':" 
-                f"x='40*on/({scene*25:.1f})':" 
-                f"y='22*on/({scene*25:.1f})':" 
+                f"x='40*on/({scene*25:.1f})':y='22*on/({scene*25:.1f})':" 
                 f"d=1:s=1080x1920:fps=25,setsar=1,format=yuv420p[v{i}]"
             )
         else:
