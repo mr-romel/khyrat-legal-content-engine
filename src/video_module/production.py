@@ -87,10 +87,14 @@ def build_once() -> dict[str, str]:
     (work / "script.txt").write_text(script, encoding="utf-8")
 
     if os.getenv("VIDEO_PILOT") == "1":
-        audio = LahgtnaChatterboxProvider().synthesize(script, work / "voice.mp3")
-        print("PILOT_TTS_PROVIDER=Lahgtna-Chatterbox")
-        print("PILOT_TTS_DIALECT=Egyptian (eg/ms)")
-        print("PILOT_TTS_EXPRESSIVE=0.72")
+        # Pilot voice: clear, confident Egyptian male delivery.  ShakirNeural is
+        # an Egyptian Arabic male neural voice and also emits word timings,
+        # which keeps captions synchronized with the spoken audio.
+        audio = EdgeTTSProvider(voice="ar-EG-ShakirNeural").synthesize(script, work / "voice.mp3")
+        print("PILOT_TTS_PROVIDER=EdgeTTS")
+        print("PILOT_TTS_VOICE=ar-EG-ShakirNeural")
+        print("PILOT_TTS_DIALECT=Egyptian Arabic")
+        print("PILOT_TTS_STYLE=young_confident_clear")
     else:
         audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider(), EdgeTTSProvider()])
 
