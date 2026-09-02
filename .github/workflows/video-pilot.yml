@@ -2,6 +2,11 @@ name: Video Pilot (isolated)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/video_module/**'
+      - '.github/workflows/video-pilot.yml'
 
 permissions:
   contents: read
