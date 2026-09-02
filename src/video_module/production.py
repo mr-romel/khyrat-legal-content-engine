@@ -15,6 +15,7 @@ from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
 from .tts import EdgeTTSProvider, LahgtnaChatterboxProvider, synthesize_with_fallback
 from .render import render_vertical, validate_mp4
+from .whiteboard import write_whiteboard_scenes
 from src.image_generator import create_legal_image, ImageGenerationError
 
 STATE_PATH = Path("video_state/used_posts.json")
@@ -48,41 +49,25 @@ def cairo_hour() -> int:
     return datetime.now(ZoneInfo("Africa/Cairo")).hour
 
 
-def _pilot_scene_plan(post: PublishedPost) -> list[dict[str, str]]:
-    brief = _clean(post.content)[:700]
-    return [
-        {"image_brief": f"Professional Egyptian legal social-media visual about: {brief}"},
-        {"image_brief": f"Clean explanatory legal visual highlighting the key issue: {brief}"},
-        {"image_brief": f"Modern courtroom/legal concept visual connected to: {brief}"},
-        {"image_brief": f"Simple practical legal advice visual for the audience about: {brief}"},
-    ]
-
-
-def _build_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
-    scenes = _pilot_scene_plan(post) if os.getenv("VIDEO_PILOT") == "1" else plan_scenes(post=post.content, count=4)
-    visuals: list[Path] = []; generated_count = 0
-    for index, scene in enumerate(scenes, start=1):
-        output = work / f"scene_{index:02d}.jpg"
-        if os.getenv("VIDEO_PILOT") == "1" and generated_count >= PILOT_MAX_CLOUDFLARE_IMAGES:
-            if fallback is None: raise ImageGenerationError("VIDEO_PILOT image budget exhausted and no fallback image exists")
-            output.write_bytes(fallback.read_bytes()); visuals.append(output); print(f"PILOT_IMAGE_BUDGET_REUSE scene={index}"); continue
-        try:
-            create_legal_image(topic=post.content, image_brief=scene["image_brief"], output_path=str(output), cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"), cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"), page_name="اسأل محمود")
-            visuals.append(output); generated_count += 1
-        except ImageGenerationError as exc:
-            if os.getenv("VIDEO_PILOT") != "1" or fallback is None: raise
-            output.write_bytes(fallback.read_bytes()); visuals.append(output); print(f"PILOT_IMAGE_FALLBACK scene={index}: {exc}")
-    return visuals
-
-
 def _pilot_script_fallback(post: PublishedPost) -> str:
-    # Keep the complete approved legal explanation and normalize only common
-    # written/formal constructions into Egyptian spoken phrasing.
     spoken = to_egyptian_spoken(post.content)
-    if not spoken:
-        return ""
+    if not spoken: return ""
     print(f"PILOT_SCRIPT_WORDS={len(spoken.split())}")
     return spoken
+
+
+def _build_normal_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
+    scenes = plan_scenes(post=post.content, count=4)
+    visuals: list[Path] = []
+    for index, scene in enumerate(scenes, start=1):
+        output = work / f"scene_{index:02d}.jpg"
+        try:
+            create_legal_image(topic=post.content, image_brief=scene["image_brief"], output_path=str(output), cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"), cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"), page_name="اسأل محمود")
+            visuals.append(output)
+        except ImageGenerationError:
+            if fallback is None: raise
+            output.write_bytes(fallback.read_bytes()); visuals.append(output)
+    return visuals
 
 
 def build_once() -> dict[str, str]:
@@ -102,9 +87,6 @@ def build_once() -> dict[str, str]:
     (work / "script.txt").write_text(script, encoding="utf-8")
 
     if os.getenv("VIDEO_PILOT") == "1":
-        # Pilot explicitly uses the open-source Lahgtna Egyptian-Arabic model.
-        # Do not silently switch to Edge TTS: a pilot run is accepted only when
-        # the Egyptian open-source path actually produced the audio.
         audio = LahgtnaChatterboxProvider().synthesize(script, work / "voice.mp3")
         print("PILOT_TTS_PROVIDER=Lahgtna-Chatterbox")
         print("PILOT_TTS_DIALECT=Egyptian (eg/ms)")
@@ -113,11 +95,14 @@ def build_once() -> dict[str, str]:
         audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider(), EdgeTTSProvider()])
 
     captions = caption_from_tts(script, audio, work / "captions.srt")
-    source = work / "source.jpg"
-    with urlopen(image_url, timeout=30) as response: source.write_bytes(response.read())
-    generated = _build_visuals(post, work, fallback=source)
-    visuals = [source, *generated[:4]]
+    if os.getenv("VIDEO_PILOT") == "1":
+        visuals = write_whiteboard_scenes(work / "whiteboard", count=5)
+        print(f"PILOT_VISUAL_STYLE=animated_whiteboard SCENES={len(visuals)}")
+    else:
+        source = work / "source.jpg"
+        with urlopen(image_url, timeout=30) as response: source.write_bytes(response.read())
+        visuals = [source, *_build_normal_visuals(post, work, fallback=source)][:5]
     logo = Path("generated/ask mahmoud logo.png"); output = work / "reel_final.mp4"
-    render_vertical(visuals, audio, output, captions, logo if logo.exists() else None)
+    render_vertical(visuals, audio, output, captions, logo if logo.exists() else None, animated=os.getenv("VIDEO_PILOT") == "1")
     validation = validate_mp4(output)
     return {"status": "READY_FOR_META", "post_id": post.post_id, "video": str(output), "duration": str(validation["duration"])}
