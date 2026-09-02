@@ -16,7 +16,7 @@ env:
 jobs:
   video-pilot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +36,12 @@ jobs:
           python -m pip install -r requirements.txt pytest edge-tts
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Prepare open Egyptian reference audio
+        run: |
+          mkdir -p video_reference
+          curl -L --fail --retry 3 -o /tmp/lahgtna_reference_source.wav https://raw.githubusercontent.com/Oddadmix/lahgtna-chatterbox/main/test.wav
+          ffmpeg -y -i /tmp/lahgtna_reference_source.wav -ac 1 -ar 24000 -t 8 video_reference/egyptian_reference.wav
+          test -s video_reference/egyptian_reference.wav
       - name: Core import smoke test
         run: python -c "import main; print('CORE_IMPORT_OK')"
       - name: Video module tests
@@ -53,6 +59,7 @@ jobs:
           VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES: "1"
           VIDEO_GEMINI_MAX_ATTEMPTS: "2"
           VIDEO_GEMINI_RETRY_DELAY_SECONDS: "8"
+          VIDEO_PILOT_EGYPTIAN_REF_AUDIO: video_reference/egyptian_reference.wav
         run: |
           python - <<'PY'
           from pathlib import Path
