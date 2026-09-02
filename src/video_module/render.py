@@ -22,8 +22,18 @@ def _prepare_logo(logo: Path, work: Path) -> Path:
     return prepared
 
 
+def _ass_time(value: str) -> str:
+    value = value.replace(",", ".")
+    h, m, rest = value.split(":")
+    if "." in rest:
+        s, ms = rest.split(".", 1)
+    else:
+        s, ms = rest, "0"
+    return f"{int(h)}:{int(m):02d}:{int(s):02d}.{int(ms[:2]):02d}"
+
+
 def _srt_to_ass(srt: Path, work: Path) -> Path:
-    """Convert SRT to explicit ASS coordinates so captions cannot jump to the top."""
+    """Convert SRT to explicit ASS coordinates so captions stay in the lower safe-third."""
     ass = work / "captions_safe_third.ass"
     lines = srt.read_text(encoding="utf-8-sig").replace("\r\n", "\n").split("\n")
     events: list[str] = []
@@ -42,18 +52,12 @@ def _srt_to_ass(srt: Path, work: Path) -> Path:
             text_lines.append(lines[i].strip())
             i += 1
         if text_lines:
-            events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{'\\N'.join(text_lines)}")
+            text = "\\N".join(text_lines).replace("{", "\\{").replace("}", "\\}")
+            events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
         i += 1
     ass.write_text(
         """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,0,1,2,0,2,70,70,300,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
     return ass
-
-
-def _ass_time(value: str) -> str:
-    value = value.replace(",", ".")
-    h, m, rest = value.split(":")
-    s, ms = rest.split(".")
-    return f"{int(h)}:{int(m):02d}:{int(s):02d}.{int(ms[:2]):02d}"
 
 
 def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captions: Path | None = None, logo: Path | None = None, animated: bool = False) -> Path:
