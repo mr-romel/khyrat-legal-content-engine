@@ -22,14 +22,43 @@ def write_srt(text: str, output: Path, duration: float) -> Path:
     words = text.split()
     if not words or duration <= 0:
         raise ValueError("Caption source and duration are required")
-    chunk = 6
-    groups = [words[i:i + chunk] for i in range(0, len(words), chunk)]
+    groups = [words[i:i + 6] for i in range(0, len(words), 6)]
     step = duration / len(groups)
     lines = []
     for i, group in enumerate(groups):
         start = i * step
         end = min(duration, (i + 1) * step)
         lines += [str(i + 1), f"{_fmt(start)} --> {_fmt(end)}", " ".join(group), ""]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines), encoding="utf-8")
+    return output
+
+
+def _write_chunk_timed_srt(timing_path: Path, output: Path, duration: float) -> Path:
+    raw = json.loads(timing_path.read_text(encoding="utf-8"))
+    entries: list[tuple[float, float, str]] = []
+    cursor = 0.0
+    for item in raw:
+        caption = _clean_word(str(item.get("text", "")))
+        chunk_duration = float(item.get("duration", 0.0) or 0.0)
+        if not caption or chunk_duration <= 0:
+            continue
+        end = min(duration, cursor + chunk_duration)
+        entries.append((cursor, end, caption))
+        cursor = end
+    if not entries:
+        raise ValueError("Lahgtna chunk timing data is empty")
+
+    # The audio is assembled from these exact chunks in the same order. Each
+    # caption therefore occupies the exact duration of the audio chunk that
+    # spoke it, eliminating the old proportional whole-audio drift.
+    if cursor < duration:
+        start, end, caption = entries[-1]
+        entries[-1] = (start, duration, caption)
+
+    lines: list[str] = []
+    for number, (start, end, caption) in enumerate(entries, 1):
+        lines += [str(number), f"{_fmt(start)} --> {_fmt(end)}", caption, ""]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines), encoding="utf-8")
     return output
@@ -42,8 +71,6 @@ def _write_timed_srt(text: str, timing_path: Path, output: Path, duration: float
     if not timings or not words:
         raise ValueError("Edge TTS timing data is empty")
 
-    # Edge emits one WordBoundary event per spoken token. Match them in order;
-    # use the exact script words for display so punctuation/copy remains stable.
     count = min(len(words), len(timings))
     if count < max(3, int(len(words) * 0.75)):
         raise ValueError(f"Edge TTS timing mismatch: script_words={len(words)} timed_words={len(timings)}")
@@ -63,13 +90,9 @@ def _write_timed_srt(text: str, timing_path: Path, output: Path, duration: float
         last = timings[end_index]
         end = (int(last.get("offset_100ns", 0)) + int(last.get("duration_100ns", 0))) / 10_000_000
         end = max(end, start + 0.35)
-        if index == 0:
-            start = max(0.0, start)
-        entries.append((start, min(duration, end), " ".join(words[index:end_index + 1])))
+        entries.append((max(0.0, start), min(duration, end), " ".join(words[index:end_index + 1])))
         index = end_index + 1
 
-    # If Edge returned fewer events than script tokens, keep the remaining text
-    # visible at the end rather than silently dropping the spoken tail.
     if index < len(words):
         start = entries[-1][1] if entries else 0.0
         entries.append((start, duration, " ".join(words[index:])))
@@ -90,6 +113,14 @@ def caption_from_tts(text: str, audio: Path, output: Path) -> Path:
         check=True, text=True, capture_output=True,
     )
     duration = float(json.loads(probe.stdout)["format"]["duration"])
+
+    chunk_timing_path = audio.with_suffix(".chunks.json")
+    if chunk_timing_path.is_file():
+        try:
+            return _write_chunk_timed_srt(chunk_timing_path, output, duration)
+        except Exception as exc:
+            print(f"CAPTION_CHUNK_TIMING_FALLBACK={type(exc).__name__}: {exc}")
+
     timing_path = audio.with_suffix(".words.json")
     if timing_path.is_file():
         try:
