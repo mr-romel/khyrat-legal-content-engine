@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from .captions import caption_from_tts
 from .models import PublishedPost
 from .scene_planner import plan_scenes
-from .script import build_script, _clean, to_egyptian_spoken
+from .script import build_pilot_script, build_script
 from .sheets_adapter import is_published, posts_from_rows, read_rows
 from .selector import first_eligible_post
 from .tts import EdgeTTSProvider, LahgtnaChatterboxProvider, synthesize_with_fallback
@@ -49,13 +49,6 @@ def cairo_hour() -> int:
     return datetime.now(ZoneInfo("Africa/Cairo")).hour
 
 
-def _pilot_script_fallback(post: PublishedPost) -> str:
-    spoken = to_egyptian_spoken(post.content)
-    if not spoken: return ""
-    print(f"PILOT_SCRIPT_WORDS={len(spoken.split())}")
-    return spoken
-
-
 def _build_normal_visuals(post: PublishedPost, work: Path, fallback: Path | None = None) -> list[Path]:
     scenes = plan_scenes(post=post.content, count=4)
     visuals: list[Path] = []
@@ -73,40 +66,51 @@ def _build_normal_visuals(post: PublishedPost, work: Path, fallback: Path | None
 def build_once() -> dict[str, str]:
     chosen = choose()
     if chosen is None: return {"status": "QUEUE_EMPTY"}
-    post, image_url = chosen; work = Path("video_artifacts"); work.mkdir(parents=True, exist_ok=True)
+    post, image_url = chosen
+    work = Path("video_artifacts")
+    work.mkdir(parents=True, exist_ok=True)
 
     if os.getenv("VIDEO_PILOT") == "1":
-        script = _pilot_script_fallback(post); print("PILOT_SCRIPT_SOURCE=approved_post_egyptian_normalized")
+        # The pilot must synthesize the actual spoken script, not the formal post.
+        # This is what makes the TTS pronunciation Egyptian instead of merely
+        # changing a few words after generation.
+        script = build_pilot_script(post.topic, post.content, post_id=post.post_id)
+        print("PILOT_SCRIPT_SOURCE=gemini_egyptian_colloquial")
     else:
-        try: script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
+        try:
+            script = build_script(post.topic, post.content, max_words=180, post_id=post.post_id)
         except RuntimeError as exc:
             if str(exc) == "GEMINI_QUOTA_EXHAUSTED": return {"status": "GEMINI_QUOTA_EXHAUSTED", "post_id": post.post_id}
             raise
 
-    if len(script.split()) < 70: raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
+    if len(script.split()) < 70:
+        raise RuntimeError("VIDEO_SCRIPT_TOO_SHORT")
     (work / "script.txt").write_text(script, encoding="utf-8")
 
     if os.getenv("VIDEO_PILOT") == "1":
-        # Pilot voice: clear, confident Egyptian male delivery.  ShakirNeural is
-        # an Egyptian Arabic male neural voice and also emits word timings,
-        # which keeps captions synchronized with the spoken audio.
-        audio = EdgeTTSProvider(voice="ar-EG-ShakirNeural").synthesize(script, work / "voice.mp3")
-        print("PILOT_TTS_PROVIDER=EdgeTTS")
-        print("PILOT_TTS_VOICE=ar-EG-ShakirNeural")
-        print("PILOT_TTS_DIALECT=Egyptian Arabic")
+        # Use the Egyptian Chatterbox/Lahgtna provider again. Edge TTS is not the
+        # pilot voice because its delivery was judged too synthetic. A reference
+        # clip can be supplied through VIDEO_PILOT_EGYPTIAN_REF_AUDIO when a
+        # specific youthful male timbre is desired; otherwise the model uses its
+        # native Egyptian voice conditioning.
+        audio = LahgtnaChatterboxProvider().synthesize(script, work / "voice.mp3")
+        print("PILOT_TTS_PROVIDER=LahgtnaChatterbox")
+        print("PILOT_TTS_DIALECT=Egyptian_Arabic")
         print("PILOT_TTS_STYLE=young_confident_clear")
+        print(f"PILOT_TTS_REFERENCE={'configured' if os.getenv('VIDEO_PILOT_EGYPTIAN_REF_AUDIO', '').strip() else 'native_egyptian'}")
     else:
         audio = synthesize_with_fallback(script, work / "voice.mp3", [LahgtnaChatterboxProvider(), EdgeTTSProvider()])
 
     captions = caption_from_tts(script, audio, work / "captions.srt")
     if os.getenv("VIDEO_PILOT") == "1":
-        visuals = write_whiteboard_scenes(work / "whiteboard", count=5)
-        print(f"PILOT_VISUAL_STYLE=animated_whiteboard SCENES={len(visuals)}")
+        visuals = write_whiteboard_scenes(work / "whiteboard", topic=post.topic, content=post.content, count=5)
+        print(f"PILOT_VISUAL_STYLE=animated_whiteboard_action SCENES={len(visuals)}")
     else:
         source = work / "source.jpg"
         with urlopen(image_url, timeout=30) as response: source.write_bytes(response.read())
         visuals = [source, *_build_normal_visuals(post, work, fallback=source)][:5]
-    logo = Path("generated/ask mahmoud logo.png"); output = work / "reel_final.mp4"
+    logo = Path("generated/ask mahmoud logo.png")
+    output = work / "reel_final.mp4"
     render_vertical(visuals, audio, output, captions, logo if logo.exists() else None, animated=os.getenv("VIDEO_PILOT") == "1")
     validation = validate_mp4(output)
     return {"status": "READY_FOR_META", "post_id": post.post_id, "video": str(output), "duration": str(validation["duration"])}
