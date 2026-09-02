@@ -7,10 +7,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Protocol
+from urllib.request import urlopen
 
 
 class TTSProvider(Protocol):
     def synthesize(self, text: str, output_path: Path) -> Path: ...
+
+
+LAHGTNA_DEFAULT_EGYPTIAN_REF_URL = "https://huggingface.co/spaces/oddadmix/lahgtna-chatterbox-demo/resolve/main/egypt-ref.wav?download=true"
 
 
 def _chunk_egyptian_text(text: str, max_chars: int = 120) -> list[str]:
@@ -59,6 +63,23 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
         target.write_text(patched, encoding="utf-8")
 
 
+def _resolve_reference_audio() -> tuple[Path, str]:
+    configured = os.getenv("VIDEO_PILOT_EGYPTIAN_REF_AUDIO", "").strip()
+    if configured:
+        path = Path(configured).expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"Egyptian reference audio not found: {path}")
+        return path, "configured"
+
+    cached = Path(tempfile.gettempdir()) / "lahgtna-egypt-ref.wav"
+    if not cached.is_file() or cached.stat().st_size < 10000:
+        with urlopen(LAHGTNA_DEFAULT_EGYPTIAN_REF_URL, timeout=30) as response:
+            cached.write_bytes(response.read())
+    if not cached.is_file() or cached.stat().st_size < 10000:
+        raise RuntimeError("Could not obtain the default Egyptian Lahgtna reference audio")
+    return cached, "bundled_demo_reference"
+
+
 class LahgtnaChatterboxProvider:
     """Egyptian-Arabic TTS using the open-source Lahgtna/Chatterbox model."""
 
@@ -81,6 +102,8 @@ class LahgtnaChatterboxProvider:
         if not chunks:
             raise ValueError("Egyptian TTS received empty text")
 
+        ref_audio, ref_source = _resolve_reference_audio()
+        print(f"LAHGTNA_REFERENCE_SOURCE={ref_source}")
         payload = Path(tempfile.gettempdir()) / "lahgtna_chunks.json"
         payload.write_text(json.dumps(chunks, ensure_ascii=False), encoding="utf-8")
         runner = Path(tempfile.gettempdir()) / "lahgtna_batch_infer.py"
@@ -92,13 +115,12 @@ import torch
 import torchaudio as ta
 from inference import TTSEngine
 from config import LANGUAGE_CODES
-repo, payload, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+repo, payload, out, ref = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4])
 chunks = json.loads(payload.read_text(encoding='utf-8'))
 engine = TTSEngine()
 lang_cfg = LANGUAGE_CODES['eg']
-ref_override = os.getenv('VIDEO_PILOT_EGYPTIAN_REF_AUDIO', '').strip()
-ref_audio = Path(ref_override).expanduser().resolve() if ref_override else None
-if ref_audio is not None and not ref_audio.is_file():
+ref_audio = ref.expanduser().resolve()
+if not ref_audio.is_file():
     raise FileNotFoundError(f'Egyptian reference audio not found: {ref_audio}')
 parts = []
 metadata = []
@@ -120,13 +142,10 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(repo / "src") + os.pathsep + env.get("PYTHONPATH", "")
-        ref_audio = env.get("VIDEO_PILOT_EGYPTIAN_REF_AUDIO", "").strip()
-        if ref_audio:
-            env["VIDEO_PILOT_EGYPTIAN_REF_AUDIO"] = str(Path(ref_audio).expanduser().resolve())
         wav = (output_path.with_suffix(".wav")).resolve()
         try:
             completed = subprocess.run(
-                ["python", str(runner), str(repo), str(payload), str(wav)],
+                ["python", str(runner), str(repo), str(payload), str(wav), str(ref_audio)],
                 check=True, cwd=str(repo / "src"), env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             )
@@ -141,16 +160,11 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
         chunks_meta = wav.with_suffix(".chunks.json")
         if not chunks_meta.is_file():
             raise RuntimeError("Lahgtna TTS produced no chunk timing metadata")
-        try:
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
-                 "-codec:a", "libmp3lame", "-q:a", "4", str(output_path.resolve())],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(
-                f"TTS WAV->MP3 conversion failed (exit {exc.returncode}): {(exc.stderr or '')[-4000:]}"
-            ) from exc
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
+             "-codec:a", "libmp3lame", "-q:a", "4", str(output_path.resolve())],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
         output_path.with_suffix(".chunks.json").write_text(
             chunks_meta.read_text(encoding="utf-8"), encoding="utf-8"
         )
