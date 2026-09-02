@@ -2,6 +2,10 @@ name: Video Pilot (isolated)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.pilot-run'
 
 permissions:
   contents: read
@@ -69,11 +73,9 @@ jobs:
 
           work = Path('video_artifacts')
           scenes = sorted(work.glob('whiteboard/whiteboard_*.png'))
-          print(f"WHITEBOARD_SCENE_COUNT={len(scenes)}")
-          for i, scene in enumerate(scenes, 1):
-              print(f"WHITEBOARD_SCENE_{i}={scene} BYTES={scene.stat().st_size}")
-          if len(scenes) < 3:
-              raise SystemExit('WHITEBOARD_SCENE_COUNT_BELOW_MINIMUM')
+          print(f"WHITEBOARD_FRAME_COUNT={len(scenes)}")
+          if len(scenes) < 15:
+              raise SystemExit('WHITEBOARD_FRAME_COUNT_BELOW_MINIMUM')
 
           logo = Path('generated/ask mahmoud logo.png')
           print(f"LOGO_SOURCE_EXISTS={logo.exists()}")
