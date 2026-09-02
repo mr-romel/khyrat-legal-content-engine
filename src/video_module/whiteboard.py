@@ -2,31 +2,65 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PIL import Image, ImageDraw
 
-SVG_TEMPLATE = '''<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
-<rect width="1080" height="1920" fill="white"/>
-<g fill="none" stroke="#151515" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
-{body}
-</g>
-<g fill="#151515" font-family="DejaVu Sans" font-size="42" text-anchor="middle">
-<text x="540" y="1740">اسأل محمود</text>
-</g>
-</svg>'''
 
-SCENES = [
-    '''<circle cx="540" cy="760" r="190"/><path d="M540 570v380M430 950h220M390 650h300"/><path d="M390 650l-90 250h180zM690 650l-90 250h180z"/><path d="M300 900h180M600 900h180"/>''',
-    '''<rect x="315" y="520" width="450" height="620" rx="18"/><path d="M390 680h300M390 790h260M390 900h210"/><path d="M650 1030l70 70 130-150"/>''',
-    '''<path d="M350 610h380v500H350z"/><path d="M410 760h260M410 850h210M410 940h160"/><circle cx="540" cy="520" r="70"/><path d="M540 450v140"/>''',
-    '''<circle cx="540" cy="820" r="250"/><path d="M540 680c-90 0-130 60-130 120 0 85 80 100 130 140 50-40 130-55 130-140 0-60-40-120-130-120z"/><path d="M540 570v-80M500 490h80"/>''',
-    '''<path d="M300 980l150 150 330-390"/><circle cx="540" cy="830" r="330"/><path d="M350 1260h380"/>''',
-]
+def _canvas() -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    image = Image.new("RGB", (1080, 1920), "white")
+    return image, ImageDraw.Draw(image)
+
+
+def _scale(points: list[tuple[int, int]], sx: float, sy: float) -> list[tuple[int, int]]:
+    return [(int(x * sx), int(y * sy)) for x, y in points]
 
 
 def write_whiteboard_scenes(directory: Path, count: int = 5) -> list[Path]:
+    """Create clean whiteboard-style legal illustration cards.
+
+    The renderer animates these cards with slow push-ins and xfade transitions,
+    so the reel is no longer dependent on static stock photos.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     outputs: list[Path] = []
-    for index, body in enumerate(SCENES[:count], 1):
-        path = directory / f"whiteboard_{index:02d}.svg"
-        path.write_text(SVG_TEMPLATE.format(body=body), encoding="utf-8")
+    scenes = list(range(1, min(count, 5) + 1))
+    for index in scenes:
+        image, draw = _canvas()
+        ink = (25, 25, 25)
+        accent = (70, 70, 70)
+        if index == 1:  # scales of justice
+            draw.line((540, 500, 540, 1120), fill=ink, width=12)
+            draw.line((380, 620, 700, 620), fill=ink, width=12)
+            draw.line((380, 620, 300, 930), fill=ink, width=10)
+            draw.line((700, 620, 780, 930), fill=ink, width=10)
+            draw.ellipse((220, 900, 380, 970), outline=ink, width=10)
+            draw.ellipse((700, 900, 860, 970), outline=ink, width=10)
+            draw.line((420, 1120, 660, 1120), fill=ink, width=14)
+        elif index == 2:  # contract/document
+            draw.rounded_rectangle((300, 500, 780, 1200), radius=25, outline=ink, width=12)
+            for y, length in ((680, 300), (800, 340), (920, 250)):
+                draw.line((390, y, 390 + length, y), fill=accent, width=10)
+            draw.line((610, 1060, 690, 1140), fill=ink, width=16)
+            draw.line((690, 1140, 820, 990), fill=ink, width=16)
+        elif index == 3:  # legal file + magnifier
+            draw.rectangle((300, 560, 720, 1180), outline=ink, width=12)
+            draw.line((390, 740, 640, 740), fill=accent, width=10)
+            draw.line((390, 850, 600, 850), fill=accent, width=10)
+            draw.line((390, 960, 560, 960), fill=accent, width=10)
+            draw.ellipse((610, 980, 820, 1190), outline=ink, width=12)
+            draw.line((770, 1140, 890, 1260), fill=ink, width=18)
+        elif index == 4:  # question / consultation
+            draw.ellipse((300, 540, 780, 1020), outline=ink, width=12)
+            draw.arc((420, 650, 660, 900), 200, 70, fill=ink, width=18)
+            draw.line((540, 900, 540, 950), fill=ink, width=18)
+            draw.ellipse((525, 980, 555, 1010), fill=ink)
+            draw.line((540, 420, 540, 520), fill=accent, width=10)
+        else:  # check / completed legal step
+            draw.ellipse((280, 560, 800, 1080), outline=ink, width=12)
+            draw.line((380, 820, 500, 940), fill=ink, width=20)
+            draw.line((500, 940, 720, 700), fill=ink, width=20)
+            draw.line((360, 1220, 720, 1220), fill=accent, width=10)
+        draw.ellipse((520, 1510, 560, 1550), fill=accent)
+        path = directory / f"whiteboard_{index:02d}.png"
+        image.save(path, optimize=True)
         outputs.append(path)
     return outputs
