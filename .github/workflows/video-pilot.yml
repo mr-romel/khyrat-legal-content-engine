@@ -2,11 +2,6 @@ name: Video Pilot (isolated)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'src/video_module/**'
-      - '.github/workflows/video-pilot.yml'
 
 permissions:
   contents: read
@@ -38,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest edge-tts
+          python -m pip install -r requirements.txt pytest edge-tts arabic-reshaper python-bidi
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
       - name: Core import smoke test
