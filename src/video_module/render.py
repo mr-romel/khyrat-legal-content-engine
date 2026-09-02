@@ -55,13 +55,14 @@ def _srt_to_ass(srt: Path, work: Path) -> Path:
             events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
         i += 1
     ass.write_text(
-        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,2,1,2,0,2,70,70,240,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
+        """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,Noto Sans Arabic,36,&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,1,0,0,0,100,100,0,2,70,70,240,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n""" + "\n".join(events) + "\n", encoding="utf-8")
     return ass
 
 
 def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captions: Path | None = None, logo: Path | None = None, animated: bool = False) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     sources = images if isinstance(images, list) else [images]
+    sources = [Path(p) for p in sources if Path(p).is_file()]
     if not sources:
         raise ValueError("at least one image is required")
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio)], check=True, text=True, capture_output=True)
@@ -69,23 +70,25 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     if total < 45:
         raise ValueError(f"Reel audio is too short: {total:.1f}s; expected at least 45s")
 
-    count = min(max(len(sources), 1), 5)
-    transition = min(0.45, max(0.28, (total / count) / 10)) if count > 1 else 0.0
+    # Normal production intentionally uses a small number of source images.
+    # Pilot whiteboard uses every progressive drawing frame so the hand and
+    # information visibly appear over time instead of being a static card.
+    count = len(sources) if animated else min(len(sources), 5)
+    sources = sources[:count]
+    transition = min(0.35, max(0.18, (total / count) / 14)) if count > 1 else 0.0
     scene = max((total + (count - 1) * transition) / count, 1.0)
-    transitions = ["fade", "wipeleft", "slideright", "fade"]
+    transitions = ["fade", "wipeleft", "slideright", "wiperight", "fade"]
     inputs: list[str] = []
     filters: list[str] = []
-    for i, image in enumerate(sources[:count]):
+    for i, image in enumerate(sources):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         if animated:
-            # Deliberate whiteboard camera movement: a gentle push plus a linear
-            # horizontal/vertical travel. The board and hand are drawn assets;
-            # the camera motion reveals them instead of orbiting in a circle.
             filters.append(
-                f"[{i}:v]scale=1180:2098:force_original_aspect_ratio=increase," 
-                f"zoompan=z='1.0+0.055*on/({scene*25:.1f})':" 
-                f"x='iw/2-(iw/zoom/2)+55*on/({scene*25:.1f})':" 
-                f"y='ih/2-(ih/zoom/2)+25*on/({scene*25:.1f})':" 
+                f"[{i}:v]scale=1120:1992:force_original_aspect_ratio=increase," 
+                f"crop=1120:1992," 
+                f"zoompan=z='1.0+0.025*on/({scene*25:.1f})':" 
+                f"x='40*on/({scene*25:.1f})':" 
+                f"y='22*on/({scene*25:.1f})':" 
                 f"d=1:s=1080x1920:fps=25,setsar=1,format=yuv420p[v{i}]"
             )
         else:
@@ -98,10 +101,7 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
         filters.append(f"[{current}][v{i}]xfade=transition={name}:duration={transition:.3f}:offset={max(offset, 0):.3f}[{out}]")
         current = out
         offset += scene - transition
-    if animated:
-        filters.append(f"[{current}]drawbox=x=38:y=38:w=1004:h=1844:color=black@0.10:t=3[finished]")
-    else:
-        filters.append(f"[{current}]vignette=PI/5:0.65[finished]")
+    filters.append(f"[{current}]drawbox=x=38:y=38:w=1004:h=1844:color=black@0.10:t=3[finished]")
     current = "finished"
     audio_index = count
     inputs += ["-i", str(audio)]
