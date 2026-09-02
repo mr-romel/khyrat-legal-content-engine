@@ -13,7 +13,7 @@ class TTSProvider(Protocol):
     def synthesize(self, text: str, output_path: Path) -> Path: ...
 
 
-def _chunk_egyptian_text(text: str, max_chars: int = 280) -> list[str]:
+def _chunk_egyptian_text(text: str, max_chars: int = 120) -> list[str]:
     text = " ".join(text.split()).strip()
     if not text:
         return []
@@ -61,14 +61,7 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
 
 
 class LahgtnaChatterboxProvider:
-    """Egyptian-Arabic TTS using the open-source Lahgtna/Chatterbox model.
-
-    The Egyptian dialect is forced through Lahgtna's ``eg`` mapping (internal
-    Chatterbox language id ``ms``). A speaker reference is optional: when the
-    project has one configured, it controls speaker identity/prosody; otherwise
-    the model's native generation path is used while keeping the Egyptian
-    dialect identifier.
-    """
+    """Egyptian-Arabic TTS using the open-source Lahgtna/Chatterbox model."""
 
     def synthesize(self, text: str, output_path: Path) -> Path:
         repo = Path(tempfile.gettempdir()) / "lahgtna-chatterbox"
@@ -109,14 +102,19 @@ ref_audio = Path(ref_override) if ref_override else None
 if ref_audio is not None and not ref_audio.is_file():
     raise FileNotFoundError(f'Egyptian reference audio not found: {ref_audio}')
 parts = []
+metadata = []
 for index, chunk in enumerate(chunks, 1):
     wav = engine.synthesise(chunk, language_code=lang_cfg['code'], ref_audio_path=ref_audio,
                              exaggeration=0.72, temperature=0.72, cfg_weight=0.45)
+    frames = int(wav.shape[-1])
+    duration = frames / float(engine.sample_rate)
     parts.append(wav)
-    print(f'LAHGTNA_EGYPTIAN_CHUNK={index}/{len(chunks)} CHARS={len(chunk)}', flush=True)
+    metadata.append({'text': chunk, 'duration': duration})
+    print(f'LAHGTNA_EGYPTIAN_CHUNK={index}/{len(chunks)} CHARS={len(chunk)} DURATION={duration:.3f}', flush=True)
 combined = torch.cat(parts, dim=-1)
 out.parent.mkdir(parents=True, exist_ok=True)
 ta.save(str(out), combined, engine.sample_rate)
+out.with_suffix('.chunks.json').write_text(json.dumps(metadata, ensure_ascii=False), encoding='utf-8')
 print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 """.strip() + "\n", encoding="utf-8"
         )
@@ -132,11 +130,15 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
             )
         except subprocess.CalledProcessError as exc:
             details = (exc.stdout or "").strip()
-            tail = details[-6000:] if details else "(no TTS subprocess output captured)"
-            raise RuntimeError(f"Lahgtna TTS subprocess failed (exit {exc.returncode}):\n{tail}") from exc
+            raise RuntimeError(
+                f"Lahgtna TTS subprocess failed (exit {exc.returncode}):\n{details[-6000:]}"
+            ) from exc
 
         if completed.stdout:
             print(completed.stdout, end="")
+        chunks_meta = wav.with_suffix(".chunks.json")
+        if not chunks_meta.is_file():
+            raise RuntimeError("Lahgtna TTS produced no chunk timing metadata")
         try:
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
@@ -144,8 +146,13 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
                 check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
         except subprocess.CalledProcessError as exc:
-            stderr = (exc.stderr or "").strip()
-            raise RuntimeError(f"TTS WAV->MP3 conversion failed (exit {exc.returncode}): {stderr[-4000:]}") from exc
+            raise RuntimeError(
+                f"TTS WAV->MP3 conversion failed (exit {exc.returncode}): {(exc.stderr or '')[-4000:]}"
+            ) from exc
+        # Keep the timing sidecar beside the final MP3 as well.
+        output_path.with_suffix(".chunks.json").write_text(
+            chunks_meta.read_text(encoding="utf-8"), encoding="utf-8"
+        )
         if not output_path.is_file() or output_path.stat().st_size == 0:
             raise RuntimeError("Egyptian TTS produced no audio")
         return output_path
