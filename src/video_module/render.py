@@ -78,15 +78,15 @@ def render_vertical(images: list[Path] | Path, audio: Path, output: Path, captio
     for i, image in enumerate(sources[:count]):
         inputs += ["-loop", "1", "-t", f"{scene + transition:.3f}", "-i", str(image)]
         if animated:
-            # Whiteboard action: slow linear push/slide, not a circular orbit.
-            # The hand is drawn into each board scene and remains visible while
-            # the camera travels across the written information.
-            zoom = 1.0 + 0.055 * min(max((t := "t"), "t"), "t") if False else 1.0
+            # Deliberate whiteboard camera movement: a gentle push plus a linear
+            # horizontal/vertical travel. The board and hand are drawn assets;
+            # the camera motion reveals them instead of orbiting in a circle.
             filters.append(
                 f"[{i}:v]scale=1180:2098:force_original_aspect_ratio=increase," 
-                f"crop=1080:1920:x='50+75*t/{scene:.3f}':y='70+35*t/{scene:.3f}'," 
-                f"zoompan=z='1.0+0.055*on/({scene*25:.1f})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=25," 
-                f"setsar=1,format=yuv420p[v{i}]"
+                f"zoompan=z='1.0+0.055*on/({scene*25:.1f})':" 
+                f"x='iw/2-(iw/zoom/2)+55*on/({scene*25:.1f})':" 
+                f"y='ih/2-(ih/zoom/2)+25*on/({scene*25:.1f})':" 
+                f"d=1:s=1080x1920:fps=25,setsar=1,format=yuv420p[v{i}]"
             )
         else:
             filters.append(f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p[v{i}]")
