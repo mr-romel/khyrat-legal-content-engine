@@ -47,8 +47,7 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
     if not target.exists():
         raise FileNotFoundError(f"Lahgtna Chatterbox loader not found: {target}")
     source = target.read_text(encoding="utf-8")
-    patched = source
-    patched = patched.replace(
+    patched = source.replace(
         "        ve = VoiceEncoder()\n        ve.load_state_dict(torch.load(ckpt_dir / \"ve.pt\", weights_only=True))\n",
         "        ve = VoiceEncoder()\n        map_location = torch.device(\"cpu\") if str(device) in {\"cpu\", \"mps\"} else None\n        ve.load_state_dict(torch.load(ckpt_dir / \"ve.pt\", map_location=map_location, weights_only=True))\n",
     )
@@ -98,7 +97,7 @@ chunks = json.loads(payload.read_text(encoding='utf-8'))
 engine = TTSEngine()
 lang_cfg = LANGUAGE_CODES['eg']
 ref_override = os.getenv('VIDEO_PILOT_EGYPTIAN_REF_AUDIO', '').strip()
-ref_audio = Path(ref_override) if ref_override else None
+ref_audio = Path(ref_override).expanduser().resolve() if ref_override else None
 if ref_audio is not None and not ref_audio.is_file():
     raise FileNotFoundError(f'Egyptian reference audio not found: {ref_audio}')
 parts = []
@@ -121,6 +120,9 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(repo / "src") + os.pathsep + env.get("PYTHONPATH", "")
+        ref_audio = env.get("VIDEO_PILOT_EGYPTIAN_REF_AUDIO", "").strip()
+        if ref_audio:
+            env["VIDEO_PILOT_EGYPTIAN_REF_AUDIO"] = str(Path(ref_audio).expanduser().resolve())
         wav = (output_path.with_suffix(".wav")).resolve()
         try:
             completed = subprocess.run(
@@ -149,7 +151,6 @@ print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=Tr
             raise RuntimeError(
                 f"TTS WAV->MP3 conversion failed (exit {exc.returncode}): {(exc.stderr or '')[-4000:]}"
             ) from exc
-        # Keep the timing sidecar beside the final MP3 as well.
         output_path.with_suffix(".chunks.json").write_text(
             chunks_meta.read_text(encoding="utf-8"), encoding="utf-8"
         )
