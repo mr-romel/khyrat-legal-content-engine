@@ -61,7 +61,14 @@ def _patch_lahgtna_cpu_loader(repo: Path) -> None:
 
 
 class LahgtnaChatterboxProvider:
-    """Egyptian-Arabic TTS using Lahgtna/Chatterbox with short-form chunks."""
+    """Egyptian-Arabic TTS using the open-source Lahgtna/Chatterbox model.
+
+    The Egyptian dialect is forced through Lahgtna's ``eg`` mapping (internal
+    Chatterbox language id ``ms``). A speaker reference is optional: when the
+    project has one configured, it controls speaker identity/prosody; otherwise
+    the model's native generation path is used while keeping the Egyptian
+    dialect identifier.
+    """
 
     def synthesize(self, text: str, output_path: Path) -> Path:
         repo = Path(tempfile.gettempdir()) / "lahgtna-chatterbox"
@@ -87,7 +94,7 @@ class LahgtnaChatterboxProvider:
         runner = Path(tempfile.gettempdir()) / "lahgtna_batch_infer.py"
         runner.write_text(
             """
-import json, sys
+import json, os, sys
 from pathlib import Path
 import torch
 import torchaudio as ta
@@ -97,22 +104,20 @@ repo, payload, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 chunks = json.loads(payload.read_text(encoding='utf-8'))
 engine = TTSEngine()
 lang_cfg = LANGUAGE_CODES['eg']
-relative_ref = Path(lang_cfg['ref'].lstrip('./'))
-ref_candidates = (repo / 'src' / relative_ref, repo / relative_ref)
-ref_audio = next((p for p in ref_candidates if p.is_file() and p.stat().st_size > 0), None)
-if ref_audio is None:
-    checked = ', '.join(str(p) for p in ref_candidates)
-    raise FileNotFoundError(f'Egyptian reference audio not found. Checked: {checked}')
+ref_override = os.getenv('VIDEO_PILOT_EGYPTIAN_REF_AUDIO', '').strip()
+ref_audio = Path(ref_override) if ref_override else None
+if ref_audio is not None and not ref_audio.is_file():
+    raise FileNotFoundError(f'Egyptian reference audio not found: {ref_audio}')
 parts = []
 for index, chunk in enumerate(chunks, 1):
     wav = engine.synthesise(chunk, language_code=lang_cfg['code'], ref_audio_path=ref_audio,
-                             exaggeration=0.55, temperature=0.75, cfg_weight=0.45)
+                             exaggeration=0.72, temperature=0.72, cfg_weight=0.45)
     parts.append(wav)
-    print(f'TTS_CHUNK={index}/{len(chunks)} CHARS={len(chunk)}', flush=True)
+    print(f'LAHGTNA_EGYPTIAN_CHUNK={index}/{len(chunks)} CHARS={len(chunk)}', flush=True)
 combined = torch.cat(parts, dim=-1)
 out.parent.mkdir(parents=True, exist_ok=True)
 ta.save(str(out), combined, engine.sample_rate)
-print(f'TTS_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
+print(f'LAHGTNA_EGYPTIAN_AUDIO={out} SAMPLE_RATE={engine.sample_rate}', flush=True)
 """.strip() + "\n", encoding="utf-8"
         )
 
