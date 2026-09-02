@@ -41,12 +41,6 @@ jobs:
           python -m pip install -r requirements.txt pytest edge-tts
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
-      - name: Prepare open Egyptian reference audio
-        run: |
-          mkdir -p video_reference
-          curl -L --fail --retry 3 -o /tmp/lahgtna_reference_source.wav https://raw.githubusercontent.com/Oddadmix/lahgtna-chatterbox/main/test.wav
-          ffmpeg -y -i /tmp/lahgtna_reference_source.wav -ac 1 -ar 24000 -t 8 video_reference/egyptian_reference.wav
-          test -s video_reference/egyptian_reference.wav
       - name: Core import smoke test
         run: python -c "import main; print('CORE_IMPORT_OK')"
       - name: Video module tests
@@ -64,7 +58,7 @@ jobs:
           VIDEO_PILOT_MAX_CLOUDFLARE_IMAGES: "1"
           VIDEO_GEMINI_MAX_ATTEMPTS: "2"
           VIDEO_GEMINI_RETRY_DELAY_SECONDS: "8"
-          VIDEO_PILOT_EGYPTIAN_REF_AUDIO: video_reference/egyptian_reference.wav
+          VIDEO_PILOT_EGYPTIAN_REF_AUDIO: ""
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -79,12 +73,12 @@ jobs:
               raise SystemExit(f"VIDEO_BUILD_FAILED: {result}")
 
           work = Path('video_artifacts')
-          scenes = sorted(work.glob('scene_*.jpg'))
-          print(f"SCENE_COUNT={len(scenes)}")
+          scenes = sorted(work.glob('whiteboard/whiteboard_*.png'))
+          print(f"WHITEBOARD_SCENE_COUNT={len(scenes)}")
           for i, scene in enumerate(scenes, 1):
-              print(f"SCENE_{i}={scene} BYTES={scene.stat().st_size}")
+              print(f"WHITEBOARD_SCENE_{i}={scene} BYTES={scene.stat().st_size}")
           if len(scenes) < 3:
-              raise SystemExit('SCENE_COUNT_BELOW_MINIMUM')
+              raise SystemExit('WHITEBOARD_SCENE_COUNT_BELOW_MINIMUM')
 
           logo = Path('generated/ask mahmoud logo.png')
           print(f"LOGO_SOURCE_EXISTS={logo.exists()}")
