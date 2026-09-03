@@ -27,50 +27,18 @@ def _published(row: dict[str, str]) -> bool:
 
 
 def _prompt(topic: str, facebook_post: str) -> str:
-    return f"""Create a short-form vertical legal Reel / Short for social media based STRICTLY on the approved Facebook post below.
+    return f"""Create a 9:16 vertical legal Reel / Short, {VIDEO_DURATION}, based ONLY on the approved Facebook post below.
 
-TARGET FORMAT:
-- Duration: {VIDEO_DURATION}.
-- Aspect ratio: 9:16 vertical, optimized for mobile screens.
-- Platform style: Instagram Reels / Facebook Reels / YouTube Shorts.
-- Language: natural, clear Egyptian Arabic (Colloquial Egyptian).
-- Audience: Egyptian non-lawyers who need a quick, practical understanding.
-- Output: create the VIDEO ONLY. Do not create a caption, description, post copy, title, hashtags, or separate social-media text.
+Language: natural Egyptian Arabic. Audience: Egyptian non-lawyers. Start with a strong hook, explain simply and quickly, then end with a practical takeaway/CTA supported by the source. Use a confident, calm, natural Egyptian male lawyer voice (late 30s), not a news presenter. Use clean legal/social visuals, simple transitions, and short large on-screen text for key points only. No music or distracting sound effects. No lawyer avatar required. Maintain the “اسأل محمود” identity.
 
-PRESENTATION:
-- Open with a strong, attention-grabbing hook in the first seconds.
-- Explain the legal point quickly and simply.
-- Keep the pacing energetic enough for a Reel / Short without becoming theatrical.
-- End with a concise practical takeaway or natural call to action supported by the source.
-- Do not turn the video into a lecture, formal legal memo, or generic explainer.
-- Use a confident, calm, professional Egyptian male lawyer voice in his late thirties; natural and conversational, trustworthy and reassuring, not a news presenter and not overly academic.
+LEGAL SAFETY: The approved post is the sole legal source. Do not add or invent any article, ruling, penalty, deadline, exception, fact, example, statistic, legal conclusion, or other information. Do not change the legal meaning. Do not add disclaimers or filler. Output VIDEO ONLY: no caption, description, title, hashtags, or separate publishing text.
 
-VISUAL DIRECTION:
-- Use clean, modern legal/social-media visuals appropriate for a short-form Reel.
-- Suggest or create simple relevant scenes and transitions that support the spoken content.
-- Use short, large, mobile-readable on-screen text only for key points; do not put the full narration on screen.
-- Keep the visual composition clean and uncluttered.
-- Voice must remain the primary element; do not use music or sound effects that compete with the narration.
-- No requirement for an on-screen lawyer avatar.
-- Maintain the professional identity of “اسأل محمود” without adding personal information or names not contained in the source.
+TOPIC: {topic}
 
-LEGAL SAFETY — STRICT:
-- The approved Facebook post below is the ONLY controlling legal source.
-- Do NOT add any legal rule, article number, court ruling, penalty, deadline, exception, factual claim, or legal conclusion that is not supported by the approved post.
-- Do NOT invent facts, examples, scenarios, statistics, or details that could change the legal meaning.
-- Do NOT alter the legal result while simplifying the language for spoken Egyptian Arabic.
-- If a technical term is necessary, explain it simply without changing its meaning.
-- Do not add a legal disclaimer or filler that distracts from the content.
-- Do not generate a caption, description, hashtags, or any separate publishing copy.
-
-TOPIC:
-{topic}
-
-APPROVED FACEBOOK POST — USE THIS CONTENT AS THE SOLE SOURCE FOR THE VIDEO:
+APPROVED FACEBOOK POST — USE IT AS THE SOLE SOURCE:
 {facebook_post}
 
-FINAL INSTRUCTION:
-Produce the short-form 9:16 Reel / Short itself. Do not output or generate any caption, description, hashtags, or separate post text. Do not introduce information beyond the approved Facebook post above."""
+FINAL: Produce the short-form 9:16 Reel / Short itself and nothing else."""
 
 
 def _task_path(task_id: str) -> Path:
@@ -95,32 +63,13 @@ def _mark_telegram_material_sent(task_path: Path) -> None:
 
 
 def _send_video_material(*, topic: str, prompt: str) -> None:
-    """Send one Telegram message with one prompt containing the approved post once."""
+    """Send the complete, compact Notebook prompt in one Telegram message whenever possible."""
     if not prompt.strip():
         return
-
-    message = (
-        "🎬 VIDEO MATERIAL — GEMINI NOTEBOOK\n\n"
-        f"الموضوع: {topic}\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🧠 PROMPT\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{prompt}"
-    )
-    _send_long_message(message)
-
-
-def _send_long_message(text: str) -> None:
-    """Split only when Telegram's hard message-size limit requires it."""
-    remaining = text
-    while remaining:
-        chunk = remaining[:TELEGRAM_SAFE_LIMIT]
-        if len(remaining) > TELEGRAM_SAFE_LIMIT:
-            split_at = chunk.rfind("\n")
-            if split_at > 500:
-                chunk = chunk[:split_at]
-        send_message(chunk)
-        remaining = remaining[len(chunk):]
+    message = f"🎬 VIDEO MATERIAL — GEMINI NOTEBOOK\n\nالموضوع: {topic}\n\n{prompt}"
+    if len(message) > TELEGRAM_SAFE_LIMIT:
+        raise ValueError(f"Video Telegram material exceeds safe single-message limit: {len(message)} chars")
+    send_message(message)
 
 
 def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
@@ -151,9 +100,9 @@ def build_video_task(*, row_number: int, row: dict[str, str], current) -> Path:
 def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -> int:
     """Prepare manual Gemini Notebook Reel material for published posts.
 
-    Video creation, upload, publishing, captions, and descriptions are intentionally manual.
-    This layer only sends one Telegram message containing the prompt and the approved
-    Facebook post embedded once inside that prompt.
+    Video creation, upload, publishing, captions, and descriptions remain manual.
+    Each eligible post gets one compact Telegram message containing the full prompt,
+    with the approved Facebook post embedded once inside it.
     """
     current = now_cairo()
     values = get_values(service, spreadsheet_id, sheet_range)
@@ -183,14 +132,13 @@ def prepare_due_video_tasks(*, service, spreadsheet_id: str, sheet_range: str) -
             try:
                 _send_video_material(topic=topic, prompt=prompt)
                 _mark_telegram_material_sent(task_path)
-                print(f"Video Layer: sent combined Telegram Reel prompt for {task_id}.")
+                print(f"Video Layer: sent compact Telegram Reel prompt for {task_id}.")
                 prepared += 1
             except Exception as exc:
                 print(f"Video Layer: Telegram resend failed for {task_id}: {exc}")
             continue
 
         task_path = build_video_task(row_number=row_number, row=row, current=current)
-
         try:
             _send_video_material(topic=topic, prompt=_prompt(topic, post))
             _mark_telegram_material_sent(task_path)
