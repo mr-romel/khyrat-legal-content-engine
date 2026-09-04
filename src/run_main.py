@@ -27,9 +27,26 @@ _original_log_publication = production_main.log_publication
 _latest_editorial: dict = {}
 
 
+def _strengthen_linkedin_post(post: str) -> str:
+    """Make LinkedIn materially more business-oriented without inventing legal facts."""
+    text = str(post or "").strip()
+    if not text or len(text) >= 1600:
+        return text
+    business_paragraph = (
+        "\n\nومن زاوية الشركات وأصحاب الأعمال، المهم هنا إن المسألة ما تتقراش باعتبارها معلومة قانونية مجردة فقط؛ "
+        "لكن باعتبارها جزء من إدارة المخاطر واتخاذ القرار داخل الشركة. قبل توقيع عقد، اعتماد إجراء، أو التعامل مع نزاع، "
+        "الأفضل إن الإدارة تراجع الأثر القانوني والعملي للموقف، وتحدد المسؤوليات والمستندات والإجراءات المطلوبة، بدل ما تنتظر المشكلة بعد وقوعها. "
+        "وجود مراجعة قانونية مبكرة غالبًا بيكون أبسط وأقل تكلفة من معالجة نزاع بعد ما يتحول لالتزام أو خسارة."
+    )
+    if business_paragraph.strip() not in text:
+        text += business_paragraph
+    return text
+
+
 def _capture_editorial_assets(*args, **kwargs):
     global _latest_editorial
     result = _original_prepare_editorial_assets(*args, **kwargs)
+    result["linkedin_post"] = _strengthen_linkedin_post(result.get("linkedin_post", ""))
     topic = str(kwargs.get("topic", "") or "").strip()
     legal_sources = str(kwargs.get("legal_sources", "") or "").strip()
     _latest_editorial = dict(result)
@@ -68,6 +85,7 @@ def _capture_editorial_assets(*args, **kwargs):
             if score_after < threshold:
                 print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
                 refreshed = _original_prepare_editorial_assets(config=config, topic=topic, facebook_post=rewritten_post, legal_sources=legal_sources)
+                refreshed["linkedin_post"] = _strengthen_linkedin_post(refreshed.get("linkedin_post", ""))
                 refreshed["similarity_score"] = f"{score_after:.4f}"
                 refreshed["rewrite_applied"] = "YES"
                 _latest_editorial = dict(refreshed)
@@ -134,7 +152,7 @@ def _smart_target_datetime(row: dict[str, str]):
     if target_date is None or target_time is None:
         return None
     cairo_now = now_cairo()
-    return datetime(target_date.year, target_date.month, target_date.day, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
+    return datetime(target_date.year, target_date.month, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
 
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
