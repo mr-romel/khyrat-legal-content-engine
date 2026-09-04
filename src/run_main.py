@@ -159,7 +159,7 @@ def _smart_is_due(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "READY")).strip().upper()
     if status not in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}:
         return False
-    target = _smart_target_datetime(row, current)
+    target = _smart_target_datetime(row)
     if target is None or current < target:
         return False
     return current - target <= timedelta(hours=16)
