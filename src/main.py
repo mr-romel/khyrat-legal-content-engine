@@ -23,6 +23,7 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
 COMMENT_DELAY_SECONDS = 12
+FACEBOOK_COMMENT_LIMIT = 20
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -78,10 +79,17 @@ def _notify_review(row_number: int, row: dict[str, str], review_level: str, revi
 
 def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int:
     published = 0
-    for message in comments[:5]:
-        result = facebook_add_comment(post_id=post_id, page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=message)
+    for index, message in enumerate(comments[:FACEBOOK_COMMENT_LIMIT], start=1):
+        result = facebook_add_comment(
+            post_id=post_id,
+            page_access_token=config["facebook_page_access_token"],
+            graph_version=config["facebook_graph_version"],
+            message=message,
+        )
+        count = int(result.get("published_count", 1) or 0)
         if result.get("status") == "PUBLISHED":
-            published += 1
+            published += count
+        print(f"Facebook comment {index}/{min(len(comments), FACEBOOK_COMMENT_LIMIT)}: {result.get('status')} | likes={result.get('liked_count', 0)}")
         time.sleep(COMMENT_DELAY_SECONDS)
     return published
 
@@ -97,7 +105,7 @@ def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: l
 
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
-    """Generate engagement copy, then run the mandatory final language/editorial gate."""
+    """Generate engagement copy, review the primary Facebook comments, then retain the full 20-comment package."""
     comments = generate_comments(
         api_key=config["gemini_api_key"],
         model=config["gemini_model"],
@@ -110,11 +118,12 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
         model=config["gemini_model"],
         topic=topic,
         facebook_post=facebook_post,
-        facebook_comments=comments["facebook_comments"],
+        facebook_comments=comments["facebook_comments"][:5],
         linkedin_comments=comments["linkedin_comments"],
         legal_sources=legal_sources,
     )
-    print("Editorial gate: spelling/grammar review completed; LinkedIn professional rewrite completed.")
+    reviewed["facebook_comments"] = reviewed["facebook_comments"] + comments["facebook_comments"][5:FACEBOOK_COMMENT_LIMIT]
+    print(f"Editorial gate: primary 5 Facebook comments reviewed; full Facebook engagement package={len(reviewed['facebook_comments'])} comments.")
     return reviewed
 
 
@@ -173,7 +182,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         if not post or not image_path:
             raise RuntimeError("Dry run did not produce content/image assets.")
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-        print(f"DRY RUN generated: Facebook comments={len(editorial['facebook_comments'])}/5 | LinkedIn comments={len(editorial['linkedin_comments'])}/5")
+        print(f"DRY RUN generated: Facebook comments={len(editorial['facebook_comments'])}/20 | LinkedIn comments={len(editorial['linkedin_comments'])}/5")
         print(f"DRY RUN LinkedIn post length: {len(editorial['linkedin_post'])} characters")
         print(f"DRY RUN image: {image_path}")
         print("DRY RUN completed successfully; no social API write was attempted.")
@@ -259,7 +268,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments=str(facebook_comments), linkedin_comments=str(linkedin_comments), status=final_status)
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
-            notify("✅ Khyrat Legal Content Engine\n" f"تم نشر: {topic}\n" f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_ok else '❌'}\n" f"التعليقات: Facebook {facebook_comments}/5 | LinkedIn {linkedin_comments}/5")
+            notify("✅ Khyrat Legal Content Engine\n" f"تم نشر: {topic}\n" f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_ok else '❌'}\n" f"التعليقات: Facebook {facebook_comments}/20 | LinkedIn {linkedin_comments}/5")
         elif final_status == "PARTIAL_FAILED":
             notify("🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n" f"الموضوع: {topic}")
     except (ImageGenerationError, FacebookPublishError, LinkedInPublishError, RuntimeError) as exc:
