@@ -152,14 +152,14 @@ def _smart_target_datetime(row: dict[str, str]):
     if target_date is None or target_time is None:
         return None
     cairo_now = now_cairo()
-    return datetime(target_date.year, target_date.month, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
+    return datetime(target_date.year, target_date.month, target_date.day, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
 
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "READY")).strip().upper()
     if status not in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}:
         return False
-    target = _smart_target_datetime(row)
+    target = _smart_target_datetime(row, current)
     if target is None or current < target:
         return False
     return current - target <= timedelta(hours=16)
@@ -183,23 +183,12 @@ def _smart_main() -> None:
     if not values:
         print("No rows found.")
         return
-
-    # Always reconcile the current month before choosing a due row. This makes
-    # the first run of a new month self-healing instead of depending on a manual
-    # planner invocation. Existing published rows remain untouched.
     try:
-        prepared = recycle_month_if_needed(
-            service=service,
-            spreadsheet_id=config["sheet_id"],
-            sheet_name=sheet_name,
-            current=current.date(),
-        )
+        prepared = recycle_month_if_needed(service=service, spreadsheet_id=config["sheet_id"], sheet_name=sheet_name, current=current.date())
         print(f"Monthly planner: reconciled current month; changes={prepared}.")
         values = get_values(service, config["sheet_id"], config["sheet_range"])
     except Exception as planner_exc:
-        # Planning failure must never stop an already-prepared publishing row.
         print(f"Monthly planner unavailable; preserving publishing flow: {planner_exc}")
-
     rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     if not candidates:
