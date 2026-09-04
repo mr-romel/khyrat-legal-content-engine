@@ -214,7 +214,10 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     comment_id = (result.headers.get("x-restli-id", "") or result.headers.get("X-RestLi-Id", "")).strip()
     if not comment_id:
         return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
-    return LinkedInActionResult(status="PUBLISHED", item_id=_comment_urn(post_urn, comment_id), http_status=result.status_code)
+    comment_urn = _comment_urn(post_urn, comment_id)
+    like = like_comment(token=token, actor_urn=actor_urn, comment_urn=comment_urn)
+    print(f"LinkedIn comment: PUBLISHED | like={like.status} | like_error={like.error}")
+    return LinkedInActionResult(status="PUBLISHED", item_id=comment_urn, error=like.error, http_status=result.status_code)
 
 
 def like_post(*, token: str, actor_urn: str, post_urn: str) -> LinkedInActionResult:
