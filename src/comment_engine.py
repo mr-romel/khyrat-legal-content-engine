@@ -11,9 +11,11 @@ from google import genai
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
-أنشئ 5 تعليقات مختلفة تمامًا على نفس المنشور.
-التعليقات ليست تكرارًا للمنشور وليست حشوًا.
-كل تعليق يجب أن يضيف قيمة حقيقية، مثل سؤال ذكي، توضيح عملي، تصحيح تصور شائع، سيناريو قصير، أو دعوة طبيعية للنقاش.
+أنشئ 20 تعليقًا مختلفًا تمامًا على منشور Facebook و5 تعليقات لـLinkedIn.
+تعليقات Facebook يجب أن تكون متنوعة في الوظيفة والأسلوب، وليست إعادة صياغة للمنشور.
+وزّعها بين: قيمة قانونية عملية، أسئلة ذكية، تصحيح تصور شائع، أمثلة واقعية قصيرة، فتح نقاش، دعوة طبيعية لمشاركة المنشور عند ملاءمتها، ودعوة للاستفسار عند ملاءمتها.
+لا تجعل دعوات المشاركة أكثرية التعليقات، ولا تكرر نفس CTA بصيغ متقاربة.
+كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا.
 ممنوع ادعاء قانوني رقمي غير موجود في المصادر.
 ممنوع ذكر أنك ذكاء اصطناعي.
 ممنوع استخدام عبارات من نوع "رائع جدًا" أو "شكرًا لمتابعتكم" كحشو.
@@ -78,7 +80,7 @@ def _extract_json(text: str) -> dict[str, Any]:
     return data
 
 
-def _normalize(value: Any) -> list[str]:
+def _normalize(value: Any, limit: int) -> list[str]:
     if not isinstance(value, list):
         return []
     result: list[str] = []
@@ -89,7 +91,7 @@ def _normalize(value: Any) -> list[str]:
         if text and key not in seen:
             seen.add(key)
             result.append(text)
-    return result[:5]
+    return result[:limit]
 
 
 def _chat_generate(*, client, model: str, prompt: str) -> Any:
@@ -106,10 +108,7 @@ def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, labe
             if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
-            print(
-                f"Comment AI {label} temporary error ({status}); "
-                f"retry {attempt}/{attempts - 1} in {delay:.0f}s..."
-            )
+            print(f"Comment AI {label} temporary error ({status}); retry {attempt}/{attempts - 1} in {delay:.0f}s...")
             time.sleep(delay)
     raise RuntimeError("Comment AI generation failed unexpectedly.")
 
@@ -130,7 +129,6 @@ def generate_comments(
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
     cached = _COMMENT_CACHE.get(cache_key)
     if cached:
-        print("Comment engine: reusing generated comment package for the second platform.")
         return {
             "facebook_comments": list(cached["facebook_comments"]),
             "linkedin_comments": list(cached["linkedin_comments"]),
@@ -146,37 +144,27 @@ def generate_comments(
 المصادر القانونية المتاحة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
-أنشئ 5 تعليقات Facebook و5 تعليقات LinkedIn.
-Facebook: مصري طبيعي، تفاعلي، بسيط.
+أنشئ 20 تعليق Facebook و5 تعليقات LinkedIn.
+Facebook: مصري طبيعي، تفاعلي، بسيط، مهني.
+اجعل تعليقات Facebook متنوعة بوضوح، ولا تجعل أكثر من عدد محدود منها يطلب المشاركة مباشرة.
+عندما تطلب مشاركة المنشور، اجعل الطلب طبيعيًا ومبررًا بالفائدة، مثل شخص قد يحتاج المعلومة.
+أضف بعض التعليقات التي تدفع القارئ لطرح سؤال أو وصف موقف مشابه بدل طلب التفاعل فقط.
 LinkedIn: مهني، business-oriented، ويضيف قيمة.
-اجعل كل تعليق مختلفًا في الوظيفة والأسلوب.
 """
 
     try:
-        response = _generate_with_retry(
-            client=client,
-            model=primary_model,
-            prompt=prompt,
-            attempts=MAX_PRIMARY_RETRIES,
-            label=f"primary model {primary_model or 'default'}",
-        )
+        response = _generate_with_retry(client=client, model=primary_model, prompt=prompt, attempts=MAX_PRIMARY_RETRIES, label=f"primary model {primary_model or 'default'}")
     except Exception as primary_exc:
         if not _is_transient(primary_exc) or not fallback_model or fallback_model == primary_model:
             raise
         print(f"Comment AI primary model remained unavailable; switching to fallback model {fallback_model}.")
-        response = _generate_with_retry(
-            client=client,
-            model=fallback_model,
-            prompt=prompt,
-            attempts=MAX_FALLBACK_RETRIES,
-            label=f"fallback model {fallback_model}",
-        )
+        response = _generate_with_retry(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
 
     data = _extract_json(getattr(response, "text", ""))
-    facebook = _normalize(data.get("facebook_comments"))
-    linkedin = _normalize(data.get("linkedin_comments"))
-    if len(facebook) < 5 or len(linkedin) < 5:
-        raise RuntimeError("Comment engine returned fewer than 5 comments per platform.")
+    facebook = _normalize(data.get("facebook_comments"), 20)
+    linkedin = _normalize(data.get("linkedin_comments"), 5)
+    if len(facebook) < 20 or len(linkedin) < 5:
+        raise RuntimeError("Comment engine returned fewer than 20 Facebook or 5 LinkedIn comments.")
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
     _COMMENT_CACHE[cache_key] = result
