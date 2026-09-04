@@ -77,19 +77,28 @@ def _notify_review(row_number: int, row: dict[str, str], review_level: str, revi
     send_review_request(row_number=row_number, topic=row.get("الموضوع", ""), post=row.get("المحتوى", ""), reason=review_text, sheet_id=config["sheet_id"], status=review_level)
 
 
+def _ensure_facebook_cta(post: str) -> str:
+    text = (post or "").strip()
+    if not text:
+        return text
+    additions: list[str] = []
+    lowered = text.casefold()
+    if not any(word in lowered for word in ("شارك", "ابعت", "ابعته", "شير")):
+        additions.append("لو شايف إن المعلومة دي ممكن تفيد حد تعرفه، ابعتله المنشور بدل ما المعلومة توصله متأخر.")
+    if not any(word in lowered for word in ("سؤالك", "استفسارك", "موقف مشابه", "التعليقات")):
+        additions.append("ولو عندك موقف مشابه، اكتب سؤالك في التعليقات ونوضح لك الإطار القانوني العام للمسألة.")
+    return text + ("\n\n" + "\n".join(additions) if additions else "")
+
+
 def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int:
     published = 0
+    total = min(len(comments), FACEBOOK_COMMENT_LIMIT)
     for index, message in enumerate(comments[:FACEBOOK_COMMENT_LIMIT], start=1):
-        result = facebook_add_comment(
-            post_id=post_id,
-            page_access_token=config["facebook_page_access_token"],
-            graph_version=config["facebook_graph_version"],
-            message=message,
-        )
+        result = facebook_add_comment(post_id=post_id, page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=message)
         count = int(result.get("published_count", 1) or 0)
         if result.get("status") == "PUBLISHED":
             published += count
-        print(f"Facebook comment {index}/{min(len(comments), FACEBOOK_COMMENT_LIMIT)}: {result.get('status')} | likes={result.get('liked_count', 0)}")
+        print(f"Facebook comment {index}/{total}: {result.get('status')} | like={result.get('like_status')} | like_error={result.get('like_error', '')}")
         time.sleep(COMMENT_DELAY_SECONDS)
     return published
 
@@ -106,13 +115,7 @@ def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: l
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     """Generate engagement copy, review the primary Facebook comments, then retain the full 20-comment package."""
-    comments = generate_comments(
-        api_key=config["gemini_api_key"],
-        model=config["gemini_model"],
-        topic=topic,
-        post=facebook_post,
-        legal_sources=legal_sources,
-    )
+    comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     reviewed = review_and_prepare(
         api_key=config["gemini_api_key"],
         model=config["gemini_model"],
@@ -123,6 +126,7 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
         legal_sources=legal_sources,
     )
     reviewed["facebook_comments"] = reviewed["facebook_comments"] + comments["facebook_comments"][5:FACEBOOK_COMMENT_LIMIT]
+    reviewed["facebook_post"] = _ensure_facebook_cta(reviewed["facebook_post"])
     print(f"Editorial gate: primary 5 Facebook comments reviewed; full Facebook engagement package={len(reviewed['facebook_comments'])} comments.")
     return reviewed
 
