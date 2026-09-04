@@ -73,9 +73,7 @@ def _error_summary(response: requests.Response) -> str:
 
 
 def _raise_required_error(action: str, response: requests.Response) -> None:
-    raise LinkedInPublishError(
-        f"{action} failed (HTTP {response.status_code}): {_error_summary(response)}"
-    )
+    raise LinkedInPublishError(f"{action} failed (HTTP {response.status_code}): {_error_summary(response)}")
 
 
 def _interaction_result(action: str, response: requests.Response) -> LinkedInActionResult:
@@ -93,19 +91,11 @@ def _interaction_result(action: str, response: requests.Response) -> LinkedInAct
         label = "TRANSIENT_FAILURE"
     else:
         label = "FAILED"
-    return LinkedInActionResult(
-        status=label,
-        error=f"{action}: HTTP {status}: {summary}",
-        http_status=status,
-    )
+    return LinkedInActionResult(status=label, error=f"{action}: HTTP {status}: {summary}", http_status=status)
 
 
 def _post_interaction_with_retry(
-    *,
-    endpoint: str,
-    token: str,
-    body: dict[str, Any],
-    action: str,
+    *, endpoint: str, token: str, body: dict[str, Any], action: str
 ) -> requests.Response | LinkedInActionResult:
     for attempt in range(1, INTERACTION_RETRIES + 1):
         try:
@@ -122,20 +112,14 @@ def _post_interaction_with_retry(
             print(f"LinkedIn {action} network error; retry {attempt}/{INTERACTION_RETRIES - 1} in {delay:.0f}s...")
             time.sleep(delay)
             continue
-
         if response.ok:
             return response
-
         if response.status_code in TRANSIENT_STATUS_CODES and attempt < INTERACTION_RETRIES:
             delay = INTERACTION_INITIAL_BACKOFF * (2 ** (attempt - 1))
-            print(
-                f"LinkedIn {action} temporary error (HTTP {response.status_code}); "
-                f"retry {attempt}/{INTERACTION_RETRIES - 1} in {delay:.0f}s..."
-            )
+            print(f"LinkedIn {action} temporary error (HTTP {response.status_code}); retry {attempt}/{INTERACTION_RETRIES - 1} in {delay:.0f}s...")
             time.sleep(delay)
             continue
         return _interaction_result(action, response)
-
     return LinkedInActionResult(status="FAILED", error=f"{action}: retry loop exhausted")
 
 
@@ -144,11 +128,7 @@ def resolve_member_urn(token: str) -> str:
     if not token:
         raise LinkedInPublishError("LINKEDIN_ACCESS_TOKEN is empty.")
     try:
-        response = requests.get(
-            LINKEDIN_USERINFO_URL,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30,
-        )
+        response = requests.get(LINKEDIN_USERINFO_URL, headers={"Authorization": f"Bearer {token}"}, timeout=30)
     except requests.RequestException as exc:
         raise LinkedInPublishError(f"LinkedIn userinfo request failed: {exc}") from exc
     if not response.ok:
@@ -191,12 +171,7 @@ def upload_image(*, token: str, upload_url: str, image_path: str | Path) -> None
     if not image.is_file():
         raise LinkedInPublishError(f"LinkedIn image file not found: {image}")
     try:
-        response = requests.put(
-            upload_url,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "image/jpeg"},
-            data=image.read_bytes(),
-            timeout=180,
-        )
+        response = requests.put(upload_url, headers={"Authorization": f"Bearer {token}", "Content-Type": "image/jpeg"}, data=image.read_bytes(), timeout=180)
     except requests.RequestException as exc:
         raise LinkedInPublishError(f"LinkedIn image upload network error: {exc}") from exc
     if not response.ok:
@@ -209,11 +184,7 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
         "author": author_urn,
         "commentary": commentary,
         "visibility": "PUBLIC",
-        "distribution": {
-            "feedDistribution": "MAIN_FEED",
-            "targetEntities": [],
-            "thirdPartyDistributionChannels": [],
-        },
+        "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
         "content": {"media": {"id": image_urn, "altText": "Legal educational image"}},
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False,
@@ -230,6 +201,10 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
     return post_urn
 
 
+def _comment_urn(post_urn: str, comment_id: str) -> str:
+    return f"urn:li:comment:({post_urn},{comment_id})" if comment_id else ""
+
+
 def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> LinkedInActionResult:
     endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments"
     body = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
@@ -237,14 +212,24 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     if isinstance(result, LinkedInActionResult):
         return result
     comment_id = (result.headers.get("x-restli-id", "") or result.headers.get("X-RestLi-Id", "")).strip()
-    return LinkedInActionResult(status="PUBLISHED", item_id=comment_id, http_status=result.status_code)
+    if not comment_id:
+        return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
+    return LinkedInActionResult(status="PUBLISHED", item_id=_comment_urn(post_urn, comment_id), http_status=result.status_code)
 
 
 def like_post(*, token: str, actor_urn: str, post_urn: str) -> LinkedInActionResult:
+    return _create_reaction(token=token, actor_urn=actor_urn, root_urn=post_urn, action="like")
+
+
+def like_comment(*, token: str, actor_urn: str, comment_urn: str) -> LinkedInActionResult:
+    return _create_reaction(token=token, actor_urn=actor_urn, root_urn=comment_urn, action="like_comment")
+
+
+def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) -> LinkedInActionResult:
     encoded_actor = quote(actor_urn, safe="")
     endpoint = f"{LINKEDIN_REST_BASE}/reactions?actor={encoded_actor}"
-    body = {"root": post_urn, "reactionType": "LIKE"}
-    result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action="like")
+    body = {"root": root_urn, "reactionType": "LIKE"}
+    result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action=action)
     if isinstance(result, LinkedInActionResult):
         return result
     reaction_id = ""
@@ -268,13 +253,6 @@ def publish_to_linkedin(*, token: str, author_urn: str, image_path: str | Path, 
     upload_url, image_urn = initialize_image_upload(token=token, owner_urn=author_urn)
     upload_image(token=token, upload_url=upload_url, image_path=image_path)
     post_urn = create_post(token=token, author_urn=author_urn, commentary=commentary, image_urn=image_urn)
-
     comment = add_comment(token=token, actor_urn=author_urn, post_urn=post_urn, message=first_comment)
     like = like_post(token=token, actor_urn=author_urn, post_urn=post_urn)
-
-    return {
-        "image_urn": image_urn,
-        "post_urn": post_urn,
-        "comment": comment.as_dict(),
-        "like": like.as_dict(),
-    }
+    return {"image_urn": image_urn, "post_urn": post_urn, "comment": comment.as_dict(), "like": like.as_dict()}
