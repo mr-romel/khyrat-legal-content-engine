@@ -116,8 +116,16 @@ def _single_telegram_notify(text: str) -> None:
         print(f"Telegram notification failed (non-blocking): {exc}")
 
 
-def _suppress_linkedin_diagnostic(**kwargs) -> None:
-    return None
+def _linkedin_interaction_diagnostic(**kwargs) -> None:
+    topic = str(kwargs.get("topic", "") or "").strip()
+    post_urn = str(kwargs.get("post_urn", "") or "").strip()
+    comment = kwargs.get("comment") or {}
+    like = kwargs.get("like") or {}
+    print("LinkedIn interaction diagnostic:")
+    print(f"  topic={topic}")
+    print(f"  post_urn={post_urn}")
+    print(f"  comment_status={comment.get('status', '')} | http={comment.get('http_status', '')} | error={comment.get('error', '')}")
+    print(f"  post_like_status={like.get('status', '')} | http={like.get('http_status', '')} | error={like.get('error', '')}")
 
 
 def _smart_target_datetime(row: dict[str, str]):
@@ -193,7 +201,7 @@ def _smart_main() -> None:
 production_main._prepare_editorial_assets = _capture_editorial_assets
 production_main.log_publication = _capture_publication_analytics
 production_main.notify = _single_telegram_notify
-production_main.notify_linkedin_interaction = _suppress_linkedin_diagnostic
+production_main.notify_linkedin_interaction = _linkedin_interaction_diagnostic
 production_main._is_due = _smart_is_due
 production_main._failed_retry = _smart_failed_retry
 
