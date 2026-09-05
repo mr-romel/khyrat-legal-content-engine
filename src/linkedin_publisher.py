@@ -15,6 +15,8 @@ LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 INTERACTION_RETRIES = 3
 INTERACTION_INITIAL_BACKOFF = 3.0
+MIN_LINKEDIN_POST_CHARS = 1400
+MAX_LINKEDIN_POST_CHARS = 2900
 
 
 class LinkedInPublishError(RuntimeError):
@@ -178,8 +180,36 @@ def upload_image(*, token: str, upload_url: str, image_path: str | Path) -> None
         _raise_required_error("LinkedIn image upload", response)
 
 
+def _strengthen_commentary(commentary: str) -> str:
+    """Guarantee a substantive LinkedIn version without inventing topic-specific legal facts."""
+    text = str(commentary or "").strip()
+    if len(text) >= MIN_LINKEDIN_POST_CHARS:
+        return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
+    sections = [
+        (
+            "ومن زاوية الشركات وأصحاب الأعمال، النقطة الأهم هنا إن المعلومة القانونية ما تتقراش بمعزل عن القرار الإداري. "
+            "أي موقف من النوع ده ممكن يرتبط بعقد، مستند، إجراء داخلي، أو علاقة مع موظف أو عميل أو مورد، وبالتالي طريقة التعامل معاه من البداية بتفرق في حجم المخاطر اللي ممكن تتحملها الشركة لاحقًا."
+        ),
+        (
+            "عمليًا، الأفضل قبل اتخاذ القرار إن الإدارة تحدد الوقائع والمستندات الموجودة، وتراجع الالتزامات والمسؤوليات المرتبطة بالموقف، "
+            "وتتأكد إن الإجراء المقترح متوافق مع الإطار القانوني المطبق على الحالة. المراجعة المبكرة مش معناها تعقيد القرار؛ بالعكس، الهدف منها إن القرار يتاخد على أساس واضح بدل ما تتحول مشكلة بسيطة إلى نزاع أو تكلفة كان ممكن تجنبها."
+        ),
+        (
+            "وعشان كده، في المواقف القانونية المؤثرة على الشركة، السؤال مش بس: هل الإجراء ده مسموح؟ "
+            "لكن كمان: إيه المخاطر لو اتعمل بالطريقة دي؟ إيه المستندات اللي لازم تكون موجودة؟ مين المسؤول عن التنفيذ؟ وهل فيه بديل أكثر أمانًا وأوضح من الناحية القانونية والعملية؟ "
+            "دي الأسئلة اللي بتحول المعلومة القانونية من معرفة نظرية إلى أداة حقيقية لإدارة المخاطر واتخاذ القرار."
+        ),
+    ]
+    for section in sections:
+        if len(text) >= MIN_LINKEDIN_POST_CHARS:
+            break
+        text = f"{text}\n\n{section}"
+    return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
+
+
 def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str) -> str:
     endpoint = f"{LINKEDIN_REST_BASE}/posts"
+    commentary = _strengthen_commentary(commentary)
     body = {
         "author": author_urn,
         "commentary": commentary,
@@ -198,6 +228,7 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
     post_urn = (response.headers.get("x-restli-id", "") or response.headers.get("X-RestLi-Id", "")).strip()
     if not post_urn:
         raise LinkedInPublishError("LinkedIn created the post but returned no post URN.")
+    print(f"LinkedIn post length enforced: {len(commentary)} characters")
     return post_urn
 
 
@@ -210,13 +241,14 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     body = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
     result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action="comment")
     if isinstance(result, LinkedInActionResult):
+        print(f"LinkedIn comment: {result.status} | http={result.http_status} | error={result.error}")
         return result
     comment_id = (result.headers.get("x-restli-id", "") or result.headers.get("X-RestLi-Id", "")).strip()
     if not comment_id:
         return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
     comment_urn = _comment_urn(post_urn, comment_id)
     like = like_comment(token=token, actor_urn=actor_urn, comment_urn=comment_urn)
-    print(f"LinkedIn comment: PUBLISHED | like={like.status} | like_error={like.error}")
+    print(f"LinkedIn comment: PUBLISHED | like={like.status} | like_http={like.http_status} | like_error={like.error}")
     return LinkedInActionResult(status="PUBLISHED", item_id=comment_urn, error=like.error, http_status=result.status_code)
 
 
@@ -234,6 +266,7 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
     body = {"root": root_urn, "reactionType": "LIKE"}
     result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action=action)
     if isinstance(result, LinkedInActionResult):
+        print(f"LinkedIn {action}: {result.status} | http={result.http_status} | error={result.error}")
         return result
     reaction_id = ""
     try:
