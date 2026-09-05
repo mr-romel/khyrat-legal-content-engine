@@ -24,34 +24,18 @@ class LinkedInPublishError(RuntimeError):
 
 
 class LinkedInActionResult:
-    def __init__(
-        self,
-        *,
-        status: str,
-        item_id: str = "",
-        error: str = "",
-        http_status: int | None = None,
-    ) -> None:
+    def __init__(self, *, status: str, item_id: str = "", error: str = "", http_status: int | None = None) -> None:
         self.status = status
         self.item_id = item_id
         self.error = error
         self.http_status = http_status
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "status": self.status,
-            "id": self.item_id,
-            "error": self.error,
-            "http_status": self.http_status,
-        }
+        return {"status": self.status, "id": self.item_id, "error": self.error, "http_status": self.http_status}
 
 
 def _headers(token: str, *, json_content: bool = False) -> dict[str, str]:
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Linkedin-Version": LINKEDIN_VERSION,
-        "X-Restli-Protocol-Version": REST_PROTOCOL,
-    }
+    headers = {"Authorization": f"Bearer {token}", "Linkedin-Version": LINKEDIN_VERSION, "X-Restli-Protocol-Version": REST_PROTOCOL}
     if json_content:
         headers["Content-Type"] = "application/json"
     return headers
@@ -96,17 +80,10 @@ def _interaction_result(action: str, response: requests.Response) -> LinkedInAct
     return LinkedInActionResult(status=label, error=f"{action}: HTTP {status}: {summary}", http_status=status)
 
 
-def _post_interaction_with_retry(
-    *, endpoint: str, token: str, body: dict[str, Any], action: str
-) -> requests.Response | LinkedInActionResult:
+def _post_interaction_with_retry(*, endpoint: str, token: str, body: dict[str, Any], action: str) -> requests.Response | LinkedInActionResult:
     for attempt in range(1, INTERACTION_RETRIES + 1):
         try:
-            response = requests.post(
-                endpoint,
-                headers=_headers(token, json_content=True),
-                json=body,
-                timeout=60,
-            )
+            response = requests.post(endpoint, headers=_headers(token, json_content=True), json=body, timeout=60)
         except requests.RequestException as exc:
             if attempt >= INTERACTION_RETRIES:
                 return LinkedInActionResult(status="NETWORK_FAILED", error=f"{action}: {exc}")
@@ -181,35 +158,30 @@ def upload_image(*, token: str, upload_url: str, image_path: str | Path) -> None
 
 
 def _strengthen_commentary(commentary: str) -> str:
-    """Guarantee a substantive LinkedIn version without inventing topic-specific legal facts."""
+    """Guarantee a substantive LinkedIn version; never allow a tiny title-only post through."""
     text = str(commentary or "").strip()
     if len(text) >= MIN_LINKEDIN_POST_CHARS:
         return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
     sections = [
-        (
-            "ومن زاوية الشركات وأصحاب الأعمال، النقطة الأهم هنا إن المعلومة القانونية ما تتقراش بمعزل عن القرار الإداري. "
-            "أي موقف من النوع ده ممكن يرتبط بعقد، مستند، إجراء داخلي، أو علاقة مع موظف أو عميل أو مورد، وبالتالي طريقة التعامل معاه من البداية بتفرق في حجم المخاطر اللي ممكن تتحملها الشركة لاحقًا."
-        ),
-        (
-            "عمليًا، الأفضل قبل اتخاذ القرار إن الإدارة تحدد الوقائع والمستندات الموجودة، وتراجع الالتزامات والمسؤوليات المرتبطة بالموقف، "
-            "وتتأكد إن الإجراء المقترح متوافق مع الإطار القانوني المطبق على الحالة. المراجعة المبكرة مش معناها تعقيد القرار؛ بالعكس، الهدف منها إن القرار يتاخد على أساس واضح بدل ما تتحول مشكلة بسيطة إلى نزاع أو تكلفة كان ممكن تجنبها."
-        ),
-        (
-            "وعشان كده، في المواقف القانونية المؤثرة على الشركة، السؤال مش بس: هل الإجراء ده مسموح؟ "
-            "لكن كمان: إيه المخاطر لو اتعمل بالطريقة دي؟ إيه المستندات اللي لازم تكون موجودة؟ مين المسؤول عن التنفيذ؟ وهل فيه بديل أكثر أمانًا وأوضح من الناحية القانونية والعملية؟ "
-            "دي الأسئلة اللي بتحول المعلومة القانونية من معرفة نظرية إلى أداة حقيقية لإدارة المخاطر واتخاذ القرار."
-        ),
+        "المهم هنا إن القاعدة القانونية ما تتفهمش بمعزل عن الوقائع. نفس العبارة أو الموقف ممكن يختلف أثره القانوني بحسب صفة الشخص، مصلحته في الموضوع، المستندات الموجودة، والإجراء الذي تم اتخاذه. لذلك قبل أي قرار، لازم نفصل بين الانطباع الشخصي وبين المركز القانوني الفعلي.",
+        "عمليًا، قبل اتخاذ القرار اسأل أولًا: مين صاحب الصفة في الموضوع؟ وهل له مصلحة قانونية حقيقية ومباشرة؟ وإيه المستند أو الواقعة اللي تثبت الكلام ده؟ الأسئلة دي بتمنع أخطاء شائعة، خصوصًا لما يكون القرار مبنيًا على افتراض إن مجرد وجود علاقة أو مصلحة شخصية كفاية لإثبات الحق أو السماح باتخاذ إجراء معين.",
+        "ومن ناحية إدارة المخاطر، الأفضل إن القرار ما يعتمدش على معلومة منفردة. راجع الوقائع، حدد الأطراف، اجمع المستندات المؤيدة، وحدد الإجراء القانوني المناسب قبل التنفيذ. ولو فيه أكثر من تفسير محتمل، اختار المسار الذي يحافظ على الحقوق ويقلل احتمالات النزاع بدل ما تكتشف المشكلة بعد فوات الوقت.",
+        "الخلاصة إن الوعي القانوني الحقيقي مش مجرد معرفة إجابة مختصرة بنعم أو لا. الأهم إنك تعرف الأسئلة الصحيحة قبل القرار، وتفرق بين وجود مصلحة وبين توافر الصفة، وبين الاعتقاد بوجود حق وبين القدرة على استعماله بالطريق القانوني الصحيح. المراجعة المبكرة غالبًا أوفر وأأمن من محاولة إصلاح قرار خاطئ بعد تنفيذه.",
     ]
     for section in sections:
         if len(text) >= MIN_LINKEDIN_POST_CHARS:
             break
-        text = f"{text}\n\n{section}"
+        text = f"{text}\n\n{section}" if text else section
+    if len(text) < MIN_LINKEDIN_POST_CHARS:
+        raise LinkedInPublishError(f"LinkedIn commentary remained below required minimum ({len(text)} characters).")
     return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
 
 
 def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str) -> str:
     endpoint = f"{LINKEDIN_REST_BASE}/posts"
     commentary = _strengthen_commentary(commentary)
+    if len(commentary) < MIN_LINKEDIN_POST_CHARS:
+        raise LinkedInPublishError(f"LinkedIn post rejected locally: only {len(commentary)} characters after expansion.")
     body = {
         "author": author_urn,
         "commentary": commentary,
