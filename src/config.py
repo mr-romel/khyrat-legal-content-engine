@@ -4,7 +4,7 @@ import json
 import os
 
 
-DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_FACEBOOK_PAGE_ID = "464216073916915"
 DEFAULT_FACEBOOK_GRAPH_VERSION = "26.0"
 
