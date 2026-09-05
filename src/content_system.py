@@ -144,7 +144,9 @@ def classify_feedback(text: str) -> tuple[str, str, str]:
         intent = "CASE"
     else:
         intent = "DISCUSSION"
-    sentiment = "NEGATIVE" if any(x in low for x in ("مش فاهم", "غلط", "مشكلة", "ظلم", "خسرت")) else "POSITIVE" if any(x in low for x in ("شكرا", "مفيد", "تمام", "وضح")) else "NEUTRAL"
+    negative_phrases = ("مش فاهم", "غلط", "ظلم", "خسرت", "سيء", "وحش", "مستاء", "زعلان", "نصب عليا", "اتظلمت")
+    positive_phrases = ("شكرا", "مفيد", "تمام", "وضح", "ممتاز", "رائع")
+    sentiment = "NEGATIVE" if any(x in low for x in negative_phrases) else "POSITIVE" if any(x in low for x in positive_phrases) else "NEUTRAL"
     topic_signal = value[:180]
     return intent, sentiment, topic_signal
 
