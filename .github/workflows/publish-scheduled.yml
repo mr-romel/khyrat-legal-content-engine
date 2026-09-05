@@ -56,7 +56,7 @@ jobs:
         run: |
           echo "GitHub event: ${{ github.event_name }}"
           echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          PYTHONPATH=src python src/run_main.py
+          PYTHONPATH=src python src/content_system_runtime.py
       - name: Commit generated images
         if: success()
         run: |
