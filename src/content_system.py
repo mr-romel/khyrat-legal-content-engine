@@ -54,7 +54,7 @@ def _ensure_sheet(service, spreadsheet_id: str, name: str, headers: list[str]) -
     metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
     titles = {str(s.get("properties", {}).get("title", "")).casefold() for s in metadata.get("sheets", [])}
     if name.casefold() not in titles:
-        service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": [{"addSheet": {"properties": {"title": name}}}]}).execute()
+        service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": [{"addSheet": {"properties": {"title": name}}]}).execute()
     service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"{name}!A1:{chr(64 + len(headers))}1", valueInputOption="RAW", body={"values": [headers]}).execute()
 
 
@@ -117,7 +117,12 @@ def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_
 def classify_feedback(text: str) -> tuple[str, str, str]:
     value = str(text or "").strip()
     low = value.casefold()
-    if any(x in low for x in ("ازاي", "إزاي", "ماذا أفعل", "اعمل ايه", "أعمل ايه", "كيف")):
+    # HOW_TO takes precedence over CASE because Egyptian users commonly combine
+    # a personal context marker ("عندي") with a direct action question ("أعمل إيه؟").
+    how_to_phrases = (
+        "ازاي", "إزاي", "ماذا أفعل", "اعمل ايه", "أعمل ايه", "اعمل إيه", "أعمل إيه", "كيف",
+    )
+    if any(x in low for x in how_to_phrases):
         intent = "HOW_TO"
     elif any(x in low for x in ("هل", "ينفع", "يجوز", "صح", "خطأ")):
         intent = "QUESTION"
