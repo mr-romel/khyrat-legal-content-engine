@@ -11,9 +11,10 @@ from google import genai
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
-أنشئ 20 تعليقًا مختلفًا تمامًا على منشور Facebook و5 تعليقات لـLinkedIn.
+أنشئ عددًا متغيرًا وطبيعيًا من تعليقات Facebook بين 5 و20 تعليقًا، واختَر العدد المناسب حسب طبيعة المنشور وقابليته للنقاش. ممنوع الالتزام بعدد ثابت في كل منشور.
+أنشئ 5 تعليقات لـLinkedIn.
 تعليقات Facebook يجب أن تكون متنوعة في الوظيفة والأسلوب، وليست إعادة صياغة للمنشور.
-وزّعها بين: قيمة قانونية عملية، أسئلة ذكية، تصحيح تصور شائع، أمثلة واقعية قصيرة، فتح نقاش، دعوة طبيعية لمشاركة المنشور عند ملاءمتها، ودعوة للاستفسار عند ملاءمتها.
+وزّعها عند ملاءمة الموضوع بين: قيمة قانونية عملية، أسئلة ذكية، تصحيح تصور شائع، أمثلة واقعية قصيرة، فتح نقاش، دعوة طبيعية لمشاركة المنشور، ودعوة للاستفسار.
 لا تجعل دعوات المشاركة أكثرية التعليقات، ولا تكرر نفس CTA بصيغ متقاربة.
 كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا.
 ممنوع ادعاء قانوني رقمي غير موجود في المصادر.
@@ -144,12 +145,13 @@ def generate_comments(
 المصادر القانونية المتاحة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
-أنشئ 20 تعليق Facebook و5 تعليقات LinkedIn.
+اختر عدد تعليقات Facebook بنفسك بين 5 و20 تعليقًا بناءً على طبيعة الموضوع وحجم النقاش المتوقع. لا تستخدم عددًا ثابتًا بين المنشورات.
+لا تقلل العدد لمجرد تقليل المجهود، ولا تزوده لمجرد الوصول إلى 20؛ المطلوب عدد يبدو طبيعيًا لهذا المنشور تحديدًا.
 Facebook: مصري طبيعي، تفاعلي، بسيط، مهني.
-اجعل تعليقات Facebook متنوعة بوضوح، ولا تجعل أكثر من عدد محدود منها يطلب المشاركة مباشرة.
+اجعل التعليقات متنوعة بوضوح، ولا تجعل أكثر من عدد محدود منها يطلب المشاركة مباشرة.
 عندما تطلب مشاركة المنشور، اجعل الطلب طبيعيًا ومبررًا بالفائدة، مثل شخص قد يحتاج المعلومة.
 أضف بعض التعليقات التي تدفع القارئ لطرح سؤال أو وصف موقف مشابه بدل طلب التفاعل فقط.
-LinkedIn: مهني، business-oriented، ويضيف قيمة.
+LinkedIn: أنشئ 5 تعليقات مهنية، business-oriented، وتضيف قيمة.
 """
 
     try:
@@ -163,11 +165,12 @@ LinkedIn: مهني، business-oriented، ويضيف قيمة.
     data = _extract_json(getattr(response, "text", ""))
     facebook = _normalize(data.get("facebook_comments"), 20)
     linkedin = _normalize(data.get("linkedin_comments"), 5)
-    if len(facebook) < 20 or len(linkedin) < 5:
-        raise RuntimeError("Comment engine returned fewer than 20 Facebook or 5 LinkedIn comments.")
+    if len(facebook) < 5 or len(linkedin) < 5:
+        raise RuntimeError("Comment engine returned fewer than 5 Facebook or 5 LinkedIn comments.")
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
     _COMMENT_CACHE[cache_key] = result
+    print(f"Adaptive comment count selected: Facebook={len(facebook)}/20 | LinkedIn={len(linkedin)}/5")
     return {
         "facebook_comments": list(facebook),
         "linkedin_comments": list(linkedin),
