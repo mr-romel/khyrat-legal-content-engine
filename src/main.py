@@ -24,6 +24,7 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 GENERATED_DIR = Path("generated")
 COMMENT_DELAY_SECONDS = 12
 FACEBOOK_COMMENT_LIMIT = 20
+LINKEDIN_COMMENT_LIMIT = 5
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -103,14 +104,18 @@ def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int
     return published
 
 
-def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: list[str], config) -> int:
+def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: list[str], config) -> tuple[int, list[str]]:
     published = 0
-    for message in comments[1:5]:
+    failures: list[str] = []
+    for index, message in enumerate(comments[1:LINKEDIN_COMMENT_LIMIT], start=2):
         result = linkedin_add_comment(token=config["linkedin_access_token"], actor_urn=author_urn, post_urn=post_urn, message=message)
         if result.status == "PUBLISHED":
             published += 1
+        else:
+            failures.append(f"comment {index}: {result.error or result.status}")
+        print(f"LinkedIn comment {index}/{LINKEDIN_COMMENT_LIMIT}: {result.status} | http={result.http_status} | error={result.error}")
         time.sleep(COMMENT_DELAY_SECONDS)
-    return published
+    return published, failures
 
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
@@ -213,6 +218,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         linkedin_post_id = str(row.get("LinkedIn Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         facebook_comments = 0
         linkedin_comments = 0
+        linkedin_interactions_ok = True
+        linkedin_interaction_errors: list[str] = []
         if facebook_post_id and str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED":
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
@@ -236,36 +243,71 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
         if linkedin_post_id and str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED":
             print(f"Idempotency: LinkedIn already published as {linkedin_post_id}; skipping duplicate publish.")
+            linkedin_interactions_ok = str(row.get("LinkedIn Comment Status", "")).strip().upper() == "PUBLISHED"
         else:
             try:
                 linkedin_access_token = config["linkedin_access_token"]
                 linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(linkedin_access_token)
                 linkedin = publish_to_linkedin(token=linkedin_access_token, author_urn=linkedin_author_urn, image_path=image_path, commentary=linkedin_post, first_comment=linkedin_comments_ready[0])
                 linkedin_post_id = linkedin["post_urn"]
+                comment_result = linkedin["comment"]
+                like_result = linkedin["like"]
                 try:
-                    notify_linkedin_interaction(topic=topic, post_urn=linkedin_post_id, comment=linkedin["comment"], like=linkedin["like"])
+                    notify_linkedin_interaction(topic=topic, post_urn=linkedin_post_id, comment=comment_result, like=like_result)
                 except Exception as exc:
                     print(f"Telegram LinkedIn diagnostic failed: {exc}")
-                linkedin_comments = 1 if linkedin["comment"]["status"] == "PUBLISHED" else 0
+                if comment_result.get("status") == "PUBLISHED":
+                    linkedin_comments = 1
+                else:
+                    linkedin_interactions_ok = False
+                    linkedin_interaction_errors.append(comment_result.get("error") or comment_result.get("status") or "first comment failed")
+                if like_result.get("status") != "LIKED":
+                    linkedin_interactions_ok = False
+                    linkedin_interaction_errors.append(like_result.get("error") or like_result.get("status") or "post reaction failed")
                 try:
-                    linkedin_comments += _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, linkedin_comments_ready, config)
+                    extra_count, extra_errors = _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, linkedin_comments_ready, config)
+                    linkedin_comments += extra_count
+                    linkedin_interaction_errors.extend(extra_errors)
+                    if extra_errors:
+                        linkedin_interactions_ok = False
                 except Exception as exc:
+                    linkedin_interactions_ok = False
+                    linkedin_interaction_errors.append(str(exc))
                     print(f"LinkedIn comment engine failed: {exc}")
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "PUBLISHED", "LinkedIn Post ID": linkedin_post_id, "LinkedIn Comment Status": "PUBLISHED" if linkedin_comments else "FAILED"})
+                comment_status = "PUBLISHED" if linkedin_comments >= LINKEDIN_COMMENT_LIMIT else ("PARTIAL" if linkedin_comments else "FAILED")
+                reaction_status = "LIKED" if like_result.get("status") == "LIKED" else "FAILED"
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "LinkedIn Status": "PUBLISHED",
+                    "LinkedIn Post ID": linkedin_post_id,
+                    "LinkedIn Comment Status": comment_status,
+                    "LinkedIn Reaction Status": reaction_status,
+                    "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500],
+                })
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
                 print(error)
+                linkedin_interactions_ok = False
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
                 notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
         fb_ok = bool(facebook_post_id)
-        li_ok = bool(linkedin_post_id)
-        if not fb_ok and not li_ok:
+        li_post_ok = bool(linkedin_post_id)
+        li_ok = li_post_ok and linkedin_interactions_ok
+        if not fb_ok and not li_post_ok:
             final_status = "FAILED"
         elif fb_ok and li_ok:
             final_status = "PUBLISHED"
         else:
             final_status = "PARTIAL_FAILED"
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": final_status, "Facebook Status": "PUBLISHED" if fb_ok else "FAILED", "Facebook Post ID": facebook_post_id, "LinkedIn Status": "PUBLISHED" if li_ok else "FAILED", "LinkedIn Post ID": linkedin_post_id, "وقت آخر تشغيل": current.isoformat()})
+        final_error = " | ".join(linkedin_interaction_errors)[:1500]
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "الحالة": final_status,
+            "Facebook Status": "PUBLISHED" if fb_ok else "FAILED",
+            "Facebook Post ID": facebook_post_id,
+            "LinkedIn Status": "PUBLISHED" if li_post_ok else "FAILED",
+            "LinkedIn Post ID": linkedin_post_id,
+            "وقت آخر تشغيل": current.isoformat(),
+            "آخر خطأ": final_error,
+        })
         if final_status == "PUBLISHED":
             try:
                 add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=facebook_post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
@@ -274,7 +316,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 print(f"PostBank/Analytics logging failed: {exc}")
             notify("✅ Khyrat Legal Content Engine\n" f"تم نشر: {topic}\n" f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_ok else '❌'}\n" f"التعليقات: Facebook {facebook_comments}/20 | LinkedIn {linkedin_comments}/5")
         elif final_status == "PARTIAL_FAILED":
-            notify("🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n" f"الموضوع: {topic}")
+            detail = final_error or "LinkedIn interactions did not complete."
+            notify("🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\n" f"الموضوع: {topic}\n" f"LinkedIn: {detail}")
     except (ImageGenerationError, FacebookPublishError, LinkedInPublishError, RuntimeError) as exc:
         print(f"Pipeline failed: {exc}")
         print(traceback.format_exc())
