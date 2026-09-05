@@ -90,11 +90,10 @@ jobs:
       - name: Verify publishing schedule is 11:00, 15:00 and 19:00 Cairo time
         run: |
           python - <<'PY'
-          import inspect
           import monthly_recycler
-          assert monthly_recycler.POSTING_TIMES == ("11:00", "15:00", "19:00")
-          source = inspect.getsource(monthly_recycler)
-          assert "11:00" in source and "15:00" in source and "19:00" in source
+          from recycler_rules import POSTING_TIMES
+          assert POSTING_TIMES == ("11:00", "15:00", "19:00")
+          assert monthly_recycler.POSTING_TIMES == POSTING_TIMES
           print("Publishing schedule check: 11:00 + 15:00 + 19:00 Cairo time: OK")
           PY
       - name: Verify Gemini runtime architecture
