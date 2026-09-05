@@ -1,41 +1,43 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from datetime import datetime
 from typing import Any
 
+from sheets import get_values
+
 
 SYSTEM_SHEETS = {
-    "ContentLineage": ["lineage_id", "parent_id", "content_id", "content_type", "topic", "angle", "platform", "created_at"],
-    "AudienceFeedback": ["feedback_id", "platform", "post_id", "text", "intent", "sentiment", "topic_signal", "created_at"],
-    "ContentWinners": ["content_id", "score", "tier", "metrics", "next_actions", "updated_at"],
-    "AuthorityMap": ["topic", "content_count", "winner_count", "coverage", "authority_status", "updated_at"],
-    "ConversionMap": ["content_id", "audience_intent", "service", "cta", "lead_signal", "updated_at"],
-    "VoiceProfile": ["profile_id", "version", "principles", "preferred_openings", "forbidden_styles", "tone", "cta", "updated_at"],
-    "ContentExperiments": ["experiment_id", "content_id", "hypothesis", "variable", "variant", "status", "result", "created_at"],
-    "ContentMetrics": ["content_id", "platform", "views", "likes", "comments", "shares", "saves", "clicks", "leads", "published_at"],
+    "ContentLineage": ["Lineage ID", "Parent ID", "Source Row ID", "Topic", "Asset Type", "Angle", "Platform", "Objective", "Service", "Experiment ID", "Created At"],
+    "AudienceFeedback": ["Feedback ID", "Post ID", "Platform", "Text", "Intent", "Sentiment", "Topic Signal", "Content Opportunity", "Created At"],
+    "ContentWinners": ["Post ID", "Topic", "Score", "Tier", "Metrics JSON", "Next Actions", "Updated At"],
+    "AuthorityMap": ["Topic Cluster", "Posts", "Winners", "Avg Score", "Coverage", "Status", "Updated At"],
+    "ConversionMap": ["Topic Pattern", "Service", "Intent", "CTA", "Lead Signal"],
+    "VoiceProfile": ["Version", "Principles", "Preferred Openings", "Forbidden", "Tone", "CTA", "Updated At"],
+    "ContentExperiments": ["Experiment ID", "Post ID", "Variable", "Variant", "Hypothesis", "Status", "Created At"],
+    "ContentMetrics": ["Post ID", "Topic", "Platform", "Impressions", "Reach", "Reactions", "Comments", "Shares", "Saves", "Clicks", "Leads", "Captured At"],
 }
 
-DERIVATIVE_TYPES = (
-    "POST", "REEL", "CAROUSEL", "FAQ", "CASE_STUDY", "MYTH_FACT",
-    "CHECKLIST", "WARNING", "COMPARISON", "QUESTION", "FOLLOW_UP", "CTA_ASSET",
-)
+DERIVATIVE_TYPES = [
+    "POST", "REEL", "CAROUSEL", "FAQ", "CASE_STUDY", "MYTH_FACT", "CHECKLIST", "WARNING", "COMPARISON", "QUESTION", "FOLLOW_UP", "CTA_ASSET",
+]
 
-SERVICE_RULES = (
-    (("عقد", "اتفاق", "بند", "شرط"), "مراجعة وصياغة العقود", "CONTRACT_REVIEW", "هل عندك عقد أو بند مشابه؟ ابعته للمراجعة القانونية."),
-    (("فصل", "مرتب", "عامل", "موظف", "إجاز", "جزاء", "استقالة"), "استشارة قانون العمل", "LABOR_CONSULT", "لو عندك موقف عملي مشابه، ابعت التفاصيل قبل ما تاخد إجراء."),
-    (("شركة", "شريك", "مدير", "تأسيس", "جمعية", "حصة"), "خدمات الشركات", "CORPORATE", "لو الموضوع يخص شركة أو شراكة، نقدر نراجع موقفك قانونيًا."),
-    (("إيصال", "شيك", "دين", "فلوس", "مديون"), "استشارة مدنية وتجارية", "CIVIL_COMMERCIAL", "لو عندك مستند أو مديونية، اعرف موقفك القانوني قبل التحرك."),
-)
+SERVICE_RULES = [
+    (r"عقد|اتفاق|بند|شرط", "مراجعة وصياغة العقود", "HIGH_INTENT", "لو عندك عقد، راجعه قبل ما تمضي."),
+    (r"فصل|مرتب|عامل|موظف|إجاز|جزاء|استقالة", "استشارة قانون العمل", "HIGH_INTENT", "لو موقفك متعلق بالشغل، احكي التفاصيل الأساسية قبل اتخاذ خطوة."),
+    (r"شركة|شريك|مدير|تأسيس|جمعية|حصة", "خدمات الشركات", "BUSINESS_INTENT", "لو الموضوع يخص شركة، خلّي المخاطر القانونية تتراجع قبل القرار."),
+    (r"إيصال|شيك|دين|فلوس|مديون", "استشارة مدنية وتجارية", "LEGAL_PROBLEM", "لو معاك مستند أو مطالبة مالية، راجع موقفك القانوني أولًا."),
+]
 
 VOICE_PROFILE = {
-    "profile_id": "khyrat-voice",
     "version": "khyrat-v1",
-    "principles": "مصري واضح؛ مباشر؛ مهني؛ دقيق قانونيًا؛ عملي؛ بدون تهويل أو وعود؛ سهل على المتلقي.",
-    "preferred_openings": "سؤال واقعي، موقف شائع، تصحيح معلومة، تحذير عملي.",
-    "forbidden_styles": "لغة روبوتية، مبالغة، تخويف، حشو، مصطلحات قانونية بلا شرح، CTA ضاغطة.",
-    "tone": "محامي مصري يشرح للمصري ببساطة واحترام.",
-    "cta": "لو موقفك مختلف، ابعت التفاصيل عشان تعرف التصرف القانوني الأنسب.",
+    "principles": "مصري واضح؛ قانون دقيق؛ شرح عملي؛ حاسم بدون تهويل؛ لا ادعاء يقين في الوقائع غير المعروفة.",
+    "preferred_openings": "سؤال من الواقع؛ خطأ شائع؛ موقف قصير؛ معلومة تصحح اعتقادًا؛ ماذا تفعل الآن؟",
+    "forbidden": "لغة AI نمطية؛ مقدمات طويلة؛ تخويف بلا سند؛ وعود بنتيجة قضائية؛ حشو قانوني غير لازم؛ تكرار نفس الزاوية.",
+    "tone": "مهني، مصري، مباشر، إنساني، تعليمي، وعملي.",
+    "cta": "دعوة للتعليق أو المشاركة أو الاستفسار العام، مع تجنب تحويل المنشور إلى إعلان مباشر بلا قيمة.",
 }
 
 
@@ -69,78 +71,66 @@ def ensure_system_sheets(service, spreadsheet_id: str) -> None:
         _ensure_sheet(service, spreadsheet_id, name, headers)
 
 
-def service_mapping(topic: str) -> tuple[str, str, str]:
-    text = str(topic or "")
-    for patterns, service, intent, cta in SERVICE_RULES:
-        if any(p in text for p in patterns):
-            return service, intent, cta
-    return "استشارة قانونية", "GENERAL_LEGAL", VOICE_PROFILE["cta"]
-
-
-def choose_experiment(topic: str, angle: str) -> dict[str, str]:
-    bucket = int(hashlib.sha1(f"{topic}|{angle}".encode("utf-8")).hexdigest()[:8], 16) % 3
-    variants = (
-        ("HOOK", "اختبار افتتاحية سؤال واقعي مقابل افتتاحية تحذير"),
-        ("CTA", "اختبار CTA معلوماتية مقابل CTA تواصلية"),
-        ("ANGLE", "اختبار زاوية عملية مقابل زاوية تصحيح اعتقاد"),
-    )
-    variable, hypothesis = variants[bucket]
-    return {"variable": variable, "hypothesis": hypothesis, "variant": f"V{bucket + 1}"}
-
-
-def build_content_tree(topic: str, angle: str, objective: str = "EDUCATE", platform: str = "FACEBOOK") -> list[dict[str, str]]:
-    root_id = _id("topic", topic, angle)
-    now = _now()
-    rows = []
-    for derivative in DERIVATIVE_TYPES:
-        content_id = _id("content", root_id, derivative)
-        rows.append({
-            "lineage_id": _id("lineage", root_id, derivative),
-            "parent_id": root_id,
-            "content_id": content_id,
-            "content_type": derivative,
-            "topic": topic,
-            "angle": angle,
-            "platform": platform,
-            "objective": objective,
-            "created_at": now,
-        })
-    return rows
-
-
 def _append(service, spreadsheet_id: str, sheet: str, values: list[Any]) -> None:
     service.spreadsheets().values().append(
         spreadsheetId=spreadsheet_id,
-        range=f"{sheet}!A1",
+        range=f"{sheet}!A:Z",
         valueInputOption="RAW",
         insertDataOption="INSERT_ROWS",
-        body={"values": [values]},
+        body={"values": [["" if v is None else str(v) for v in values]]},
     ).execute()
 
 
-def record_publication_intelligence(service, spreadsheet_id: str, *, content_id: str, topic: str, angle: str, objective: str, platform: str) -> None:
+def service_mapping(topic: str) -> tuple[str, str, str]:
+    text = str(topic or "")
+    for pattern, service, intent, cta in SERVICE_RULES:
+        if re.search(pattern, text):
+            return service, intent, cta
+    return "استشارة قانونية عامة", "EDUCATIONAL", "لو عندك موقف مشابه، اكتب السؤال العام في التعليقات."
+
+
+def choose_experiment(topic: str, angle: str) -> tuple[str, str, str]:
+    bucket = int(hashlib.sha1(f"{topic}|{angle}".encode("utf-8")).hexdigest()[:8], 16) % 4
+    variants = [("HOOK", "QUESTION"), ("HOOK", "CASE"), ("CTA", "SHARE"), ("FORMAT", "REEL")]
+    variable, variant = variants[bucket]
+    experiment_id = _id("EXP", topic, angle, variable, variant)
+    hypothesis = {
+        "QUESTION": "السؤال المباشر يرفع التعليقات.",
+        "CASE": "الحالة الواقعية ترفع وقت القراءة والتفاعل.",
+        "SHARE": "CTA المشاركة ترفع التوزيع العضوي.",
+        "REEL": "الفيديو القصير يوسع الوصول لموضوع ناجح.",
+    }[variant]
+    return experiment_id, variable, variant + " | " + hypothesis
+
+
+def build_content_tree(topic: str, angle: str, objective: str, platform: str) -> list[dict[str, str]]:
+    parent = _id("TREE", topic, angle, platform)
+    return [{
+        "lineage_id": _id("LIN", parent, asset), "parent_id": parent, "asset_type": asset,
+        "topic": topic, "angle": angle, "platform": platform, "objective": objective,
+    } for asset in DERIVATIVE_TYPES]
+
+
+def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_id: str, topic: str, angle: str, objective: str, platform: str, post_id: str) -> None:
     try:
         ensure_system_sheets(service, spreadsheet_id)
-        now = _now()
-        for row in build_content_tree(topic, angle, objective, platform):
-            _append(service, spreadsheet_id, "ContentLineage", [row[k] for k in SYSTEM_SHEETS["ContentLineage"]])
-        experiment = choose_experiment(topic, angle)
-        _append(service, spreadsheet_id, "ContentExperiments", [
-            _id("exp", content_id), content_id, experiment["hypothesis"], experiment["variable"], experiment["variant"], "ACTIVE", "", now,
-        ])
-        service_name, audience_intent, cta = service_mapping(topic)
-        _append(service, spreadsheet_id, "ConversionMap", [content_id, audience_intent, service_name, cta, "", now])
-        _append(service, spreadsheet_id, "VoiceProfile", [
-            VOICE_PROFILE["profile_id"], VOICE_PROFILE["version"], VOICE_PROFILE["principles"],
-            VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden_styles"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], now,
-        ])
-    except Exception:
-        # Intelligence is intentionally non-blocking for the publishing pipeline.
-        return
+        service_name, intent, cta = service_mapping(topic)
+        experiment_id, variable, experiment = choose_experiment(topic, angle)
+        tree = build_content_tree(topic, angle, objective, platform)
+        root = tree[0]["parent_id"]
+        for node in tree:
+            _append(service, spreadsheet_id, "ContentLineage", [node["lineage_id"], node["parent_id"], source_row_id, node["topic"], node["asset_type"], node["angle"], node["platform"], node["objective"], service_name, experiment_id, _now()])
+        _append(service, spreadsheet_id, "ContentExperiments", [experiment_id, post_id, variable, experiment.split(" | ")[0], experiment.split(" | ", 1)[1], "ACTIVE", _now()])
+        _append(service, spreadsheet_id, "ConversionMap", [topic, service_name, intent, cta, "COMMENT_OR_MESSAGE"])
+        _append(service, spreadsheet_id, "VoiceProfile", [VOICE_PROFILE["version"], VOICE_PROFILE["principles"], VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now()])
+        print(f"Content system: lineage={root} derivatives={len(tree)} service={service_name} experiment={experiment_id}")
+    except Exception as exc:
+        print(f"Content system intelligence logging failed (non-blocking): {exc}")
 
 
 def classify_feedback(text: str) -> tuple[str, str, str]:
-    low = str(text or "").strip().casefold()
+    value = str(text or "").strip()
+    low = value.casefold()
     # HOW_TO takes precedence over CASE because Egyptian users commonly combine
     # a personal context marker ("عندي") with a direct action question ("أعمل إيه؟").
     how_to_phrases = (
@@ -153,80 +143,64 @@ def classify_feedback(text: str) -> tuple[str, str, str]:
     elif any(x in low for x in ("عندي", "حصل معايا", "موقفي", "حالتي")):
         intent = "CASE"
     else:
-        intent = "GENERAL"
-    if any(x in low for x in ("مش", "لا", "مشكلة", "خايف", "متضايق")):
-        sentiment = "CONCERN"
-    elif any(x in low for x in ("شكرا", "ممتاز", "حلو", "جامد")):
-        sentiment = "POSITIVE"
-    else:
-        sentiment = "NEUTRAL"
-    topic_signal = low[:180]
+        intent = "DISCUSSION"
+    sentiment = "NEGATIVE" if any(x in low for x in ("مش فاهم", "غلط", "مشكلة", "ظلم", "خسرت")) else "POSITIVE" if any(x in low for x in ("شكرا", "مفيد", "تمام", "وضح")) else "NEUTRAL"
+    topic_signal = value[:180]
     return intent, sentiment, topic_signal
 
 
-def record_feedback(service, spreadsheet_id: str, *, platform: str, post_id: str, text: str) -> None:
+def record_feedback(service, spreadsheet_id: str, *, post_id: str, platform: str, text: str) -> None:
     intent, sentiment, topic_signal = classify_feedback(text)
-    _append(service, spreadsheet_id, "AudienceFeedback", [
-        _id("feedback", platform, post_id, text), platform, post_id, text, intent, sentiment, topic_signal, _now(),
-    ])
+    opportunity = {"HOW_TO": "شرح خطوات عملية", "QUESTION": "FAQ أو Myth/Fact", "CASE": "Case Study أو رد متخصص", "DISCUSSION": "منشور نقاشي"}[intent]
+    _append(service, spreadsheet_id, "AudienceFeedback", [_id("FB", post_id, text), post_id, platform, text, intent, sentiment, topic_signal, opportunity, _now()])
 
 
 def winner_score(metrics: dict[str, float], baseline: dict[str, float] | None = None) -> float:
-    baseline = baseline or {}
-    weights = {"views": .15, "likes": .15, "comments": .20, "shares": .20, "saves": .15, "clicks": .10, "leads": .05}
+    base = baseline or {}
+    weights = {"reach": .20, "impressions": .10, "reactions": .15, "comments": .20, "shares": .15, "saves": .10, "clicks": .05, "leads": .05}
     score = 0.0
     for key, weight in weights.items():
         value = float(metrics.get(key, 0) or 0)
-        base = float(baseline.get(key, 0) or 0)
-        if base > 0:
-            value = value / base
-        score += value * weight
-    return round(score, 4)
+        ref = float(base.get(key, 0) or 0)
+        normalized = min(value / ref, 3.0) / 3.0 if ref > 0 else (1.0 if value > 0 else 0.0)
+        score += normalized * weight * 100
+    return round(score, 2)
 
 
 def winner_tier(score: float) -> str:
-    if score >= 2:
-        return "S"
-    if score >= 1.35:
-        return "A"
-    if score >= .85:
-        return "B"
-    return "C"
+    return "S" if score >= 80 else "A" if score >= 60 else "B" if score >= 40 else "C"
 
 
 def next_actions_for_winner(tier: str) -> str:
-    return {
-        "S": "PART_2,REEL,CASE_STUDY,FAQ,CTA_ASSET",
-        "A": "PART_2,REEL,FAQ",
-        "B": "FOLLOW_UP,QUESTION",
-        "C": "KEEP_OR_REWORK_HOOK",
-    }.get(tier, "REVIEW")
+    return {"S": "REEL, PART_2, CASE_STUDY, FAQ, CTA", "A": "FOLLOW_UP, FAQ, REEL", "B": "TEST_NEW_HOOK", "C": "DO_NOT_RECYCLE_YET"}[tier]
 
 
-def update_winner(service, spreadsheet_id: str, content_id: str, metrics: dict[str, float], baseline: dict[str, float]) -> None:
+def update_winner(service, spreadsheet_id: str, *, post_id: str, topic: str, metrics: dict[str, float], baseline: dict[str, float] | None = None) -> float:
     score = winner_score(metrics, baseline)
     tier = winner_tier(score)
-    _append(service, spreadsheet_id, "ContentWinners", [content_id, score, tier, str(metrics), next_actions_for_winner(tier), _now()])
+    _append(service, spreadsheet_id, "ContentWinners", [post_id, topic, score, tier, json.dumps(metrics, ensure_ascii=False), next_actions_for_winner(tier), _now()])
+    return score
 
 
-def build_authority_rows(post_rows: list[dict[str, Any]], winner_rows: list[dict[str, Any]]) -> list[list[Any]]:
-    stats: dict[str, dict[str, int]] = {}
+def build_authority_rows(post_rows: list[dict[str, str]], winner_rows: list[dict[str, str]]) -> list[list[str]]:
+    groups: dict[str, list[float]] = {}
+    winners: dict[str, int] = {}
     for row in post_rows:
-        topic = str(row.get("topic") or row.get("Topic") or "").strip()
-        if not topic:
-            continue
-        stats.setdefault(topic, {"content_count": 0, "winner_count": 0})["content_count"] += 1
+        cluster = str(row.get("الموضوع", "")).strip() or "غير مصنف"
+        groups.setdefault(cluster, []).append(1.0)
     for row in winner_rows:
-        content_id = str(row.get("content_id") or "")
-        for topic, data in stats.items():
-            if topic and topic in content_id:
-                data["winner_count"] += 1
-    now = _now()
-    return [[topic, data["content_count"], data["winner_count"], "COVERED" if data["content_count"] else "", "BUILD" if data["content_count"] < 3 else "ESTABLISHED", now] for topic, data in stats.items()]
+        cluster = str(row.get("Topic", "")).strip() or "غير مصنف"
+        winners[cluster] = winners.get(cluster, 0) + 1
+    rows = []
+    for cluster, items in sorted(groups.items(), key=lambda x: len(x[1]), reverse=True):
+        count = len(items)
+        win = winners.get(cluster, 0)
+        coverage = round(min(100.0, count * 10.0), 2)
+        status = "AUTHORITY" if win >= 2 and count >= 5 else "BUILD" if count < 5 else "STABLE"
+        rows.append([cluster, count, win, "", coverage, status, _now()])
+    return rows[:100]
 
 
 def write_voice_profile(service, spreadsheet_id: str) -> None:
-    _append(service, spreadsheet_id, "VoiceProfile", [
-        VOICE_PROFILE["profile_id"], VOICE_PROFILE["version"], VOICE_PROFILE["principles"],
-        VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden_styles"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now(),
-    ])
+    _ensure_sheet(service, spreadsheet_id, "VoiceProfile", SYSTEM_SHEETS["VoiceProfile"])
+    _append(service, spreadsheet_id, "VoiceProfile", [VOICE_PROFILE["version"], VOICE_PROFILE["principles"], VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now()])
