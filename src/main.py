@@ -15,7 +15,7 @@ from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
-from linkedin_publisher import LinkedInPublishError, add_comment as linkedin_add_comment, publish_to_linkedin, resolve_member_urn
+from linkedin_publisher import LinkedInPublishError, add_comment as linkedin_add_comment, like_post as linkedin_like_post, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, notify_linkedin_interaction, send_review_request
@@ -241,9 +241,54 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 print(error)
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
                 notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
-        if linkedin_post_id and str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED":
-            print(f"Idempotency: LinkedIn already published as {linkedin_post_id}; skipping duplicate publish.")
-            linkedin_interactions_ok = str(row.get("LinkedIn Comment Status", "")).strip().upper() == "PUBLISHED"
+
+        linkedin_status = str(row.get("LinkedIn Status", "")).strip().upper()
+        linkedin_comment_status = str(row.get("LinkedIn Comment Status", "")).strip().upper()
+        linkedin_reaction_status = str(row.get("LinkedIn Reaction Status", "")).strip().upper()
+        if linkedin_post_id and linkedin_status == "PUBLISHED":
+            print(f"Idempotency: LinkedIn post already published as {linkedin_post_id}; retrying only incomplete interactions.")
+            linkedin_access_token = config["linkedin_access_token"]
+            linkedin_author_urn = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(linkedin_access_token)
+            if linkedin_comment_status == "PUBLISHED" and linkedin_reaction_status == "LIKED":
+                linkedin_interactions_ok = True
+                linkedin_comments = LINKEDIN_COMMENT_LIMIT
+            else:
+                if linkedin_comment_status != "PUBLISHED":
+                    try:
+                        first_comment = linkedin_add_comment(token=linkedin_access_token, actor_urn=linkedin_author_urn, post_urn=linkedin_post_id, message=linkedin_comments_ready[0])
+                        if first_comment.status == "PUBLISHED":
+                            linkedin_comments = 1
+                        else:
+                            linkedin_interactions_ok = False
+                            linkedin_interaction_errors.append(first_comment.error or first_comment.status)
+                    except Exception as exc:
+                        linkedin_interactions_ok = False
+                        linkedin_interaction_errors.append(f"first comment retry: {exc}")
+                if linkedin_comment_status == "PUBLISHED":
+                    linkedin_comments = 1
+                if linkedin_comments:
+                    try:
+                        extra_count, extra_errors = _publish_extra_linkedin_comments(linkedin_post_id, linkedin_author_urn, linkedin_comments_ready, config)
+                        linkedin_comments += extra_count
+                        linkedin_interaction_errors.extend(extra_errors)
+                    except Exception as exc:
+                        linkedin_interaction_errors.append(str(exc))
+                if linkedin_comments < LINKEDIN_COMMENT_LIMIT:
+                    linkedin_interactions_ok = False
+                if linkedin_reaction_status != "LIKED":
+                    try:
+                        reaction = linkedin_like_post(token=linkedin_access_token, actor_urn=linkedin_author_urn, post_urn=linkedin_post_id)
+                        if reaction.status != "LIKED":
+                            linkedin_interactions_ok = False
+                            linkedin_interaction_errors.append(reaction.error or reaction.status)
+                    except Exception as exc:
+                        linkedin_interactions_ok = False
+                        linkedin_interaction_errors.append(f"reaction retry: {exc}")
+                else:
+                    print("LinkedIn reaction already confirmed; no duplicate reaction call.")
+                comment_status = "PUBLISHED" if linkedin_comments >= LINKEDIN_COMMENT_LIMIT else ("PARTIAL" if linkedin_comments else "FAILED")
+                reaction_status = "LIKED" if linkedin_reaction_status == "LIKED" or not linkedin_interaction_errors and linkedin_comments >= LINKEDIN_COMMENT_LIMIT else linkedin_reaction_status or "FAILED"
+                update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Comment Status": comment_status, "LinkedIn Reaction Status": reaction_status, "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500]})
         else:
             try:
                 linkedin_access_token = config["linkedin_access_token"]
@@ -289,6 +334,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 linkedin_interactions_ok = False
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
                 notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
+
         fb_ok = bool(facebook_post_id)
         li_post_ok = bool(linkedin_post_id)
         li_ok = li_post_ok and linkedin_interactions_ok
