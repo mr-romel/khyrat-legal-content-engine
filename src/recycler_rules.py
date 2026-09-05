@@ -9,7 +9,7 @@ from topic_bank_expanded import EXTRA_TOPICS
 from utils import parse_date
 
 RECYCLE_MARKER = "MONTHLY_RECYCLE"
-POSTING_TIMES = ("11:00", "19:00")
+POSTING_TIMES = ("11:00", "15:00", "19:00")
 CATEGORY_ORDER = ("القانون الجنائي", "قانون الشركات والاستثمار", "قانون الأسرة", "قانون العمل الجديد", "القانون الإداري")
 ANGLE_LIBRARY = [
     "خطأ شائع يقع فيه الناس وكيف يتجنبونه", "موقف واقعي قصير وما التصرف القانوني الصحيح",
