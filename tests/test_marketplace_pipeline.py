@@ -25,6 +25,32 @@ def test_mostaql_ingestion_builds_offer_and_quality_passes():
     assert result["passed"] is True
 
 
+def test_mostaql_opportunity_keeps_direct_source_link():
+    state = {"services": [], "portfolio": [], "opportunities": [], "activity": []}
+    item = ingest_mostaql_opportunity(
+        state,
+        "مطلوب مراجعة عقد",
+        "مراجعة عقد تجاري وتحديد المخاطر والبنود المطلوب تعديلها",
+        "https://mostaql.com/project/123456",
+    )
+    assert item["source_url"] == "https://mostaql.com/project/123456"
+
+
+def test_mostaql_opportunity_rejects_unsafe_source_link():
+    state = {"services": [], "portfolio": [], "opportunities": [], "activity": []}
+    try:
+        ingest_mostaql_opportunity(
+            state,
+            "مطلوب مراجعة عقد",
+            "مراجعة عقد تجاري وتحديد المخاطر والبنود المطلوب تعديلها",
+            "javascript:alert(1)",
+        )
+    except ValueError as exc:
+        assert "http://" in str(exc) or "https://" in str(exc)
+    else:
+        raise AssertionError("unsafe source URL should be rejected")
+
+
 def test_quality_rejects_external_links():
     result = offer_quality(
         {
