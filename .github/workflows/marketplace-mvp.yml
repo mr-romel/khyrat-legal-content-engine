@@ -18,6 +18,7 @@ on:
       - 'tests/test_marketplace_followup.py'
       - 'tests/test_marketplace_daily_ops.py'
       - 'tests/test_marketplace_daily_cli.py'
+      - 'tests/test_marketplace_service_assets.py'
       - '.github/workflows/marketplace-mvp.yml'
 
 permissions:
@@ -39,7 +40,7 @@ jobs:
       - name: Install test dependency
         run: python -m pip install 'pytest>=8.0.0,<9.0.0'
       - name: Run Marketplace tests
-        run: python -m pytest -q tests/test_marketplace_mvp.py tests/test_marketplace_review.py tests/test_marketplace_isolation.py tests/test_marketplace_server.py tests/test_marketplace_pipeline.py tests/test_marketplace_opportunity_engine.py tests/test_marketplace_opportunity_queue.py tests/test_marketplace_revenue.py tests/test_marketplace_followup.py tests/test_marketplace_daily_ops.py tests/test_marketplace_daily_cli.py
+        run: python -m pytest -q tests/test_marketplace_mvp.py tests/test_marketplace_review.py tests/test_marketplace_isolation.py tests/test_marketplace_server.py tests/test_marketplace_pipeline.py tests/test_marketplace_opportunity_engine.py tests/test_marketplace_opportunity_queue.py tests/test_marketplace_revenue.py tests/test_marketplace_followup.py tests/test_marketplace_daily_ops.py tests/test_marketplace_daily_cli.py tests/test_marketplace_service_assets.py
       - name: Build review dashboard artifact
         run: python src/marketplace_mvp.py --seed-demo
       - name: Build daily execution plan
