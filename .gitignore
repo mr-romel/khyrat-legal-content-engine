@@ -12,6 +12,10 @@ env/
 .env
 .env.*
 !.env.example
+.cloudflared/
+
+# Marketplace local state and generated artifacts
+marketplace_data/
 
 # Test, type-checking, and coverage caches
 .pytest_cache/
