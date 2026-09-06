@@ -95,6 +95,10 @@ def transition(item: dict[str, Any], target: str, now: str) -> dict[str, Any]:
 
 def queue_metrics(state: dict[str, Any]) -> dict[str, Any]:
     opportunities = state.get("opportunities", [])
+    # Metrics must be correct even when an opportunity reached SUBMITTED
+    # through transition() without passing through add_to_queue().
+    for item in opportunities:
+        prepare_opportunity(item)
     return {
         "total": len(opportunities),
         "high": sum(x.get("priority") == "HIGH" for x in opportunities),
