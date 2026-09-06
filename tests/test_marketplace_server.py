@@ -105,6 +105,6 @@ def test_follow_up_rejected_before_submission():
         server.save_state = lambda s: None
         ok, message = handle_action({"id": "opp-1", "action": "follow_up"})
         assert not ok
-        assert "الفرص المرسلة" in message
+        assert "للفرص المرسلة" in message
     finally:
         server.load_state, server.save_state = old_load, old_save
