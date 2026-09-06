@@ -49,6 +49,7 @@ def test_dashboard_shows_due_followup_and_direct_link():
             "updated_at": "2026-09-01T12:00:00+00:00",
             "created_at": "2026-09-01T12:00:00+00:00",
             "source_url": "https://mostaql.com/project/123456",
+            "offer": "أراجع العقد وأحدد المخاطر والبنود المقترحة للتعديل.",
         }],
         "activity": [],
     }
@@ -57,3 +58,53 @@ def test_dashboard_shows_due_followup_and_direct_link():
     assert "فتح المشروع على مستقل" in html
     assert "https://mostaql.com/project/123456" in html
     assert "موعد المتابعة" in html
+    assert "تمت المتابعة" in html
+    assert "نسخ العرض" in html
+    assert "navigator.clipboard.writeText" in html
+    assert "https://mostaql.com/project/123456" in html
+
+
+def test_follow_up_updates_next_followup_and_activity():
+    state = {
+        "services": [],
+        "opportunities": [{
+            "id": "opp-1",
+            "status": "SUBMITTED",
+            "lifecycle": "SUBMITTED",
+            "updated_at": "2026-09-01T12:00:00+00:00",
+            "created_at": "2026-09-01T12:00:00+00:00",
+        }],
+        "activity": [],
+    }
+    import marketplace.server as server
+    old_load, old_save, old_now = server.load_state, server.save_state, server._now
+    try:
+        server.load_state = lambda: state
+        server.save_state = lambda s: None
+        server._now = lambda: "2026-09-06T12:00:00+00:00"
+        ok, message = handle_action({"id": "opp-1", "action": "follow_up"})
+        assert ok
+        assert message == "تم تنفيذ الإجراء"
+        assert state["opportunities"][0]["updated_at"] == "2026-09-06T12:00:00+00:00"
+        assert state["opportunities"][0]["next_followup_at"] == "2026-09-08T12:00:00+00:00"
+        assert state["activity"][0]["message"] == "follow_up: opp-1"
+    finally:
+        server.load_state, server.save_state, server._now = old_load, old_save, old_now
+
+
+def test_follow_up_rejected_before_submission():
+    state = {
+        "services": [],
+        "opportunities": [{"id": "opp-1", "status": "APPROVED", "lifecycle": "APPROVED"}],
+        "activity": [],
+    }
+    import marketplace.server as server
+    old_load, old_save = server.load_state, server.save_state
+    try:
+        server.load_state = lambda: state
+        server.save_state = lambda s: None
+        ok, message = handle_action({"id": "opp-1", "action": "follow_up"})
+        assert not ok
+        assert "الفرص المرسلة" in message
+    finally:
+        server.load_state, server.save_state = old_load, old_save
