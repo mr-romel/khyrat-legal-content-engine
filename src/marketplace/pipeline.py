@@ -1,7 +1,8 @@
 """Marketplace production pipeline helpers.
 
 This module stays inside Marketplace and never imports Core modules.
-It prepares a useful initial catalog, portfolio set, and offer quality checks.
+It prepares the service catalog, portfolio set, offer quality checks, and
+acquisition ranking used by the private control center.
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from dataclasses import asdict
 from typing import Any
 
 from marketplace.catalog import prioritized_topics
+from marketplace.opportunity_engine import rank_opportunity
 from marketplace_mvp import add_opportunity, generate_portfolio, generate_service, build_offer
 
 
@@ -43,6 +45,7 @@ def ensure_initial_assets(state: dict[str, Any]) -> dict[str, int]:
         if not opportunity.get("offer"):
             opportunity["offer"] = build_offer(opportunity)
             opportunity["status"] = "OFFER_READY"
+        rank_opportunity(opportunity)
 
     return {"services_created": created_services, "portfolio_created": created_portfolio}
 
@@ -59,6 +62,7 @@ def ingest_mostaql_opportunity(
     item_dict = next(x for x in state["opportunities"] if x.get("id") == item.id)
     item_dict["offer"] = build_offer(item_dict)
     item_dict["status"] = "OFFER_READY"
+    rank_opportunity(item_dict)
     return item_dict
 
 
