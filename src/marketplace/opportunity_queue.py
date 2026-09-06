@@ -12,7 +12,8 @@ from marketplace.opportunity_engine import rank_opportunity
 
 
 LIFECYCLE = ("NEW", "OFFER_READY", "READY_FOR_REVIEW", "APPROVED", "SUBMITTED", "WON", "LOST", "EXPIRED", "CANCELLED", "REJECTED", "FAILED")
-TERMINAL = {"SUBMITTED", "WON", "LOST", "EXPIRED", "CANCELLED"}
+# SUBMITTED is still an open opportunity: it can become WON, LOST, EXPIRED, or CANCELLED.
+TERMINAL = {"WON", "LOST", "EXPIRED", "CANCELLED"}
 
 
 def opportunity_key(platform: str, title: str, description: str) -> str:
@@ -87,7 +88,7 @@ def transition(item: dict[str, Any], target: str, now: str) -> dict[str, Any]:
     item["updated_at"] = now
     if target == "SUBMITTED":
         item["submitted_at"] = now
-    if target in {"WON", "LOST", "EXPIRED", "CANCELLED"}:
+    if target in TERMINAL:
         item["closed_at"] = now
     return item
 
