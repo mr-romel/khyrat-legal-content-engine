@@ -54,7 +54,14 @@ def analytics(state: dict[str, Any], monthly_target_egp: float = 20000.0, month:
     submitted = [x for x in items if x.get("submitted_at") or x.get("lifecycle") in {"SUBMITTED", *CLOSED}]
     won = [x for x in items if x.get("lifecycle") == "WON"]
     lost = [x for x in items if x.get("lifecycle") == "LOST"]
-    month_won = [x for x in won if _month(x.get("closed_at")) == target_month]
+
+    # الفرص القديمة التي لم يكن النظام السابق يسجل لها تاريخ إغلاق
+    # تُعامل كفوز في الشهر المطلوب، حتى لا تختفي إيراداتها من لوحة المتابعة.
+    month_won = [
+        x for x in won
+        if _month(x.get("closed_at")) == target_month
+        or (not x.get("closed_at") and month is not None)
+    ]
     revenue = round(sum(float(x.get("actual_revenue_egp", 0)) for x in month_won), 2)
     lifetime_revenue = round(sum(float(x.get("actual_revenue_egp", 0)) for x in won), 2)
     expected_open = round(sum(float(x.get("expected_value_egp", 0)) for x in items if x.get("lifecycle") not in CLOSED), 2)
