@@ -17,7 +17,7 @@ from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportuni
 from marketplace.opportunity_queue import queue_metrics, rank_queue, transition
 from marketplace.review import approve, mark_ready, reject, metrics
 from marketplace.revenue import analytics, record_outcome
-from marketplace.followup import collect_due
+from marketplace.followup import due_followups
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -59,7 +59,7 @@ def action_buttons(item: dict) -> str:
 def followup_card(x: dict) -> str:
     source_url = safe_link(x.get("source_url"))
     link_html = f'<a class="open-link" href="{source_url}" target="_blank" rel="noopener noreferrer">فتح المشروع على مستقل</a>' if source_url else '<span class="muted">لا يوجد رابط محفوظ</span>'
-    due = esc(x.get("_follow_up_due", ""))
+    due = esc(x.get("next_followup_at", "غير محدد"))
     status = esc(x.get("lifecycle", x.get("status", "NEW")))
     return (
         f'<article><div class="row"><b>{esc(x.get("title"))}</b><span class="score">{status}</span></div>'
@@ -76,9 +76,7 @@ def render_dashboard(state: dict) -> str:
     services = state.get("services", [])
     portfolio = state.get("portfolio", [])
     opportunities = rank_queue(state)
-    due_items = collect_due(state, _now())
-    for item in due_items:
-        item["_follow_up_due"] = item.get("follow_up_due") or item.get("updated_at") or item.get("created_at") or ""
+    due_items = due_followups(state, _now())
     activity = state.get("activity", [])[:20]
 
     service_cards = "".join(
