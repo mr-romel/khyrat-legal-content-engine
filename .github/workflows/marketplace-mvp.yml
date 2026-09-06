@@ -5,7 +5,9 @@ on:
   push:
     paths:
       - 'src/marketplace_mvp.py'
+      - 'src/marketplace/**'
       - 'tests/test_marketplace_mvp.py'
+      - 'tests/test_marketplace_review.py'
       - '.github/workflows/marketplace-mvp.yml'
 
 permissions:
@@ -26,8 +28,8 @@ jobs:
           python-version: '3.12'
       - name: Install test dependency
         run: python -m pip install 'pytest>=8.0.0,<9.0.0'
-      - name: Run Marketplace MVP tests
-        run: python -m pytest -q tests/test_marketplace_mvp.py
+      - name: Run Marketplace tests
+        run: python -m pytest -q tests/test_marketplace_mvp.py tests/test_marketplace_review.py
       - name: Build review dashboard
         run: python src/marketplace_mvp.py --seed-demo
       - name: Upload Marketplace dashboard
