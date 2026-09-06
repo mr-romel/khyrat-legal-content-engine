@@ -17,6 +17,7 @@ from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportuni
 from marketplace.opportunity_queue import queue_metrics, rank_queue, transition
 from marketplace.review import approve, mark_ready, reject, metrics
 from marketplace.revenue import analytics, record_outcome
+from marketplace.followup import collect_due
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -55,6 +56,18 @@ def action_buttons(item: dict) -> str:
     return "".join(out)
 
 
+def followup_card(x: dict) -> str:
+    source_url = safe_link(x.get("source_url"))
+    link_html = f'<a class="open-link" href="{source_url}" target="_blank" rel="noopener noreferrer">فتح المشروع على مستقل</a>' if source_url else '<span class="muted">لا يوجد رابط محفوظ</span>'
+    due = esc(x.get("_follow_up_due", ""))
+    status = esc(x.get("lifecycle", x.get("status", "NEW")))
+    return (
+        f'<article><div class="row"><b>{esc(x.get("title"))}</b><span class="score">{status}</span></div>'
+        f'<p><b>موعد المتابعة:</b> {due} · <b>السعر:</b> {int(x.get("suggested_price_egp", 0))} جنيه · <b>القيمة المتوقعة:</b> {float(x.get("expected_value_egp", 0)):.0f} جنيه</p>'
+        f'<p>{link_html}</p><div class="actions">{action_buttons(x)}</div></article>'
+    )
+
+
 def render_dashboard(state: dict) -> str:
     m = metrics(state)
     p = summarize_pipeline(state)
@@ -63,6 +76,9 @@ def render_dashboard(state: dict) -> str:
     services = state.get("services", [])
     portfolio = state.get("portfolio", [])
     opportunities = rank_queue(state)
+    due_items = collect_due(state, _now())
+    for item in due_items:
+        item["_follow_up_due"] = item.get("follow_up_due") or item.get("updated_at") or item.get("created_at") or ""
     activity = state.get("activity", [])[:20]
 
     service_cards = "".join(
@@ -93,12 +109,14 @@ def render_dashboard(state: dict) -> str:
         )
 
     opportunity_cards = "".join(opportunity_card(x) for x in opportunities) or '<article>لا توجد فرص.</article>'
+    followup_cards = "".join(followup_card(x) for x in due_items) or '<article>لا توجد متابعة مستحقة الآن.</article>'
     activity_html = "".join(f'<li>{esc(x.get("time"))} — {esc(x.get("message"))}</li>' for x in activity) or '<li>لا يوجد نشاط.</li>'
 
     return f'''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-store"><title>مركز متابعة سوق خدمات خيرت</title><style>
-body{{font-family:Arial,Tahoma,sans-serif;background:#f3f5f7;color:#20242a;margin:0}}.wrap{{max-width:1250px;margin:auto;padding:20px}}header,section,article,.stat{{background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px}}header{{margin-bottom:14px}}section{{margin-top:14px}}.grid{{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}}.stat b{{font-size:25px;display:block;margin-top:5px}}.items{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}}.row{{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}}.muted{{color:#66717d}}.tags{{display:flex;gap:6px;flex-wrap:wrap}}.tags span,.score,.row>span{{background:#eef2f6;border-radius:999px;padding:5px 9px;font-size:12px}}.score{{font-weight:700}}button{{border:1px solid #c9ced5;background:#f7f8fa;border-radius:8px;padding:8px 12px;cursor:pointer}}.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}}.open-link{{display:inline-block;background:#20242a;color:#fff;text-decoration:none;border-radius:8px;padding:8px 12px}}pre{{white-space:pre-wrap;background:#f5f6f8;padding:12px;border-radius:8px;line-height:1.7}}input,textarea{{width:100%;box-sizing:border-box;padding:10px;border:1px solid #c9ced5;border-radius:8px;margin-top:5px}}textarea{{min-height:110px}}form{{display:grid;gap:10px}}.primary{{background:#20242a;color:#fff}}.revenue{{border-right:5px solid #20242a}}#msg{{position:fixed;bottom:18px;left:18px;background:#20242a;color:#fff;padding:10px 14px;border-radius:10px;display:none}}@media(max-width:900px){{.grid{{grid-template-columns:repeat(2,1fr)}}.items{{grid-template-columns:1fr}}}}@media(max-width:500px){{.grid{{grid-template-columns:1fr}}}}
+body{{font-family:Arial,Tahoma,sans-serif;background:#f3f5f7;color:#20242a;margin:0}}.wrap{{max-width:1250px;margin:auto;padding:20px}}header,section,article,.stat{{background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px}}header{{margin-bottom:14px}}section{{margin-top:14px}}.grid{{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}}.stat b{{font-size:25px;display:block;margin-top:5px}}.items{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}}.row{{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}}.muted{{color:#66717d}}.tags{{display:flex;gap:6px;flex-wrap:wrap}}.tags span,.score,.row>span{{background:#eef2f6;border-radius:999px;padding:5px 9px;font-size:12px}}.score{{font-weight:700}}button{{border:1px solid #c9ced5;background:#f7f8fa;border-radius:8px;padding:8px 12px;cursor:pointer}}.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}}.open-link{{display:inline-block;background:#20242a;color:#fff;text-decoration:none;border-radius:8px;padding:8px 12px}}pre{{white-space:pre-wrap;background:#f5f6f8;padding:12px;border-radius:8px;line-height:1.7}}input,textarea{{width:100%;box-sizing:border-box;padding:10px;border:1px solid #c9ced5;border-radius:8px;margin-top:5px}}textarea{{min-height:110px}}form{{display:grid;gap:10px}}.primary{{background:#20242a;color:#fff}}.revenue{{border-right:5px solid #20242a}}.followup{{border-right:5px solid #20242a}}#msg{{position:fixed;bottom:18px;left:18px;background:#20242a;color:#fff;padding:10px 14px;border-radius:10px;display:none}}@media(max-width:900px){{.grid{{grid-template-columns:repeat(2,1fr)}}.items{{grid-template-columns:1fr}}}}@media(max-width:500px){{.grid{{grid-template-columns:1fr}}}}
 </style></head><body><div class="wrap"><header><h1>مركز متابعة سوق خدمات خيرت</h1><p class="muted">تجهيز → فحص الجودة → المراجعة → الاعتماد → التنفيذ على المنصة</p><button onclick="location.reload()">تحديث</button></header>
-<div class="grid"><div class="stat">الخدمات<b>{m['services']}</b></div><div class="stat">نماذج الأعمال<b>{m['portfolio']}</b></div><div class="stat">فرص مستقل<b>{q['total']}</b></div><div class="stat">أولوية عالية<b>{q['high']}</b></div><div class="stat">في انتظار المراجعة<b>{q['review']}</b></div><div class="stat">القيمة المتوقعة<b>{q['expected_value_egp']:.0f} ج</b></div></div>
+<div class="grid"><div class="stat">الخدمات<b>{m['services']}</b></div><div class="stat">نماذج الأعمال<b>{m['portfolio']}</b></div><div class="stat">فرص مستقل<b>{q['total']}</b></div><div class="stat">أولوية عالية<b>{q['high']}</b></div><div class="stat">في انتظار المراجعة<b>{q['review']}</b></div><div class="stat">متابعات مستحقة<b>{len(due_items)}</b></div></div>
+<section class="followup"><h2>مهام اليوم — المتابعات المستحقة</h2><p class="muted">أي فرصة مفتوحة وصلت إلى موعد المتابعة تظهر هنا أولاً، مع زر مباشر لفتح المشروع إذا كان الرابط محفوظاً.</p><div class="items">{followup_cards}</div></section>
 <section class="revenue"><h2>الإيرادات والهدف الشهري</h2><div class="grid"><div class="stat">المحقق هذا الشهر<b>{r['revenue_egp']:.0f} ج</b></div><div class="stat">المتبقي من 20,000<b>{r['remaining_to_target_egp']:.0f} ج</b></div><div class="stat">نسبة التحويل<b>{r['conversion_pct']:.1f}%</b></div><div class="stat">القيمة المتوقعة للفرص المفتوحة<b>{r['expected_open_egp']:.0f} ج</b></div><div class="stat">أفضل منصة<b>{esc(r['top_platform'] or '—')}</b></div><div class="stat">أفضل خدمة<b>{esc(r['top_service'] or '—')}</b></div></div><p>التقدم نحو الهدف: <b>{r['target_progress_pct']:.1f}%</b> · إجمالي المحقق منذ البداية: <b>{r['lifetime_revenue_egp']:.0f} ج</b> · متوسط الفوز: <b>{r['average_win_egp']:.0f} ج</b></p></section>
 <section><h2>حالة الفرص</h2><p>عالية: {q['high']} · متوسطة: {q['medium']} · منخفضة: {q['low']} · عروض جاهزة: {q['offer_ready']} · معتمدة: {q['approved']} · مرسلة: {q['submitted']} · فوز: {q['won']} · خسارة: {q['lost']}</p></section>
 <section><h2>إضافة فرصة من مستقل</h2><p class="muted">الصق عنوان ووصف المشروع ورابطه هنا. الرابط يُحفظ ليظهر لك زر مباشر لفتح المشروع. لا يوجد تسجيل دخول أو إرسال تلقائي للمنصة.</p><form onsubmit="return addOpportunity(event)"><label>العنوان<input id="oppTitle" required></label><label>الوصف<textarea id="oppDescription" required></textarea></label><label>رابط المشروع في مستقل<input id="oppUrl" type="url" placeholder="https://mostaql.com/project/..." inputmode="url"></label><button class="primary" type="submit">تحليل الفرصة وتوليد العرض</button></form></section>
