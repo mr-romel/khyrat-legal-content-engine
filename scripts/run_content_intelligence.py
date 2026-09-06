@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,7 +9,6 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from config import load_config
 from content_system import SYSTEM_SHEETS, build_authority_rows, ensure_system_sheets, update_winner
 from post_bank import get_bank_rows
 from sheets import create_service, get_values
@@ -46,10 +44,23 @@ def _baseline(metrics: list[dict[str, str]]) -> dict[str, float]:
 
 
 def main() -> None:
-    config = load_config()
-    service = create_service(config["service_account_info"])
-    ensure_system_sheets(service, config["sheet_id"])
-    metrics = _metric_rows(service, config["sheet_id"])
+    service_account_raw = __import__("os").getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    if not service_account_raw:
+        raise RuntimeError("Missing required environment variable: GOOGLE_SERVICE_ACCOUNT_JSON")
+    try:
+        service_account_info = json.loads(service_account_raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON.") from exc
+    if not isinstance(service_account_info, dict):
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON must be a JSON object.")
+
+    spreadsheet_id = __import__("os").getenv("GOOGLE_SHEET_ID", "").strip()
+    if not spreadsheet_id:
+        raise RuntimeError("Missing required environment variable: GOOGLE_SHEET_ID")
+
+    service = create_service(service_account_info)
+    ensure_system_sheets(service, spreadsheet_id)
+    metrics = _metric_rows(service, spreadsheet_id)
     if metrics:
         baseline = _baseline(metrics)
         for row in metrics[-100:]:
@@ -62,18 +73,18 @@ def main() -> None:
                 "shares": _number(row, "Shares"), "saves": _number(row, "Saves"),
                 "clicks": _number(row, "Clicks"), "leads": _number(row, "Leads"),
             }
-            update_winner(service, config["sheet_id"], post_id=post_id, topic=row.get("Topic", ""), metrics=metric_map, baseline=baseline)
+            update_winner(service, spreadsheet_id, post_id=post_id, topic=row.get("Topic", ""), metrics=metric_map, baseline=baseline)
 
-    post_rows = get_bank_rows(service, config["sheet_id"])
-    winner_rows = _rows(service, config["sheet_id"], "ContentWinners", SYSTEM_SHEETS["ContentWinners"])
+    post_rows = get_bank_rows(service, spreadsheet_id)
+    winner_rows = _rows(service, spreadsheet_id, "ContentWinners", SYSTEM_SHEETS["ContentWinners"])
     authority = build_authority_rows(post_rows, winner_rows)
     service.spreadsheets().values().update(
-        spreadsheetId=config["sheet_id"], range="AuthorityMap!A1:G1", valueInputOption="RAW",
+        spreadsheetId=spreadsheet_id, range="AuthorityMap!A1:G1", valueInputOption="RAW",
         body={"values": [SYSTEM_SHEETS["AuthorityMap"]]},
     ).execute()
     if authority:
         service.spreadsheets().values().append(
-            spreadsheetId=config["sheet_id"], range="AuthorityMap!A:G", valueInputOption="RAW",
+            spreadsheetId=spreadsheet_id, range="AuthorityMap!A:G", valueInputOption="RAW",
             insertDataOption="INSERT_ROWS", body={"values": authority},
         ).execute()
     print(json.dumps({"metrics": len(metrics), "winners_scored": len(metrics), "authority_rows": len(authority)}, ensure_ascii=False))
