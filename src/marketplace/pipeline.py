@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any
+from urllib.parse import urlparse
 
 from marketplace.catalog import prioritized_topics
 from marketplace.opportunity_engine import rank_opportunity
@@ -51,23 +52,40 @@ def ensure_initial_assets(state: dict[str, Any]) -> dict[str, int]:
     return {"services_created": created_services, "portfolio_created": created_portfolio}
 
 
+def _valid_source_url(value: str) -> str:
+    """Keep only normal web links; reject javascript/data/file schemes."""
+    value = value.strip()
+    if not value:
+        return ""
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("رابط الفرصة يجب أن يبدأ بـ http:// أو https://")
+    return value
+
+
 def ingest_mostaql_opportunity(
-    state: dict[str, Any], title: str, description: str
+    state: dict[str, Any], title: str, description: str, source_url: str = ""
 ) -> dict[str, Any]:
     """Add a manually captured Mostaql project once and prepare its offer.
 
-    There is deliberately no scraping/login/submission here until an official
-    supported integration is verified.
+    The source URL is stored only as a navigation aid. There is deliberately
+    no scraping/login/submission here until an official supported integration
+    is verified.
     """
     title = title.strip()
     description = description.strip()
+    source_url = _valid_source_url(source_url)
     duplicate = find_duplicate(state, "mostaql", title, description)
     if duplicate:
+        if source_url:
+            duplicate["source_url"] = source_url
         prepare_opportunity(duplicate)
         return duplicate
 
     item = add_opportunity(state, title, description)
     item_dict = next(x for x in state["opportunities"] if x.get("id") == item.id)
+    if source_url:
+        item_dict["source_url"] = source_url
     item_dict["offer"] = build_offer(item_dict)
     item_dict["status"] = "OFFER_READY"
     prepare_opportunity(item_dict)
