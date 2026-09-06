@@ -71,3 +71,15 @@ def test_queue_rank_and_metrics():
     metrics = queue_metrics(state)
     assert metrics["total"] == 2
     assert metrics["expected_value_egp"] > 0
+
+
+def test_submitted_opportunity_remains_in_expected_open_value():
+    item = base_item()
+    state = {"opportunities": [item]}
+    transition(item, "OFFER_READY", "2026-09-06T12:00:00+00:00")
+    transition(item, "READY_FOR_REVIEW", "2026-09-06T12:01:00+00:00")
+    transition(item, "APPROVED", "2026-09-06T12:02:00+00:00")
+    transition(item, "SUBMITTED", "2026-09-06T12:03:00+00:00")
+    metrics = queue_metrics(state)
+    assert metrics["submitted"] == 1
+    assert metrics["expected_value_egp"] > 0
