@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 OPEN_STATES = {
@@ -22,13 +22,29 @@ def _parse(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+    # نطبع التواريخ القديمة غير المصحوبة بمنطقة زمنية إلى UTC حتى لا يحدث
+    # خلط بين تاريخ مجرد وتاريخ مصحوب بمنطقة زمنية أثناء المقارنة.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _iso(value: datetime) -> str:
     return value.isoformat(timespec="seconds")
+
+
+def _align(value: datetime, reference: datetime) -> datetime:
+    """اجعل التاريخين قابلين للمقارنة حتى لو كان أحدهما بدون منطقة زمنية."""
+    if value.tzinfo is None:
+        if reference.tzinfo is not None:
+            return value.replace(tzinfo=reference.tzinfo)
+        return value
+    if reference.tzinfo is None:
+        return reference.replace(tzinfo=value.tzinfo)
+    return value
 
 
 def next_followup(item: dict[str, Any], now: datetime | None = None) -> str | None:
@@ -39,6 +55,8 @@ def next_followup(item: dict[str, Any], now: datetime | None = None) -> str | No
     base = _parse(item.get("updated_at")) or _parse(item.get("created_at")) or now
     if base is None:
         return None
+    if now is not None:
+        base = _align(base, now)
     days = 1 if state in {"READY_FOR_REVIEW", "APPROVED", "FAILED"} else 3
     if state == "SUBMITTED":
         days = 2
@@ -64,8 +82,10 @@ def due_followups(state: dict[str, Any], now: datetime | None = None) -> list[di
             continue
         prepare_followup(item, now)
         stamp = _parse(item.get("next_followup_at"))
-        if stamp and stamp <= now:
-            due.append(item)
+        if stamp:
+            stamp = _align(stamp, now)
+            if stamp <= now:
+                due.append(item)
     return sorted(due, key=lambda x: x.get("next_followup_at", ""))
 
 
@@ -81,12 +101,14 @@ def expire_stale(state: dict[str, Any], now: datetime | None = None, stale_days:
         if current not in OPEN_STATES:
             continue
         base = _parse(item.get("updated_at")) or _parse(item.get("created_at"))
-        if base and base <= cutoff:
-            item["lifecycle"] = "EXPIRED"
-            item["status"] = "EXPIRED"
-            item["expired_at"] = _iso(now)
-            item["updated_at"] = _iso(now)
-            expired.append(str(item.get("id", "")))
+        if base:
+            base = _align(base, now)
+            if base <= cutoff:
+                item["lifecycle"] = "EXPIRED"
+                item["status"] = "EXPIRED"
+                item["expired_at"] = _iso(now)
+                item["updated_at"] = _iso(now)
+                expired.append(str(item.get("id", "")))
     return expired
 
 
