@@ -1,6 +1,6 @@
 # Marketplace Dashboard — Remote Mobile Access
 
-The Marketplace dashboard is now designed for remote use without opening a router port or exposing the origin directly.
+The Marketplace dashboard is designed for remote use without opening a router port or exposing the origin directly.
 
 Architecture:
 
@@ -16,24 +16,19 @@ The dashboard remains local on the Windows machine. Cloudflare Tunnel creates an
 4. Add a published application route pointing your chosen hostname to `http://localhost:8765`.
 5. Create a Cloudflare Access application for that hostname and add an Allow policy for your own email address. One-time PIN login is supported if you do not want to configure another identity provider.
 6. Enable the tunnel connector on Windows and copy its tunnel token.
-7. Set these Windows environment variables:
-   - `MARKETPLACE_CLOUDFLARE_TUNNEL_TOKEN` = the tunnel token
-   - `MARKETPLACE_REMOTE_URL` = the protected HTTPS URL, e.g. `https://marketplace.example.com`
-8. Double-click `run_marketplace_dashboard.bat`.
+7. Double-click `setup_marketplace_remote.bat` in this repository. It saves the token and protected URL to Windows user environment variables; nothing is written to GitHub.
+8. Close and reopen Command Prompt.
+9. Double-click `run_marketplace_dashboard.bat`.
 
 After that, the same launcher starts the local dashboard and the Cloudflare tunnel. From outside the house, open the protected HTTPS URL on the phone and authenticate through Cloudflare Access.
 
 ## Security rules
 
-- Never use Cloudflare Funnel or any public unauthenticated tunnel for this dashboard.
+- Never use a public unauthenticated Quick Tunnel for this dashboard.
 - Never commit the tunnel token, `.env`, Cloudflare credentials, or `marketplace_data/`.
 - Do not enable router port forwarding for port 8765.
 - Keep the Access policy restricted to the owner's email address.
 - The dashboard performs state-changing actions, so the hostname must remain behind Access.
-
-## Why this design
-
-Cloudflare Tunnel is outbound-only and does not require a public IP or inbound firewall port. Cloudflare Access provides identity-based protection in front of the self-hosted dashboard. The free Zero Trust plan currently supports teams under 50 users, which is far beyond the single-user dashboard requirement.
 
 ## Current Marketplace boundary
 
