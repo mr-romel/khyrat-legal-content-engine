@@ -11,6 +11,7 @@ from typing import Any
 
 from marketplace.catalog import prioritized_topics
 from marketplace.opportunity_engine import rank_opportunity
+from marketplace.opportunity_queue import find_duplicate, prepare_opportunity
 from marketplace_mvp import add_opportunity, generate_portfolio, generate_service, build_offer
 
 
@@ -45,7 +46,7 @@ def ensure_initial_assets(state: dict[str, Any]) -> dict[str, int]:
         if not opportunity.get("offer"):
             opportunity["offer"] = build_offer(opportunity)
             opportunity["status"] = "OFFER_READY"
-        rank_opportunity(opportunity)
+        prepare_opportunity(opportunity)
 
     return {"services_created": created_services, "portfolio_created": created_portfolio}
 
@@ -53,16 +54,23 @@ def ensure_initial_assets(state: dict[str, Any]) -> dict[str, int]:
 def ingest_mostaql_opportunity(
     state: dict[str, Any], title: str, description: str
 ) -> dict[str, Any]:
-    """Add a manually captured Mostaql project to the review queue.
+    """Add a manually captured Mostaql project once and prepare its offer.
 
     There is deliberately no scraping/login/submission here until an official
     supported integration is verified.
     """
-    item = add_opportunity(state, title.strip(), description.strip())
+    title = title.strip()
+    description = description.strip()
+    duplicate = find_duplicate(state, "mostaql", title, description)
+    if duplicate:
+        prepare_opportunity(duplicate)
+        return duplicate
+
+    item = add_opportunity(state, title, description)
     item_dict = next(x for x in state["opportunities"] if x.get("id") == item.id)
     item_dict["offer"] = build_offer(item_dict)
     item_dict["status"] = "OFFER_READY"
-    rank_opportunity(item_dict)
+    prepare_opportunity(item_dict)
     return item_dict
 
 
@@ -95,11 +103,13 @@ def offer_quality(opportunity: dict[str, Any]) -> dict[str, Any]:
 def summarize_pipeline(state: dict[str, Any]) -> dict[str, Any]:
     opportunities = state.get("opportunities", [])
     quality = [offer_quality(x) for x in opportunities if x.get("offer")]
+    for opportunity in opportunities:
+        prepare_opportunity(opportunity)
     return {
         "services": len(state.get("services", [])),
         "portfolio": len(state.get("portfolio", [])),
         "opportunities": len(opportunities),
-        "ready_offers": sum(x.get("status") == "OFFER_READY" for x in opportunities),
+        "ready_offers": sum(x.get("lifecycle", x.get("status")) == "OFFER_READY" for x in opportunities),
         "quality_passed": sum(x.get("passed") for x in quality),
         "quality_failed": sum(not x.get("passed") for x in quality),
         "avg_match_score": round(sum(x.get("match_score", 0) for x in opportunities) / len(opportunities), 1) if opportunities else 0.0,
