@@ -22,12 +22,15 @@ def build_daily_plan(state: dict, now: datetime, stale_days: int = 14) -> dict:
     due = due_followups(state, now)
     ranked = rank_queue(state)
 
-    due_ids = {str(x.get("id")) for x in due}
+    # المتابعة التشغيلية اليومية تكون بعد إرسال العرض؛ أما ما قبل الإرسال
+    # فيظل ضمن مهام المراجعة حتى لا يظهر مرتين في خطة اليوم.
+    submitted_due = [x for x in due if str(x.get("lifecycle", x.get("status", "NEW"))).upper() == "SUBMITTED"]
+    due_ids = {str(x.get("id")) for x in submitted_due}
     tasks: list[dict] = []
     seen: set[str] = set()
 
     # Follow-ups are first because they are time-sensitive.
-    for item in due:
+    for item in submitted_due:
         item_id = str(item.get("id"))
         if item_id in seen:
             continue
@@ -45,7 +48,7 @@ def build_daily_plan(state: dict, now: datetime, stale_days: int = 14) -> dict:
     # Then approved opportunities that are ready for the human to submit.
     for item in ranked:
         item_id = str(item.get("id"))
-        status = item.get("lifecycle", item.get("status", "NEW"))
+        status = str(item.get("lifecycle", item.get("status", "NEW"))).upper()
         if item_id in seen or item_id in due_ids:
             continue
         if status == "APPROVED":
@@ -63,7 +66,7 @@ def build_daily_plan(state: dict, now: datetime, stale_days: int = 14) -> dict:
     # Finally, the strongest new/offer-ready opportunities for review.
     for item in ranked:
         item_id = str(item.get("id"))
-        status = item.get("lifecycle", item.get("status", "NEW"))
+        status = str(item.get("lifecycle", item.get("status", "NEW"))).upper()
         if item_id in seen:
             continue
         if status in {"NEW", "OFFER_READY", "READY_FOR_REVIEW"}:
@@ -85,7 +88,7 @@ def build_daily_plan(state: dict, now: datetime, stale_days: int = 14) -> dict:
         "followup_metrics": followup_metrics(state, now),
         "total_open": sum(
             1 for x in state.get("opportunities", [])
-            if x.get("lifecycle", x.get("status")) not in {"WON", "LOST", "EXPIRED", "CANCELLED"}
+            if str(x.get("lifecycle", x.get("status", ""))).upper() not in {"WON", "LOST", "EXPIRED", "CANCELLED"}
         ),
     }
 
