@@ -17,7 +17,7 @@ from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportuni
 from marketplace.opportunity_queue import queue_metrics, rank_queue, transition
 from marketplace.review import approve, mark_ready, reject, metrics
 from marketplace.revenue import analytics, record_outcome
-from marketplace.followup import due_followups
+from marketplace.followup import due_followups, prepare_followup
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -51,6 +51,7 @@ def action_buttons(item: dict) -> str:
         if status == "SUBMITTED":
             out.append(f'<button onclick="winOpportunity(\'{item_id}\')">تسجيل فوز</button>')
             out.append(f'<button onclick="act(\'{item_id}\',\'lost\')">تسجيل خسارة</button>')
+            out.append(f'<button onclick="act(\'{item_id}\',\'follow_up\')">تمت المتابعة</button>')
         if status not in {"WON", "LOST", "EXPIRED", "CANCELLED"}:
             out.append(f'<button onclick="act(\'{item_id}\',\'regenerate_offer\')">إعادة توليد العرض</button>')
     return "".join(out)
@@ -95,6 +96,8 @@ def render_dashboard(state: dict) -> str:
     def opportunity_card(x: dict) -> str:
         source_url = safe_link(x.get("source_url"))
         link_html = f'<a class="open-link" href="{source_url}" target="_blank" rel="noopener noreferrer">فتح المشروع على مستقل</a>' if source_url else '<span class="muted">لم يتم حفظ رابط المشروع</span>'
+        offer_id = esc(f"offer-{x.get('id', '')}")
+        offer_text = esc(x.get("offer", ""))
         return (
             f'<article><div class="row"><b>{esc(x.get("title"))}</b><span class="score">{int(x.get("acquisition_score", x.get("match_score", 0)))}% أولوية · {esc(x.get("priority", "-"))}</span></div>'
             f'<p>{esc(x.get("description"))}</p><p><b>السعر:</b> {int(x.get("suggested_price_egp", 0))} جنيه · <b>المدة:</b> {int(x.get("suggested_days", 0))} أيام · <b>احتمال الفوز:</b> {round(float(x.get("win_probability", 0))*100)}%</p>'
@@ -102,7 +105,7 @@ def render_dashboard(state: dict) -> str:
             f'<p>{link_html}</p>'
             f'<ul>{"".join(f"<li>{esc(v)}</li>" for v in x.get("ranking_reasons", x.get("rationale", []))[:5])}</ul>'
             f'<p class="muted">{esc(x.get("recommendation", ""))}</p>'
-            f'<details><summary>العرض الجاهز + فحص الجودة</summary><pre>{esc(x.get("offer", ""))}</pre><p>فحص الجودة: {"ناجح" if offer_quality(x)["passed"] else "يحتاج مراجعة"}</p></details>'
+            f'<details><summary>العرض الجاهز + فحص الجودة</summary><pre>{offer_text}</pre><textarea id="{offer_id}" hidden>{offer_text}</textarea><div class="actions"><button onclick="copyOffer(\'{offer_id}\')">نسخ العرض</button></div><p>فحص الجودة: {"ناجح" if offer_quality(x)["passed"] else "يحتاج مراجعة"}</p></details>'
             f'<div class="actions">{action_buttons(x)}</div></article>'
         )
 
@@ -126,6 +129,7 @@ body{{font-family:Arial,Tahoma,sans-serif;background:#f3f5f7;color:#20242a;margi
 </div><div id="msg"></div><script>
 async function act(id, action, extra={{}}){{const r=await fetch('/api/action',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(Object.assign({{id,action}},extra))}});const d=await r.json();show(d.message||d.error||'تم');if(d.ok)setTimeout(()=>location.reload(),500);}}
 async function winOpportunity(id){{const value=prompt('أدخل قيمة الصفقة بالجنيه المصري:');if(value===null)return;const amount=Number(value);if(!Number.isFinite(amount)||amount<0){{show('أدخل قيمة صحيحة غير سالبة');return;}}act(id,'won',{{amount_egp:amount}});}}
+async function copyOffer(id){{const el=document.getElementById(id);if(!el){{show('العرض غير موجود');return;}}try{{await navigator.clipboard.writeText(el.value);show('تم نسخ العرض');}}catch(e){{el.hidden=false;el.select();document.execCommand('copy');el.hidden=true;show('تم نسخ العرض');}}}}
 async function addOpportunity(e){{e.preventDefault();const r=await fetch('/api/opportunity',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{title:document.getElementById('oppTitle').value,description:document.getElementById('oppDescription').value,source_url:document.getElementById('oppUrl').value}})}});const d=await r.json();show(d.message||d.error||'تم');if(d.ok)setTimeout(()=>location.reload(),500);return false;}}
 function show(t){{const m=document.getElementById('msg');m.textContent=t;m.style.display='block';setTimeout(()=>m.style.display='none',3000);}}
 </script></body></html>'''
@@ -146,6 +150,13 @@ def handle_action(payload: dict) -> tuple[bool, str]:
             amount = payload.get("amount_egp")
             record_outcome(item, "WON" if action == "won" else "LOST", _now(), float(amount) if amount is not None else None)
             message = f"{action}: {item_id}" + (f" — {float(amount):.0f} ج" if action == "won" else "")
+        elif item_id.startswith("opp-") and action == "follow_up":
+            if item.get("lifecycle", item.get("status")) != "SUBMITTED":
+                return False, "المتابعة متاحة فقط للفرص المرسلة"
+            now = _now()
+            item["updated_at"] = now
+            prepare_followup(item, now)
+            message = f"follow_up: {item_id}"
         elif action == "ready":
             result = mark_ready(item)
             item["lifecycle"] = item.get("status", "READY_FOR_REVIEW")
