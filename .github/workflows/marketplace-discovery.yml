@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/marketplace-discovery.yml'
+      - 'src/marketplace/discovery.py'
   schedule:
     - cron: '*/30 * * * *'
 
