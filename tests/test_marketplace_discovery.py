@@ -1,4 +1,4 @@
-from marketplace.discovery import merge_discoveries, parse_projects
+from marketplace.discovery import merge_discoveries, parse_projects, validate_live_projects
 
 
 def test_parse_public_mostaql_projects_and_filter_legal():
@@ -21,3 +21,19 @@ def test_merge_deduplicates_by_source_url():
     assert len(merged) == 1
     assert merged[0]["title"] == "محدث"
     assert merged[0]["discovery_score"] == 40
+
+
+def test_validate_live_projects_keeps_only_open_resolvable(monkeypatch):
+    projects = [
+        {"source_url": "https://mostaql.com/project/open", "title": "صياغة عقد"},
+        {"source_url": "https://mostaql.com/project/closed", "title": "مراجعة عقد"},
+    ]
+
+    def fake_open(url, timeout):
+        return url.endswith("/open")
+
+    monkeypatch.setattr("marketplace.discovery._project_is_open", fake_open)
+    result = validate_live_projects(projects, limit=10)
+    assert len(result) == 1
+    assert result[0]["source_url"].endswith("/open")
+    assert result[0]["live"] is True
