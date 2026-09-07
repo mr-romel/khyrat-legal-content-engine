@@ -14,7 +14,7 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 11
     env:
       PYTHONPATH: .:src
     steps:
