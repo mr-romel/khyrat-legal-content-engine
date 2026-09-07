@@ -4,16 +4,27 @@ from __future__ import annotations
 import json
 import threading
 import time
-from pathlib import Path
 from urllib.request import Request, urlopen
 
 from marketplace.discovery import merge_discoveries
-from marketplace_mvp import build_offer, load_state, save_state
+from marketplace_mvp import load_state, save_state
 from marketplace.pipeline import ingest_mostaql_opportunity
 from marketplace.pro_dashboard import main
 
 FEED_URL = "https://raw.githubusercontent.com/mr-romel/khyrat-legal-content-engine/main/marketplace_data/discovered_opportunities.json"
 INTERVAL_SECONDS = 600
+
+
+def _offer(item: dict) -> str:
+    return (
+        "مرحباً، قرأت تفاصيل المشروع وأرى أن المطلوب يتوافق مباشرة مع خبرتي في الأعمال القانونية، "
+        "خصوصاً تحليل المخاطر وصياغة ومراجعة المستندات.\n\n"
+        "سأبدأ بفهم المتطلبات وتحديد النقاط القانونية المؤثرة، ثم أقدم الملاحظات والصياغات المقترحة "
+        "بشكل واضح ومنظم، مع الالتزام بنطاق العمل المتفق عليه.\n\n"
+        f"المدة المقترحة: {item.get('suggested_days', 3)} أيام. "
+        f"والميزانية المقترحة: ${item.get('suggested_price_usd', 5)}.\n\n"
+        "إذا أرسلت التفاصيل الأساسية أو نموذج المستند، أستطيع تحديد نطاق العمل النهائي بدقة قبل البدء."
+    )
 
 
 def sync_feed() -> int:
@@ -32,8 +43,7 @@ def sync_feed() -> int:
         created["discovery_score"] = int(item.get("discovery_score", 0))
         created["suggested_price_usd"] = 5
         created["suggested_days"] = 3
-        created["suggested_price_egp"] = 250
-        created["offer"] = build_offer(created).replace("جنيه مصري", "دولار")
+        created["offer"] = _offer(created)
         created["status"] = created["lifecycle"] = "OFFER_READY"
         known.add(source_url)
         added += 1
