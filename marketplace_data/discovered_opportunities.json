@@ -1,1 +1,47 @@
-[]
+[
+  {
+    "platform": "mostaql",
+    "title": "مستشار قانوني لمطالبة مالية",
+    "description": "أبحث عن محامٍ أو مستشار قانوني لديه خبرة فعلية في النظام والقضاء السعودي لمساعدتنا في مطالبة مالية. المطلوب دراسة العقد والمستندات وتقييم قوة القضية وإعداد ورفع الدعوى ومتابعتها.",
+    "source_url": "https://mostaql.com/project/1268728-%D9%85%D8%B3%D8%AA%D8%B4%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86%D9%8A-%D9%84%D9%85%D8%B7%D8%A7%D9%84%D8%A8%D8%A9-%D9%85%D8%A7%D9%84%D9%8A%D8%A9",
+    "budget_usd": "$50.00 - $100.00",
+    "live": true,
+    "discovery_score": 96
+  },
+  {
+    "platform": "mostaql",
+    "title": "كتابة كتاب في حوكمة الشركات",
+    "description": "مطلوب كاتب قانوني للمساعدة في كتابة كتاب عن حوكمة الشركات بحجم 50 ألف كلمة.",
+    "source_url": "https://mostaql.com/project/1267092-%D9%83%D8%AA%D8%A7%D8%A8%D8%A9-%D9%83%D8%AA%D8%A7%D8%A8-%D9%81%D9%8A-%D8%AD%D9%88%D9%83%D9%85%D8%A9-%D8%A7%D9%84%D8%B4%D8%B1%D9%83%D8%A7%D8%AA",
+    "budget_usd": "$250.00 - $500.00",
+    "live": true,
+    "discovery_score": 92
+  },
+  {
+    "platform": "mostaql",
+    "title": "مسؤول محتوى وإدارة حسابات تواصل اجتماعي لمكتب محاماة",
+    "description": "مكتب محاماة سعودي يبحث عن شخص للعمل بشكل مستمر في كتابة المحتوى وصناعة المحتوى المرئي وإدارة حسابات التواصل الاجتماعي.",
+    "source_url": "https://mostaql.com/project/1266899-%D9%85%D8%B3%D8%A4%D9%88%D9%84-%D9%85%D8%AD%D8%AA%D9%88%D9%89-%D9%88%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D8%AD%D8%B3%D8%A7%D8%A8%D8%A7%D8%AA-%D8%A5%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A",
+    "budget_usd": "$250.00 - $500.00",
+    "live": true,
+    "discovery_score": 72
+  },
+  {
+    "platform": "mostaql",
+    "title": "إنشاء موقع إلكتروني خاص بشركة محاماة",
+    "description": "إنشاء موقع إلكتروني خاص بشركة محاماة مع عدة أقسام وإدارة للمحتوى.",
+    "source_url": "https://mostaql.com/project/1266845-%D8%A5%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A-%D8%AE%D8%A7%D8%B5-%D8%A8%D8%B4%D8%B1%D9%83%D8%A9-%D9%85%D8%AD%D8%A7%D9%85%D8%A7%D8%A9",
+    "budget_usd": "$100.00 - $250.00",
+    "live": true,
+    "discovery_score": 65
+  },
+  {
+    "platform": "mostaql",
+    "title": "تصميم مقاطع موشن جرافيك لمنصة قانونية",
+    "description": "تصميم فيديو موشن جرافيك لمدة دقيقة لمنصة قانونية باللغة العربية.",
+    "source_url": "https://mostaql.com/project/1267313-%D8%AA%D8%B5%D9%85%D9%8A%D9%85-%D9%85%D9%82%D8%A7%D8%B7%D8%B9-%D9%85%D9%88%D8%B4%D9%86-%D8%AC%D8%B1%D8%A7%D9%81%D9%8A%D9%83",
+    "budget_usd": "$25.00 - $50.00",
+    "live": true,
+    "discovery_score": 58
+  }
+]
