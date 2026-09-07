@@ -2,6 +2,9 @@ name: Khyrat Marketplace Discovery
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/marketplace-discovery.yml'
   schedule:
     - cron: '*/30 * * * *'
 
