@@ -1,4 +1,5 @@
 from marketplace.opportunity_queue import add_to_queue, find_duplicate, opportunity_key, prepare_opportunity, queue_metrics, rank_queue, transition
+from marketplace.pricing import suggest_price_usd, validate_price_usd
 
 
 def base_item():
@@ -8,7 +9,7 @@ def base_item():
         "title": "مراجعة عقد شركة",
         "description": "مطلوب محامي لمراجعة عقد شركة وتحديد المخاطر واقتراح التعديلات القانونية المناسبة",
         "match_score": 85,
-        "suggested_price_egp": 1500,
+        "suggested_price_usd": 15,
         "suggested_days": 2,
         "status": "NEW",
     }
@@ -32,12 +33,29 @@ def test_add_to_queue_is_idempotent():
     assert find_duplicate(state, "mostaql", first["title"], first["description"])["id"] == first["id"]
 
 
-def test_prepare_adds_probability_and_expected_value():
+def test_prepare_adds_probability_expected_value_and_usd_price():
     item = base_item()
     prepare_opportunity(item)
     assert 0 < item["win_probability"] <= 0.75
-    assert item["expected_value_egp"] > 0
+    assert item["expected_value_usd"] > 0
+    assert item["suggested_price_usd"] % 5 == 0
     assert item["priority"] in {"HIGH", "MEDIUM", "LOW"}
+
+
+def test_usd_pricing_has_no_fx_conversion():
+    assert validate_price_usd(5) == 5
+    assert validate_price_usd(20) == 20
+    assert suggest_price_usd(90) == 20
+    assert suggest_price_usd(75) == 15
+    assert suggest_price_usd(55) == 10
+    assert suggest_price_usd(20) == 5
+    for bad in (0, 7, 12.5):
+        try:
+            validate_price_usd(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid USD tier must fail")
 
 
 def test_lifecycle_requires_safe_order():
@@ -63,14 +81,14 @@ def test_invalid_lifecycle_transition_fails():
 
 
 def test_queue_rank_and_metrics():
-    low = dict(base_item(), id="opp-low", match_score=30, suggested_price_egp=1000)
-    high = dict(base_item(), id="opp-high", match_score=95, suggested_price_egp=3000)
+    low = dict(base_item(), id="opp-low", match_score=30, suggested_price_usd=5)
+    high = dict(base_item(), id="opp-high", match_score=95, suggested_price_usd=20)
     state = {"opportunities": [low, high]}
     ranked = rank_queue(state)
     assert ranked[0]["id"] == "opp-high"
     metrics = queue_metrics(state)
     assert metrics["total"] == 2
-    assert metrics["expected_value_egp"] > 0
+    assert metrics["expected_value_usd"] > 0
 
 
 def test_submitted_opportunity_remains_in_expected_open_value():
@@ -82,4 +100,4 @@ def test_submitted_opportunity_remains_in_expected_open_value():
     transition(item, "SUBMITTED", "2026-09-06T12:03:00+00:00")
     metrics = queue_metrics(state)
     assert metrics["submitted"] == 1
-    assert metrics["expected_value_egp"] > 0
+    assert metrics["expected_value_usd"] > 0
