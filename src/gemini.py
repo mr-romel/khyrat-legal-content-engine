@@ -427,106 +427,134 @@ def generate_post(
 راجع نفسك قبل إخراج JSON.
 """
 
-    try:
-        response = client.models.generate_content(
-            model=selected_model,
-            contents=(
-                SYSTEM_PROMPT
-                + "\n\n"
-                + user_prompt
-            ),
-        )
+    feedback = ""
+    last_validation_error = ""
 
-    except Exception as exc:
-        raise RuntimeError(
-            f"Gemini content generation failed: {exc}"
-        ) from exc
+    for attempt in range(1, 3):
+        attempt_prompt = user_prompt
+        if feedback:
+            attempt_prompt += f"""
 
-    raw_text = (
-        getattr(
-            response,
-            "text",
-            None,
-        )
-        or ""
-    ).strip()
+تصحيح إلزامي للمحاولة السابقة:
+المشكلة كانت في image_brief: {feedback}
+أعد إنشاء image_brief من الصفر، ولا تعيد الوصف العام السابق.
+استخدم مشهدًا فوتوغرافيًا محددًا مرتبطًا مباشرة بالموضوع،
+ويجب أن يتضمن شخصًا أو عنصرًا رئيسيًا وفعلًا واضحًا ومكانًا
+وسياقًا مصريًا مناسبًا وتفصيلًا بصريًا للكاميرا والإضاءة.
+ممنوع استخدام عبارة legal documents أو أي وصف عام مشابه.
+"""
 
-    if not raw_text:
-        raise RuntimeError(
-            "Gemini returned an empty response."
-        )
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=(
+                    SYSTEM_PROMPT
+                    + "\n\n"
+                    + attempt_prompt
+                ),
+            )
 
-    data = _extract_json(
-        raw_text
-    )
-
-    required_fields = (
-        "post",
-        "image_brief",
-        "review_level",
-        "review_flags",
-        "legal_sources_used",
-    )
-
-    for field in required_fields:
-        if field not in data:
+        except Exception as exc:
             raise RuntimeError(
-                f"Gemini JSON is missing required field: "
-                f"{field}"
+                f"Gemini content generation failed: {exc}"
+            ) from exc
+
+        raw_text = (
+            getattr(
+                response,
+                "text",
+                None,
+            )
+            or ""
+        ).strip()
+
+        if not raw_text:
+            last_validation_error = "Gemini returned an empty response."
+            feedback = last_validation_error
+            continue
+
+        try:
+            data = _extract_json(
+                raw_text
             )
 
-    data["review_level"] = (
-        _normalize_review_level(
-            data.get("review_level")
-        )
-    )
-
-    data["review_flags"] = (
-        _normalize_list(
-            data.get("review_flags")
-        )
-    )
-
-    data["legal_sources_used"] = (
-        _normalize_list(
-            data.get(
-                "legal_sources_used"
-            )
-        )
-    )
-
-    data["post"] = (
-        str(
-            data.get(
+            required_fields = (
                 "post",
-                "",
-            )
-        )
-        .strip()
-    )
-
-    data["image_brief"] = (
-        str(
-            data.get(
                 "image_brief",
-                "",
+                "review_level",
+                "review_flags",
+                "legal_sources_used",
             )
-        )
-        .strip()
+
+            for field in required_fields:
+                if field not in data:
+                    raise RuntimeError(
+                        f"Gemini JSON is missing required field: "
+                        f"{field}"
+                    )
+
+            data["review_level"] = (
+                _normalize_review_level(
+                    data.get("review_level")
+                )
+            )
+
+            data["review_flags"] = (
+                _normalize_list(
+                    data.get("review_flags")
+                )
+            )
+
+            data["legal_sources_used"] = (
+                _normalize_list(
+                    data.get(
+                        "legal_sources_used"
+                    )
+                )
+            )
+
+            data["post"] = (
+                str(
+                    data.get(
+                        "post",
+                        "",
+                    )
+                )
+                .strip()
+            )
+
+            data["image_brief"] = (
+                str(
+                    data.get(
+                        "image_brief",
+                        "",
+                    )
+                )
+                .strip()
+            )
+
+            if not data["post"]:
+                raise RuntimeError(
+                    "Gemini returned an empty post."
+                )
+
+            if not data["image_brief"]:
+                raise RuntimeError(
+                    "Gemini returned an empty image_brief."
+                )
+
+            _validate_image_brief(
+                data["image_brief"]
+            )
+
+            return data
+
+        except RuntimeError as exc:
+            last_validation_error = str(exc)
+            feedback = last_validation_error
+            continue
+
+    raise RuntimeError(
+        "Gemini could not produce a valid, specific image_brief after retry. "
+        + last_validation_error
     )
-
-    if not data["post"]:
-        raise RuntimeError(
-            "Gemini returned an empty post."
-        )
-
-    if not data["image_brief"]:
-        raise RuntimeError(
-            "Gemini returned an empty image_brief."
-        )
-
-    _validate_image_brief(
-        data["image_brief"]
-    )
-
-    return data
