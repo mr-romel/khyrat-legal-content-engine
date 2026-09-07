@@ -164,7 +164,7 @@ def _smart_target_datetime(row: dict[str, str]):
     if target_date is None or target_time is None:
         return None
     cairo_now = now_cairo()
-    return datetime(target_date.year, target_date.month, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
+    return datetime(target_date.year, target_date.month, target_date.day, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
 
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
