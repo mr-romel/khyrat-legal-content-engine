@@ -11,6 +11,7 @@ import requests
 
 BASE_URL = "https://mostaql.com/projects"
 READER_URL = "https://r.jina.ai/https://mostaql.com/projects"
+TELEGRAM_URL = "https://t.me/s/mostaql_jobs"
 SEARCH_TERMS = ("قانون", "محاماة", "عقد", "صياغة عقد", "استشارة قانونية", "مراجعة عقد")
 LEGAL_TERMS = (
     "محامي", "محاماة", "قانون", "قانوني", "قانونية", "عقد", "عقود",
@@ -56,6 +57,21 @@ def parse_projects(text: str, limit: int = 40) -> list[dict[str, Any]]:
     return results[:limit]
 
 
+def _telegram_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
+    response = requests.get(TELEGRAM_URL, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+    if not response.ok:
+        return []
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for match in re.finditer(r'href=["\'](https://mostaql\.com/project/[^"\']+)["\']', response.text, re.I):
+        start = max(0, match.start() - 3500)
+        end = min(len(response.text), match.end() + 3500)
+        _add(results, seen, match.group(1), response.text[start:end], limit)
+        if len(results) >= limit:
+            break
+    return results
+
+
 def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -93,6 +109,9 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 40, timeout: int = 20)
             found = parse_projects(reader.text, limit=limit)
             if found:
                 return found
+        found = _telegram_projects(limit, timeout)
+        if found:
+            return found
         return _bing_projects(limit, timeout)
     response.raise_for_status()
     return []
