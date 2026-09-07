@@ -29,6 +29,12 @@ def build_khamsat_package(service: dict[str, Any]) -> dict[str, Any]:
             {"name": "تسليم عاجل", "description": "تقليل مدة التنفيذ وفقاً لإمكانية العمل."},
             {"name": "جلسة شرح", "description": "شرح الملاحظات والتعديلات المقترحة في مكالمة قصيرة."},
         ],
+        "creative_assets": {
+            "builder": "marketplace.creative_assets.build_service_assets",
+            "cover_size": "1700x970",
+            "portfolio_size": "800x460",
+            "usage_note": "Brand/presentation asset only; not a client work sample.",
+        },
         "review_status": "READY_FOR_REVIEW",
     }
 
