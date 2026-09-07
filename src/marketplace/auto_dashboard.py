@@ -1,9 +1,10 @@
-"""Run the Marketplace dashboard with automatic public-opportunity sync."""
+"""Run the Marketplace dashboard with non-blocking public-opportunity sync."""
 from __future__ import annotations
 
 import json
 import threading
 import time
+import webbrowser
 from urllib.request import Request, urlopen
 
 from marketplace.discovery import merge_discoveries
@@ -13,6 +14,7 @@ from marketplace.pro_dashboard import main
 
 FEED_URL = "https://raw.githubusercontent.com/mr-romel/khyrat-legal-content-engine/main/marketplace_data/discovered_opportunities.json"
 INTERVAL_SECONDS = 600
+DASHBOARD_URL = "http://127.0.0.1:8766/"
 
 
 def _offer(item: dict) -> str:
@@ -28,7 +30,7 @@ def _offer(item: dict) -> str:
 
 
 def sync_feed() -> int:
-    request = Request(FEED_URL, headers={"User-Agent": "KhyratMarketplaceDashboard/1.0"})
+    request = Request(FEED_URL, headers={"User-Agent": "KhyratMarketplaceDashboard/2.1"})
     with urlopen(request, timeout=15) as response:
         remote = json.loads(response.read().decode("utf-8"))
     state = load_state()
@@ -39,7 +41,9 @@ def sync_feed() -> int:
         source_url = str(item.get("source_url", ""))
         if not source_url or source_url in known:
             continue
-        created = ingest_mostaql_opportunity(state, str(item.get("title", "")), str(item.get("description", "")), source_url)
+        created = ingest_mostaql_opportunity(
+            state, str(item.get("title", "")), str(item.get("description", "")), source_url
+        )
         created["discovery_score"] = int(item.get("discovery_score", 0))
         created["suggested_price_usd"] = 5
         created["suggested_days"] = 3
@@ -56,19 +60,26 @@ def _background_sync() -> None:
     while True:
         try:
             added = sync_feed()
-            if added:
-                print(f"[marketplace] auto-discovery imported {added} new opportunities")
+            print(f"[marketplace] discovery sync: +{added} new opportunities", flush=True)
         except Exception as exc:
-            print(f"[marketplace] discovery sync skipped: {exc}")
+            print(f"[marketplace] discovery sync skipped: {exc}", flush=True)
         time.sleep(INTERVAL_SECONDS)
 
 
-def start() -> None:
+def _open_browser() -> None:
+    time.sleep(1.5)
     try:
-        sync_feed()
-    except Exception as exc:
-        print(f"[marketplace] initial discovery sync skipped: {exc}")
-    threading.Thread(target=_background_sync, daemon=True).start()
+        webbrowser.open(DASHBOARD_URL, new=2)
+    except Exception:
+        pass
+
+
+def start() -> None:
+    # Never block dashboard startup on network discovery.
+    threading.Thread(target=_background_sync, daemon=True, name="marketplace-discovery").start()
+    threading.Thread(target=_open_browser, daemon=True, name="marketplace-browser").start()
+    print(f"[marketplace] dashboard: {DASHBOARD_URL}", flush=True)
+    print("[marketplace] discovery runs in the background every 10 minutes.", flush=True)
     main()
 
 
