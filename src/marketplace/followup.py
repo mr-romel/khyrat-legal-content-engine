@@ -66,7 +66,17 @@ def next_followup(item: dict[str, Any], now: datetime | str | None = None) -> st
 
 
 def prepare_followup(item: dict[str, Any], now: datetime | str | None = None) -> dict[str, Any]:
-    """يضيف بيانات المتابعة دون تغيير حالة الفرصة."""
+    """يعيد جدولة المتابعة انطلاقاً من لحظة التنفيذ الصريحة عند توفيرها."""
+    if now is not None:
+        state = str(item.get("lifecycle", item.get("status", "NEW"))).upper()
+        if state not in TERMINAL_STATES:
+            days = 1 if state in {"READY_FOR_REVIEW", "APPROVED", "FAILED"} else 3
+            if state == "SUBMITTED":
+                days = 2
+            now_dt = _parse(now)
+            if now_dt is not None:
+                item["next_followup_at"] = _iso(now_dt + timedelta(days=days))
+                return item
     due = next_followup(item, now)
     if due:
         item["next_followup_at"] = due
@@ -84,8 +94,10 @@ def due_followups(state: dict[str, Any], now: datetime | str | None = None) -> l
     for item in state.get("opportunities", []):
         if str(item.get("lifecycle", item.get("status", "NEW"))).upper() in TERMINAL_STATES:
             continue
-        prepare_followup(item, now_dt)
         stamp = _parse(item.get("next_followup_at"))
+        if stamp is None:
+            prepare_followup(item)
+            stamp = _parse(item.get("next_followup_at"))
         if stamp:
             stamp = _align(stamp, now_dt)
             if stamp <= now_dt:
