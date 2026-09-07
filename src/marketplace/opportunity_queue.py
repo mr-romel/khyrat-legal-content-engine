@@ -9,10 +9,10 @@ import re
 from typing import Any
 
 from marketplace.opportunity_engine import rank_opportunity
+from marketplace.pricing import suggest_price_usd, validate_price_usd
 
 
 LIFECYCLE = ("NEW", "OFFER_READY", "READY_FOR_REVIEW", "APPROVED", "SUBMITTED", "WON", "LOST", "EXPIRED", "CANCELLED", "REJECTED", "FAILED")
-# SUBMITTED is still an open opportunity: it can become WON, LOST, EXPIRED, or CANCELLED.
 TERMINAL = {"WON", "LOST", "EXPIRED", "CANCELLED"}
 
 
@@ -25,14 +25,17 @@ def opportunity_key(platform: str, title: str, description: str) -> str:
 
 
 def prepare_opportunity(item: dict[str, Any]) -> dict[str, Any]:
-    """Add deterministic queue metadata without changing the opportunity meaning."""
+    """Add deterministic queue metadata, including USD-only Mostaql pricing."""
     rank_opportunity(item)
     score = float(item.get("acquisition_score", item.get("match_score", 0)))
-    price = float(item.get("suggested_price_egp", 0))
+    price = item.get("suggested_price_usd")
+    if price is None:
+        price = suggest_price_usd(score)
+    item["suggested_price_usd"] = validate_price_usd(price)
     clarity = 1.0 if len(str(item.get("description", "")).split()) >= 12 else 0.7
     probability = max(0.05, min(0.75, 0.10 + score / 200.0 + (0.05 if clarity == 1.0 else 0)))
     item["win_probability"] = round(probability, 3)
-    item["expected_value_egp"] = round(price * probability, 2)
+    item["expected_value_usd"] = round(item["suggested_price_usd"] * probability, 2)
     item.setdefault("lifecycle", item.get("status", "NEW"))
     item.setdefault("created_at", "")
     item.setdefault("updated_at", "")
@@ -95,8 +98,6 @@ def transition(item: dict[str, Any], target: str, now: str) -> dict[str, Any]:
 
 def queue_metrics(state: dict[str, Any]) -> dict[str, Any]:
     opportunities = state.get("opportunities", [])
-    # Metrics must be correct even when an opportunity reached SUBMITTED
-    # through transition() without passing through add_to_queue().
     for item in opportunities:
         prepare_opportunity(item)
     return {
@@ -110,11 +111,11 @@ def queue_metrics(state: dict[str, Any]) -> dict[str, Any]:
         "submitted": sum(x.get("lifecycle", x.get("status")) == "SUBMITTED" for x in opportunities),
         "won": sum(x.get("lifecycle", x.get("status")) == "WON" for x in opportunities),
         "lost": sum(x.get("lifecycle", x.get("status")) == "LOST" for x in opportunities),
-        "expected_value_egp": round(sum(float(x.get("expected_value_egp", 0)) for x in opportunities if x.get("lifecycle", x.get("status")) not in TERMINAL), 2),
+        "expected_value_usd": round(sum(float(x.get("expected_value_usd", 0)) for x in opportunities if x.get("lifecycle", x.get("status")) not in TERMINAL), 2),
     }
 
 
 def rank_queue(state: dict[str, Any]) -> list[dict[str, Any]]:
     for item in state.get("opportunities", []):
         prepare_opportunity(item)
-    return sorted(state.get("opportunities", []), key=lambda x: (float(x.get("acquisition_score", 0)), float(x.get("expected_value_egp", 0))), reverse=True)
+    return sorted(state.get("opportunities", []), key=lambda x: (float(x.get("acquisition_score", 0)), float(x.get("expected_value_usd", 0))), reverse=True)
