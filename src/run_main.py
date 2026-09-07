@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import gemini
 import main as production_main
+from content_planner import classify
 from content_similarity import highest_similarity
 from content_style_v3 import build_style_context
 from decision_engine import choose_due_row
@@ -17,7 +18,20 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_context="", **kwargs):
     style_context = build_style_context(topic, salt=now_cairo().strftime("%Y-%m-%d-%H"))
-    combined_context = f"{previous_context}\n\n{style_context}".strip()
+    linkedin_context = (
+        "\n\nLINKEDIN B2B AUTHORING RULES:\n"
+        "This content will be adapted for LinkedIn and must not read like a short Facebook legal tip. "
+        "The LinkedIn version must be materially longer, substantive, and useful to companies and decision-makers. "
+        "Target business owners, CEOs, HR leaders, legal departments, operations managers, and people responsible for contracts and compliance. "
+        "Build around a real business problem, the legal risk or operational consequence, what management should check before acting, "
+        "and a practical decision point. Explain the business impact, not just the legal rule. "
+        "Use a professional Egyptian lawyer voice: natural, experienced, direct, and readable. "
+        "Prefer roughly 350-600 Arabic words for the LinkedIn version when the subject supports it. "
+        "Do not pad the post with generic advice, repeated conclusions, or a sales pitch. "
+        "Use a soft, context-driven CTA only when it naturally leads to discussion or a professional inquiry. "
+        "The final LinkedIn post should have enough substance that a company decision-maker can learn something and see why legal review matters."
+    )
+    combined_context = f"{previous_context}\n\n{style_context}{linkedin_context}".strip()
     return resilient_generate_post(api_key=api_key, model=model, topic=topic, legal_sources=legal_sources, previous_context=combined_context, **kwargs)
 
 
@@ -28,18 +42,16 @@ _latest_editorial: dict = {}
 
 
 def _strengthen_linkedin_post(post: str) -> str:
-    """Make LinkedIn materially more business-oriented without inventing legal facts."""
+    """Keep short LinkedIn drafts from falling back to consumer-style brevity."""
     text = str(post or "").strip()
-    if not text or len(text) >= 1600:
+    if not text or len(text) >= 2200:
         return text
-    business_paragraph = (
-        "\n\nومن زاوية الشركات وأصحاب الأعمال، المهم هنا إن المسألة ما تتقراش باعتبارها معلومة قانونية مجردة فقط؛ "
-        "لكن باعتبارها جزء من إدارة المخاطر واتخاذ القرار داخل الشركة. قبل توقيع عقد، اعتماد إجراء، أو التعامل مع نزاع، "
-        "الأفضل إن الإدارة تراجع الأثر القانوني والعملي للموقف، وتحدد المسؤوليات والمستندات والإجراءات المطلوبة، بدل ما تنتظر المشكلة بعد وقوعها. "
-        "وجود مراجعة قانونية مبكرة غالبًا بيكون أبسط وأقل تكلفة من معالجة نزاع بعد ما يتحول لالتزام أو خسارة."
+    business_additions = (
+        "\n\nبالنسبة للشركات، النقطة الأهم مش مجرد معرفة الحكم القانوني، لكن معرفة أثره على القرار نفسه. هل العقد أو الإجراء الحالي بيحدد المسؤوليات بوضوح؟ هل المستندات المطلوبة موجودة؟ وهل الشركة عارفة مسبقًا إيه اللي ممكن يتحول من مشكلة بسيطة إلى نزاع أو تكلفة تشغيلية؟\n\n"
+        "وده بيخلي المراجعة القانونية جزء من إدارة المخاطر، مش خطوة بنفتكرها بعد ما المشكلة تحصل. كل ما اتراجع القرار أو العقد أو الإجراء في وقت بدري، كان أسهل على الإدارة إنها تختار بين البدائل وهي عارفة تبعات كل اختيار."
     )
-    if business_paragraph.strip() not in text:
-        text += business_paragraph
+    if len(text) < 1500:
+        text += business_additions
     return text
 
 
@@ -152,7 +164,7 @@ def _smart_target_datetime(row: dict[str, str]):
     if target_date is None or target_time is None:
         return None
     cairo_now = now_cairo()
-    return datetime(target_date.year, target_date.month, target_date.day, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
+    return datetime(target_date.year, target_date.month, target_time.hour, target_time.minute, 0, tzinfo=cairo_now.tzinfo)
 
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
