@@ -24,8 +24,6 @@ STRONG_TERMS = (
     "محامي", "محاماة", "استشارة قانونية", "صياغة عقد", "مراجعة عقد",
     "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "لائحة قانونية",
 )
-OPEN_MARKERS = ("حالة المشروع\n\nمفتوح", "حالة المشروع: مفتوح", "مفتوح")
-CLOSED_MARKERS = ("مغلق", "مكتمل", "ملغي", "قيد التنفيذ")
 
 
 def _clean(value: str) -> str:
@@ -129,10 +127,8 @@ def _project_is_open(url: str, timeout: int) -> bool:
     if not response.ok:
         return False
     text = _clean(response.text)
-    lowered = text.lower()
-    if any(marker.lower() in lowered for marker in CLOSED_MARKERS):
-        return False
-    return any(marker.lower() in lowered for marker in OPEN_MARKERS)
+    status = re.search(r"حالة المشروع\s*(مفتوح|مغلق|مكتمل|ملغي|قيد التنفيذ)", text, re.I)
+    return bool(status and status.group(1) == "مفتوح")
 
 
 def validate_live_projects(
