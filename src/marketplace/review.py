@@ -9,11 +9,13 @@ from typing import Any
 ALLOWED = {
     "DRAFT": {"READY_FOR_REVIEW"},
     "READY_FOR_REVIEW": {"APPROVED", "REJECTED"},
-    "REJECTED": {"DRAFT"},
+    # A rejected item can be returned to draft for editing, or sent back to
+    # review when the operator has already corrected it outside the dashboard.
+    "REJECTED": {"DRAFT", "READY_FOR_REVIEW"},
     "APPROVED": {"PUBLISHED", "SUBMITTED", "FAILED"},
     "PUBLISHED": set(),
     "SUBMITTED": set(),
-    "FAILED": {"APPROVED", "DRAFT"},
+    "FAILED": {"APPROVED", "DRAFT", "READY_FOR_REVIEW"},
 }
 
 
@@ -46,7 +48,12 @@ def reject(item: dict[str, Any]) -> ReviewResult:
 
 
 def mark_ready(item: dict[str, Any]) -> ReviewResult:
-    """Move a draft into the human review queue."""
+    """Move a draft/rejected item into the human review queue."""
+    current = item.get("status", "DRAFT")
+    if current == "REJECTED":
+        return transition(item, "READY_FOR_REVIEW")
+    if current == "FAILED":
+        return transition(item, "READY_FOR_REVIEW")
     return transition(item, "READY_FOR_REVIEW")
 
 
