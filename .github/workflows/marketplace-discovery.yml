@@ -23,20 +23,20 @@ jobs:
           python-version: '3.12'
       - name: Install requests
         run: python -m pip install 'requests>=2.32.0,<3.0.0'
-      - name: Discover public Mostaql projects
+      - name: Discover live public Mostaql projects
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          from marketplace.discovery import discover_mostaql, merge_discoveries
+          from marketplace.discovery import discover_mostaql
 
           out = Path('marketplace_data/discovered_opportunities.json')
           out.parent.mkdir(parents=True, exist_ok=True)
-          existing = json.loads(out.read_text(encoding='utf-8')) if out.exists() else []
-          discovered = discover_mostaql(limit=40)
-          merged = merge_discoveries(existing, discovered)
-          out.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding='utf-8')
-          print(f'discovered={len(discovered)} total={len(merged)}')
+          discovered = discover_mostaql(limit=10)
+          out.write_text(json.dumps(discovered, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(f'discovered_live={len(discovered)}')
+          for item in discovered:
+              print(f"LIVE {item['discovery_score']:>3} {item['title']} -> {item['source_url']}")
           PY
       - name: Commit changed discovery feed
         run: |
@@ -46,7 +46,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No discovery changes.'
           else
-            git commit -m 'chore: refresh Mostaql opportunity feed'
+            git commit -m 'chore: refresh live Mostaql opportunity feed'
             git push
           fi
       - name: Upload discovery feed
