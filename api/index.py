@@ -20,6 +20,7 @@ from marketplace.web_dashboard import render as render_live_dashboard
 from marketplace_mvp import load_state as local_load_state, save_state as local_save_state
 
 USE_D1 = d1_configured()
+GEMINI_CONFIGURED = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
 
 
 def _load_state():
@@ -60,7 +61,7 @@ class handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             if path == "/api/health":
-                return _response(self, 200, {"ok": True, "service": "khyrat-marketplace", "runtime": "vercel", "persistence": "d1" if USE_D1 else "local-fallback", "live_mostaql": True, "gemini_offers": True, "khamsat_images": True})
+                return _response(self, 200, {"ok": True, "service": "khyrat-marketplace", "runtime": "vercel", "persistence": "d1" if USE_D1 else "local-fallback", "live_mostaql": True, "gemini_offers": GEMINI_CONFIGURED, "khamsat_images": GEMINI_CONFIGURED})
             if path == "/api/state":
                 return _response(self, 200, _state_with_assets())
             if path == "/":
@@ -107,6 +108,8 @@ class handler(BaseHTTPRequestHandler):
                 return _response(self, 200, {"ok": True, "message": f"تم سحب {len(projects)} فرصة قانونية من مستقل — جديد {added}، محدث {updated}", "projects": projects})
 
             if path == "/api/mostaql/offer":
+                if not GEMINI_CONFIGURED:
+                    raise ValueError("أضف GEMINI_API_KEY إلى Vercel Environment Variables أولًا")
                 opportunity_id = str(payload.get("id", "")).strip()
                 state = _load_state()
                 item = next((x for x in state.get("opportunities", []) if str(x.get("id")) == opportunity_id), None)
@@ -121,6 +124,8 @@ class handler(BaseHTTPRequestHandler):
                 return _response(self, 200, {"ok": True, "offer": offer, "opportunity": item})
 
             if path == "/api/khamsat/image":
+                if not GEMINI_CONFIGURED:
+                    raise ValueError("أضف GEMINI_API_KEY إلى Vercel Environment Variables أولًا")
                 service_id = str(payload.get("id", "")).strip()
                 state = _load_state()
                 service = next((x for x in state.get("services", []) if str(x.get("id")) == service_id), None)
