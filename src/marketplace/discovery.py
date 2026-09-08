@@ -22,6 +22,15 @@ STRONG_TERMS = (
     "عقد", "عقود", "اتفاقية", "اتفاقيات", "قانوني", "قانونية", "مذكرة قانونية",
     "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية", "تعاقد", "تعاقدات",
 )
+DETAIL_HEADINGS = (
+    "تفاصيل المشروع", "تفاصيل المشروع:", "وصف المشروع", "وصف المشروع:",
+    "المطلوب", "المطلوب:", "تفاصيل الطلب", "تفاصيل الطلب:",
+)
+STOP_HEADINGS = (
+    "المهارات المطلوبة", "المهارات", "الميزانية", "مدة التنفيذ", "مدة المشروع",
+    "عدد العروض", "العروض", "الأسئلة", "الأسئلة الشائعة", "عن صاحب المشروع",
+    "مشاريع أخرى", "تسجيل الدخول", "إنشاء حساب",
+)
 
 
 def _clean(value: str) -> str:
@@ -34,16 +43,15 @@ def _clean(value: str) -> str:
 def _legal_score(title: str, description: str) -> int:
     title_text = _clean(title).lower()
     body_text = _clean(description).lower()
-    text = f"{title_text} {body_text}"
-    strong = sum(1 for term in STRONG_TERMS if term in text)
-    normal = sum(1 for term in LEGAL_TERMS if term in text)
     title_strong = sum(1 for term in STRONG_TERMS if term in title_text)
     title_normal = sum(1 for term in LEGAL_TERMS if term in title_text)
-    if title_strong == 0 and title_normal < 2 and normal < 2:
+    body_strong = sum(1 for term in STRONG_TERMS if term in body_text)
+    body_normal = sum(1 for term in LEGAL_TERMS if term in body_text)
+    if title_strong == 0 and title_normal == 0 and body_strong == 0:
         return 0
-    score = 20 + strong * 10 + normal * 3 + title_strong * 15 + title_normal * 5
+    score = 20 + title_strong * 20 + title_normal * 8 + body_strong * 10 + body_normal * 3
     if title_strong:
-        score += 15
+        score += 25
     return min(100, score)
 
 
@@ -146,7 +154,7 @@ def _looks_like_business_response(body: str) -> bool:
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.1)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.2)"
         })
         return response.text if response.ok else ""
     except requests.RequestException:
@@ -199,11 +207,46 @@ def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, t
         if len(valid) >= limit:
             break
         url = str(item.get("source_url", ""))
-        # Keep the historical _project_is_open(url, timeout) call shape so tests and
-        # downstream integrations can monkeypatch the live check safely.
         if _project_is_open(url, timeout=timeout):
             valid.append({**item, "live": True})
     return valid
+
+
+def _extract_project_content(page: str, fallback_title: str) -> tuple[str, str]:
+    """Extract the project title and details, excluding Mostaql navigation/chrome."""
+    raw = unescape(page).replace("\\/", "/")
+    lines = [_clean(line) for line in raw.splitlines()]
+    lines = [line for line in lines if line]
+    title = _clean(fallback_title)[:180]
+    for line in lines[:80]:
+        heading = re.sub(r"^#{1,6}\s*", "", line).strip()
+        if 4 <= len(heading) <= 180 and not any(token in heading.lower() for token in ("مستقل", "mostaql", "تسجيل", "دخول")):
+            if not heading.startswith(("http://", "https://")):
+                title = heading
+                break
+
+    start = None
+    for index, line in enumerate(lines):
+        normalized = line.rstrip(":").strip().lower()
+        if normalized in {h.rstrip(":").strip().lower() for h in DETAIL_HEADINGS}:
+            start = index + 1
+            break
+    if start is None:
+        # Jina sometimes omits the heading but keeps the project title followed by body.
+        start = 1 if lines else 0
+
+    body_lines: list[str] = []
+    for line in lines[start:]:
+        normalized = line.rstrip(":").strip().lower()
+        if normalized in {h.rstrip(":").strip().lower() for h in STOP_HEADINGS}:
+            break
+        if re.fullmatch(r"[-*_]{3,}", line):
+            continue
+        body_lines.append(line)
+        if sum(len(x) for x in body_lines) >= 5000:
+            break
+    description = _clean(" ".join(body_lines))[:4000]
+    return title, description
 
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
@@ -218,18 +261,14 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         page = _fetch_project_page(str(item["source_url"]), min(timeout, 8))
         if not page or not _project_is_open(str(item["source_url"]), page):
             return None
-        clean_page = _clean(page)
-        title = _clean(item["title"])
-        heading = re.search(r"(?:^|\n)#{1,3}\s+([^\n]{4,180})", page)
-        if heading:
-            title = _clean(heading.group(1))[:180]
-        score = _legal_score(title, clean_page)
+        title, description = _extract_project_content(page, item.get("title", ""))
+        score = _legal_score(title, description)
         if score < 24:
             return None
         return {
             **item,
             "title": title,
-            "description": clean_page[:4000],
+            "description": description or title,
             "discovery_score": score,
             "live": True,
             "source_filter": BUSINESS_FILTER_URL,
