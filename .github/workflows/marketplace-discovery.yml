@@ -72,6 +72,19 @@ jobs:
           state = load_state()
           opportunities = state.setdefault('opportunities', [])
           by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
+          live_urls = {str(x.get('source_url', '')).strip() for x in discovered if x.get('source_url')}
+
+          # Discovery-owned queue records are disposable cache entries. Remove stale
+          # Mostaql discovery records before syncing the current Business-filter result.
+          before_prune = len(opportunities)
+          opportunities[:] = [
+              x for x in opportunities
+              if not str(x.get('id', '')).startswith('opp-discovery-')
+              or str(x.get('source_url', '')).strip() in live_urls
+          ]
+          pruned = before_prune - len(opportunities)
+          by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
+
           added = 0
           refreshed = 0
 
@@ -84,6 +97,8 @@ jobs:
                   existing['title'] = item.get('title', existing.get('title', ''))
                   existing['description'] = item.get('description', existing.get('description', ''))
                   existing['source_url'] = url
+                  existing['source_kind'] = 'mostaql_business_filter'
+                  existing['source_filter'] = discovery.BUSINESS_FILTER_URL
                   existing['discovery_score'] = int(item.get('discovery_score', 0))
                   existing['live'] = True
                   if not existing.get('offer'):
@@ -103,6 +118,8 @@ jobs:
                   'title': item.get('title', ''),
                   'description': item.get('description', '') or item.get('title', ''),
                   'source_url': url,
+                  'source_kind': 'mostaql_business_filter',
+                  'source_filter': discovery.BUSINESS_FILTER_URL,
                   'discovery_score': int(item.get('discovery_score', 0)),
                   'live': True,
                   'match_score': score,
@@ -116,11 +133,11 @@ jobs:
               by_url[url] = opportunity
               added += 1
 
-          if discovered:
-              save_state(state)
+          save_state(state)
           print(f'discovered_live={len(discovered)}')
           print(f'queue_added={added}')
           print(f'queue_refreshed={refreshed}')
+          print(f'queue_pruned={pruned}')
           print(f'queue_total={len(opportunities)}')
           print(f'feed_changed={feed_changed}')
           for item in discovered:
