@@ -10,6 +10,7 @@ from typing import Any
 import requests
 from PIL import Image
 
+# Current Gemini models: text via Interactions API, images via Nano Banana 2.
 IMAGE_MODEL = "gemini-3.1-flash-image"
 TEXT_MODEL = "gemini-3.8-flash"
 KHAMSAT_SIZE = (1700, 970)
@@ -78,7 +79,6 @@ def _interaction_text(response: Any) -> str:
 
 
 def generate_offer(opportunity: dict[str, Any]) -> str:
-    """Generate a project-specific Mostaql offer with enforced price rules."""
     title = str(opportunity.get("title", "")).strip()
     description = str(opportunity.get("description", "")).strip()
     price, days = offer_terms(opportunity)
