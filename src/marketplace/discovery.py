@@ -14,6 +14,7 @@ LEGAL_SKILL_URLS = (
     "https://mostaql.com/projects/skill/legal",
     "https://mostaql.com/projects/skill/contracts",
     "https://mostaql.com/projects/skill/legal-writing",
+    "https://mostaql.com/projects/skill/legal-research",
 )
 READER_URL = "https://r.jina.ai/https://mostaql.com/projects/skill/legal"
 SEARCH_TERMS = (
@@ -114,7 +115,7 @@ def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for skill_url in LEGAL_SKILL_URLS:
         try:
-            response = requests.get(skill_url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"})
+            response = requests.get(skill_url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/4.0"})
         except requests.RequestException:
             continue
         if not response.ok:
@@ -123,14 +124,14 @@ def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
             href = str(item.get("source_url", ""))
             if href and href not in seen:
                 seen.add(href)
-                results.append(item)
+                results.append({**item, "live": True, "source_kind": "official_open_listing"})
                 if len(results) >= limit:
                     return results
     return results
 
 
 def _project_is_open(url: str, timeout: int) -> bool:
-    """Reject stale/closed projects while tolerating reader formatting changes."""
+    """Reject stale/closed projects for fallback sources."""
     reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
     try:
         response = requests.get(reader_url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
@@ -138,11 +139,7 @@ def _project_is_open(url: str, timeout: int) -> bool:
         return False
     if not response.ok:
         return False
-    raw = unescape(response.text)
-    normalized = _clean(raw).lower()
-    # Jina can render the same field as Arabic, English, with punctuation,
-    # or with Markdown/newline separators. Check the local status field rather
-    # than requiring one exact string.
+    normalized = _clean(unescape(response.text)).lower()
     status_patterns = (
         r"حالة\s*المشروع\s*[:：-]?\s*مفتوح(?:\s|$)",
         r"حالة\s*المشروع.{0,80}\bمفتوح\b",
@@ -151,11 +148,8 @@ def _project_is_open(url: str, timeout: int) -> bool:
     )
     if any(re.search(pattern, normalized, re.I | re.S) for pattern in status_patterns):
         return True
-    # Some reader responses expose the status as a standalone badge.
     standalone = re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])", normalized, re.I | re.M)
-    if standalone:
-        return True
-    return False
+    return bool(standalone)
 
 
 def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
@@ -171,11 +165,12 @@ def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, t
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
     """Discover currently open legal projects from public Mostaql sources."""
-    candidates = _official_skill_projects(max(limit * 3, 30), timeout)
+    official = _official_skill_projects(max(limit * 3, 30), timeout)
+    if official:
+        return official[:limit]
+    candidates = _bing_projects(max(limit * 4, 30), timeout)
     if not candidates:
-        candidates = _bing_projects(max(limit * 4, 30), timeout)
-    if not candidates:
-        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"})
+        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/4.0"})
         if response.ok:
             candidates = parse_projects(response.text, limit=max(limit * 4, 30))
     if not candidates:
