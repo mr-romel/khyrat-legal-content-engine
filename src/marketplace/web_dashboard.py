@@ -5,6 +5,9 @@ import html
 from typing import Any
 
 
+HANDLED_STATUSES = {"SUBMITTED", "IGNORED", "REJECTED"}
+
+
 def _e(value: Any) -> str:
     return html.escape(str(value or ""), quote=True)
 
@@ -17,7 +20,11 @@ def render(state: dict[str, Any]) -> str:
     services = state.get("services", [])
     opportunities = state.get("opportunities", [])
     activity = state.get("activity", [])[:15]
-    mostaql = [x for x in opportunities if str(x.get("platform", "mostaql")).lower() == "mostaql"]
+    mostaql = [
+        x for x in opportunities
+        if str(x.get("platform", "mostaql")).lower() == "mostaql"
+        and str(x.get("status", x.get("lifecycle", "NEW"))).upper() not in HANDLED_STATUSES
+    ]
 
     service_cards = []
     for service in services:
@@ -56,3 +63,6 @@ async function setOppStatus(id,status){{const labels={{SUBMITTED:'تم تسجي�
 async function genImage(id){{msg('Gemini يولد صورة الخدمة...');try{{const d=await post('/api/khamsat/image',{{id}});const box=document.getElementById('image-'+id);box.outerHTML='<img id="image-'+id+'" class="cover" src="'+d.image_data_url+'" alt="صورة الخدمة">';const link=document.getElementById('download-'+id);link.href=d.image_data_url;link.style.display='inline-block';msg('تم توليد الصورة')}}catch(e){{msg(e.message)}}}}
 async function copyText(id){{const t=document.getElementById(id);await navigator.clipboard.writeText(t.value);msg('تم نسخ العرض')}}
 </script></body></html>'''
+
+
+render_dashboard = render
