@@ -39,7 +39,6 @@ def _legal_score(title: str, description: str) -> int:
     normal = sum(1 for term in LEGAL_TERMS if term in text)
     title_strong = sum(1 for term in STRONG_TERMS if term in title_text)
     title_normal = sum(1 for term in LEGAL_TERMS if term in title_text)
-    # Generic words such as "مراجعة" or "شركة" must never qualify a project alone.
     if title_strong == 0 and title_normal < 2 and normal < 2:
         return 0
     score = 20 + strong * 10 + normal * 3 + title_strong * 15 + title_normal * 5
@@ -147,7 +146,7 @@ def _looks_like_business_response(body: str) -> bool:
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.1)"
         })
         return response.text if response.ok else ""
     except requests.RequestException:
@@ -155,7 +154,6 @@ def _get(url: str, timeout: int) -> str:
 
 
 def _fetch_business_page(timeout: int) -> str:
-    """Fetch only the canonical Business filter; transports never change the source."""
     variants = (
         BUSINESS_FILTER_URL,
         BUSINESS_FILTER_URL + "?sort=latest",
@@ -195,13 +193,15 @@ def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> boo
 
 
 def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
+    """Keep only projects whose individual Mostaql pages resolve and are open."""
     valid: list[dict[str, Any]] = []
     for item in projects:
         if len(valid) >= limit:
             break
         url = str(item.get("source_url", ""))
-        page = _fetch_project_page(url, timeout)
-        if _project_is_open(url, page, timeout):
+        # Keep the historical _project_is_open(url, timeout) call shape so tests and
+        # downstream integrations can monkeypatch the live check safely.
+        if _project_is_open(url, timeout=timeout):
             valid.append({**item, "live": True})
     return valid
 
@@ -210,7 +210,6 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
     """Discover legal opportunities exclusively from the canonical Business filter."""
     _ = url
     raw = _fetch_business_page(timeout)
-    # Inspect the whole current Business page, not just the first 20 generic projects.
     candidates = parse_projects(raw, limit=max(limit * 20, 200), official=True) if raw else []
     if not candidates:
         return []
