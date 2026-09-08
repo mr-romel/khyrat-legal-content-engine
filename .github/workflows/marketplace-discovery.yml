@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - 'src/marketplace/__init__.py'
       - 'src/marketplace/discovery.py'
       - 'src/marketplace/ai_media.py'
       - 'src/marketplace_mvp.py'
@@ -76,7 +77,6 @@ jobs:
 
           state = load_state()
           opportunities = state.setdefault('opportunities', [])
-          by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
           live_urls = {str(x.get('source_url', '')).strip() for x in discovered if x.get('source_url')}
           before_prune = len(opportunities)
           opportunities[:] = [
