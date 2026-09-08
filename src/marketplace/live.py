@@ -23,6 +23,7 @@ MOSTAQL_PROJECTS_URL = "https://mostaql.com/projects"
 MOSTAQL_LEGAL_FEEDS = (
     "https://mostaql.com/projects/skill/legal",
     "https://mostaql.com/projects/skill/contracts",
+    "https://mostaql.com/projects/skill/legal-writing",
     "https://r.jina.ai/https://mostaql.com/projects/skill/legal",
 )
 LEGAL_TERMS = {
@@ -77,7 +78,7 @@ class _ProjectParser(HTMLParser):
 def _session() -> requests.Session:
     s = requests.Session()
     s.headers.update({
-        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/2.0; +https://github.com/mr-romel/khyrat-legal-content-engine)",
+        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/2.1; +https://github.com/mr-romel/khyrat-legal-content-engine)",
         "Accept-Language": "ar-EG,ar;q=0.9,en;q=0.7",
     })
     return s
@@ -99,9 +100,21 @@ def _fetch_project_list(session: requests.Session, url: str, timeout: int = 12) 
         response.raise_for_status()
     except requests.RequestException:
         return []
+
     parser = _ProjectParser()
     parser.feed(response.text)
-    return parser.links
+    if parser.links:
+        return parser.links
+
+    # Jina Reader often returns Markdown rather than HTML. Parse its project
+    # links explicitly so the legal feed remains usable when Mostaql HTML is
+    # blocked or transformed by an edge/intermediary.
+    markdown_links = re.findall(
+        r"\[([^\]]+)\]\((https://mostaql\.com/project/\d+[^)]*)\)",
+        response.text,
+        flags=re.IGNORECASE,
+    )
+    return [(href, " ".join(title.split())) for title, href in markdown_links]
 
 
 def _detail(session: requests.Session, url: str) -> dict[str, str]:
@@ -113,8 +126,6 @@ def _detail(session: requests.Session, url: str) -> dict[str, str]:
         description = parser.meta.get("description") or parser.meta.get("og:description") or ""
         return {"description": description[:6000]}
     except requests.RequestException:
-        # Jina Reader is used only as a public-page fallback when Mostaql's
-        # normal HTML response is blocked by an intermediary or edge cache.
         reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
         try:
             response = session.get(reader_url, timeout=8)
@@ -140,8 +151,6 @@ def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dic
         if len(unique) >= limit * 5:
             break
 
-    # Last fallback: the generic projects page. It is intentionally secondary
-    # because the legal skill feed is a much better acquisition source.
     if not unique:
         for href, title in _fetch_project_list(session, MOSTAQL_PROJECTS_URL):
             url = urljoin(MOSTAQL_PROJECTS_URL, href)
