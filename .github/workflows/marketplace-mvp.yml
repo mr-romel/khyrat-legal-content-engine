@@ -8,6 +8,7 @@ on:
       - 'src/marketplace/**'
       - 'src/marketplace_daily.py'
       - 'api/index.py'
+      - 'marketplace_data/marketplace.json'
       - 'tests/test_marketplace_mvp.py'
       - 'tests/test_marketplace_review.py'
       - 'tests/test_marketplace_isolation.py'
