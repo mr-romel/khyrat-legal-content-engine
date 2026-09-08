@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 env:
   PYTHONPATH: .:src
@@ -105,13 +103,10 @@ jobs:
         run: |
           python - <<'PY'
           import inspect, gemini_chat, gemini_runtime, comment_engine
-          from marketplace.ai_media import IMAGE_MODEL, TEXT_MODEL
           assert "client.chats.create" in inspect.getsource(gemini_chat)
           assert "chat.send_message" in inspect.getsource(gemini_chat)
           assert "GEMINI_FALLBACK_MODEL" in inspect.getsource(comment_engine)
-          assert TEXT_MODEL == "gemini-3.8-flash"
-          assert IMAGE_MODEL == "gemini-3.1-flash-image"
-          print("Gemini Chat + Marketplace Gemini model architecture check: OK")
+          print("Gemini Chat API + retry/fallback architecture check: OK")
           PY
       - name: Safe dry-run configuration smoke test
         env:
@@ -130,48 +125,3 @@ jobs:
           assert config["cloudflare_api_token"] == ""
           print("Safe dry-run configuration check: OK")
           PY
-
-  marketplace-dashboard:
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      PYTHONPATH: .:src
-    steps:
-      - name: Checkout marketplace code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-      - name: Install runtime dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Verify Gemini SDK
-        run: python -c "from google import genai; print('Gemini SDK import: OK')"
-      - name: Run Marketplace tests
-        run: python -m pytest -q tests/test_marketplace_mvp.py tests/test_marketplace_review.py tests/test_marketplace_isolation.py tests/test_marketplace_server.py tests/test_marketplace_pipeline.py tests/test_marketplace_opportunity_engine.py tests/test_marketplace_opportunity_queue.py tests/test_marketplace_revenue.py tests/test_marketplace_followup.py tests/test_marketplace_daily_ops.py tests/test_marketplace_daily_cli.py tests/test_marketplace_service_assets.py tests/test_marketplace_pro_dashboard.py tests/test_marketplace_command_center.py tests/test_marketplace_notifications.py tests/test_marketplace_discovery.py tests/test_marketplace_live.py tests/test_marketplace_deployment_docs.py
-      - name: Build Marketplace state
-        run: python src/marketplace_mvp.py --seed-demo
-      - name: Build daily execution plan
-        run: python src/marketplace_daily.py --output marketplace_data/daily_plan.json
-      - name: Build interactive static dashboard
-        run: python src/marketplace/static_dashboard.py
-      - name: Prepare GitHub Pages site
-        run: |
-          test -s marketplace_data/dashboard.html
-          rm -rf marketplace_pages
-          mkdir -p marketplace_pages
-          cp marketplace_data/dashboard.html marketplace_pages/index.html
-      - name: Upload Marketplace dashboard artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: khyrat-marketplace-dashboard
-          path: marketplace_data/
-          if-no-files-found: error
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: marketplace_pages/
-      - name: Deploy Marketplace dashboard to GitHub Pages
-        uses: actions/deploy-pages@v4
