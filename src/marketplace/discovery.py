@@ -20,7 +20,11 @@ LEGAL_TERMS = (
 STRONG_TERMS = (
     "محامي", "محاماة", "استشارة قانونية", "استشارات قانونية", "صياغة عقد", "مراجعة عقد",
     "عقد", "عقود", "اتفاقية", "اتفاقيات", "قانوني", "قانونية", "مذكرة قانونية",
-    "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية", "تعاقد", "تعاقدات",
+    "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية", "امتثال", "حوكمة",
+)
+ROLE_NOISE = (
+    "محاسب", "محاسبة", "مدير مالي", "مبيعات", "مسوق", "تسويق", "كوتش", "coach",
+    "موظف", "مسؤول", "مندوب", "تطوير الأعمال", "دراسة جدوى", "تسعير منتجات", "إدارة حسابات",
 )
 DETAIL_HEADINGS = ("تفاصيل المشروع", "وصف المشروع", "المطلوب", "تفاصيل الطلب")
 STOP_HEADINGS = (
@@ -54,6 +58,18 @@ def _legal_score(title: str, description: str) -> int:
     return min(100, score)
 
 
+def _is_relevant_opportunity(title: str, description: str) -> bool:
+    """Accept legal-service intent, not merely generic business/legal-adjacent wording."""
+    t, b = _clean(title).lower(), _clean(description).lower()
+    if not t:
+        return False
+    if any(x in t for x in ROLE_NOISE) and not any(x in t for x in STRONG_TERMS):
+        return False
+    title_strong = sum(x in t for x in STRONG_TERMS)
+    body_strong = sum(x in b for x in STRONG_TERMS)
+    return title_strong > 0 or body_strong >= 2
+
+
 def _canonical_url(href: str) -> str:
     href = urljoin(BASE_URL, unescape(href).replace("\\/", "/").strip())
     p = urlsplit(href)
@@ -76,7 +92,7 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, d
     if len(title) < 4:
         title = _clean(href.rsplit("/", 1)[-1].replace("-", " "))
     score = _legal_score(title, description)
-    if not official and score < 24:
+    if not official and (score < 24 or not _is_relevant_opportunity(title, description)):
         return
     seen.add(href)
     results.append({"platform": "mostaql", "title": title, "description": description or title,
@@ -127,7 +143,7 @@ def _looks_like_error_page(body: str) -> bool:
 
 def _get(url: str, timeout: int) -> str:
     try:
-        r = requests.get(url, timeout=min(timeout, 15), headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/25.0)"})
+        r = requests.get(url, timeout=min(timeout, 15), headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/26.0)"})
         if not r.ok or _looks_like_error_page(r.text): return ""
         return r.text
     except requests.RequestException:
@@ -182,17 +198,14 @@ def _is_noise_title(title: str) -> bool:
 
 
 def _extract_project_content(page: str, fallback_title: str) -> tuple[str, str]:
-    """Keep the Business-filter title authoritative; extract only the project detail body from the page."""
     raw = unescape(page).replace("\\/", "/")
     lines = [_clean(x) for x in raw.splitlines() if _clean(x)]
     title = _clean(fallback_title)[:180]
-    # Never promote arbitrary first-page lines (often JS variables) to title.
     for line in lines[:120]:
         heading = re.sub(r"^#{1,6}\s*", "", line).strip()
         if heading.startswith("#") or _is_noise_title(heading):
             continue
         if len(heading) <= 180 and _legal_score(heading, "") >= 45 and heading != title:
-            # Only accept a strong explicit project heading; otherwise retain Business title.
             if re.match(r"^(?:مشروع|مطلوب|طلب|خبير|مستشار|مراجعة|صياغة|استشارة|محامي|خدمة)", heading):
                 title = heading
                 break
@@ -206,7 +219,6 @@ def _extract_project_content(page: str, fallback_title: str) -> tuple[str, str]:
         n = line.rstrip(":").strip().lower()
         if n in stops: break
         if _is_noise_title(line) or re.fullmatch(r"[-*_]{3,}", line): continue
-        # Ignore obvious scripts/config/navigation that can contaminate reader output.
         if line.startswith(("var ", "const ", "let ", "function ")): continue
         body.append(line)
         if sum(map(len, body)) >= 5000: break
@@ -222,6 +234,7 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         page = _fetch_project_page(str(item["source_url"]), min(timeout, 8))
         if not page or not _project_is_open(str(item["source_url"]), page): return None
         title, description = _extract_project_content(page, item.get("title", ""))
+        if not _is_relevant_opportunity(title, description): return None
         score = _legal_score(title, description)
         if score < 24: return None
         return {**item, "title": _clean(title)[:180], "description": description or _clean(title),
@@ -237,7 +250,13 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
 
 
 def merge_discoveries(existing: list[dict[str, Any]], discovered: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_url = {str(x.get("source_url")): x for x in existing if x.get("source_url")}
+    current = {str(x.get("source_url")) for x in discovered if x.get("source_url")}
+    by_url = {
+        str(x.get("source_url")): x for x in existing
+        if x.get("source_url") and not (
+            x.get("source_kind") == "mostaql_business_filter" and str(x.get("source_url")) not in current
+        )
+    }
     for item in discovered:
         key = str(item.get("source_url"))
         if key: by_url[key] = {**by_url.get(key, {}), **item}
