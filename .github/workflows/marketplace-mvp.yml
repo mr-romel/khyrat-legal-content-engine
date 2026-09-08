@@ -46,6 +46,9 @@ jobs:
   marketplace-mvp:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     env:
       PYTHONPATH: .:src
     steps:
@@ -80,4 +83,5 @@ jobs:
         with:
           path: marketplace_pages/
       - name: Deploy Marketplace dashboard to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
