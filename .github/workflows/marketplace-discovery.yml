@@ -11,6 +11,10 @@ on:
   schedule:
     - cron: '*/30 * * * *'
 
+concurrency:
+  group: marketplace-discovery
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -49,7 +53,9 @@ jobs:
 
           discovered = discover_mostaql(limit=10)
           merged = merge_discoveries(previous, discovered)
-          feed_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding='utf-8')
+          feed_changed = merged != previous
+          if feed_changed:
+              feed_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding='utf-8')
 
           state = load_state()
           opportunities = state.setdefault('opportunities', [])
@@ -98,11 +104,13 @@ jobs:
               by_url[url] = opportunity
               added += 1
 
-          save_state(state)
+          if discovered:
+              save_state(state)
           print(f'discovered_live={len(discovered)}')
           print(f'queue_added={added}')
           print(f'queue_refreshed={refreshed}')
           print(f'queue_total={len(opportunities)}')
+          print(f'feed_changed={feed_changed}')
           for item in discovered:
               print(f"LIVE {item['discovery_score']:>3} {item['title']} -> {item['source_url']}")
           PY
@@ -115,6 +123,7 @@ jobs:
             echo 'No discovery changes.'
           else
             git commit -m 'chore: refresh and sync live Mostaql opportunity feed'
+            git pull --rebase origin main
             git push
           fi
       - name: Upload discovery feed
