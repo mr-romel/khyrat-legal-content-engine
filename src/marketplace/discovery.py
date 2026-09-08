@@ -53,7 +53,7 @@ def _is_project_url(href: str) -> bool:
     if path == "/project/create":
         return False
     # Mostaql slugs are commonly percent-encoded Arabic, so ASCII-only matching is invalid.
-    return bool(re.fullmatch(r"/project/[^/?#\\s<>\"']+", path, re.I))
+    return bool(re.fullmatch(r"/project/[^/?#\s<>\"']+", path, re.I))
 
 
 def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
@@ -87,7 +87,7 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     )
     # Do not assume an ASCII slug: Arabic project titles are percent-encoded in real URLs.
     url_pattern = re.compile(
-        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\\s<>"\']+)',
+        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\s<>"\']+)',
         re.I,
     )
 
@@ -135,7 +135,7 @@ def _looks_like_business_response(body: str) -> bool:
     if not body or len(body) < 300:
         return False
     normalized = body.lower()
-    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[^/?#\\s<>\"']+", body, re.I))
+    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[^/?#\s<>\"']+", body, re.I))
 
 
 def _get(url: str, timeout: int) -> str:
@@ -179,6 +179,25 @@ def _project_is_open_text(text: str) -> bool:
     return not any(term in normalized for term in closed_terms)
 
 
+def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> bool:
+    """Compatibility wrapper used by tests and the legacy validation API."""
+    body = page if page is not None else _fetch_project_page(url, timeout)
+    return bool(body) and _project_is_open_text(body)
+
+
+def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
+    """Keep only projects whose individual Mostaql pages resolve and are open."""
+    valid: list[dict[str, Any]] = []
+    for item in projects:
+        if len(valid) >= limit:
+            break
+        url = str(item.get("source_url", ""))
+        page = _fetch_project_page(url, timeout)
+        if _project_is_open(url, page, timeout):
+            valid.append({**item, "live": True})
+    return valid
+
+
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
     """Discover legal opportunities exclusively from the canonical Business filter."""
     _ = url
@@ -189,7 +208,7 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
 
     def inspect(item: dict[str, Any]) -> dict[str, Any] | None:
         page = _fetch_project_page(str(item["source_url"]), min(timeout, 8))
-        if not page or not _project_is_open_text(page):
+        if not page or not _project_is_open(str(item["source_url"]), page):
             return None
         clean_page = _clean(page)
         title = item["title"]
