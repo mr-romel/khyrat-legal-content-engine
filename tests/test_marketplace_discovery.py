@@ -1,4 +1,10 @@
-from marketplace.discovery import merge_discoveries, parse_projects, validate_live_projects
+from marketplace.discovery import (
+    _extract_project_content,
+    _legal_score,
+    merge_discoveries,
+    parse_projects,
+    validate_live_projects,
+)
 
 
 def test_parse_public_mostaql_projects_and_filter_legal():
@@ -45,3 +51,32 @@ def test_validate_live_projects_keeps_only_open_resolvable(monkeypatch):
     assert len(result) == 1
     assert result[0]["source_url"].endswith("/open")
     assert result[0]["live"] is True
+
+
+def test_extract_project_content_excludes_platform_chrome():
+    page = """# مراجعة عقد عمل
+
+تسجيل الدخول
+
+تفاصيل المشروع
+
+أحتاج مراجعة عقد عمل وصياغة التعديلات القانونية المطلوبة.
+
+المهارات المطلوبة
+
+كتابة محتوى
+
+الميزانية
+
+$25 - $50
+"""
+    title, description = _extract_project_content(page, "fallback")
+    assert title == "مراجعة عقد عمل"
+    assert "مراجعة عقد" in description
+    assert "تسجيل الدخول" not in description
+    assert "الميزانية" not in description
+
+
+def test_legal_score_does_not_match_generic_platform_text():
+    assert _legal_score("محاسبة متجر", "تسجيل الدخول مستقل إنشاء حساب الميزانية") == 0
+    assert _legal_score("مراجعة عقد شركة", "أحتاج مراجعة عقد وصياغة تعديلات") >= 70
