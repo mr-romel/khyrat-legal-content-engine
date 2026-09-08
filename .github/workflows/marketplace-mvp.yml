@@ -25,6 +25,10 @@ on:
       - 'tests/test_marketplace_discovery.py'
       - '.github/workflows/marketplace-mvp.yml'
 
+concurrency:
+  group: marketplace-mvp
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
