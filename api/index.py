@@ -22,6 +22,7 @@ from marketplace_mvp import load_state as local_load_state, save_state as local_
 
 USE_D1 = d1_configured()
 GEMINI_CONFIGURED = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+HANDLED_STATUSES = {"SUBMITTED", "IGNORED", "REJECTED"}
 
 
 def _load_state():
@@ -37,10 +38,7 @@ server.save_state = _save_state
 
 
 def _response(handler: BaseHTTPRequestHandler, status: int, payload, content_type="application/json; charset=utf-8"):
-    body = payload if isinstance(payload, bytes) else (
-        json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        if not isinstance(payload, str) else payload.encode("utf-8")
-    )
+    body = payload if isinstance(payload, bytes) else (json.dumps(payload, ensure_ascii=False).encode("utf-8") if not isinstance(payload, str) else payload.encode("utf-8"))
     handler.send_response(status)
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(body)))
@@ -55,6 +53,25 @@ def _state_with_assets():
     if any(changed.values()):
         _save_state(state)
     return state
+
+
+def _status(item: dict) -> str:
+    return str(item.get("lifecycle", item.get("status", "NEW"))).upper()
+
+
+def _mark_opportunity(state: dict, opportunity_id: str, status: str) -> dict:
+    if status not in HANDLED_STATUSES:
+        raise ValueError("الحالة غير مدعومة")
+    item = next((x for x in state.get("opportunities", []) if str(x.get("id")) == opportunity_id), None)
+    if not item:
+        raise ValueError("الفرصة غير موجودة")
+    item["status"] = item["lifecycle"] = status
+    item["handled_at"] = server._now()
+    labels = {"SUBMITTED": "تم التقديم على فرصة مستقل", "IGNORED": "تم تجاهل فرصة مستقل", "REJECTED": "تم تسجيل رفض فرصة مستقل"}
+    state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"{labels[status]}: {item.get('title', '')}"})
+    state["activity"] = state["activity"][:100]
+    _save_state(state)
+    return item
 
 
 class handler(BaseHTTPRequestHandler):
@@ -73,7 +90,8 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in {"/api/action", "/api/opportunity", "/api/mostaql/sync", "/api/mostaql/offer", "/api/khamsat/image"}:
+        allowed = {"/api/action", "/api/opportunity", "/api/mostaql/sync", "/api/mostaql/offer", "/api/khamsat/image", "/api/marketplace/opportunity-status"}
+        if path not in allowed:
             return _response(self, 404, {"ok": False, "error": "not_found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -81,6 +99,10 @@ class handler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8"))
             if not isinstance(payload, dict):
                 raise ValueError("JSON body must be an object")
+
+            if path == "/api/marketplace/opportunity-status":
+                item = _mark_opportunity(_load_state(), str(payload.get("id", "")).strip(), str(payload.get("status", "")).upper())
+                return _response(self, 200, {"ok": True, "opportunity": item})
 
             if path == "/api/action":
                 ok, message = server.handle_action(payload)
@@ -92,9 +114,16 @@ class handler(BaseHTTPRequestHandler):
                 state = _load_state()
                 added = 0
                 updated = 0
+                skipped = 0
                 for project in projects:
+                    title = project["title"]
+                    description = project["description"]
+                    existing = next((x for x in state.get("opportunities", []) if str(x.get("platform", "mostaql")).lower() == "mostaql" and x.get("title", "").strip().lower() == title.strip().lower()), None)
+                    if existing and _status(existing) in HANDLED_STATUSES:
+                        skipped += 1
+                        continue
                     before = len(state.get("opportunities", []))
-                    item = ingest_mostaql_opportunity(state, project["title"], project["description"], project["source_url"])
+                    item = ingest_mostaql_opportunity(state, title, description, project["source_url"])
                     item["match_score"] = project["match_score"]
                     item["acquisition_score"] = project["acquisition_score"]
                     item["rationale"] = project["rationale"]
@@ -103,10 +132,10 @@ class handler(BaseHTTPRequestHandler):
                         added += 1
                     else:
                         updated += 1
-                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"تم سحب {len(projects)} فرصة قانونية من مستقل — جديد {added} / محدث {updated}"})
+                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"تم سحب {len(projects)} فرصة من مستقل — جديد {added} / محدث {updated} / مستبعد {skipped}"})
                 state["activity"] = state["activity"][:100]
                 _save_state(state)
-                return _response(self, 200, {"ok": True, "message": f"تم سحب {len(projects)} فرصة قانونية من مستقل — جديد {added}، محدث {updated}", "projects": projects})
+                return _response(self, 200, {"ok": True, "message": f"تم سحب {len(projects)} فرصة — جديد {added}، محدث {updated}، مستبعد {skipped}", "projects": projects, "skipped": skipped})
 
             if path == "/api/mostaql/offer":
                 if not GEMINI_CONFIGURED:
@@ -143,13 +172,11 @@ class handler(BaseHTTPRequestHandler):
             source_url = str(payload.get("source_url", "")).strip()
             if not title or not description:
                 raise ValueError("العنوان والوصف مطلوبان")
-            price = int(payload.get("price_usd", 5))
-            days = int(payload.get("days", 3))
+            price = int(payload.get("price_usd", 5)); days = int(payload.get("days", 3))
             if price < 5 or price % 5:
                 raise ValueError("سعر مستقل يجب أن يكون 5$ أو مضاعفاته")
             if days < 1:
                 raise ValueError("المدة يجب أن تكون يومًا واحدًا على الأقل")
-
             state = _load_state()
             item = server.ingest_mostaql_opportunity(state, title, description, source_url)
             item["suggested_price_usd"] = price
