@@ -31,6 +31,10 @@ STOP_HEADINGS = (
     "عدد العروض", "العروض", "الأسئلة", "الأسئلة الشائعة", "عن صاحب المشروع",
     "مشاريع أخرى", "تسجيل الدخول", "إنشاء حساب",
 )
+ERROR_MARKERS = (
+    "403 forbidden", "401 unauthorized", "404 not found", "429 too many requests",
+    "access denied", "request blocked", "captcha", "cloudflare", "service unavailable",
+)
 
 
 def _clean(value: str) -> str:
@@ -151,12 +155,22 @@ def _looks_like_business_response(body: str) -> bool:
     )
 
 
+def _looks_like_error_page(body: str) -> bool:
+    if not body:
+        return True
+    normalized = _clean(body[:12000]).lower()
+    return any(marker in normalized for marker in ERROR_MARKERS)
+
+
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.2)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.3)"
         })
-        return response.text if response.ok else ""
+        if not response.ok:
+            return ""
+        body = response.text
+        return "" if _looks_like_error_page(body) else body
     except requests.RequestException:
         return ""
 
@@ -178,14 +192,14 @@ def _fetch_business_page(timeout: int) -> str:
 def _fetch_project_page(url: str, timeout: int) -> str:
     for transport in (_reader_url(url), _translate_url(url), _agentsweb_url(url)):
         body = _get(transport, timeout)
-        if body and ("mostaql" in body.lower() or "مستقل" in body.lower()):
+        if body and not _looks_like_error_page(body) and ("mostaql" in body.lower() or "مستقل" in body.lower()):
             return body
     return ""
 
 
 def _project_is_open_text(text: str) -> bool:
     normalized = _clean(unescape(text)).lower()
-    if not normalized:
+    if not normalized or _looks_like_error_page(normalized):
         return False
     closed_terms = (
         "حالة المشروع مغلق", "المشروع مغلق", "حالة المشروع: مغلق", "حالة المشروع منتهي",
@@ -200,51 +214,55 @@ def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> boo
     return bool(body) and _project_is_open_text(body)
 
 
-def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
-    """Keep only projects whose individual Mostaql pages resolve and are open."""
-    valid: list[dict[str, Any]] = []
-    for item in projects:
-        if len(valid) >= limit:
-            break
-        url = str(item.get("source_url", ""))
-        if _project_is_open(url, timeout=timeout):
-            valid.append({**item, "live": True})
-    return valid
+def _is_noise_title(title: str) -> bool:
+    normalized = _clean(title).lower()
+    noise = (
+        "var ishomepage", "title:", "403 forbidden", "404 not found", "401 unauthorized",
+        "mostaql", "مستقل", "تسجيل الدخول", "إنشاء حساب", "access denied",
+    )
+    return len(normalized) < 4 or any(marker in normalized for marker in noise)
 
 
 def _extract_project_content(page: str, fallback_title: str) -> tuple[str, str]:
-    """Extract the project title and details, excluding Mostaql navigation/chrome."""
+    """Extract project details while excluding Mostaql navigation/chrome."""
     raw = unescape(page).replace("\\/", "/")
     lines = [_clean(line) for line in raw.splitlines()]
     lines = [line for line in lines if line]
     title = _clean(fallback_title)[:180]
-    for line in lines[:80]:
+
+    for line in lines[:100]:
         heading = re.sub(r"^#{1,6}\s*", "", line).strip()
-        if 4 <= len(heading) <= 180 and not any(token in heading.lower() for token in ("مستقل", "mostaql", "تسجيل", "دخول")):
-            if not heading.startswith(("http://", "https://")):
+        if not _is_noise_title(heading) and 4 <= len(heading) <= 180:
+            # Prefer a line containing a project-like legal/business phrase over boilerplate.
+            if _legal_score(heading, "") > 0 or len(heading.split()) >= 4:
                 title = heading
                 break
 
+    detail_heads = {h.rstrip(":").strip().lower() for h in DETAIL_HEADINGS}
+    stop_heads = {h.rstrip(":").strip().lower() for h in STOP_HEADINGS}
     start = None
     for index, line in enumerate(lines):
         normalized = line.rstrip(":").strip().lower()
-        if normalized in {h.rstrip(":").strip().lower() for h in DETAIL_HEADINGS}:
+        if normalized in detail_heads:
             start = index + 1
             break
+
     if start is None:
-        # Jina sometimes omits the heading but keeps the project title followed by body.
         start = 1 if lines else 0
 
     body_lines: list[str] = []
     for line in lines[start:]:
         normalized = line.rstrip(":").strip().lower()
-        if normalized in {h.rstrip(":").strip().lower() for h in STOP_HEADINGS}:
+        if normalized in stop_heads:
             break
+        if _is_noise_title(line):
+            continue
         if re.fullmatch(r"[-*_]{3,}", line):
             continue
         body_lines.append(line)
         if sum(len(x) for x in body_lines) >= 5000:
             break
+
     description = _clean(" ".join(body_lines))[:4000]
     return title, description
 
@@ -261,14 +279,17 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         page = _fetch_project_page(str(item["source_url"]), min(timeout, 8))
         if not page or not _project_is_open(str(item["source_url"]), page):
             return None
-        title, description = _extract_project_content(page, item.get("title", ""))
+        extracted_title, description = _extract_project_content(page, item.get("title", ""))
+        title = item.get("title", "") if _is_noise_title(extracted_title) else extracted_title
         score = _legal_score(title, description)
+        # A legal title from the Business filter is authoritative enough to survive a thin details page;
+        # unrelated projects must still have a legal-specific title or substantive legal details.
         if score < 24:
             return None
         return {
             **item,
-            "title": title,
-            "description": description or title,
+            "title": _clean(title)[:180],
+            "description": description or _clean(title),
             "discovery_score": score,
             "live": True,
             "source_filter": BUSINESS_FILTER_URL,
