@@ -51,14 +51,7 @@ def _legal_score(title: str, description: str) -> int:
     return min(100, 20 + strong * 12 + normal * 4)
 
 
-def _add(
-    results: list[dict[str, Any]],
-    seen: set[str],
-    href: str,
-    title: str,
-    description: str,
-    limit: int,
-) -> None:
+def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, description: str, limit: int) -> None:
     if len(results) >= limit or href in seen or "/project/create" in href:
         return
     title = _clean(title)[:180]
@@ -69,39 +62,23 @@ def _add(
     if score < 24:
         return
     seen.add(href)
-    results.append({
-        "platform": "mostaql",
-        "title": title,
-        "description": description or title,
-        "source_url": href,
-        "discovery_score": score,
-    })
+    results.append({"platform": "mostaql", "title": title, "description": description or title, "source_url": href, "discovery_score": score})
 
 
 def parse_projects(text: str, limit: int = 40) -> list[dict[str, Any]]:
-    """Parse public project links from Mostaql pages/search results."""
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    html_pattern = re.compile(
-        r'<a[^>]+href=["\'](?P<href>/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>',
-        re.I | re.S,
-    )
-    matches = list(html_pattern.finditer(text))
-    for index, match in enumerate(matches):
+    html_pattern = re.compile(r'<a[^>]+href=["\'](?P<href>/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S)
+    for match in html_pattern.finditer(text):
         body = _clean(match.group("body"))
         href = urljoin(BASE_URL, match.group("href"))
         context = text[max(0, match.start() - 2500):min(len(text), match.end() + 3500)]
         _add(results, seen, href, body, context, limit)
         if len(results) >= limit:
             return results
-    md_pattern = re.compile(
-        r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I
-    )
+    md_pattern = re.compile(r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I)
     for match in md_pattern.finditer(text):
-        href = match.group("href")
-        title = match.group("title")
-        context = text[max(0, match.start() - 2500):match.end() + 3500]
-        _add(results, seen, href, title, context, limit)
+        _add(results, seen, match.group("href"), match.group("title"), text[max(0, match.start() - 2500):match.end() + 3500], limit)
         if len(results) >= limit:
             break
     return results[:limit]
@@ -111,9 +88,7 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     for term in SEARCH_TERMS:
-        url = "https://www.bing.com/search?format=rss&q=" + quote_plus(
-            f"site:mostaql.com/project {term}"
-        )
+        url = "https://www.bing.com/search?format=rss&q=" + quote_plus(f"site:mostaql.com/project {term}")
         try:
             response = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
         except requests.RequestException:
@@ -126,11 +101,9 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
             continue
         for item in root.findall(".//item"):
             link = (item.findtext("link") or "").strip()
-            title = (item.findtext("title") or "").strip()
-            description = (item.findtext("description") or "").strip()
             if "/project/" not in link:
                 continue
-            _add(results, seen, link, title, description, limit)
+            _add(results, seen, link, (item.findtext("title") or "").strip(), (item.findtext("description") or "").strip(), limit)
             if len(results) >= limit:
                 return results
     return results
@@ -141,11 +114,7 @@ def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for skill_url in LEGAL_SKILL_URLS:
         try:
-            response = requests.get(
-                skill_url,
-                timeout=timeout,
-                headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"},
-            )
+            response = requests.get(skill_url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"})
         except requests.RequestException:
             continue
         if not response.ok:
@@ -161,7 +130,7 @@ def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
 
 
 def _project_is_open(url: str, timeout: int) -> bool:
-    """Reject stale/closed projects before they reach the operator dashboard."""
+    """Reject stale/closed projects while tolerating reader formatting changes."""
     reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
     try:
         response = requests.get(reader_url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
@@ -169,23 +138,27 @@ def _project_is_open(url: str, timeout: int) -> bool:
         return False
     if not response.ok:
         return False
-    text = _clean(response.text)
-    open_markers = (
-        "حالة المشروع مفتوح",
-        "حالة المشروع\nمفتوح",
-        "حالة المشروع: مفتوح",
-        "حالة المشروع مفتوح الآن",
+    raw = unescape(response.text)
+    normalized = _clean(raw).lower()
+    # Jina can render the same field as Arabic, English, with punctuation,
+    # or with Markdown/newline separators. Check the local status field rather
+    # than requiring one exact string.
+    status_patterns = (
+        r"حالة\s*المشروع\s*[:：-]?\s*مفتوح(?:\s|$)",
+        r"حالة\s*المشروع.{0,80}\bمفتوح\b",
+        r"project\s*status\s*[:：-]?\s*open(?:\s|$)",
+        r"status.{0,50}\bopen\b",
     )
-    if any(marker in text for marker in open_markers):
+    if any(re.search(pattern, normalized, re.I | re.S) for pattern in status_patterns):
         return True
-    status = re.search(r"حالة المشروع\s*[:：-]?\s*(مفتوح)", text, re.I)
-    return bool(status)
+    # Some reader responses expose the status as a standalone badge.
+    standalone = re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])", normalized, re.I | re.M)
+    if standalone:
+        return True
+    return False
 
 
-def validate_live_projects(
-    projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8
-) -> list[dict[str, Any]]:
-    """Keep only public project URLs that resolve and still report as open."""
+def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
     valid: list[dict[str, Any]] = []
     for item in projects:
         if len(valid) >= limit:
