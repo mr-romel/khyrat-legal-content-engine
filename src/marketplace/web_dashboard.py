@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import html
-import json
 from typing import Any
 
 
@@ -18,12 +17,12 @@ def render(state: dict[str, Any]) -> str:
     for service in services:
         sid = _e(service.get("id"))
         image = service.get("image_data_url", "")
-        image_html = f'<img class="cover" src="{_e(image)}" alt="صورة { _e(service.get("title")) }">' if image else '<div class="cover empty">لم يتم توليد الصورة بعد</div>'
+        image_html = f'<img id="image-{sid}" class="cover" src="{_e(image)}" alt="صورة الخدمة">' if image else f'<div id="image-{sid}" class="cover empty">لم يتم توليد الصورة بعد</div>'
         service_cards.append(f'''<article class="card">
 {image_html}<h3>{_e(service.get("title"))}</h3><p>{_e(service.get("description"))}</p>
 <ul>{''.join(f'<li>{_e(x)}</li>' for x in service.get('deliverables', []))}</ul>
 <div class="chips">{''.join(f'<span>{_e(x)}</span>' for x in service.get('keywords', [])[:6])}</div>
-<div class="actions"><button onclick="genImage('{sid}')">{ 'تحديث الصورة' if image else 'توليد صورة جاهزة' }</button></div>
+<div class="actions"><button onclick="genImage('{sid}')">توليد/تحديث صورة جاهزة</button><a id="download-{sid}" class="open" style="display:none" download="khyrat-khamsat-service.jpg">تحميل الصورة</a></div>
 </article>''')
 
     opp_cards = []
@@ -50,6 +49,6 @@ const msg=t=>{{const e=document.getElementById('msg');e.textContent=t;e.style.di
 async function post(path,payload){{const r=await fetch(path,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload||{{}})}});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||d.message||'حدث خطأ');return d}}
 async function syncMostaql(){{msg('جاري سحب وتحليل فرص مستقل...');try{{const d=await post('/api/mostaql/sync',{{limit:12}});msg(d.message);setTimeout(()=>location.reload(),700)}}catch(e){{msg(e.message)}}}}
 async function genOffer(id){{msg('Gemini يدرس المشروع ويكتب عرضًا مخصصًا...');try{{const d=await post('/api/mostaql/offer',{{id}});document.getElementById('offer-'+id).value=d.offer;msg('تم توليد العرض المهني للمشروع')}}catch(e){{msg(e.message)}}}}
-async function genImage(id){{msg('Gemini يولد صورة الخدمة...');try{{const d=await post('/api/khamsat/image',{{id}});location.reload();msg('تم توليد صورة الخدمة')}}catch(e){{msg(e.message)}}}}
+async function genImage(id){{msg('Gemini يولد صورة الخدمة...');try{{const d=await post('/api/khamsat/image',{{id}});const box=document.getElementById('image-'+id);box.outerHTML='<img id="image-'+id+'" class="cover" src="'+d.image_data_url+'" alt="صورة الخدمة">';const link=document.getElementById('download-'+id);link.href=d.image_data_url;link.style.display='inline-block';msg('تم توليد الصورة — يمكنك تحميلها ورفعها إلى خمسات')}}catch(e){{msg(e.message)}}}}
 async function copyText(id){{const t=document.getElementById(id);await navigator.clipboard.writeText(t.value);msg('تم نسخ العرض')}}
 </script></body></html>'''
