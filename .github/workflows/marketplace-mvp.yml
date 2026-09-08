@@ -78,6 +78,7 @@ jobs:
           name: khyrat-marketplace-dashboard
           path: marketplace_data/
           if-no-files-found: error
+      # A fresh workflow run must contain exactly one Pages artifact.
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
