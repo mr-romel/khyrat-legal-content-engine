@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from marketplace.discovery import merge_discoveries
 from marketplace_mvp import load_state, save_state
 from marketplace.pipeline import ingest_mostaql_opportunity
-from marketplace.pro_dashboard import main
+from marketplace.pro_dashboard_content import main
 
 FEED_URL = "https://raw.githubusercontent.com/mr-romel/khyrat-legal-content-engine/main/marketplace_data/discovered_opportunities.json"
 INTERVAL_SECONDS = 600
@@ -75,7 +75,6 @@ def _open_browser() -> None:
 
 
 def start() -> None:
-    # Never block dashboard startup on network discovery.
     threading.Thread(target=_background_sync, daemon=True, name="marketplace-discovery").start()
     threading.Thread(target=_open_browser, daemon=True, name="marketplace-browser").start()
     print(f"[marketplace] dashboard: {DASHBOARD_URL}", flush=True)
