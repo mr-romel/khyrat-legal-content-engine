@@ -10,19 +10,29 @@ import xml.etree.ElementTree as ET
 import requests
 
 BASE_URL = "https://mostaql.com/projects"
-READER_URL = "https://r.jina.ai/https://mostaql.com/projects"
+LEGAL_SKILL_URLS = (
+    "https://mostaql.com/projects/skill/legal",
+    "https://mostaql.com/projects/skill/contracts",
+    "https://mostaql.com/projects/skill/legal-writing",
+)
+READER_URL = "https://r.jina.ai/https://mostaql.com/projects/skill/legal"
 SEARCH_TERMS = (
     "استشارة قانونية", "صياغة عقد", "مراجعة عقد", "محامي", "محاماة",
-    "عقد", "عقود", "اتفاقية", "قانوني", "لائحة قانونية",
+    "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "كتابة قانونية",
+    "مذكرة قانونية", "بحث قانوني", "قانون العمل", "شؤون قانونية",
+    "شروط الاستخدام", "سياسة الخصوصية", "شروط وأحكام", "نزاع تجاري",
 )
 LEGAL_TERMS = (
     "محامي", "محاماة", "قانون", "قانوني", "قانونية", "عقد", "عقود",
-    "صياغة", "مراجعة", "استشارة", "اتفاقية", "لائحة", "سياسة",
-    "نزاع", "تجاري", "قضية", "بحث قانوني", "عمل", "عمال",
+    "صياغة", "مراجعة", "استشارة", "استشارات", "اتفاقية", "اتفاقيات",
+    "لائحة", "سياسة", "شروط الاستخدام", "شروط وأحكام", "خصوصية",
+    "نزاع", "تجاري", "شركة", "شركات", "قضية", "بحث قانوني", "مذكرة",
+    "عمل", "عمال", "وظائف", "امتثال", "حوكمة", "تجارة إلكترونية",
 )
 STRONG_TERMS = (
     "محامي", "محاماة", "استشارة قانونية", "صياغة عقد", "مراجعة عقد",
-    "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "لائحة قانونية",
+    "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "مذكرة قانونية",
+    "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية",
 )
 
 
@@ -53,7 +63,7 @@ def _add(
         return
     title = _clean(title)[:180]
     description = _clean(description)[:4000]
-    if not title or not description or len(title) < 4:
+    if not title or len(title) < 4:
         return
     score = _legal_score(title, description)
     if score < 24:
@@ -62,32 +72,38 @@ def _add(
     results.append({
         "platform": "mostaql",
         "title": title,
-        "description": description,
+        "description": description or title,
         "source_url": href,
         "discovery_score": score,
     })
 
 
 def parse_projects(text: str, limit: int = 40) -> list[dict[str, Any]]:
-    """Parse project cards/links while ignoring surrounding page chrome."""
+    """Parse public project links from Mostaql pages/search results."""
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     html_pattern = re.compile(
         r'<a[^>]+href=["\'](?P<href>/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>',
         re.I | re.S,
     )
-    for match in html_pattern.finditer(text):
+    matches = list(html_pattern.finditer(text))
+    for index, match in enumerate(matches):
         body = _clean(match.group("body"))
         href = urljoin(BASE_URL, match.group("href"))
-        _add(results, seen, href, body, body, limit)
+        context = text[max(0, match.start() - 2500):min(len(text), match.end() + 3500)]
+        _add(results, seen, href, body, context, limit)
+        if len(results) >= limit:
+            return results
     md_pattern = re.compile(
         r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I
     )
     for match in md_pattern.finditer(text):
         href = match.group("href")
         title = match.group("title")
-        context = text[max(0, match.start() - 1800):match.end() + 1800]
+        context = text[max(0, match.start() - 2500):match.end() + 3500]
         _add(results, seen, href, title, context, limit)
+        if len(results) >= limit:
+            break
     return results[:limit]
 
 
@@ -98,7 +114,10 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
         url = "https://www.bing.com/search?format=rss&q=" + quote_plus(
             f"site:mostaql.com/project {term}"
         )
-        response = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+        try:
+            response = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+        except requests.RequestException:
+            continue
         if not response.ok:
             continue
         try:
@@ -117,6 +136,30 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     return results
 
 
+def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for skill_url in LEGAL_SKILL_URLS:
+        try:
+            response = requests.get(
+                skill_url,
+                timeout=timeout,
+                headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"},
+            )
+        except requests.RequestException:
+            continue
+        if not response.ok:
+            continue
+        for item in parse_projects(response.text, limit=limit):
+            href = str(item.get("source_url", ""))
+            if href and href not in seen:
+                seen.add(href)
+                results.append(item)
+                if len(results) >= limit:
+                    return results
+    return results
+
+
 def _project_is_open(url: str, timeout: int) -> bool:
     """Reject stale/closed projects before they reach the operator dashboard."""
     reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
@@ -127,8 +170,16 @@ def _project_is_open(url: str, timeout: int) -> bool:
     if not response.ok:
         return False
     text = _clean(response.text)
-    status = re.search(r"حالة المشروع\s*(مفتوح|مغلق|مكتمل|ملغي|قيد التنفيذ)", text, re.I)
-    return bool(status and status.group(1) == "مفتوح")
+    open_markers = (
+        "حالة المشروع مفتوح",
+        "حالة المشروع\nمفتوح",
+        "حالة المشروع: مفتوح",
+        "حالة المشروع مفتوح الآن",
+    )
+    if any(marker in text for marker in open_markers):
+        return True
+    status = re.search(r"حالة المشروع\s*[:：-]?\s*(مفتوح)", text, re.I)
+    return bool(status)
 
 
 def validate_live_projects(
@@ -146,16 +197,18 @@ def validate_live_projects(
 
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
-    """Discover legal projects and return only currently open, resolvable URLs."""
-    candidates = _bing_projects(max(limit * 3, 20), timeout)
+    """Discover currently open legal projects from public Mostaql sources."""
+    candidates = _official_skill_projects(max(limit * 3, 30), timeout)
     if not candidates:
-        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/2.0"})
+        candidates = _bing_projects(max(limit * 4, 30), timeout)
+    if not candidates:
+        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/3.0"})
         if response.ok:
-            candidates = parse_projects(response.text, limit=max(limit * 3, 20))
-        if not candidates:
-            reader = requests.get(READER_URL, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-            if reader.ok:
-                candidates = parse_projects(reader.text, limit=max(limit * 3, 20))
+            candidates = parse_projects(response.text, limit=max(limit * 4, 30))
+    if not candidates:
+        reader = requests.get(READER_URL, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+        if reader.ok:
+            candidates = parse_projects(reader.text, limit=max(limit * 4, 30))
     return validate_live_projects(candidates, limit=limit, timeout=min(timeout, 8))
 
 
