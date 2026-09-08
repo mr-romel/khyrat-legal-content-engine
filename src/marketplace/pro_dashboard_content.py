@@ -1,11 +1,13 @@
 """Marketplace dashboard content layer.
 
-Adds editable/copy-ready Khamsat service and Mostaql portfolio assets without
-changing the existing Marketplace workflow or platform-account behavior.
+Adds copy-ready Khamsat service and Mostaql portfolio assets while reusing the
+existing Marketplace HTTP/action layer unchanged.
 """
 from __future__ import annotations
 
 from marketplace import pro_dashboard as legacy
+
+_ORIGINAL_RENDER = legacy.render
 
 KHAMSAT_SERVICE = {
     "title": "سأراجع عقدك قانونيًا وأحدد المخاطر والبنود التي تحتاج تعديل مع تقديم الصياغة البديلة",
@@ -111,7 +113,6 @@ def _box(title: str, body: str, ident: str) -> str:
 
 
 def _assets_panel() -> str:
-    e = legacy.e
     svc = (
         f"العنوان:\n{KHAMSAT_SERVICE['title']}\n\n"
         f"التصنيف:\n{KHAMSAT_SERVICE['category']}\n\n"
@@ -122,14 +123,11 @@ def _assets_panel() -> str:
         f"تطوير 3:\n{KHAMSAT_SERVICE['upgrade_3']}\n\n"
         f"الصورة المصغرة:\n{KHAMSAT_SERVICE['thumbnail']}"
     )
-    portfolio = "\n\n".join(
-        f"{i+1}. {x['title']}\n{x['summary']}\n\n{x['body']}" for i, x in enumerate(PORTFOLIO)
-    )
-    thumb = KHAMSAT_SERVICE["thumbnail"]
     boxes = _box("خمسات — الخدمة الجاهزة للنسخ", svc, "khamsat-service")
-    boxes += _box("خمسات — نص الصورة المصغرة / Brief", thumb, "khamsat-thumbnail")
+    boxes += _box("خمسات — نص الصورة المصغرة / Brief", KHAMSAT_SERVICE["thumbnail"], "khamsat-thumbnail")
     for i, item in enumerate(PORTFOLIO, 1):
-        boxes += _box(f"مستقل — Portfolio #{i}: {item['title']}", f"العنوان:\n{item['title']}\n\nالوصف المختصر:\n{item['summary']}\n\nCase Study:\n{item['body']}", f"portfolio-{i}")
+        body = f"العنوان:\n{item['title']}\n\nالوصف المختصر:\n{item['summary']}\n\nCase Study:\n{item['body']}"
+        boxes += _box(f"مستقل — Portfolio #{i}: {item['title']}", body, f"portfolio-{i}")
     return (
         '<section class="panel" id="marketplace-assets">'
         '<div class="head"><div><h2>أصول خمسات ومستقل — جاهزة للمراجعة والنسخ</h2>'
@@ -141,20 +139,17 @@ def _assets_panel() -> str:
 
 
 def render(s, mobile=False):
-    page = legacy.render(s, mobile)
+    page = _ORIGINAL_RENDER(s, mobile)
     if mobile:
         return page
     css = """<style>.asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.asset-box{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:12px}.asset-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.asset-head h3{font-size:14px;margin:0}.asset-text{min-height:220px;background:#fff}.asset-box .btn{white-space:nowrap}@media(max-width:760px){.asset-grid{grid-template-columns:1fr}}</style>"""
     js = """<script>async function copyAsset(id){const x=document.getElementById(id);try{await navigator.clipboard.writeText(x.value);alert('تم نسخ المحتوى بالكامل');}catch(e){x.focus();x.select();document.execCommand('copy');alert('تم نسخ المحتوى بالكامل');}}</script>"""
-    marker = '</main>'
-    if marker in page:
-        page = page.replace('</head>', css + '</head>', 1)
-        page = page.replace(marker, _assets_panel() + marker, 1)
-        page = page.replace('</script></body>', '</script>' + js + '</body>', 1)
+    page = page.replace('</head>', css + '</head>', 1)
+    page = page.replace('</main>', _assets_panel() + '</main>', 1)
+    page = page.replace('</script></body>', '</script>' + js + '</body>', 1)
     return page
 
 
-# Reuse the proven HTTP/action layer; only replace rendered desktop HTML.
 legacy.render = render
 main = legacy.main
 
