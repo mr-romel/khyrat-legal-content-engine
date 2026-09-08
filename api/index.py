@@ -12,9 +12,12 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from marketplace import server
-from marketplace_mvp import load_state as local_load_state, save_state as local_save_state
 from marketplace.cloud_state import configured as d1_configured
 from marketplace.cloud_state import load_state as d1_load_state, save_state as d1_save_state
+from marketplace.live import fetch_mostaql_projects, generate_case_specific_offer, generate_service_image, image_data_url
+from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportunity
+from marketplace.web_dashboard import render as render_live_dashboard
+from marketplace_mvp import load_state as local_load_state, save_state as local_save_state
 
 USE_D1 = d1_configured()
 
@@ -44,8 +47,12 @@ def _response(handler: BaseHTTPRequestHandler, status: int, payload, content_typ
     handler.wfile.write(body)
 
 
-def _state():
-    return _load_state()
+def _state_with_assets():
+    state = _load_state()
+    changed = ensure_initial_assets(state)
+    if any(changed.values()):
+        _save_state(state)
+    return state
 
 
 class handler(BaseHTTPRequestHandler):
@@ -53,18 +60,18 @@ class handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             if path == "/api/health":
-                return _response(self, 200, {"ok": True, "service": "khyrat-marketplace", "runtime": "vercel", "persistence": "d1" if USE_D1 else "local-fallback"})
+                return _response(self, 200, {"ok": True, "service": "khyrat-marketplace", "runtime": "vercel", "persistence": "d1" if USE_D1 else "local-fallback", "live_mostaql": True, "gemini_offers": True, "khamsat_images": True})
             if path == "/api/state":
-                return _response(self, 200, _state())
+                return _response(self, 200, _state_with_assets())
             if path == "/":
-                return _response(self, 200, server.render_dashboard(_state()), "text/html; charset=utf-8")
+                return _response(self, 200, render_live_dashboard(_state_with_assets()), "text/html; charset=utf-8")
             return _response(self, 404, {"ok": False, "error": "not_found"})
         except Exception as exc:
             return _response(self, 500, {"ok": False, "error": str(exc)})
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in {"/api/action", "/api/opportunity"}:
+        if path not in {"/api/action", "/api/opportunity", "/api/mostaql/sync", "/api/mostaql/offer", "/api/khamsat/image"}:
             return _response(self, 404, {"ok": False, "error": "not_found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -76,6 +83,51 @@ class handler(BaseHTTPRequestHandler):
             if path == "/api/action":
                 ok, message = server.handle_action(payload)
                 return _response(self, 200 if ok else 400, {"ok": ok, "message": message, "error": None if ok else message})
+
+            if path == "/api/mostaql/sync":
+                limit = int(payload.get("limit", 12) or 12)
+                projects = fetch_mostaql_projects(limit=limit)
+                state = _load_state()
+                added = 0
+                updated = 0
+                for project in projects:
+                    before = len(state.get("opportunities", []))
+                    item = ingest_mostaql_opportunity(state, project["title"], project["description"], project["source_url"])
+                    item["match_score"] = project["match_score"]
+                    item["acquisition_score"] = project["acquisition_score"]
+                    item["rationale"] = project["rationale"]
+                    item["ranking_reasons"] = project["rationale"]
+                    if len(state.get("opportunities", [])) > before:
+                        added += 1
+                    else:
+                        updated += 1
+                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"تم سحب {len(projects)} فرصة قانونية من مستقل — جديد {added} / محدث {updated}"})
+                state["activity"] = state["activity"][:100]
+                _save_state(state)
+                return _response(self, 200, {"ok": True, "message": f"تم سحب {len(projects)} فرصة قانونية من مستقل — جديد {added}، محدث {updated}", "projects": projects})
+
+            if path == "/api/mostaql/offer":
+                opportunity_id = str(payload.get("id", "")).strip()
+                state = _load_state()
+                item = next((x for x in state.get("opportunities", []) if str(x.get("id")) == opportunity_id), None)
+                if not item:
+                    raise ValueError("الفرصة غير موجودة")
+                offer = generate_case_specific_offer(item)
+                item["offer"] = offer
+                item["status"] = item["lifecycle"] = "OFFER_READY"
+                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"Gemini أعاد دراسة عرض: {item.get('title', '')}"})
+                state["activity"] = state["activity"][:100]
+                _save_state(state)
+                return _response(self, 200, {"ok": True, "offer": offer, "opportunity": item})
+
+            if path == "/api/khamsat/image":
+                service_id = str(payload.get("id", "")).strip()
+                state = _load_state()
+                service = next((x for x in state.get("services", []) if str(x.get("id")) == service_id), None)
+                if not service:
+                    raise ValueError("الخدمة غير موجودة")
+                image = generate_service_image(service)
+                return _response(self, 200, {"ok": True, "image_data_url": image_data_url(image), "width": 1700, "height": 970, "format": "JPEG", "service": service})
 
             title = str(payload.get("title", "")).strip()
             description = str(payload.get("description", "")).strip()
