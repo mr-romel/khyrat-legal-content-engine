@@ -12,9 +12,10 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from marketplace import server
+from marketplace.ai_media import generate_khamsat_image, generate_offer, image_data_url, offer_terms
 from marketplace.cloud_state import configured as d1_configured
 from marketplace.cloud_state import load_state as d1_load_state, save_state as d1_save_state
-from marketplace.live import fetch_mostaql_projects, generate_case_specific_offer, generate_service_image, image_data_url, offer_terms
+from marketplace.live import fetch_mostaql_projects
 from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportunity
 from marketplace.web_dashboard import render as render_live_dashboard
 from marketplace_mvp import load_state as local_load_state, save_state as local_save_state
@@ -118,7 +119,7 @@ class handler(BaseHTTPRequestHandler):
                 price, days = offer_terms(item)
                 item["suggested_price_usd"] = price
                 item["suggested_days"] = days
-                offer = generate_case_specific_offer(item)
+                offer = generate_offer(item)
                 item["offer"] = offer
                 item["status"] = item["lifecycle"] = "OFFER_READY"
                 state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"Gemini أعاد دراسة عرض: {item.get('title', '')} — ${price} / {days} أيام"})
@@ -134,7 +135,7 @@ class handler(BaseHTTPRequestHandler):
                 service = next((x for x in state.get("services", []) if str(x.get("id")) == service_id), None)
                 if not service:
                     raise ValueError("الخدمة غير موجودة")
-                image = generate_service_image(service)
+                image = generate_khamsat_image(service)
                 return _response(self, 200, {"ok": True, "image_data_url": image_data_url(image), "width": 1700, "height": 970, "format": "JPEG", "service": service})
 
             title = str(payload.get("title", "")).strip()
