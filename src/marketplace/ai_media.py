@@ -10,8 +10,8 @@ from typing import Any
 import requests
 from PIL import Image
 
-IMAGE_MODEL = "gemini-2.5-flash-image"
-TEXT_MODEL = "gemini-3.6-flash"
+IMAGE_MODEL = "gemini-3.1-flash-image"
+TEXT_MODEL = "gemini-3.8-flash"
 KHAMSAT_SIZE = (1700, 970)
 
 
@@ -61,6 +61,9 @@ def _client():
 
 
 def _interaction_text(response: Any) -> str:
+    direct = getattr(response, "output_text", None)
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
     for step in getattr(response, "steps", []) or []:
         if getattr(step, "type", "") != "model_output":
             continue
@@ -102,10 +105,7 @@ def generate_offer(opportunity: dict[str, Any]) -> str:
 لا تستخدم عنوانًا للعرض، ولا Markdown، ولا مقدمات محفوظة، واكتب العرض فقط.
 """
     try:
-        response = _client().interactions.create(
-            model=TEXT_MODEL,
-            input=prompt,
-        )
+        response = _client().interactions.create(model=TEXT_MODEL, input=prompt)
     except Exception as exc:
         raise RuntimeError(f"تعذر توليد عرض Gemini: {exc}") from exc
     text = _interaction_text(response)
@@ -122,6 +122,16 @@ def _inline_bytes(response) -> bytes | None:
             return data
         if isinstance(data, str):
             return base64.b64decode(data)
+    return None
+
+
+def _interaction_image_bytes(response: Any) -> bytes | None:
+    output_image = getattr(response, "output_image", None)
+    data = getattr(output_image, "data", None) if output_image else None
+    if isinstance(data, bytes):
+        return data
+    if isinstance(data, str) and data:
+        return base64.b64decode(data)
     return None
 
 
@@ -164,18 +174,24 @@ def generate_khamsat_image(service: dict[str, Any]) -> bytes:
 """
     raw: bytes | None = None
     try:
-        from google.genai import types
-        response = _client().models.generate_content(
-            model=IMAGE_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                response_format={"image": {"aspect_ratio": "16:9"}},
-            ),
-        )
-        raw = _inline_bytes(response)
+        response = _client().interactions.create(model=IMAGE_MODEL, input=prompt)
+        raw = _interaction_image_bytes(response)
     except Exception:
         raw = None
+    if not raw:
+        try:
+            from google.genai import types
+            response = _client().models.generate_content(
+                model=IMAGE_MODEL,
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    response_format={"image": {"aspect_ratio": "16:9"}},
+                ),
+            )
+            raw = _inline_bytes(response)
+        except Exception:
+            raw = None
     if not raw:
         raw = _rest_image(prompt, key)
 
