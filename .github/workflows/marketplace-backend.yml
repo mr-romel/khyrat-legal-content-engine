@@ -1,0 +1,34 @@
+name: Khyrat Marketplace Backend
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'api/**'
+      - 'src/marketplace/**'
+      - 'src/marketplace_mvp.py'
+      - 'requirements.txt'
+      - 'vercel.json'
+      - '.github/workflows/marketplace-backend.yml'
+
+concurrency:
+  group: marketplace-backend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Deploy API to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo 'VERCEL_TOKEN GitHub secret is missing'; exit 1; }
+          npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
