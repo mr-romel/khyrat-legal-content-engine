@@ -1,4 +1,4 @@
-"""Mostaql Business-filter discovery with a single canonical source boundary."""
+"""Mostaql Business-filter discovery with one canonical source boundary."""
 from __future__ import annotations
 
 import re
@@ -40,53 +40,72 @@ def _legal_score(title: str, description: str) -> int:
 
 def _canonical_url(href: str) -> str:
     href = urljoin(BASE_URL, unescape(href).replace("\\/", "/").strip())
-    return href.replace("https://www.mostaql.com/", "https://mostaql.com/").replace(
-        "http://mostaql.com/", "https://mostaql.com/"
-    )
+    parsed = urlsplit(href)
+    host = (parsed.hostname or "").lower()
+    if host not in {"mostaql.com", "www.mostaql.com"}:
+        return ""
+    path = parsed.path.rstrip("/")
+    return f"https://mostaql.com{path}" if path else ""
+
+
+def _is_project_url(href: str) -> bool:
+    parsed = urlsplit(href)
+    return bool(re.fullmatch(r"/project/[A-Za-z0-9][A-Za-z0-9_-]*", parsed.path.rstrip("/"))) and parsed.path.rstrip("/") != "/project/create"
 
 
 def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
          description: str, limit: int, *, official: bool = False) -> None:
     href = _canonical_url(href)
-    if (
-        len(results) >= limit or href in seen or href.rstrip("/") == BASE_URL
-        or not re.fullmatch(r"https://mostaql\.com/project/[A-Za-z0-9][A-Za-z0-9_-]*", href)
-    ):
+    if len(results) >= limit or not href or href in seen or not _is_project_url(href):
         return
     title, description = _clean(title)[:180], _clean(description)[:4000]
     if len(title) < 4:
-        return
+        title = href.rsplit("/", 1)[-1].replace("-", " ")
     score = _legal_score(title, description)
     if not official and score < 24:
         return
     if official and score < 24:
         score = 60
     seen.add(href)
-    results.append({"platform": "mostaql", "title": title, "description": description or title,
-                    "source_url": href, "discovery_score": score})
+    results.append({
+        "platform": "mostaql", "title": title, "description": description or title,
+        "source_url": href, "discovery_score": score,
+    })
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
-    """Parse only real /project/... links from the canonical Business response."""
+    """Extract real /project/... links from the canonical Business response."""
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    patterns = (
-        re.compile(r'<a[^>]+href=["\'](?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^"\']*)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S),
-        re.compile(r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^)]*)\)', re.I),
-        re.compile(r'https?://(?:www\.)?mostaql\.com/project/[A-Za-z0-9][^\s)<>"\']*|(?<![A-Za-z0-9])(/project/[A-Za-z0-9][^\s)<>"\']*)', re.I),
+
+    anchor_pattern = re.compile(
+        r'<a\b[^>]*?href=["\'](?P<href>[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S
     )
-    for index, pattern in enumerate(patterns):
-        for match in pattern.finditer(text):
-            groups = match.groupdict()
-            href = groups.get("href") or (match.group(0) if match.group(0).startswith("http") else match.group(1))
-            href = href.rstrip(".,;:)")
-            title = groups.get("title") if index == 1 else (
-                _clean(groups.get("body", "")) if index == 0 else href.rsplit("/", 1)[-1].replace("-", " ")
-            )
-            _add(results, seen, href, title, title, limit, official=official)
-            if len(results) >= limit:
-                return results
+    url_pattern = re.compile(
+        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][A-Za-z0-9_-]*(?:[/?#][^\s<>"\']*)?)',
+        re.I,
+    )
+
+    # First pass: normal HTML anchors, preserving their visible title.
+    for match in anchor_pattern.finditer(text):
+        href = _canonical_url(match.group("href"))
+        if not href or not _is_project_url(href):
+            continue
+        body = _clean(match.group("body"))
+        _add(results, seen, href, body, body, limit, official=official)
+        if len(results) >= limit:
+            return results
+
+    # Second pass: escaped/JSON/JS responses where links are not wrapped in anchors.
+    for match in url_pattern.finditer(text):
+        href = _canonical_url(match.group("href"))
+        if not href or not _is_project_url(href):
+            continue
+        slug = href.rsplit("/", 1)[-1].replace("-", " ")
+        _add(results, seen, href, slug, slug, limit, official=official)
+        if len(results) >= limit:
+            return results
     return results
 
 
@@ -98,8 +117,8 @@ def _translate_url(target: str) -> str:
     parts = urlsplit(target)
     path = quote(parts.path, safe="/:")
     query = quote(parts.query, safe="=&%")
-    suffix = f"?{query}" if query else ""
-    return f"https://mostaql-com.translate.goog{path}{suffix}&_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en"
+    suffix = f"?{query}&" if query else "?"
+    return f"https://mostaql-com.translate.goog{path}{suffix}_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en"
 
 
 def _agentsweb_url(target: str) -> str:
@@ -107,7 +126,6 @@ def _agentsweb_url(target: str) -> str:
 
 
 def _transport_urls(target: str) -> tuple[str, ...]:
-    """Transport alternatives; every URL still resolves the same Mostaql target."""
     return (target, _reader_url(target), _translate_url(target), _agentsweb_url(target))
 
 
@@ -121,7 +139,7 @@ def _looks_like_business_response(body: str) -> bool:
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/21.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/22.0)"
         })
         return response.text if response.ok else ""
     except requests.RequestException:
@@ -129,7 +147,7 @@ def _get(url: str, timeout: int) -> str:
 
 
 def _fetch_business_page(timeout: int) -> str:
-    """Fetch the canonical Business filter. No search engine or alternate category is used."""
+    """Fetch only the canonical Business filter; transports never change the source."""
     variants = (BUSINESS_FILTER_URL, BUSINESS_FILTER_URL + "?sort=latest", BUSINESS_FILTER_URL + "?page=1")
     for target in variants:
         for transport in _transport_urls(target):
@@ -140,7 +158,6 @@ def _fetch_business_page(timeout: int) -> str:
 
 
 def _fetch_project_page(url: str, timeout: int) -> str:
-    """Read a discovered project's own page for liveness/details only."""
     for transport in (_reader_url(url), _translate_url(url), _agentsweb_url(url)):
         body = _get(transport, timeout)
         if body and ("mostaql" in body.lower() or "مستقل" in body.lower()):
