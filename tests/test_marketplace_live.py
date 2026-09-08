@@ -20,6 +20,8 @@ def test_non_legal_project_is_not_marked_as_legal():
 
 
 def test_ai_module_has_no_submission_automation():
-    source = open("src/marketplace/live.py", encoding="utf-8").read()
-    assert "login" in source.lower() or "logs in" in source.lower()
-    assert "submit" in source.lower()
+    """The live acquisition/AI module must never log in or submit work automatically."""
+    source = open("src/marketplace/live.py", encoding="utf-8").read().lower()
+    assert "login" not in source
+    assert "logs in" not in source
+    assert "submit" not in source
