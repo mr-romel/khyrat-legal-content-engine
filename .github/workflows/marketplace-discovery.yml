@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'src/marketplace/discovery.py'
+      - 'src/marketplace_mvp.py'
       - 'tests/test_marketplace_discovery.py'
       - '.github/workflows/marketplace-discovery.yml'
   schedule:
@@ -28,30 +29,90 @@ jobs:
           python-version: '3.12'
       - name: Install requests
         run: python -m pip install 'requests>=2.32.0,<3.0.0'
-      - name: Discover live public Mostaql projects
+      - name: Discover and sync live public Mostaql projects
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          from marketplace.discovery import discover_mostaql
+          from marketplace.discovery import discover_mostaql, merge_discoveries
+          from marketplace_mvp import build_offer, load_state, save_state, score_opportunity
 
-          out = Path('marketplace_data/discovered_opportunities.json')
-          out.parent.mkdir(parents=True, exist_ok=True)
+          feed_path = Path('marketplace_data/discovered_opportunities.json')
+          feed_path.parent.mkdir(parents=True, exist_ok=True)
+          previous = []
+          if feed_path.exists():
+              try:
+                  previous = json.loads(feed_path.read_text(encoding='utf-8'))
+              except (json.JSONDecodeError, OSError):
+                  previous = []
+
           discovered = discover_mostaql(limit=10)
-          out.write_text(json.dumps(discovered, ensure_ascii=False, indent=2), encoding='utf-8')
+          merged = merge_discoveries(previous, discovered)
+          feed_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding='utf-8')
+
+          state = load_state()
+          opportunities = state.setdefault('opportunities', [])
+          by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
+          added = 0
+          refreshed = 0
+
+          for item in discovered:
+              url = str(item.get('source_url', '')).strip()
+              if not url:
+                  continue
+              existing = by_url.get(url)
+              if existing:
+                  existing['title'] = item.get('title', existing.get('title', ''))
+                  existing['description'] = item.get('description', existing.get('description', ''))
+                  existing['source_url'] = url
+                  existing['discovery_score'] = int(item.get('discovery_score', 0))
+                  existing['live'] = True
+                  if not existing.get('offer'):
+                      score, rationale = score_opportunity(existing['title'], existing['description'])
+                      existing['match_score'] = score
+                      existing['rationale'] = rationale
+                      existing['offer'] = build_offer(existing)
+                      existing['status'] = 'OFFER_READY'
+                  refreshed += 1
+                  continue
+
+              score, rationale = score_opportunity(item.get('title', ''), item.get('description', ''))
+              opportunity = {
+                  'id': 'opp-discovery-' + str(abs(hash(url))),
+                  'platform': 'mostaql',
+                  'title': item.get('title', ''),
+                  'description': item.get('description', '') or item.get('title', ''),
+                  'source_url': url,
+                  'discovery_score': int(item.get('discovery_score', 0)),
+                  'live': True,
+                  'match_score': score,
+                  'rationale': rationale,
+                  'suggested_price_egp': 1500 if score >= 70 else 1000,
+                  'suggested_days': 2 if score >= 70 else 4,
+                  'status': 'OFFER_READY',
+              }
+              opportunity['offer'] = build_offer(opportunity)
+              opportunities.insert(0, opportunity)
+              by_url[url] = opportunity
+              added += 1
+
+          save_state(state)
           print(f'discovered_live={len(discovered)}')
+          print(f'queue_added={added}')
+          print(f'queue_refreshed={refreshed}')
+          print(f'queue_total={len(opportunities)}')
           for item in discovered:
               print(f"LIVE {item['discovery_score']:>3} {item['title']} -> {item['source_url']}")
           PY
-      - name: Commit changed discovery feed
+      - name: Commit changed discovery feed and marketplace queue
         run: |
           git config user.name 'Khyrat Marketplace Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add -f marketplace_data/discovered_opportunities.json
+          git add -f marketplace_data/discovered_opportunities.json marketplace_data/marketplace.json
           if git diff --cached --quiet; then
             echo 'No discovery changes.'
           else
-            git commit -m 'chore: refresh live Mostaql opportunity feed'
+            git commit -m 'chore: refresh and sync live Mostaql opportunity feed'
             git push
           fi
       - name: Upload discovery feed
