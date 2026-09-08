@@ -40,12 +40,30 @@ SYSTEM_PROMPT = """
 10) لا تدّعِ وجود مصدر لم يتم تقديمه.
 11) لا تذكر أنك ذكاء اصطناعي.
 12) CTA طبيعية وغير بيعية.
-13) 180 إلى 320 كلمة تقريبًا عند الحاجة.
+13) استهدف 220 إلى 360 كلمة تقريبًا، ولا تقل عن 180 كلمة إلا إذا كان الموضوع نفسه لا يحتمل ذلك.
 14) 2 إلى 4 هاشتاجات عند الحاجة.
 15) لا تستخدم روابط وهمية.
+16) لا تختصر المنشور إلى إجابة من سطرين لمجرد أن السؤال مباشر؛ أضف شرحًا أو مثالًا أو أثرًا عمليًا عندما يكون ذلك مفيدًا.
 
 ============================================================
-ثانياً: قاعدة المراجعة القانونية الجديدة
+CTA الاستراتيجية
+============================================================
+
+اختم كل منشور بدعوة ناعمة وغير بيعية توصل فكرة أن التفاصيل والوقائع والمستندات قد تغيّر التقييم القانوني، وأن مراجعة الموقف قبل اتخاذ قرار مهم خطوة ذكية.
+
+ممنوع استخدام عبارات مباشرة مثل:
+- احجز استشارة
+- اطلب استشارة
+- تواصل معي
+- كلمني
+- راسلني
+- أنا متاح للعملاء
+- لو محتاج محامي
+
+الـCTA يجب أن تكون مستترة وطبيعية داخل الخلاصة، وأن تتغير صياغتها من منشور لآخر، وألا تبدو إعلانًا أو بحثًا عن عملاء.
+
+============================================================
+ثانياً: قاعدة المراجعة القانونية
 ============================================================
 
 لا تعتبر الموضوع حساسًا وحده سببًا لإيقاف النشر.
@@ -186,58 +204,29 @@ review_level = BLOCK.
 """
 
 
-def _extract_json(
-    text: str,
-) -> dict[str, Any]:
+def _extract_json(text: str) -> dict[str, Any]:
     text = (text or "").strip()
-
-    text = re.sub(
-        r"^```(?:json)?\s*",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    text = re.sub(
-        r"\s*```$",
-        "",
-        text,
-    )
-
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
     try:
         data = json.loads(text)
-
         if isinstance(data, dict):
             return data
-
     except json.JSONDecodeError:
         pass
 
     start = text.find("{")
     end = text.rfind("}")
-
-    if (
-        start == -1
-        or end == -1
-        or end <= start
-    ):
+    if start == -1 or end == -1 or end <= start:
         raise RuntimeError(
             "Gemini did not return a valid JSON object. "
             f"Raw response: {text[:2000]}"
         )
-
-    candidate = text[start:end + 1]
-
     try:
-        data = json.loads(candidate)
-
+        data = json.loads(text[start:end + 1])
         if not isinstance(data, dict):
-            raise RuntimeError(
-                "Gemini JSON response is not an object."
-            )
-
+            raise RuntimeError("Gemini JSON response is not an object.")
         return data
-
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             "Gemini returned invalid JSON. "
@@ -245,115 +234,90 @@ def _extract_json(
         ) from exc
 
 
-def _normalize_list(
-    value: Any,
-) -> list[str]:
+def _normalize_list(value: Any) -> list[str]:
     if value is None:
         return []
-
     if isinstance(value, list):
-        return [
-            str(item).strip()
-            for item in value
-            if str(item).strip()
-        ]
-
+        return [str(item).strip() for item in value if str(item).strip()]
     value = str(value).strip()
-
-    if not value:
-        return []
-
-    return [value]
+    return [value] if value else []
 
 
-def _normalize_review_level(
-    value: Any,
-) -> str:
-    level = (
-        str(value or "")
-        .strip()
-        .upper()
-    )
-
-    if level not in {
-        "CLEAR",
-        "REVIEW",
-        "BLOCK",
-    }:
-        return "REVIEW"
-
-    return level
+def _normalize_review_level(value: Any) -> str:
+    level = str(value or "").strip().upper()
+    return level if level in {"CLEAR", "REVIEW", "BLOCK"} else "REVIEW"
 
 
-def _validate_image_brief(
-    image_brief: str,
-) -> None:
-    brief = (
-        image_brief
-        .strip()
-        .lower()
-    )
-
+def _validate_image_brief(image_brief: str) -> None:
+    brief = image_brief.strip().lower()
     if not brief:
-        raise RuntimeError(
-            "Gemini returned an empty image_brief."
-        )
+        raise RuntimeError("Gemini returned an empty image_brief.")
 
     generic_phrases = [
-        "professional legal image",
-        "professional law image",
-        "legal background",
-        "lawyer in office",
-        "lawyer at desk",
-        "justice scales",
-        "legal documents",
-        "legal themed image",
-        "legal concept",
-        "professional legal scene",
+        "professional legal image", "professional law image", "legal background",
+        "lawyer in office", "lawyer at desk", "justice scales", "legal documents",
+        "legal themed image", "legal concept", "professional legal scene",
     ]
-
-    matched = [
-        phrase
-        for phrase in generic_phrases
-        if phrase in brief
-    ]
-
+    matched = [phrase for phrase in generic_phrases if phrase in brief]
     if matched:
-        raise RuntimeError(
-            "Gemini returned a generic image brief: "
-            f"{matched}"
-        )
+        raise RuntimeError(f"Gemini returned a generic image brief: {matched}")
 
     detail_markers = [
-        "person",
-        "people",
-        "man",
-        "woman",
-        "document",
-        "paper",
-        "room",
-        "office",
-        "street",
-        "hands",
-        "expression",
-        "body language",
-        "camera",
-        "lighting",
-        "close-up",
-        "medium shot",
-        "background",
+        "person", "people", "man", "woman", "document", "paper", "room", "office",
+        "street", "hands", "expression", "body language", "camera", "lighting",
+        "close-up", "medium shot", "background",
     ]
+    if sum(1 for marker in detail_markers if marker in brief) < 3:
+        raise RuntimeError("Gemini image_brief is too generic.")
 
-    detail_count = sum(
-        1
-        for marker in detail_markers
-        if marker in brief
+
+def _post_quality_ok(post: str) -> bool:
+    text = re.sub(r"\s+", " ", str(post or "")).strip()
+    words = re.findall(r"\S+", text)
+    return len(text) >= 900 and len(words) >= 180
+
+
+def _soft_cta_present(post: str) -> bool:
+    text = str(post or "").casefold()
+    markers = (
+        "التفاصيل", "الوقائع", "المستند", "مراجعة", "قبل ما تاخد قرار",
+        "قبل اتخاذ القرار", "محامٍ", "محامي", "موقفك القانوني",
     )
+    return sum(1 for marker in markers if marker in text) >= 2
 
-    if detail_count < 3:
-        raise RuntimeError(
-            "Gemini image_brief is too generic."
-        )
+
+def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
+    required_fields = (
+        "post", "image_brief", "review_level", "review_flags", "legal_sources_used",
+    )
+    for field in required_fields:
+        if field not in data:
+            raise RuntimeError(f"Gemini JSON is missing required field: {field}")
+
+    data["review_level"] = _normalize_review_level(data.get("review_level"))
+    data["review_flags"] = _normalize_list(data.get("review_flags"))
+    data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
+    data["post"] = str(data.get("post", "")).strip()
+    data["image_brief"] = str(data.get("image_brief", "")).strip()
+
+    if not data["post"]:
+        raise RuntimeError("Gemini returned an empty post.")
+    if not data["image_brief"]:
+        raise RuntimeError("Gemini returned an empty image_brief.")
+
+    _validate_image_brief(data["image_brief"])
+    return data
+
+
+def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, Any]:
+    response = client.models.generate_content(
+        model=selected_model,
+        contents=SYSTEM_PROMPT + "\n\n" + prompt,
+    )
+    raw_text = (getattr(response, "text", None) or "").strip()
+    if not raw_text:
+        raise RuntimeError("Gemini returned an empty response.")
+    return _validate_data(_extract_json(raw_text))
 
 
 def generate_post(
@@ -363,40 +327,22 @@ def generate_post(
     legal_sources: str,
     previous_context: str = "",
 ) -> dict[str, Any]:
-
     if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is missing."
-        )
+        raise RuntimeError("GEMINI_API_KEY is missing.")
 
-    topic = (
-        topic or ""
-    ).strip()
-
+    topic = (topic or "").strip()
     if not topic:
-        raise RuntimeError(
-            "Topic is empty."
-        )
+        raise RuntimeError("Topic is empty.")
 
-    selected_model = (
-        model or DEFAULT_TEXT_MODEL
-    ).strip()
-
-    if selected_model.startswith(
-        "models/"
-    ):
-        selected_model = selected_model[
-            len("models/"):
-        ]
-
+    selected_model = (model or DEFAULT_TEXT_MODEL).strip()
+    if selected_model.startswith("models/"):
+        selected_model = selected_model[len("models/"):]
     if not selected_model:
         selected_model = DEFAULT_TEXT_MODEL
 
-    client = genai.Client(
-        api_key=api_key
-    )
+    client = genai.Client(api_key=api_key)
 
-    user_prompt = f"""
+    base_prompt = f"""
 الموضوع:
 {topic}
 
@@ -406,155 +352,40 @@ def generate_post(
 السياق السابق:
 {previous_context or "لا يوجد."}
 
-اكتب البوست النهائي.
+اكتب البوست النهائي الجاهز للنشر على LinkedIn.
+
+مواصفات إلزامية للبوست:
+- 220 إلى 360 كلمة تقريبًا، ولا تقل عن 180 كلمة.
+- لا تكتفِ بإجابة مختصرة حتى لو كان السؤال مباشرًا.
+- استخدم افتتاحية قوية، ثم شرحًا قانونيًا مبسطًا، ثم أثرًا عمليًا أو مثالًا، ثم خلاصة.
+- اختم بـCTA خفية وراقية: اجعل القارئ يدرك أن مراجعة الوقائع والمستندات قبل اتخاذ قرار مهم قد تغيّر النتيجة، من غير طلب مباشر للتواصل أو الاستشارة.
+- لا تستخدم "احجز استشارة" أو "تواصل معي" أو أي صيغة بيع مباشر.
+- غيّر صياغة الـCTA من منشور لآخر.
 
 ثم أنشئ image_brief لمشهد بصري واحد محدد.
-
-وأخيرًا قيّم مستوى المراجعة القانونية طبقًا للقواعد
-الموجودة في System Prompt.
+وأخيرًا قيّم مستوى المراجعة القانونية طبقًا للقواعد الموجودة في System Prompt.
 
 مهم جدًا:
-لا توقف الموضوع لمجرد أنه حساس.
-الهدف هو التمييز بين:
-موضوع حساس يمكن شرحه بأمان
-وبين ادعاء قانوني دقيق يحتاج تحققًا.
-
-إذا احتجت ذكر عقوبة أو مادة أو رقم أو تاريخ محدد
-ولا يوجد مصدر موثوق في المدخل:
-إما احذف التفصيل من البوست واصغ الفكرة بشكل عام،
-أو استخدم BLOCK إذا كان التفصيل جوهريًا ولا يمكن حذفه.
-
-راجع نفسك قبل إخراج JSON.
+لا توقف الموضوع لمجرد أنه حساس. إذا كانت معلومة رقمية أو قانونية دقيقة غير متحققة، احذف التفصيل أو صغ الفكرة بأمان، واستخدم BLOCK فقط إذا كان التفصيل جوهريًا ولا يمكن حذفه.
 """
 
-    feedback = ""
-    last_validation_error = ""
+    retry_prompt = base_prompt + """
 
-    for attempt in range(1, 3):
-        attempt_prompt = user_prompt
-        if feedback:
-            attempt_prompt += f"""
-
-تصحيح إلزامي للمحاولة السابقة:
-المشكلة كانت في image_brief: {feedback}
-أعد إنشاء image_brief من الصفر، ولا تعيد الوصف العام السابق.
-استخدم مشهدًا فوتوغرافيًا محددًا مرتبطًا مباشرة بالموضوع،
-ويجب أن يتضمن شخصًا أو عنصرًا رئيسيًا وفعلًا واضحًا ومكانًا
-وسياقًا مصريًا مناسبًا وتفصيلًا بصريًا للكاميرا والإضاءة.
-ممنوع استخدام عبارة legal documents أو أي وصف عام مشابه.
+مراجعة جودة قبل الإخراج:
+إذا كان النص المتوقع أقل من 180 كلمة أو أقل من نحو 900 حرف، فهذا إخفاق في الجودة. أعد كتابة المنشور كاملًا من البداية، وزد الشرح العملي بمثال أو تفصيل مفيد، واجعل الخاتمة تحتوي على CTA خفية طبيعية. لا تختصر.
 """
 
-        try:
-            response = client.models.generate_content(
-                model=selected_model,
-                contents=(
-                    SYSTEM_PROMPT
-                    + "\n\n"
-                    + attempt_prompt
-                ),
-            )
-
-        except Exception as exc:
-            raise RuntimeError(
-                f"Gemini content generation failed: {exc}"
-            ) from exc
-
-        raw_text = (
-            getattr(
-                response,
-                "text",
-                None,
-            )
-            or ""
-        ).strip()
-
-        if not raw_text:
-            last_validation_error = "Gemini returned an empty response."
-            feedback = last_validation_error
-            continue
-
-        try:
-            data = _extract_json(
-                raw_text
-            )
-
-            required_fields = (
-                "post",
-                "image_brief",
-                "review_level",
-                "review_flags",
-                "legal_sources_used",
-            )
-
-            for field in required_fields:
-                if field not in data:
-                    raise RuntimeError(
-                        f"Gemini JSON is missing required field: "
-                        f"{field}"
-                    )
-
-            data["review_level"] = (
-                _normalize_review_level(
-                    data.get("review_level")
-                )
-            )
-
-            data["review_flags"] = (
-                _normalize_list(
-                    data.get("review_flags")
-                )
-            )
-
-            data["legal_sources_used"] = (
-                _normalize_list(
-                    data.get(
-                        "legal_sources_used"
-                    )
-                )
-            )
-
-            data["post"] = (
-                str(
-                    data.get(
-                        "post",
-                        "",
-                    )
-                )
-                .strip()
-            )
-
-            data["image_brief"] = (
-                str(
-                    data.get(
-                        "image_brief",
-                        "",
-                    )
-                )
-                .strip()
-            )
-
-            if not data["post"]:
-                raise RuntimeError(
-                    "Gemini returned an empty post."
-                )
-
-            if not data["image_brief"]:
-                raise RuntimeError(
-                    "Gemini returned an empty image_brief."
-                )
-
-            _validate_image_brief(
-                data["image_brief"]
-            )
-
+    try:
+        data = _generate_once(client, selected_model, base_prompt)
+        if _post_quality_ok(data["post"]) and _soft_cta_present(data["post"]):
             return data
 
-        except RuntimeError as exc:
-            last_validation_error = str(exc)
-            feedback = last_validation_error
-            continue
+        data = _generate_once(client, selected_model, retry_prompt)
+        if _post_quality_ok(data["post"]) and _soft_cta_present(data["post"]):
+            return data
+    except Exception as exc:
+        raise RuntimeError(f"Gemini content generation failed: {exc}") from exc
 
     raise RuntimeError(
-        "Gemini could not produce a valid, specific image_brief after retry. "
-        + last_validation_error
+        "Gemini returned a post that failed the minimum LinkedIn length/CTA quality gate after retry."
     )
