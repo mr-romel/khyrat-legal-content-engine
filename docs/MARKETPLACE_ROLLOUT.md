@@ -8,7 +8,10 @@
 ## Phase 2 — Control center
 
 - Dashboard exposes service catalog, opportunities, due follow-ups, portfolio, activity, and manual actions.
-- No platform login, scraping, or automatic proposal submission is performed.
+- Public Mostaql legal/project feeds are used for opportunity discovery when available.
+- Discovery is restricted to law, legal services, contracts, corporate, labor, commercial, compliance, and related work.
+- No platform login or automatic proposal submission is performed.
+- Each selected opportunity can be sent to Gemini for a case-specific proposal before human approval.
 
 ## Phase 3 — CI gate
 
@@ -26,7 +29,7 @@
 
 ## Phase 5 — Production activation
 
-This phase requires external provider account configuration and cannot be completed solely through the GitHub repository connection. Once Vercel and Cloudflare credentials are configured, verify the health, state, and action endpoints before treating the public dashboard as live.
+This phase requires external provider account configuration and cannot be completed solely through the GitHub repository connection. Once Vercel and Cloudflare credentials are configured, verify the health, state, Mostaql sync, and action endpoints before treating the public dashboard as live.
 
 ## Current rule
 
