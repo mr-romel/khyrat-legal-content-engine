@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: khyrat-marketplace-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=src python -m marketplace.render_entry
+    healthCheckPath: /api/health
+    autoDeploy: true
