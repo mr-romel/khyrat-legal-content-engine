@@ -39,6 +39,8 @@ concurrency:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
   marketplace-mvp:
@@ -61,9 +63,20 @@ jobs:
         run: python src/marketplace_mvp.py --seed-demo
       - name: Build daily execution plan
         run: python src/marketplace_daily.py --output marketplace_data/daily_plan.json
+      - name: Prepare GitHub Pages site
+        run: |
+          test -s marketplace_data/dashboard.html
+          cp marketplace_data/dashboard.html marketplace_data/index.html
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=index.html">' > marketplace_data/README.html
       - name: Upload Marketplace dashboard artifact
         uses: actions/upload-artifact@v4
         with:
           name: khyrat-marketplace-dashboard
           path: marketplace_data/
           if-no-files-found: error
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: marketplace_data/
+      - name: Deploy Marketplace dashboard to GitHub Pages
+        uses: actions/deploy-pages@v4
