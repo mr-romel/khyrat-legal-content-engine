@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/marketplace_mvp.py'
       - 'src/marketplace/**'
+      - 'src/marketplace/ai_media.py'
       - 'src/marketplace_daily.py'
       - 'src/marketplace/static_dashboard.py'
       - 'api/index.py'
