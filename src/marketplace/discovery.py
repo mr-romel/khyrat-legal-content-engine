@@ -61,58 +61,36 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
     if official and score < 24:
         score = 60
     seen.add(href)
-    results.append({
-        "platform": "mostaql",
-        "title": title,
-        "description": description or title,
-        "source_url": href,
-        "discovery_score": score,
-    })
+    results.append({"platform": "mostaql", "title": title, "description": description or title,
+                    "source_url": href, "discovery_score": score})
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
-    """Extract project URLs from the Business-filter response without another source."""
+    """Extract project URLs from the Business-filter response only."""
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    html_pattern = re.compile(
-        r'<a[^>]+href=["\'](?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>',
-        re.I | re.S,
+    patterns = (
+        re.compile(r'<a[^>]+href=["\'](?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project(?:s)?/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S),
+        re.compile(r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project(?:s)?/[^)\s]+)\)', re.I),
+        re.compile(r'https?://(?:www\.)?mostaql\.com/project(?:s)?/[A-Za-z0-9][^\s)<>"\']*|/project(?:s)?/[A-Za-z0-9][^\s)<>"\']*', re.I),
     )
-    for match in html_pattern.finditer(text):
-        body = _clean(match.group("body"))
-        href = urljoin(BASE_URL, match.group("href"))
-        _add(results, seen, href, body, body, limit, official=official)
-        if len(results) >= limit:
-            return results
-
-    md_pattern = re.compile(
-        r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^)\s]+)\)',
-        re.I,
-    )
-    for match in md_pattern.finditer(text):
-        href = urljoin(BASE_URL, match.group("href"))
-        title = _clean(match.group("title"))
-        _add(results, seen, href, title, title, limit, official=official)
-        if len(results) >= limit:
-            return results
-
-    raw_pattern = re.compile(
-        r'https?://(?:www\.)?mostaql\.com/project/[A-Za-z0-9][^\s)<>"\']*|/project/[A-Za-z0-9][^\s)<>"\']*',
-        re.I,
-    )
-    for match in raw_pattern.finditer(text):
-        href = match.group(0).rstrip(".,;:)")
-        href = urljoin(BASE_URL, href)
-        if href in seen:
-            continue
-        window = text[max(0, match.start() - 260):match.start()]
-        lines = [line.strip(" #-\t") for line in window.splitlines() if line.strip()]
-        title = _clean(lines[-1] if lines else href.rsplit("/", 1)[-1].replace("-", " "))
-        _add(results, seen, href, title, title, limit, official=official)
-        if len(results) >= limit:
-            break
+    for index, pattern in enumerate(patterns):
+        for match in pattern.finditer(text):
+            href = match.group("href") if "href" in match.groupdict() else match.group(0).rstrip(".,;:)")
+            href = urljoin(BASE_URL, href)
+            if index == 1:
+                title = match.group("title")
+            elif index == 0:
+                title = _clean(match.group("body"))
+            else:
+                window = text[max(0, match.start() - 400):match.start()]
+                lines = [line.strip(" #-\t") for line in window.splitlines() if line.strip()]
+                title = lines[-1] if lines else href.rsplit("/", 1)[-1].replace("-", " ")
+            _add(results, seen, href, title, title, limit, official=official)
+            if len(results) >= limit:
+                return results
     return results[:limit]
 
 
@@ -122,35 +100,18 @@ def _reader_url(target_url: str) -> str:
 
 
 def _fetch_business_page(timeout: int) -> str:
-    """Fetch the Business filter itself; pagination remains inside the same filter."""
-    candidates = [
-        BUSINESS_FILTER_URL,
-        BUSINESS_FILTER_URL + "?page=1",
-        BUSINESS_FILTER_URL + "?sort=latest",
-        BUSINESS_FILTER_URL + "?sort=latest&page=1",
-    ]
+    """Fetch only the official Business filter; reader is transport, not discovery."""
+    candidates = [BUSINESS_FILTER_URL, BUSINESS_FILTER_URL + "?page=1",
+                  BUSINESS_FILTER_URL + "?sort=latest", BUSINESS_FILTER_URL + "?sort=latest&page=1"]
     for target in candidates:
-        try:
-            response = requests.get(
-                target,
-                timeout=timeout,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/11.0)"},
-            )
-            if response.ok and response.text.strip():
-                return response.text
-        except requests.RequestException:
-            pass
-
-        for reader_url in (_reader_url(target), "https://r.jina.ai/http://" + target.removeprefix("https://")):
+        for fetch_url in (target, _reader_url(target), "https://r.jina.ai/http://" + target.removeprefix("https://")):
             try:
-                response = requests.get(
-                    reader_url,
-                    timeout=min(timeout, 15),
-                    headers={"User-Agent": "Mozilla/5.0"},
-                )
+                response = requests.get(fetch_url, timeout=min(timeout, 15),
+                                        headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/12.0)"})
                 if response.ok and response.text.strip():
-                    if parse_projects(response.text, limit=1, official=True):
-                        return response.text
+                    body = response.text
+                    if "/project" in body.lower() and (parse_projects(body, 1, official=True) or re.search(r"/project(?:s)?/[A-Za-z0-9]", body, re.I)):
+                        return body
             except requests.RequestException:
                 continue
     return ""
@@ -168,16 +129,13 @@ def _fetch_project_page(url: str, timeout: int) -> str:
 
 
 def _project_is_open_text(text: str) -> bool:
-    """Reject only an explicit closed state; source eligibility comes from Business filter."""
     normalized = _clean(unescape(text)).lower()
     if not normalized:
         return False
-    closed_terms = (
-        "حالة المشروع مغلق", "المشروع مغلق", "حالة المشروع: مغلق",
-        "حالة المشروع منتهي", "المشروع منتهي", "تم إغلاق المشروع",
-        "تم التوظيف", "closed", "project closed", "project is closed",
-        "expired", "archived",
-    )
+    closed_terms = ("حالة المشروع مغلق", "المشروع مغلق", "حالة المشروع: مغلق",
+                    "حالة المشروع منتهي", "المشروع منتهي", "تم إغلاق المشروع",
+                    "تم التوظيف", "closed", "project closed", "project is closed",
+                    "expired", "archived")
     return not any(term in normalized for term in closed_terms)
 
 
@@ -202,7 +160,6 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
     text = _fetch_business_page(timeout)
     if not text:
         return []
-
     candidates = parse_projects(text, limit=max(limit * 20, 200), official=True)
     if not candidates:
         return []
@@ -219,15 +176,9 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         score = _legal_score(title, clean_page)
         if score < 24:
             return None
-        return {
-            **item,
-            "title": title,
-            "description": clean_page[:4000],
-            "discovery_score": score,
-            "live": True,
-            "source_filter": BUSINESS_FILTER_URL,
-            "source_kind": "mostaql_business_filter",
-        }
+        return {**item, "title": title, "description": clean_page[:4000],
+                "discovery_score": score, "live": True,
+                "source_filter": BUSINESS_FILTER_URL, "source_kind": "mostaql_business_filter"}
 
     scored: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=16) as executor:
@@ -241,7 +192,6 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         for future in futures:
             if not future.done():
                 future.cancel()
-
     return sorted(scored, key=lambda x: int(x.get("discovery_score", 0)), reverse=True)[:limit]
 
 
