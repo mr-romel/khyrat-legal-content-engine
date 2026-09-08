@@ -99,8 +99,8 @@ def offer_quality(opportunity: dict[str, Any]) -> dict[str, Any]:
     issues: list[str] = []
     checks = {
         "has_offer": bool(offer),
-        "has_duration": "المدة المقترحة:" in offer,
-        "has_budget": "الميزانية المقترحة:" in offer,
+        "has_duration": ("المدة المقترحة:" in offer) or ("المدة المتوقعة" in offer),
+        "has_budget": ("الميزانية المقترحة:" in offer) or ("الميزانية " in offer),
         "has_scope": "نطاق العمل" in offer,
         "no_external_links": not any(token in offer.lower() for token in ("http://", "https://", "www.")),
     }
