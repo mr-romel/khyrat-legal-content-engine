@@ -5,7 +5,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from typing import Any
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import requests
 
@@ -13,29 +13,39 @@ BASE_URL = "https://mostaql.com/projects/business"
 BUSINESS_FILTER_URL = BASE_URL
 LEGAL_TERMS = (
     "محامي", "محاماة", "قانون", "قانوني", "قانونية", "عقد", "عقود", "صياغة",
-    "مراجعة", "استشارة", "استشارات", "اتفاقية", "اتفاقيات", "لائحة", "سياسة",
-    "شروط الاستخدام", "شروط وأحكام", "خصوصية", "نزاع", "تجاري", "شركة", "شركات",
-    "قضية", "بحث قانوني", "مذكرة", "عمل", "عمال", "امتثال", "حوكمة", "تجارة إلكترونية",
+    "استشارة", "استشارات", "اتفاقية", "اتفاقيات", "لائحة", "سياسة", "خصوصية",
+    "نزاع", "قضية", "بحث قانوني", "مذكرة", "امتثال", "حوكمة", "تعاقد", "تعاقدات",
+    "شروط الاستخدام", "شروط وأحكام", "سياسة الخصوصية", "تجارة إلكترونية",
 )
 STRONG_TERMS = (
-    "محامي", "محاماة", "استشارة قانونية", "صياغة عقد", "مراجعة عقد", "عقد", "عقود",
-    "اتفاقية", "قانوني", "قانونية", "مذكرة قانونية", "كتابة قانونية", "بحث قانوني",
-    "شروط وأحكام", "سياسة الخصوصية",
+    "محامي", "محاماة", "استشارة قانونية", "استشارات قانونية", "صياغة عقد", "مراجعة عقد",
+    "عقد", "عقود", "اتفاقية", "اتفاقيات", "قانوني", "قانونية", "مذكرة قانونية",
+    "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية", "تعاقد", "تعاقدات",
 )
 
 
 def _clean(value: str) -> str:
-    value = unescape(value).replace("\\/", "/")
+    value = unquote(unescape(value).replace("\\/", "/"))
     value = re.sub(r"<[^>]+>", " ", value)
     value = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", value)
     return re.sub(r"\s+", " ", value).strip()
 
 
 def _legal_score(title: str, description: str) -> int:
-    text = f"{title} {description}".lower()
+    title_text = _clean(title).lower()
+    body_text = _clean(description).lower()
+    text = f"{title_text} {body_text}"
     strong = sum(1 for term in STRONG_TERMS if term in text)
     normal = sum(1 for term in LEGAL_TERMS if term in text)
-    return 0 if strong == 0 else min(100, 20 + strong * 12 + normal * 4)
+    title_strong = sum(1 for term in STRONG_TERMS if term in title_text)
+    title_normal = sum(1 for term in LEGAL_TERMS if term in title_text)
+    # Generic words such as "مراجعة" or "شركة" must never qualify a project alone.
+    if title_strong == 0 and title_normal < 2 and normal < 2:
+        return 0
+    score = 20 + strong * 10 + normal * 3 + title_strong * 15 + title_normal * 5
+    if title_strong:
+        score += 15
+    return min(100, score)
 
 
 def _canonical_url(href: str) -> str:
@@ -52,7 +62,6 @@ def _is_project_url(href: str) -> bool:
     path = urlsplit(href).path.rstrip("/")
     if path == "/project/create":
         return False
-    # Mostaql slugs are commonly percent-encoded Arabic, so ASCII-only matching is invalid.
     return bool(re.fullmatch(r"/project/[^/?#\s<>\"']+", path, re.I))
 
 
@@ -63,12 +72,12 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
         return
     title, description = _clean(title)[:180], _clean(description)[:4000]
     if len(title) < 4:
-        title = href.rsplit("/", 1)[-1].replace("-", " ")
+        title = _clean(href.rsplit("/", 1)[-1].replace("-", " "))
     score = _legal_score(title, description)
     if not official and score < 24:
         return
     if official and score < 24:
-        score = 60
+        score = 1
     seen.add(href)
     results.append({
         "platform": "mostaql", "title": title, "description": description or title,
@@ -81,16 +90,12 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-
     anchor_pattern = re.compile(
         r'<a\b[^>]*?href=["\'](?P<href>[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S
     )
-    # Do not assume an ASCII slug: Arabic project titles are percent-encoded in real URLs.
     url_pattern = re.compile(
-        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\s<>"\']+)',
-        re.I,
+        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\s<>"\']+)', re.I
     )
-
     for match in anchor_pattern.finditer(text):
         href = _canonical_url(match.group("href"))
         if not href or not _is_project_url(href):
@@ -99,12 +104,11 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
         _add(results, seen, href, body, body, limit, official=official)
         if len(results) >= limit:
             return results
-
     for match in url_pattern.finditer(text):
         href = _canonical_url(match.group("href"))
         if not href or not _is_project_url(href):
             continue
-        slug = href.rsplit("/", 1)[-1].replace("-", " ")
+        slug = _clean(href.rsplit("/", 1)[-1].replace("-", " "))
         _add(results, seen, href, slug, slug, limit, official=official)
         if len(results) >= limit:
             return results
@@ -135,13 +139,15 @@ def _looks_like_business_response(body: str) -> bool:
     if not body or len(body) < 300:
         return False
     normalized = body.lower()
-    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[^/?#\s<>\"']+", body, re.I))
+    return ("mostaql" in normalized or "مستقل" in normalized) and bool(
+        re.search(r"/project/[^/?#\s<>\"']+", body, re.I)
+    )
 
 
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/23.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.0)"
         })
         return response.text if response.ok else ""
     except requests.RequestException:
@@ -150,7 +156,11 @@ def _get(url: str, timeout: int) -> str:
 
 def _fetch_business_page(timeout: int) -> str:
     """Fetch only the canonical Business filter; transports never change the source."""
-    variants = (BUSINESS_FILTER_URL, BUSINESS_FILTER_URL + "?sort=latest", BUSINESS_FILTER_URL + "?page=1")
+    variants = (
+        BUSINESS_FILTER_URL,
+        BUSINESS_FILTER_URL + "?sort=latest",
+        BUSINESS_FILTER_URL + "?page=1",
+    )
     for target in variants:
         for transport in _transport_urls(target):
             body = _get(transport, timeout)
@@ -180,13 +190,11 @@ def _project_is_open_text(text: str) -> bool:
 
 
 def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> bool:
-    """Compatibility wrapper used by tests and the legacy validation API."""
     body = page if page is not None else _fetch_project_page(url, timeout)
     return bool(body) and _project_is_open_text(body)
 
 
 def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
-    """Keep only projects whose individual Mostaql pages resolve and are open."""
     valid: list[dict[str, Any]] = []
     for item in projects:
         if len(valid) >= limit:
@@ -202,7 +210,8 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
     """Discover legal opportunities exclusively from the canonical Business filter."""
     _ = url
     raw = _fetch_business_page(timeout)
-    candidates = parse_projects(raw, limit=max(limit * 20, 100), official=True) if raw else []
+    # Inspect the whole current Business page, not just the first 20 generic projects.
+    candidates = parse_projects(raw, limit=max(limit * 20, 200), official=True) if raw else []
     if not candidates:
         return []
 
@@ -211,16 +220,22 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         if not page or not _project_is_open(str(item["source_url"]), page):
             return None
         clean_page = _clean(page)
-        title = item["title"]
+        title = _clean(item["title"])
         heading = re.search(r"(?:^|\n)#{1,3}\s+([^\n]{4,180})", page)
         if heading:
             title = _clean(heading.group(1))[:180]
         score = _legal_score(title, clean_page)
         if score < 24:
             return None
-        return {**item, "title": title, "description": clean_page[:4000],
-                "discovery_score": score, "live": True,
-                "source_filter": BUSINESS_FILTER_URL, "source_kind": "mostaql_business_filter"}
+        return {
+            **item,
+            "title": title,
+            "description": clean_page[:4000],
+            "discovery_score": score,
+            "live": True,
+            "source_filter": BUSINESS_FILTER_URL,
+            "source_kind": "mostaql_business_filter",
+        }
 
     scored: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=12) as executor:
@@ -229,8 +244,6 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
             item = future.result()
             if item:
                 scored.append(item)
-                if len(scored) >= limit:
-                    break
     return sorted(scored, key=lambda x: int(x.get("discovery_score", 0)), reverse=True)[:limit]
 
 
