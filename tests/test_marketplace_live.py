@@ -19,9 +19,23 @@ def test_non_legal_project_is_not_marked_as_legal():
     assert "عقد" in LEGAL_TERMS
 
 
-def test_ai_module_has_no_submission_automation():
-    """The live acquisition/AI module must never log in or submit work automatically."""
+def test_live_module_has_no_submission_automation():
+    """Live acquisition must only discover opportunities; submission stays manual."""
     source = open("src/marketplace/live.py", encoding="utf-8").read().lower()
-    assert "login" not in source
-    assert "logs in" not in source
-    assert "submit" not in source
+    forbidden = (
+        "login",
+        "logs in",
+        "session.post",
+        "submit_project",
+        "submit proposal",
+        "auto-submit",
+        "autosubmit",
+    )
+    assert not any(marker in source for marker in forbidden)
+
+
+def test_live_module_only_fetches_public_marketplace_data():
+    source = open("src/marketplace/live.py", encoding="utf-8").read().lower()
+    assert "mostaql.com/projects" in source
+    assert "requests.session" in source
+    assert "fetch_mostaql_projects" in source
