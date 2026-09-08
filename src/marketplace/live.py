@@ -1,10 +1,4 @@
-"""Live Marketplace acquisition and AI helpers.
-
-This module only reads publicly visible Mostaql project pages. It never logs in,
-submits offers, or automates a user account. Gemini is used to turn each
-qualified opportunity into a case-specific proposal and to generate a service
-cover image when requested.
-"""
+"""Live Marketplace acquisition and AI helpers."""
 from __future__ import annotations
 
 import base64
@@ -78,7 +72,7 @@ class _ProjectParser(HTMLParser):
 def _session() -> requests.Session:
     s = requests.Session()
     s.headers.update({
-        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/2.1; +https://github.com/mr-romel/khyrat-legal-content-engine)",
+        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/2.2; +https://github.com/mr-romel/khyrat-legal-content-engine)",
         "Accept-Language": "ar-EG,ar;q=0.9,en;q=0.7",
     })
     return s
@@ -88,9 +82,7 @@ def score_legal_relevance(title: str, description: str) -> tuple[int, list[str]]
     text = f"{title} {description}".lower()
     hits = [(term, points) for term, points in LEGAL_TERMS.items() if term in text]
     score = min(100, sum(points for _, points in hits))
-    reasons = [f"مطابقة قانونية: {term}" for term, _ in hits[:8]]
-    if not reasons:
-        reasons = ["لا توجد مطابقة قانونية كافية"]
+    reasons = [f"مطابقة قانونية: {term}" for term, _ in hits[:8]] or ["لا توجد مطابقة قانونية كافية"]
     return score, reasons
 
 
@@ -100,20 +92,11 @@ def _fetch_project_list(session: requests.Session, url: str, timeout: int = 12) 
         response.raise_for_status()
     except requests.RequestException:
         return []
-
     parser = _ProjectParser()
     parser.feed(response.text)
     if parser.links:
         return parser.links
-
-    # Jina Reader often returns Markdown rather than HTML. Parse its project
-    # links explicitly so the legal feed remains usable when Mostaql HTML is
-    # blocked or transformed by an edge/intermediary.
-    markdown_links = re.findall(
-        r"\[([^\]]+)\]\((https://mostaql\.com/project/\d+[^)]*)\)",
-        response.text,
-        flags=re.IGNORECASE,
-    )
+    markdown_links = re.findall(r"\[([^\]]+)\]\((https://mostaql\.com/project/\d+[^)]*)\)", response.text, flags=re.IGNORECASE)
     return [(href, " ".join(title.split())) for title, href in markdown_links]
 
 
@@ -136,10 +119,8 @@ def _detail(session: requests.Session, url: str) -> dict[str, str]:
 
 
 def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dict[str, Any]]:
-    """Fetch current public legal projects and retain relevant opportunities."""
     limit = max(1, min(int(limit), 30))
     session = _session()
-
     unique: dict[str, str] = {}
     for feed_url in MOSTAQL_LEGAL_FEEDS:
         for href, title in _fetch_project_list(session, feed_url):
@@ -150,7 +131,6 @@ def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dic
                 break
         if len(unique) >= limit * 5:
             break
-
     if not unique:
         for href, title in _fetch_project_list(session, MOSTAQL_PROJECTS_URL):
             url = urljoin(MOSTAQL_PROJECTS_URL, href)
@@ -158,13 +138,9 @@ def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dic
                 unique.setdefault(url, title)
             if len(unique) >= limit * 5:
                 break
-
     candidates: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {
-            pool.submit(_detail, session, url): (url, title)
-            for url, title in list(unique.items())[:limit * 4]
-        }
+        futures = {pool.submit(_detail, session, url): (url, title) for url, title in list(unique.items())[:limit * 4]}
         for future in as_completed(futures):
             url, title = futures[future]
             detail = future.result()
@@ -172,16 +148,8 @@ def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dic
             score, reasons = score_legal_relevance(title, description)
             if score < minimum_score:
                 continue
-            candidates.append({
-                "platform": "mostaql",
-                "title": title,
-                "description": description or title,
-                "source_url": url,
-                "match_score": score,
-                "rationale": reasons,
-                "acquisition_score": score,
-            })
-
+            candidates.append({"platform": "mostaql", "title": title, "description": description or title,
+                               "source_url": url, "match_score": score, "rationale": reasons, "acquisition_score": score})
     candidates.sort(key=lambda item: item["match_score"], reverse=True)
     return candidates[:limit]
 
@@ -194,70 +162,152 @@ def _gemini_client():
     return genai.Client(api_key=key)
 
 
+def normalize_offer_price(value: Any, default: int = 5) -> int:
+    """Return a valid USD offer in 5-dollar increments without exceeding a stated budget."""
+    try:
+        amount = int(float(value))
+    except (TypeError, ValueError):
+        amount = default
+    return max(5, (amount // 5) * 5)
+
+
+def _budget_from_text(text: str) -> int | None:
+    matches = re.findall(r"(?:\$|دولار(?:\s*أمريكي)?\s*)\s*(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+    values = [int(float(x)) for x in matches if float(x) >= 5]
+    return min(values) if values else None
+
+
+def offer_terms(opportunity: dict[str, Any]) -> tuple[int, int]:
+    description = str(opportunity.get("description", ""))
+    budget = _budget_from_text(description)
+    requested = opportunity.get("suggested_price_usd", budget or 5)
+    price = normalize_offer_price(requested, default=budget or 5)
+    if budget is not None:
+        price = min(price, normalize_offer_price(budget))
+    days = max(1, int(opportunity.get("suggested_days", 3) or 3))
+    return price, days
+
+
 def generate_case_specific_offer(opportunity: dict[str, Any]) -> str:
-    """Ask Gemini for a tailored Arabic proposal for one concrete project."""
+    """Generate a case-specific Mostaql proposal that follows platform-safe rules."""
     client = _gemini_client()
     title = str(opportunity.get("title", "")).strip()
     description = str(opportunity.get("description", "")).strip()
+    price, days = offer_terms(opportunity)
     prompt = f"""
-أنت مستشار لتقديم عروض احترافية على منصة مستقل لمستشار قانوني مصري متخصص في
-قانون الشركات والعقود والعمل والقانون التجاري. اكتب عرضًا عربيًا مصريًا مهنيًا
-ومقنعًا لهذا المشروع تحديدًا، وليس قالبًا عامًا.
+أنت تكتب عرضًا احترافيًا حقيقيًا على منصة مستقل لمستشار قانوني مصري متخصص في
+العقود والشركات والعمل والقانون التجاري. اكتب العرض لهذا المشروع تحديدًا بعد قراءة
+كل التفاصيل والشروط والأسئلة الواردة فيه.
 
 المشروع:
 العنوان: {title}
-الوصف: {description}
+الوصف الكامل: {description}
 
-قواعد مهمة:
-- حلل المطلوب أولًا، ثم ابنِ العرض على احتياج صاحب المشروع نفسه.
-- لا تدّعِ خبرة أو عملاً سابقًا لم يذكره المستخدم.
-- لا تستخدم افتتاحيات محفوظة أو كلامًا تسويقيًا عامًا.
-- اذكر نقطة أو نقطتين من المشروع تثبت أنك فهمته.
-- وضّح منهج التنفيذ والمخرجات المتوقعة.
-- إذا كان هناك نقص في المعلومات، اسأل سؤالًا واحدًا ذكيًا فقط في نهاية العرض.
-- اجعل العرض بين 130 و220 كلمة تقريبًا.
-- لا تضع روابط خارجية، ولا تطلب التواصل خارج مستقل.
-- لا تذكر أنك ذكاء اصطناعي.
-- اكتب العرض فقط دون عناوين مثل "العرض المقترح".
+بيانات العرض الإلزامية:
+- قيمة العرض: ${price} دولار أمريكي فقط.
+- القيمة يجب أن تكون 5 دولار أو أحد مضاعفات 5، ولا تغيّرها.
+- مدة التنفيذ المقترحة: {days} أيام، ولا تقترح مدة تناقض شرط صاحب المشروع.
+
+قواعد مستقل:
+- ابدأ بفهم المطلوب، ولا تستخدم افتتاحية محفوظة أو قالبًا عامًا.
+- اذكر بوضوح نقطتين محددتين من متطلبات المشروع تثبتان أنك قرأته.
+- بيّن ما سيتم تسليمه وكيف ستنفذ العمل، مع الالتزام بأي شروط أو أسئلة أو صيغة طلبها صاحب المشروع.
+- لا تدّعِ خبرة أو عملاً سابقًا أو أدوات لم يذكرها المستخدم.
+- لا تذكر أي وسيلة تواصل خارج مستقل، ولا بريدًا أو هاتفًا أو واتساب أو روابط تسويقية.
+- لا تطلب الدفع خارج المنصة، ولا تعد بنتيجة تخالف قوانين المنصة.
+- لا تقل إنك وافقت على شرط لم تفهمه؛ إذا كان هناك نقص جوهري، اسأل سؤالًا واحدًا فقط في النهاية.
+- اجعل النص بين 130 و220 كلمة تقريبًا، عربيًا طبيعيًا ومهنيًا وغير متكلف.
+- لا تضع عنوانًا مثل "العرض المقترح"، ولا تضع Markdown أو رموزًا زائدة.
+- لا تكرر الوصف حرفيًا؛ حوّله إلى خطة تنفيذ واضحة ومقنعة.
+
+اكتب نص العرض فقط.
 """
-    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    try:
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    except Exception as exc:
+        raise RuntimeError(f"تعذر توليد عرض Gemini: {exc}") from exc
     text = (response.text or "").strip()
     if not text:
         raise RuntimeError("Gemini لم يُرجع عرضًا نصيًا")
     return text
 
 
+def _extract_inline_image(response) -> bytes | None:
+    for part in getattr(response, "parts", []) or []:
+        inline = getattr(part, "inline_data", None)
+        if inline is not None:
+            data = getattr(inline, "data", None)
+            if isinstance(data, bytes):
+                return data
+            if isinstance(data, str):
+                return base64.b64decode(data)
+    return None
+
+
+def _generate_image_rest(prompt: str, key: str) -> bytes:
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["IMAGE"], "responseMimeType": "image/jpeg"},
+    }
+    response = requests.post(url, params={"key": key}, json=payload, timeout=90)
+    response.raise_for_status()
+    data = response.json()
+    for candidate in data.get("candidates", []):
+        for part in candidate.get("content", {}).get("parts", []):
+            inline = part.get("inlineData") or part.get("inline_data")
+            if inline and inline.get("data"):
+                return base64.b64decode(inline["data"])
+    raise RuntimeError("Gemini لم يُرجع بيانات صورة")
+
+
 def generate_service_image(service: dict[str, Any]) -> bytes:
-    """Generate a Khamsat-ready cover image and normalize it to 1700x970 JPEG."""
-    client = _gemini_client()
+    """Generate a Khamsat cover and return exactly 1700x970 JPEG."""
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY غير مضبوط في Vercel")
     title = str(service.get("title", "خدمة قانونية")).strip()
     prompt = f"""
-صمم غلاف خدمة احترافي لخمسات لخدمة قانونية مصرية بعنوان: {title}.
-المجال: محاماة، عقود، شركات، قانون مصري.
-التصميم عربي حديث وراقي، يوحي بالثقة والاحتراف، بدون صور أشخاص حقيقيين،
-بدون شعارات أو علامات تجارية تخص مواقع أخرى، وبدون أرقام أسعار أو بيانات مضللة.
-ضع عنوان الخدمة فقط بخط عربي واضح وكبير، مع عناصر بصرية قانونية بسيطة مثل
-ملف عقد، قلم، ميزان عدالة أو أوراق رسمية. اترك مساحات آمنة حول النص.
-نسبة العرض 16:9 تقريبًا.
+أنشئ صورة غلاف لخدمة على خمسات بعنوان: {title}
+المجال: خدمات قانونية مصرية، عقود، شركات، استشارات ومراجعة قانونية.
+التصميم احترافي وراقي وحديث، عربي، واضح على الهاتف، ويعكس الثقة دون مبالغة.
+استخدم عناصر قانونية مجردة مثل عقد وملف وقلم وميزان عدالة، دون أشخاص حقيقيين.
+لا تستخدم أي شعار أو علامة تجارية لخمسات أو أي منصة أخرى، ولا أرقام أسعار.
+ضع عنوان الخدمة فقط داخل التصميم بخط عربي واضح، واترك هامش أمان واسع حول النص.
+لا تضف معلومات أو ادعاءات غير موجودة في العنوان.
+النسبة 16:9، وتكوين مناسب لغلاف خدمة احترافي.
 """
-    from google.genai import types
-    response = client.models.generate_content(
-        model="gemini-2.5-flash-image",
-        contents=prompt,
-        config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
-    )
-    for part in response.parts:
-        if getattr(part, "inline_data", None) is not None:
-            image = part.as_image()
-            image.thumbnail((1700, 970), Image.Resampling.LANCZOS)
-            canvas = Image.new("RGB", (1700, 970), "white")
-            x = (1700 - image.width) // 2
-            y = (970 - image.height) // 2
-            canvas.paste(image.convert("RGB"), (x, y))
-            output = io.BytesIO()
-            canvas.save(output, format="JPEG", quality=72, optimize=True)
-            return output.getvalue()
-    raise RuntimeError("Gemini لم يُرجع صورة")
+    image_bytes: bytes | None = None
+    try:
+        client = _gemini_client()
+        from google.genai import types
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                response_format={"image": {"aspect_ratio": "16:9"}},
+            ),
+        )
+        image_bytes = _extract_inline_image(response)
+    except Exception:
+        image_bytes = None
+    if not image_bytes:
+        image_bytes = _generate_image_rest(prompt, key)
+
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    # Khamsat requires at least 1700x970; upscale instead of padding a 1024px result.
+    target = (1700, 970)
+    image.thumbnail(target, Image.Resampling.LANCZOS)
+    canvas = Image.new("RGB", target, "white")
+    x = (target[0] - image.width) // 2
+    y = (target[1] - image.height) // 2
+    canvas.paste(image, (x, y))
+    if canvas.width < 1700 or canvas.height < 970:
+        raise RuntimeError("تعذر تجهيز صورة خمسات بالمقاس المطلوب")
+    output = io.BytesIO()
+    canvas.save(output, format="JPEG", quality=88, optimize=True, progressive=True)
+    return output.getvalue()
 
 
 def image_data_url(image_bytes: bytes) -> str:
