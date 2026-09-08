@@ -1,72 +1,41 @@
 from __future__ import annotations
 
 import json
-from html import escape
 from pathlib import Path
 
-from marketplace_mvp import DASHBOARD_FILE, load_state, build_offer
-
-ROOT = Path(__file__).resolve().parents[2]
+from marketplace_mvp import DASHBOARD_FILE, load_state
 
 
 def render(state: dict) -> str:
-    services = state.get("services", [])
-    opportunities = state.get("opportunities", [])
-    portfolio = state.get("portfolio", [])
-    snapshot = json.dumps({"services": services, "opportunities": opportunities, "portfolio": portfolio}, ensure_ascii=False).replace("</", "<\\/")
-
-    def card(item: dict, kind: str) -> str:
-        iid = escape(str(item.get("id", "")), quote=True)
-        title = escape(item.get("title", ""))
-        status = escape(item.get("status", "DRAFT"))
-        desc = escape(item.get("description", item.get("summary", "")))
-        offer = escape(item.get("offer", ""))
-        link = escape(item.get("source_url", ""), quote=True)
-        match = int(item.get("match_score", item.get("discovery_score", 0)) or 0)
-        actions = f'''<button onclick="transition('{iid}','READY_FOR_REVIEW')">مراجعة</button>
-        <button onclick="transition('{iid}','APPROVED')">اعتماد</button>
-        <button onclick="transition('{iid}','REJECTED')">رفض</button>'''
-        if kind == "opportunity":
-            actions += f'''<button onclick="copyOffer('{iid}')">نسخ العرض</button>
-            <button onclick="regenerate('{iid}')">إعادة توليد العرض</button>'''
-            if link:
-                actions += f'''<a class="btn" href="{link}" target="_blank" rel="noopener">فتح المشروع على مستقل</a>'''
-        return f'''<article class="item" data-id="{iid}" data-search="{title} {desc} {status}">
-        <div class="row"><strong>{title}</strong><span class="badge">{status}</span></div>
-        <p>{desc}</p>
-        {f'<div class="score">{match}% Match</div>' if kind == "opportunity" else ''}
-        {f'<details open><summary>العرض</summary><textarea id="offer-{iid}">{offer}</textarea></details>' if kind == "opportunity" else ''}
-        <div class="actions">{actions}</div></article>'''
-
-    service_html = "".join(card(x, "service") for x in services) or '<div class="item">لا توجد خدمات.</div>'
-    opp_html = "".join(card(x, "opportunity") for x in opportunities) or '<div class="item">لا توجد فرص.</div>'
-    portfolio_html = "".join(f'<article class="item"><strong>{escape(x.get("title", ""))}</strong><p>{escape(x.get("summary", ""))}</p></article>' for x in portfolio)
-
-    return f'''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-store"><title>Khyrat Marketplace Dashboard</title>
-<style>body{{font-family:Arial,Tahoma,sans-serif;background:#f4f6f8;color:#20242a;margin:0}}.wrap{{max-width:1180px;margin:auto;padding:18px}}header,section,.item{{background:#fff;border:1px solid #dfe3e8;border-radius:14px;padding:16px;margin:12px 0}}.grid,.items{{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}}.grid{{grid-template-columns:repeat(4,1fr)}}.stat{{padding:14px;background:#f8fafc;border-radius:10px}}.stat b{{display:block;font-size:25px;margin-top:5px}}.row{{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}}.badge,.score{{display:inline-block;background:#eef2f6;border-radius:999px;padding:5px 9px;font-size:12px}}.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}}button,.btn{{padding:8px 12px;border:1px solid #ccd2d8;border-radius:8px;background:#f2f3f5;cursor:pointer;text-decoration:none;color:inherit;font-size:14px}}textarea,input{{width:100%;box-sizing:border-box;border:1px solid #ccd2d8;border-radius:8px;padding:10px;margin-top:7px}}textarea{{min-height:130px}}.muted{{color:#69717d}}#msg{{position:fixed;bottom:18px;left:18px;background:#20242a;color:#fff;padding:10px 14px;border-radius:10px;display:none}}@media(max-width:800px){{.grid,.items{{grid-template-columns:1fr}}}}</style></head><body><div class="wrap">
-<header><h1>Khyrat Marketplace Dashboard</h1><p class="muted">مراجعة → اعتماد → تجهيز التنفيذ اليدوي. الحالة تحفظ على هذا الجهاز.</p><input id="search" placeholder="بحث..." oninput="filterCards()"><button onclick="resetLocal()">إعادة تحميل الحالة الأصلية</button></header>
-<div class="grid"><div class="stat">خدمات<b id="servicesCount">{len(services)}</b></div><div class="stat">فرص مستقل<b id="oppCount">{len(opportunities)}</b></div><div class="stat">بانتظار المراجعة<b id="reviewCount">0</b></div><div class="stat">معتمدة<b id="approvedCount">0</b></div></div>
-<section><h2>فرص مستقل + العروض</h2><div id="opportunities" class="items">{opp_html}</div></section>
-<section><h2>خدمات خمسات</h2><div class="items">{service_html}</div></section>
-<section><h2>Portfolio</h2><div class="items">{portfolio_html or '<div class="item">لا توجد أعمال.</div>'}</div></section>
-<section><h2>ملاحظة تشغيل</h2><p>هذه نسخة GitHub Pages تعمل بدون سيرفر. أزرار المراجعة والاعتماد والرفض والنسخ وفتح المشروع تعمل محليًا، ولا تسجل دخولًا أو تقدم عروضًا تلقائيًا على مستقل أو خمسات.</p></section></div><div id="msg"></div>
-<script>const ORIGINAL={snapshot};let state=JSON.parse(localStorage.getItem('khyrat_marketplace_state')||'null')||ORIGINAL;
-function save(){{localStorage.setItem('khyrat_marketplace_state',JSON.stringify(state));render()}}
-function find(id){{return [...state.opportunities,...state.services].find(x=>x.id===id)}}
-function transition(id,status){{const x=find(id);if(!x)return; x.status=status; x.lifecycle=status; show('تم تغيير الحالة إلى '+status);save()}}
-function regenerate(id){{const x=find(id);if(!x)return; const days=x.suggested_days||2, price=x.suggested_price_egp||1500; x.offer='أهلًا، اطلعت على طلبك، وأقدر أساعدك في المراجعة القانونية للمستند وتحليل البنود التي قد تسبب لك مخاطر أو التزامات غير واضحة.\\n\\nهراجع المستند بندًا بندًا، وأوضح أي نقاط تحتاج تعديل أو إعادة صياغة، مع تقديم البديل المقترح بشكل عملي وواضح.\\n\\nأقدر أبدأ فورًا، والمدة المتوقعة '+days+' أيام، والميزانية '+price+' جنيه مصري.';x.status='OFFER_READY';show('تم إعادة توليد العرض');save()}}
-async function copyOffer(id){{const x=find(id);if(!x)return;try{{await navigator.clipboard.writeText(x.offer||'');show('تم نسخ العرض')}}catch(e){{const el=document.getElementById('offer-'+id);el.focus();el.select();document.execCommand('copy');show('تم نسخ العرض')}}}}
-function filterCards(){{const q=document.getElementById('search').value.toLowerCase().trim();document.querySelectorAll('.item[data-search]').forEach(x=>x.style.display=x.dataset.search.toLowerCase().includes(q)?'block':'none')}}
-function resetLocal(){{localStorage.removeItem('khyrat_marketplace_state');location.reload()}}
-function render(){{location.reload()}}
-function show(t){{const m=document.getElementById('msg');m.textContent=t;m.style.display='block';setTimeout(()=>m.style.display='none',1800)}}
-const r=Object.values(state.opportunities).filter(x=>['READY_FOR_REVIEW','OFFER_READY'].includes(x.status)).length;const a=Object.values(state.opportunities).filter(x=>['APPROVED','SUBMITTED','WON'].includes(x.status)).length;document.getElementById('reviewCount').textContent=r;document.getElementById('approvedCount').textContent=a;
+    snapshot = json.dumps({
+        "services": state.get("services", []),
+        "opportunities": state.get("opportunities", []),
+        "portfolio": state.get("portfolio", []),
+        "activity": state.get("activity", []),
+    }, ensure_ascii=False).replace("</", "<\\/")
+    return f'''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-store"><title>خيرت — Marketplace Dashboard</title><style>
+*{{box-sizing:border-box}}body{{margin:0;background:#f3f5f7;color:#20242a;font-family:Tahoma,Arial,sans-serif}}.wrap{{max-width:1250px;margin:auto;padding:18px}}header,section,.card{{background:#fff;border:1px solid #dfe3e8;border-radius:15px;padding:16px;margin:12px 0}}.grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}.items{{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}}.stat{{background:#f8fafc;border-radius:10px;padding:13px}}.stat b{{display:block;font-size:25px;margin-top:5px}}.row{{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}}.badge,.score{{background:#eef2f6;border-radius:999px;padding:5px 9px;font-size:12px;white-space:nowrap}}.muted{{color:#66717c;font-size:13px}}.actions,.toolbar{{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}}button,.open{{border:1px solid #cbd1d8;border-radius:8px;padding:9px 12px;background:#f7f8fa;color:#20242a;cursor:pointer;text-decoration:none;font:inherit}}button.primary,.open.primary{{background:#20242a;color:#fff}}button.danger{{background:#fff0f0}}input,textarea{{width:100%;padding:10px;border:1px solid #cbd1d8;border-radius:8px;margin-top:5px;font:inherit}}textarea{{min-height:150px;line-height:1.7;resize:vertical}}label{{display:block;margin-top:9px}}.toolbar input{{max-width:420px;margin:0}}details{{margin-top:10px}}summary{{cursor:pointer;font-weight:bold}}#msg{{position:fixed;bottom:18px;left:18px;background:#20242a;color:#fff;padding:11px 15px;border-radius:10px;display:none;z-index:5}}.notice{{background:#f8fafc;padding:12px;border-radius:8px;border-right:4px solid #20242a}}.empty{{padding:20px;text-align:center;color:#68717c}}@media(max-width:900px){{.grid{{grid-template-columns:repeat(2,1fr)}}.items{{grid-template-columns:1fr}}}}@media(max-width:520px){{.grid{{grid-template-columns:1fr}}}}
+</style></head><body><div class="wrap"><header><h1>مركز متابعة سوق خدمات خيرت</h1><p class="muted">نسخة GitHub Pages تفاعلية — تغييرات الحالات والعروض محفوظة على هذا الجهاز.</p><div class="toolbar"><input id="search" placeholder="بحث في الفرص والخدمات..." oninput="draw()"><button onclick="resetState()">إرجاع بيانات البداية</button></div><div class="notice">GitHub Pages لا يشغّل Python/API. لذلك وظائف السحب من مستقل وGemini تحتاج Backend منشور. الوظائف المحلية أدناه تعمل فعليًا وتُحفظ في المتصفح.</div></header><div id="stats" class="grid"></div><section><h2>فرص مستقل</h2><div id="opportunities" class="items"></div></section><section><h2>خدمات خمسات</h2><div id="services" class="items"></div></section><section><h2>Portfolio</h2><div id="portfolio" class="items"></div></section><section><h2>سجل النشاط</h2><ul id="activity"></ul></section></div><div id="msg"></div><script>
+const ORIGINAL={snapshot};let state=load();
+function load(){{try{{const x=JSON.parse(localStorage.getItem('khyrat_marketplace_state'));if(x&&Array.isArray(x.opportunities))return x}}catch(e){{}}return structuredClone(ORIGINAL)}}
+function persist(message){{state.activity=state.activity||[];if(message)state.activity.unshift({{time:new Date().toLocaleString('ar-EG'),message}});state.activity=state.activity.slice(0,100);localStorage.setItem('khyrat_marketplace_state',JSON.stringify(state));draw();toast(message)}}
+function find(id){{return [...(state.opportunities||[]),...(state.services||[])].find(x=>String(x.id)===String(id))}}
+function esc(v){{return String(v??'').replace(/[&<>\"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}}[c]))}}
+function status(x){{return String(x.lifecycle||x.status||'DRAFT').toUpperCase()}}
+function card(x,isOpp){{const id=esc(x.id),s=status(x),title=esc(x.title),desc=esc(x.description||x.summary||''),offer=esc(x.offer||''),score=Number(x.acquisition_score??x.match_score??0);let b='';if(['DRAFT','OFFER_READY','REJECTED','FAILED'].includes(s))b+=`<button onclick="transition('${id}','READY_FOR_REVIEW')">إرسال للمراجعة</button>`;if(s==='READY_FOR_REVIEW')b+=`<button onclick="transition('${id}','APPROVED')">اعتماد</button><button class="danger" onclick="transition('${id}','REJECTED')">رفض</button>`;if(isOpp&&s==='APPROVED')b+=`<button onclick="transition('${id}','SUBMITTED')">تسجيل كمُرسل</button>`;if(isOpp&&s==='SUBMITTED')b+=`<button onclick="transition('${id}','WON')">تسجيل فوز</button><button onclick="transition('${id}','LOST')">تسجيل خسارة</button><button onclick="transition('${id}','FOLLOW_UP')">تمت المتابعة</button>`;if(isOpp&&!['WON','LOST','EXPIRED','CANCELLED'].includes(s))b+=`<button onclick="regenerate('${id}')">إعادة توليد العرض</button>`;if(isOpp&&x.source_url)b+=`<a class="open" target="_blank" rel="noopener" href="${esc(x.source_url)}">فتح المشروع على مستقل</a>`;return `<article class="card"><div class="row"><strong>${title}</strong><span class="badge">${esc(s)}</span></div><p>${desc}</p>${isOpp?`<span class="score">${score}% أولوية</span><details open><summary>العرض</summary><textarea id="offer-${id}">${offer}</textarea><div class="actions"><button onclick="copyOffer('${id}')">نسخ العرض</button><button onclick="saveOffer('${id}')">حفظ العرض</button></div></details>`:''}<details><summary>تعديل البيانات</summary><label>العنوان<input id="title-${id}" value="${title}"></label><label>الوصف<textarea id="desc-${id}">${desc}</textarea></label>${isOpp?`<label>السعر بالدولار<input id="price-${id}" type="number" min="5" step="5" value="${Number(x.suggested_price_usd||5)}"></label><label>المدة بالأيام<input id="days-${id}" type="number" min="1" value="${Number(x.suggested_days||3)}"></label>`:''}<button onclick="saveItem('${id}',${isOpp})">حفظ التعديل</button></details><div class="actions">${b}</div></article>`}}
+function draw(){{const opp=state.opportunities||[],services=state.services||[];document.getElementById('stats').innerHTML=`<div class="stat">الخدمات<b>${services.length}</b></div><div class="stat">فرص مستقل<b>${opp.length}</b></div><div class="stat">للمراجعة<b>${opp.filter(x=>['READY_FOR_REVIEW','OFFER_READY'].includes(status(x))).length}</b></div><div class="stat">معتمدة/مرسلة<b>${opp.filter(x=>['APPROVED','SUBMITTED','WON'].includes(status(x))).length}</b></div>`;const q=(document.getElementById('search').value||'').toLowerCase().trim();const f=a=>a.filter(x=>(x.title+' '+(x.description||'')+' '+status(x)).toLowerCase().includes(q));document.getElementById('opportunities').innerHTML=f(opp).map(x=>card(x,true)).join('')||'<div class="empty">لا توجد فرص.</div>';document.getElementById('services').innerHTML=f(services).map(x=>card(x,false)).join('')||'<div class="empty">لا توجد خدمات.</div>';document.getElementById('portfolio').innerHTML=(state.portfolio||[]).map(x=>`<article class="card"><strong>${esc(x.title)}</strong><p>${esc(x.summary)}</p></article>`).join('')||'<div class="empty">لا توجد أعمال.</div>';document.getElementById('activity').innerHTML=(state.activity||[]).slice(0,30).map(x=>`<li>${esc(x.time)} — ${esc(x.message)}</li>`).join('')||'<li>لا يوجد نشاط.</li>'}}
+function transition(id,to){{const x=find(id);if(!x)return;const allowed={{READY_FOR_REVIEW:['DRAFT','OFFER_READY','REJECTED','FAILED'],APPROVED:['READY_FOR_REVIEW'],REJECTED:['READY_FOR_REVIEW'],SUBMITTED:['APPROVED'],WON:['SUBMITTED'],LOST:['SUBMITTED'],FOLLOW_UP:['SUBMITTED']}};if(allowed[to]&&!allowed[to].includes(status(x)))return toast('الانتقال غير مسموح من الحالة الحالية');x.status=x.lifecycle=to;x.updated_at=new Date().toISOString();persist(`تم تغيير حالة ${id} إلى ${to}`)}}
+function saveItem(id,isOpp){{const x=find(id);if(!x)return;const t=document.getElementById('title-'+id).value.trim(),d=document.getElementById('desc-'+id).value.trim();if(!t||!d)return toast('العنوان والوصف مطلوبان');x.title=t;x.description=d;if(isOpp){{const p=Number(document.getElementById('price-'+id).value),days=Number(document.getElementById('days-'+id).value);if(p<5||p%5||days<1)return toast('السعر يجب أن يكون 5$ أو مضاعفاته والمدة يومًا على الأقل');x.suggested_price_usd=p;x.suggested_price_egp=p*50;x.suggested_days=days}}persist(`تم حفظ تعديل ${id}`)}}
+function saveOffer(id){{const x=find(id),el=document.getElementById('offer-'+id);if(!x||!el)return;if(!el.value.trim())return toast('العرض لا يمكن أن يكون فارغًا');x.offer=el.value.trim();x.status=x.lifecycle='OFFER_READY';persist(`تم حفظ العرض ${id}`)}}
+async function copyOffer(id){{const x=find(id);if(!x)return;try{{await navigator.clipboard.writeText(x.offer||'');toast('تم نسخ العرض')}}catch(e){{const el=document.getElementById('offer-'+id);el.focus();el.select();document.execCommand('copy');toast('تم نسخ العرض')}}}}
+function regenerate(id){{const x=find(id);if(!x)return;const p=x.suggested_price_egp||((x.suggested_price_usd||5)*50),days=x.suggested_days||3;x.offer=`أهلًا، اطلعت على طلبك وأقدر أساعدك في المراجعة القانونية للمستند وتحليل البنود والمخاطر المحتملة.\\n\\nسأراجع المستند بندًا بندًا، أوضح نقاط المخاطر والالتزامات غير الواضحة، وأقترح صياغات عملية بديلة.\\n\\nالمدة المتوقعة: ${days} أيام. الميزانية المقترحة: ${p} جنيه مصري.`;x.status=x.lifecycle='OFFER_READY';persist(`تمت إعادة توليد العرض ${id}`)}}
+function resetState(){{if(!confirm('سيتم حذف تعديلات هذا الجهاز وإرجاع بيانات البداية. هل تريد المتابعة؟'))return;localStorage.removeItem('khyrat_marketplace_state');state=structuredClone(ORIGINAL);draw();toast('تم إرجاع بيانات البداية')}}
+function toast(t){{const e=document.getElementById('msg');e.textContent=t;e.style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.style.display='none',2200)}}draw();
 </script></body></html>'''
 
 
 def main() -> None:
-    state = load_state()
-    DASHBOARD_FILE.write_text(render(state), encoding="utf-8")
+    DASHBOARD_FILE.write_text(render(load_state()), encoding="utf-8")
     print(DASHBOARD_FILE)
 
 
