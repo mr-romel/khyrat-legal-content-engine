@@ -1,33 +1,22 @@
-"""Public Mostaql project discovery without account login or submission automation."""
+"""Public Mostaql business-category project discovery."""
 from __future__ import annotations
 
 import re
 from html import unescape
 from typing import Any
-from urllib.parse import quote_plus, urljoin
-import xml.etree.ElementTree as ET
+from urllib.parse import urljoin
 
 import requests
 
-BASE_URL = "https://mostaql.com/projects"
-LEGAL_SKILL_URLS = (
-    "https://mostaql.com/projects/skill/legal",
-    "https://mostaql.com/projects/skill/contracts",
-    "https://mostaql.com/projects/skill/legal-writing",
-    "https://mostaql.com/projects/skill/legal-research",
-)
-SEARCH_TERMS = (
-    "استشارة قانونية", "صياغة عقد", "مراجعة عقد", "محامي", "محاماة",
-    "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "كتابة قانونية",
-    "مذكرة قانونية", "بحث قانوني", "قانون العمل", "شؤون قانونية",
-    "شروط الاستخدام", "سياسة الخصوصية", "شروط وأحكام", "نزاع تجاري",
-)
+BASE_URL = "https://mostaql.com/projects/business"
+BUSINESS_FILTER_URL = BASE_URL
+
 LEGAL_TERMS = (
     "محامي", "محاماة", "قانون", "قانوني", "قانونية", "عقد", "عقود",
     "صياغة", "مراجعة", "استشارة", "استشارات", "اتفاقية", "اتفاقيات",
     "لائحة", "سياسة", "شروط الاستخدام", "شروط وأحكام", "خصوصية",
     "نزاع", "تجاري", "شركة", "شركات", "قضية", "بحث قانوني", "مذكرة",
-    "عمل", "عمال", "وظائف", "امتثال", "حوكمة", "تجارة إلكترونية",
+    "عمل", "عمال", "امتثال", "حوكمة", "تجارة إلكترونية",
 )
 STRONG_TERMS = (
     "محامي", "محاماة", "استشارة قانونية", "صياغة عقد", "مراجعة عقد",
@@ -66,8 +55,10 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
         score = 60
     seen.add(href)
     results.append({
-        "platform": "mostaql", "title": title,
-        "description": description or title, "source_url": href,
+        "platform": "mostaql",
+        "title": title,
+        "description": description or title,
+        "source_url": href,
         "discovery_score": score,
     })
 
@@ -112,45 +103,26 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     return results[:limit]
 
 
-def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for term in SEARCH_TERMS:
-        url = "https://www.bing.com/search?format=rss&q=" + quote_plus(f"site:mostaql.com/project {term}")
-        try:
-            response = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-        except requests.RequestException:
-            continue
-        if not response.ok:
-            continue
-        try:
-            root = ET.fromstring(response.text)
-        except ET.ParseError:
-            continue
-        for item in root.findall(".//item"):
-            link = (item.findtext("link") or "").strip()
-            if "/project/" not in link:
-                continue
-            _add(results, seen, link, (item.findtext("title") or "").strip(),
-                 (item.findtext("description") or "").strip(), limit)
-            if len(results) >= limit:
-                return results
-    return results
-
-
-def _fetch_skill_page(skill_url: str, timeout: int) -> str:
-    """Fetch a public skill page; fall back to Jina when Mostaql blocks raw HTTP."""
+def _fetch_business_page(timeout: int) -> str:
+    """Fetch only the public Mostaql business filter; use Jina if raw HTTP is blocked."""
     try:
-        response = requests.get(skill_url, timeout=timeout,
-                                headers={"User-Agent": "KhyratMarketplaceDiscovery/7.0"})
+        response = requests.get(
+            BUSINESS_FILTER_URL,
+            timeout=timeout,
+            headers={"User-Agent": "KhyratMarketplaceDiscovery/8.0"},
+        )
         if response.ok and "/project/" in response.text:
             return response.text
     except requests.RequestException:
         pass
-    reader_url = "https://r.jina.ai/http://" + skill_url.removeprefix("https://")
+
+    reader_url = "https://r.jina.ai/http://" + BUSINESS_FILTER_URL.removeprefix("https://")
     try:
-        response = requests.get(reader_url, timeout=min(timeout, 15),
-                                headers={"User-Agent": "Mozilla/5.0"})
+        response = requests.get(
+            reader_url,
+            timeout=min(timeout, 15),
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
         if response.ok:
             return response.text
     except requests.RequestException:
@@ -158,25 +130,8 @@ def _fetch_skill_page(skill_url: str, timeout: int) -> str:
     return ""
 
 
-def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for skill_url in LEGAL_SKILL_URLS:
-        text = _fetch_skill_page(skill_url, timeout)
-        if not text:
-            continue
-        for item in parse_projects(text, limit=limit, official=True):
-            href = str(item.get("source_url", ""))
-            if href and href not in seen:
-                seen.add(href)
-                results.append({**item, "live": True, "source_kind": "official_open_listing"})
-                if len(results) >= limit:
-                    return results
-    return results
-
-
 def _project_is_open(url: str, timeout: int) -> bool:
-    """Reject stale/closed projects for fallback sources."""
+    """Reject stale/closed projects."""
     reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
     try:
         response = requests.get(reader_url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
@@ -193,8 +148,7 @@ def _project_is_open(url: str, timeout: int) -> bool:
     )
     if any(re.search(pattern, normalized, re.I | re.S) for pattern in patterns):
         return True
-    return bool(re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])",
-                          normalized, re.I | re.M))
+    return bool(re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])", normalized, re.I | re.M))
 
 
 def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
@@ -209,20 +163,20 @@ def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, t
 
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
-    """Discover currently open legal projects from public Mostaql sources."""
-    official = _official_skill_projects(max(limit * 3, 30), timeout)
-    if official:
-        return official[:limit]
-    candidates = _bing_projects(max(limit * 4, 30), timeout)
-    if not candidates:
-        try:
-            response = requests.get(url, timeout=timeout,
-                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/7.0"})
-            if response.ok:
-                candidates = parse_projects(response.text, limit=max(limit * 4, 30))
-        except requests.RequestException:
-            candidates = []
-    return validate_live_projects(candidates, limit=limit, timeout=min(timeout, 8))
+    """Discover open legal opportunities ONLY from Mostaql's Business filter."""
+    if url != BUSINESS_FILTER_URL:
+        url = BUSINESS_FILTER_URL
+    text = _fetch_business_page(timeout)
+    if not text:
+        return []
+
+    # The source itself is the Business filter. Legal relevance is applied on top.
+    candidates = parse_projects(text, limit=max(limit * 4, 40))
+    live = validate_live_projects(candidates, limit=limit, timeout=min(timeout, 8))
+    for item in live:
+        item["source_filter"] = BUSINESS_FILTER_URL
+        item["source_kind"] = "mostaql_business_filter"
+    return live
 
 
 def merge_discoveries(existing: list[dict[str, Any]], discovered: list[dict[str, Any]]) -> list[dict[str, Any]]:
