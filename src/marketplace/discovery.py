@@ -95,8 +95,9 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, d
     if not official and (score < 24 or not _is_relevant_opportunity(title, description)):
         return
     seen.add(href)
+    candidate_score = max(score, 60) if official else (score if score >= 24 else 1)
     results.append({"platform": "mostaql", "title": title, "description": description or title,
-                    "source_url": href, "discovery_score": score if score >= 24 else 1})
+                    "source_url": href, "discovery_score": candidate_score})
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
