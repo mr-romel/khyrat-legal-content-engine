@@ -1,16 +1,9 @@
 """Isolated Marketplace domain package.
 
-The existing Core Content Engine must not import this package.
+The package initializer is intentionally side-effect free: importing
+``marketplace`` must not eagerly import any other application modules.
+Import Marketplace submodules explicitly where needed, e.g.
+``marketplace.followup`` or ``marketplace.review``.
 """
 
-from .followup import due_followups, expire_stale, followup_metrics, prepare_followup
-from .review import ReviewResult, transition
-
-__all__ = [
-    "ReviewResult",
-    "transition",
-    "due_followups",
-    "expire_stale",
-    "followup_metrics",
-    "prepare_followup",
-]
+__all__: list[str] = []
