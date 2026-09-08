@@ -60,6 +60,20 @@ def _client():
     return genai.Client(api_key=_key())
 
 
+def _interaction_text(response: Any) -> str:
+    for step in getattr(response, "steps", []) or []:
+        if getattr(step, "type", "") != "model_output":
+            continue
+        for content in getattr(step, "content", []) or []:
+            text = getattr(content, "text", None)
+            if text:
+                return str(text).strip()
+    output = getattr(response, "output", None)
+    if isinstance(output, str):
+        return output.strip()
+    return ""
+
+
 def generate_offer(opportunity: dict[str, Any]) -> str:
     """Generate a project-specific Mostaql offer with enforced price rules."""
     title = str(opportunity.get("title", "")).strip()
@@ -88,13 +102,13 @@ def generate_offer(opportunity: dict[str, Any]) -> str:
 لا تستخدم عنوانًا للعرض، ولا Markdown، ولا مقدمات محفوظة، واكتب العرض فقط.
 """
     try:
-        response = _client().models.generate_content(
+        response = _client().interactions.create(
             model=TEXT_MODEL,
-            contents=prompt,
+            input=prompt,
         )
     except Exception as exc:
         raise RuntimeError(f"تعذر توليد عرض Gemini: {exc}") from exc
-    text = (getattr(response, "text", "") or "").strip()
+    text = _interaction_text(response)
     if not text:
         raise RuntimeError("Gemini لم يُرجع عرضًا نصيًا")
     return text
