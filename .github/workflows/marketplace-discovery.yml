@@ -38,7 +38,9 @@ jobs:
           python - <<'PY'
           import hashlib
           import json
+          import re
           from pathlib import Path
+          import marketplace.discovery as discovery
           from marketplace.discovery import discover_mostaql, merge_discoveries
           from marketplace_mvp import build_offer, load_state, save_state, score_opportunity
 
@@ -50,6 +52,15 @@ jobs:
                   previous = json.loads(feed_path.read_text(encoding='utf-8'))
               except (json.JSONDecodeError, OSError):
                   previous = []
+
+          # Diagnostics are intentionally against the Business filter only.
+          raw_business = discovery._fetch_business_page(20)
+          print(f'business_page_chars={len(raw_business)}')
+          print(f'business_project_markers={len(re.findall(r"/projects?/[A-Za-z0-9]", raw_business, re.I))}')
+          candidates = discovery.parse_projects(raw_business, limit=20, official=True) if raw_business else []
+          print(f'business_candidates={len(candidates)}')
+          for candidate in candidates[:5]:
+              print(f"CANDIDATE {candidate['title']} -> {candidate['source_url']}")
 
           discovered = discover_mostaql(limit=10)
           merged = merge_discoveries(previous, discovered)
