@@ -14,7 +14,7 @@ if SRC not in sys.path:
 from marketplace import server
 from marketplace.cloud_state import configured as d1_configured
 from marketplace.cloud_state import load_state as d1_load_state, save_state as d1_save_state
-from marketplace.live import fetch_mostaql_projects, generate_case_specific_offer, generate_service_image, image_data_url
+from marketplace.live import fetch_mostaql_projects, generate_case_specific_offer, generate_service_image, image_data_url, offer_terms
 from marketplace.pipeline import ensure_initial_assets, ingest_mostaql_opportunity
 from marketplace.web_dashboard import render as render_live_dashboard
 from marketplace_mvp import load_state as local_load_state, save_state as local_save_state
@@ -115,13 +115,16 @@ class handler(BaseHTTPRequestHandler):
                 item = next((x for x in state.get("opportunities", []) if str(x.get("id")) == opportunity_id), None)
                 if not item:
                     raise ValueError("الفرصة غير موجودة")
+                price, days = offer_terms(item)
+                item["suggested_price_usd"] = price
+                item["suggested_days"] = days
                 offer = generate_case_specific_offer(item)
                 item["offer"] = offer
                 item["status"] = item["lifecycle"] = "OFFER_READY"
-                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"Gemini أعاد دراسة عرض: {item.get('title', '')}"})
+                state.setdefault("activity", []).insert(0, {"time": server._now(), "message": f"Gemini أعاد دراسة عرض: {item.get('title', '')} — ${price} / {days} أيام"})
                 state["activity"] = state["activity"][:100]
                 _save_state(state)
-                return _response(self, 200, {"ok": True, "offer": offer, "opportunity": item})
+                return _response(self, 200, {"ok": True, "offer": offer, "price_usd": price, "days": days, "opportunity": item})
 
             if path == "/api/khamsat/image":
                 if not GEMINI_CONFIGURED:
