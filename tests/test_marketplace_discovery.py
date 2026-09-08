@@ -14,6 +14,14 @@ def test_parse_public_mostaql_projects_and_filter_legal():
     assert "عقد" in items[0]["title"]
 
 
+def test_official_skill_listing_accepts_project_without_keyword():
+    html = '<a href="/project/789-business">الانشطة التجارية</a>'
+    items = parse_projects(html, official=True)
+    assert len(items) == 1
+    assert items[0]["source_url"].endswith("/project/789-business")
+    assert items[0]["discovery_score"] >= 60
+
+
 def test_merge_deduplicates_by_source_url():
     old = [{"source_url": "https://mostaql.com/project/1", "title": "قديم", "discovery_score": 20}]
     new = [{"source_url": "https://mostaql.com/project/1", "title": "محدث", "discovery_score": 40}]
