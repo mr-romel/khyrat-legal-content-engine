@@ -16,7 +16,6 @@ LEGAL_SKILL_URLS = (
     "https://mostaql.com/projects/skill/legal-writing",
     "https://mostaql.com/projects/skill/legal-research",
 )
-READER_URL = "https://r.jina.ai/https://mostaql.com/projects/skill/legal"
 SEARCH_TERMS = (
     "استشارة قانونية", "صياغة عقد", "مراجعة عقد", "محامي", "محاماة",
     "عقد", "عقود", "اتفاقية", "قانوني", "قانونية", "كتابة قانونية",
@@ -83,14 +82,12 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     for match in html_pattern.finditer(text):
         body = _clean(match.group("body"))
         href = urljoin(BASE_URL, match.group("href"))
-        # Keep context local. The old multi-kilobyte window could leak unrelated
-        # legal words from another card and make non-legal projects pass scoring.
         context = text[max(0, match.start() - 500):min(len(text), match.end() + 700)]
         _add(results, seen, href, body, context, limit, official=official)
         if len(results) >= limit:
             return results
     md_pattern = re.compile(
-        r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I
+        r'\[(?P<title>[^\]]+)\]\((?P<href>https?://mostaql\.com/project/[^)]+)\)', re.I
     )
     for match in md_pattern.finditer(text):
         context = text[max(0, match.start() - 500):match.end() + 700]
@@ -127,18 +124,34 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     return results
 
 
+def _fetch_skill_page(skill_url: str, timeout: int) -> str:
+    """Fetch a public skill page; fall back to Jina when Mostaql blocks raw HTTP."""
+    try:
+        response = requests.get(skill_url, timeout=timeout,
+                                headers={"User-Agent": "KhyratMarketplaceDiscovery/6.0"})
+        if response.ok and "/project/" in response.text:
+            return response.text
+    except requests.RequestException:
+        pass
+    reader_url = "https://r.jina.ai/http://" + skill_url.removeprefix("https://")
+    try:
+        response = requests.get(reader_url, timeout=min(timeout, 15),
+                                headers={"User-Agent": "Mozilla/5.0"})
+        if response.ok:
+            return response.text
+    except requests.RequestException:
+        pass
+    return ""
+
+
 def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     for skill_url in LEGAL_SKILL_URLS:
-        try:
-            response = requests.get(skill_url, timeout=timeout,
-                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/5.0"})
-        except requests.RequestException:
+        text = _fetch_skill_page(skill_url, timeout)
+        if not text:
             continue
-        if not response.ok:
-            continue
-        for item in parse_projects(response.text, limit=limit, official=True):
+        for item in parse_projects(text, limit=limit, official=True):
             href = str(item.get("source_url", ""))
             if href and href not in seen:
                 seen.add(href)
@@ -158,16 +171,16 @@ def _project_is_open(url: str, timeout: int) -> bool:
     if not response.ok:
         return False
     normalized = _clean(unescape(response.text)).lower()
-    status_patterns = (
+    patterns = (
         r"حالة\s*المشروع\s*[:：-]?\s*مفتوح(?:\s|$)",
         r"حالة\s*المشروع.{0,80}\bمفتوح\b",
         r"project\s*status\s*[:：-]?\s*open(?:\s|$)",
         r"status.{0,50}\bopen\b",
     )
-    if any(re.search(pattern, normalized, re.I | re.S) for pattern in status_patterns):
+    if any(re.search(pattern, normalized, re.I | re.S) for pattern in patterns):
         return True
-    standalone = re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])", normalized, re.I | re.M)
-    return bool(standalone)
+    return bool(re.search(r"(?:^|[|•\-])\s*(مفتوح|open)\s*(?:$|[|•\-])",
+                          normalized, re.I | re.M))
 
 
 def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
@@ -188,13 +201,13 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         return official[:limit]
     candidates = _bing_projects(max(limit * 4, 30), timeout)
     if not candidates:
-        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/5.0"})
-        if response.ok:
-            candidates = parse_projects(response.text, limit=max(limit * 4, 30))
-    if not candidates:
-        reader = requests.get(READER_URL, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-        if reader.ok:
-            candidates = parse_projects(reader.text, limit=max(limit * 4, 30))
+        try:
+            response = requests.get(url, timeout=timeout,
+                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/6.0"})
+            if response.ok:
+                candidates = parse_projects(response.text, limit=max(limit * 4, 30))
+        except requests.RequestException:
+            candidates = []
     return validate_live_projects(candidates, limit=limit, timeout=min(timeout, 8))
 
 
