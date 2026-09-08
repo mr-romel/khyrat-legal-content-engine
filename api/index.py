@@ -43,6 +43,11 @@ def _response(handler: BaseHTTPRequestHandler, status: int, payload, content_typ
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Cache-Control", "no-store")
+    # GitHub Pages hosts the frontend on a different origin than Vercel.
+    # Allow the dashboard to call the API and preflight POST requests.
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -75,6 +80,9 @@ def _mark_opportunity(state: dict, opportunity_id: str, status: str) -> dict:
 
 
 class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        return _response(self, 204, b"", "text/plain; charset=utf-8")
+
     def do_GET(self):
         path = urlparse(self.path).path
         try:
