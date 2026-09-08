@@ -49,8 +49,11 @@ def _canonical_url(href: str) -> str:
 
 
 def _is_project_url(href: str) -> bool:
-    parsed = urlsplit(href)
-    return bool(re.fullmatch(r"/project/[A-Za-z0-9][A-Za-z0-9_-]*", parsed.path.rstrip("/"))) and parsed.path.rstrip("/") != "/project/create"
+    path = urlsplit(href).path.rstrip("/")
+    if path == "/project/create":
+        return False
+    # Mostaql slugs are commonly percent-encoded Arabic, so ASCII-only matching is invalid.
+    return bool(re.fullmatch(r"/project/[^/?#\\s<>\"']+", path, re.I))
 
 
 def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
@@ -74,7 +77,7 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
-    """Extract real /project/... links from the canonical Business response."""
+    """Extract real /project/<slug> links from the canonical Business response."""
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -82,12 +85,12 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     anchor_pattern = re.compile(
         r'<a\b[^>]*?href=["\'](?P<href>[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S
     )
+    # Do not assume an ASCII slug: Arabic project titles are percent-encoded in real URLs.
     url_pattern = re.compile(
-        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][A-Za-z0-9_-]*(?:[/?#][^\s<>"\']*)?)',
+        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\\s<>"\']+)',
         re.I,
     )
 
-    # First pass: normal HTML anchors, preserving their visible title.
     for match in anchor_pattern.finditer(text):
         href = _canonical_url(match.group("href"))
         if not href or not _is_project_url(href):
@@ -97,7 +100,6 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
         if len(results) >= limit:
             return results
 
-    # Second pass: escaped/JSON/JS responses where links are not wrapped in anchors.
     for match in url_pattern.finditer(text):
         href = _canonical_url(match.group("href"))
         if not href or not _is_project_url(href):
@@ -133,13 +135,13 @@ def _looks_like_business_response(body: str) -> bool:
     if not body or len(body) < 300:
         return False
     normalized = body.lower()
-    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[A-Za-z0-9]", body, re.I))
+    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[^/?#\\s<>\"']+", body, re.I))
 
 
 def _get(url: str, timeout: int) -> str:
     try:
         response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/22.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/23.0)"
         })
         return response.text if response.ok else ""
     except requests.RequestException:
@@ -175,17 +177,6 @@ def _project_is_open_text(text: str) -> bool:
         "project is closed", "expired", "archived",
     )
     return not any(term in normalized for term in closed_terms)
-
-
-def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
-    valid: list[dict[str, Any]] = []
-    for item in projects:
-        if len(valid) >= limit:
-            break
-        page = _fetch_project_page(str(item.get("source_url", "")), timeout)
-        if page and _project_is_open_text(page):
-            valid.append({**item, "live": True})
-    return valid
 
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
