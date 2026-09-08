@@ -5,8 +5,11 @@ on:
   push:
     paths:
       - 'src/marketplace/discovery.py'
+      - 'src/marketplace/ai_media.py'
       - 'src/marketplace_mvp.py'
-      - 'tests/test_marketplace_discovery.py'
+      - 'src/marketplace_daily.py'
+      - 'src/marketplace/static_dashboard.py'
+      - 'tests/test_marketplace_*.py'
       - '.github/workflows/marketplace-discovery.yml'
   schedule:
     - cron: '*/30 * * * *'
@@ -17,11 +20,13 @@ concurrency:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 11
+    timeout-minutes: 15
     env:
       PYTHONPATH: .:src
     steps:
@@ -31,8 +36,8 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Install requests
-        run: python -m pip install 'requests>=2.32.0,<3.0.0'
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
       - name: Discover and sync live public Mostaql projects
         run: |
           python - <<'PY'
@@ -73,9 +78,6 @@ jobs:
           opportunities = state.setdefault('opportunities', [])
           by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
           live_urls = {str(x.get('source_url', '')).strip() for x in discovered if x.get('source_url')}
-
-          # Discovery-owned queue records are disposable cache entries. Remove stale
-          # Mostaql discovery records before syncing the current Business-filter result.
           before_prune = len(opportunities)
           opportunities[:] = [
               x for x in opportunities
@@ -84,7 +86,6 @@ jobs:
           ]
           pruned = before_prune - len(opportunities)
           by_url = {str(x.get('source_url')): x for x in opportunities if x.get('source_url')}
-
           added = 0
           refreshed = 0
 
@@ -143,11 +144,21 @@ jobs:
           for item in discovered:
               print(f"LIVE {item['discovery_score']:>3} {item['title']} -> {item['source_url']}")
           PY
+      - name: Run Marketplace regression tests
+        run: python -m pytest -q tests/test_marketplace_mvp.py tests/test_marketplace_review.py tests/test_marketplace_isolation.py tests/test_marketplace_server.py tests/test_marketplace_pipeline.py tests/test_marketplace_opportunity_engine.py tests/test_marketplace_opportunity_queue.py tests/test_marketplace_revenue.py tests/test_marketplace_followup.py tests/test_marketplace_daily_ops.py tests/test_marketplace_daily_cli.py tests/test_marketplace_service_assets.py tests/test_marketplace_pro_dashboard.py tests/test_marketplace_command_center.py tests/test_marketplace_notifications.py tests/test_marketplace_discovery.py tests/test_marketplace_live.py tests/test_marketplace_deployment_docs.py
+      - name: Build Marketplace daily plan and dashboard
+        run: |
+          python src/marketplace_daily.py --output marketplace_data/daily_plan.json
+          python src/marketplace/static_dashboard.py
+          test -s marketplace_data/dashboard.html
+          rm -rf marketplace_pages
+          mkdir -p marketplace_pages
+          cp marketplace_data/dashboard.html marketplace_pages/index.html
       - name: Commit changed discovery feed and marketplace queue
         run: |
           git config user.name 'Khyrat Marketplace Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add -f marketplace_data/discovered_opportunities.json marketplace_data/marketplace.json
+          git add -f marketplace_data/discovered_opportunities.json marketplace_data/marketplace.json marketplace_data/daily_plan.json marketplace_data/dashboard.html
           if git diff --cached --quiet; then
             echo 'No discovery changes.'
           else
@@ -155,9 +166,15 @@ jobs:
             git pull --rebase origin main
             git push
           fi
-      - name: Upload discovery feed
+      - name: Upload discovery and dashboard artifacts
         uses: actions/upload-artifact@v4
         with:
           name: khyrat-marketplace-discovery
-          path: marketplace_data/discovered_opportunities.json
+          path: marketplace_data/
           if-no-files-found: error
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: marketplace_pages/
+      - name: Deploy Marketplace dashboard to GitHub Pages
+        uses: actions/deploy-pages@v4
