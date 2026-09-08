@@ -20,6 +20,11 @@ import requests
 from PIL import Image
 
 MOSTAQL_PROJECTS_URL = "https://mostaql.com/projects"
+MOSTAQL_LEGAL_FEEDS = (
+    "https://mostaql.com/projects/skill/legal",
+    "https://mostaql.com/projects/skill/contracts",
+    "https://r.jina.ai/https://mostaql.com/projects/skill/legal",
+)
 LEGAL_TERMS = {
     "عقد": 30, "عقود": 30, "اتفاقية": 30, "اتفاقيات": 30, "محامي": 35,
     "محاماة": 35, "قانون": 30, "قانوني": 30, "استشارة قانونية": 35,
@@ -27,7 +32,8 @@ LEGAL_TERMS = {
     "شراكة": 25, "عمل": 15, "عمال": 20, "وظيفة": 10, "موارد بشرية": 20,
     "تجاري": 20, "تجارية": 20, "nda": 30, "non-disclosure": 30,
     "terms": 20, "privacy policy": 20, "legal": 30, "lawyer": 35,
-    "contract": 30, "agreement": 30, "employment": 20,
+    "contract": 30, "agreement": 30, "employment": 20, "compliance": 20,
+    "governance": 20,
 }
 
 
@@ -71,7 +77,7 @@ class _ProjectParser(HTMLParser):
 def _session() -> requests.Session:
     s = requests.Session()
     s.headers.update({
-        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/1.0; +https://github.com/mr-romel/khyrat-legal-content-engine)",
+        "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplace/2.0; +https://github.com/mr-romel/khyrat-legal-content-engine)",
         "Accept-Language": "ar-EG,ar;q=0.9,en;q=0.7",
     })
     return s
@@ -81,10 +87,21 @@ def score_legal_relevance(title: str, description: str) -> tuple[int, list[str]]
     text = f"{title} {description}".lower()
     hits = [(term, points) for term, points in LEGAL_TERMS.items() if term in text]
     score = min(100, sum(points for _, points in hits))
-    reasons = [f"مطابقة قانونية: {term}" for term, _ in hits[:6]]
+    reasons = [f"مطابقة قانونية: {term}" for term, _ in hits[:8]]
     if not reasons:
         reasons = ["لا توجد مطابقة قانونية كافية"]
     return score, reasons
+
+
+def _fetch_project_list(session: requests.Session, url: str, timeout: int = 12) -> list[tuple[str, str]]:
+    try:
+        response = session.get(url, timeout=timeout)
+        response.raise_for_status()
+    except requests.RequestException:
+        return []
+    parser = _ProjectParser()
+    parser.feed(response.text)
+    return parser.links
 
 
 def _detail(session: requests.Session, url: str) -> dict[str, str]:
@@ -96,29 +113,49 @@ def _detail(session: requests.Session, url: str) -> dict[str, str]:
         description = parser.meta.get("description") or parser.meta.get("og:description") or ""
         return {"description": description[:6000]}
     except requests.RequestException:
-        return {"description": ""}
+        # Jina Reader is used only as a public-page fallback when Mostaql's
+        # normal HTML response is blocked by an intermediary or edge cache.
+        reader_url = "https://r.jina.ai/http://" + url.removeprefix("https://")
+        try:
+            response = session.get(reader_url, timeout=8)
+            response.raise_for_status()
+            return {"description": response.text[:6000]}
+        except requests.RequestException:
+            return {"description": ""}
 
 
-def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 45) -> list[dict[str, Any]]:
-    """Fetch current public projects and retain only legally relevant ones."""
+def fetch_mostaql_projects(limit: int = 12, minimum_score: int = 30) -> list[dict[str, Any]]:
+    """Fetch current public legal projects and retain relevant opportunities."""
     limit = max(1, min(int(limit), 30))
     session = _session()
-    response = session.get(MOSTAQL_PROJECTS_URL, timeout=10)
-    response.raise_for_status()
-    parser = _ProjectParser()
-    parser.feed(response.text)
 
     unique: dict[str, str] = {}
-    for href, title in parser.links:
-        url = urljoin(MOSTAQL_PROJECTS_URL, href)
-        if re.search(r"/project/\d+", url):
-            unique.setdefault(url, title)
-        if len(unique) >= limit * 3:
+    for feed_url in MOSTAQL_LEGAL_FEEDS:
+        for href, title in _fetch_project_list(session, feed_url):
+            url = urljoin(MOSTAQL_PROJECTS_URL, href)
+            if re.search(r"/project/\d+", url):
+                unique.setdefault(url, title)
+            if len(unique) >= limit * 5:
+                break
+        if len(unique) >= limit * 5:
             break
+
+    # Last fallback: the generic projects page. It is intentionally secondary
+    # because the legal skill feed is a much better acquisition source.
+    if not unique:
+        for href, title in _fetch_project_list(session, MOSTAQL_PROJECTS_URL):
+            url = urljoin(MOSTAQL_PROJECTS_URL, href)
+            if re.search(r"/project/\d+", url):
+                unique.setdefault(url, title)
+            if len(unique) >= limit * 5:
+                break
 
     candidates: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {pool.submit(_detail, session, url): (url, title) for url, title in list(unique.items())[:limit * 2]}
+        futures = {
+            pool.submit(_detail, session, url): (url, title)
+            for url, title in list(unique.items())[:limit * 4]
+        }
         for future in as_completed(futures):
             url, title = futures[future]
             detail = future.result()
@@ -207,10 +244,7 @@ def generate_service_image(service: dict[str, Any]) -> bytes:
             canvas = Image.new("RGB", (1700, 970), "white")
             x = (1700 - image.width) // 2
             y = (970 - image.height) // 2
-            if image.mode in ("RGBA", "LA"):
-                canvas.paste(image.convert("RGB"), (x, y))
-            else:
-                canvas.paste(image.convert("RGB"), (x, y))
+            canvas.paste(image.convert("RGB"), (x, y))
             output = io.BytesIO()
             canvas.save(output, format="JPEG", quality=72, optimize=True)
             return output.getvalue()
