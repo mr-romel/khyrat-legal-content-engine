@@ -82,19 +82,33 @@ def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> lis
     for match in html_pattern.finditer(text):
         body = _clean(match.group("body"))
         href = urljoin(BASE_URL, match.group("href"))
-        context = text[max(0, match.start() - 500):min(len(text), match.end() + 700)]
-        _add(results, seen, href, body, context, limit, official=official)
+        _add(results, seen, href, body, body, limit, official=official)
         if len(results) >= limit:
             return results
+
     md_pattern = re.compile(
-        r'\[(?P<title>[^\]]+)\]\((?P<href>https?://mostaql\.com/project/[^)]+)\)', re.I
+        r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://mostaql\.com)?/project/[^)]+)\)',
+        re.I,
     )
     for match in md_pattern.finditer(text):
-        context = text[max(0, match.start() - 500):match.end() + 700]
-        _add(results, seen, match.group("href"), match.group("title"), context,
-             limit, official=official)
+        href = urljoin(BASE_URL, match.group("href"))
+        title = _clean(match.group("title"))
+        _add(results, seen, href, title, title, limit, official=official)
         if len(results) >= limit:
             break
+
+    if len(results) < limit:
+        raw_pattern = re.compile(r'https?://mostaql\.com/project/[A-Za-z0-9][^\s)<>"\']*', re.I)
+        for match in raw_pattern.finditer(text):
+            href = match.group(0).rstrip(".,;:)")
+            if href in seen:
+                continue
+            window = text[max(0, match.start() - 220):match.start()]
+            lines = [line.strip(" #-\t") for line in window.splitlines() if line.strip()]
+            title = _clean(lines[-1] if lines else href.rsplit("/", 1)[-1].replace("-", " "))
+            _add(results, seen, href, title, title, limit, official=official)
+            if len(results) >= limit:
+                break
     return results[:limit]
 
 
@@ -128,7 +142,7 @@ def _fetch_skill_page(skill_url: str, timeout: int) -> str:
     """Fetch a public skill page; fall back to Jina when Mostaql blocks raw HTTP."""
     try:
         response = requests.get(skill_url, timeout=timeout,
-                                headers={"User-Agent": "KhyratMarketplaceDiscovery/6.0"})
+                                headers={"User-Agent": "KhyratMarketplaceDiscovery/7.0"})
         if response.ok and "/project/" in response.text:
             return response.text
     except requests.RequestException:
@@ -203,7 +217,7 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
     if not candidates:
         try:
             response = requests.get(url, timeout=timeout,
-                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/6.0"})
+                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/7.0"})
             if response.ok:
                 candidates = parse_projects(response.text, limit=max(limit * 4, 30))
         except requests.RequestException:
