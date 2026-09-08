@@ -52,7 +52,8 @@ def _legal_score(title: str, description: str) -> int:
     return min(100, 20 + strong * 12 + normal * 4)
 
 
-def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, description: str, limit: int) -> None:
+def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
+         description: str, limit: int, *, official: bool = False) -> None:
     if len(results) >= limit or href in seen or "/project/create" in href:
         return
     title = _clean(title)[:180]
@@ -60,26 +61,41 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, d
     if not title or len(title) < 4:
         return
     score = _legal_score(title, description)
-    if score < 24:
+    if not official and score < 24:
         return
+    if official and score < 24:
+        score = 60
     seen.add(href)
-    results.append({"platform": "mostaql", "title": title, "description": description or title, "source_url": href, "discovery_score": score})
+    results.append({
+        "platform": "mostaql", "title": title,
+        "description": description or title, "source_url": href,
+        "discovery_score": score,
+    })
 
 
-def parse_projects(text: str, limit: int = 40) -> list[dict[str, Any]]:
+def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    html_pattern = re.compile(r'<a[^>]+href=["\'](?P<href>/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S)
+    html_pattern = re.compile(
+        r'<a[^>]+href=["\'](?P<href>/project/[^"\']+)["\'][^>]*>(?P<body>.*?)</a>',
+        re.I | re.S,
+    )
     for match in html_pattern.finditer(text):
         body = _clean(match.group("body"))
         href = urljoin(BASE_URL, match.group("href"))
-        context = text[max(0, match.start() - 2500):min(len(text), match.end() + 3500)]
-        _add(results, seen, href, body, context, limit)
+        # Keep context local. The old multi-kilobyte window could leak unrelated
+        # legal words from another card and make non-legal projects pass scoring.
+        context = text[max(0, match.start() - 500):min(len(text), match.end() + 700)]
+        _add(results, seen, href, body, context, limit, official=official)
         if len(results) >= limit:
             return results
-    md_pattern = re.compile(r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I)
+    md_pattern = re.compile(
+        r'\[(?P<title>[^\]]+)\]\((?P<href>https://mostaql\.com/project/[^)]+)\)', re.I
+    )
     for match in md_pattern.finditer(text):
-        _add(results, seen, match.group("href"), match.group("title"), text[max(0, match.start() - 2500):match.end() + 3500], limit)
+        context = text[max(0, match.start() - 500):match.end() + 700]
+        _add(results, seen, match.group("href"), match.group("title"), context,
+             limit, official=official)
         if len(results) >= limit:
             break
     return results[:limit]
@@ -104,7 +120,8 @@ def _bing_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
             link = (item.findtext("link") or "").strip()
             if "/project/" not in link:
                 continue
-            _add(results, seen, link, (item.findtext("title") or "").strip(), (item.findtext("description") or "").strip(), limit)
+            _add(results, seen, link, (item.findtext("title") or "").strip(),
+                 (item.findtext("description") or "").strip(), limit)
             if len(results) >= limit:
                 return results
     return results
@@ -115,12 +132,13 @@ def _official_skill_projects(limit: int, timeout: int) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for skill_url in LEGAL_SKILL_URLS:
         try:
-            response = requests.get(skill_url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/4.0"})
+            response = requests.get(skill_url, timeout=timeout,
+                                    headers={"User-Agent": "KhyratMarketplaceDiscovery/5.0"})
         except requests.RequestException:
             continue
         if not response.ok:
             continue
-        for item in parse_projects(response.text, limit=limit):
+        for item in parse_projects(response.text, limit=limit, official=True):
             href = str(item.get("source_url", ""))
             if href and href not in seen:
                 seen.add(href)
@@ -170,7 +188,7 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         return official[:limit]
     candidates = _bing_projects(max(limit * 4, 30), timeout)
     if not candidates:
-        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/4.0"})
+        response = requests.get(url, timeout=timeout, headers={"User-Agent": "KhyratMarketplaceDiscovery/5.0"})
         if response.ok:
             candidates = parse_projects(response.text, limit=max(limit * 4, 30))
     if not candidates:
