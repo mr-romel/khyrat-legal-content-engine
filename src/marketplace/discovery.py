@@ -22,18 +22,14 @@ STRONG_TERMS = (
     "عقد", "عقود", "اتفاقية", "اتفاقيات", "قانوني", "قانونية", "مذكرة قانونية",
     "كتابة قانونية", "بحث قانوني", "شروط وأحكام", "سياسة الخصوصية", "تعاقد", "تعاقدات",
 )
-DETAIL_HEADINGS = (
-    "تفاصيل المشروع", "تفاصيل المشروع:", "وصف المشروع", "وصف المشروع:",
-    "المطلوب", "المطلوب:", "تفاصيل الطلب", "تفاصيل الطلب:",
-)
+DETAIL_HEADINGS = ("تفاصيل المشروع", "وصف المشروع", "المطلوب", "تفاصيل الطلب")
 STOP_HEADINGS = (
-    "المهارات المطلوبة", "المهارات", "الميزانية", "مدة التنفيذ", "مدة المشروع",
-    "عدد العروض", "العروض", "الأسئلة", "الأسئلة الشائعة", "عن صاحب المشروع",
-    "مشاريع أخرى", "تسجيل الدخول", "إنشاء حساب",
+    "المهارات المطلوبة", "المهارات", "الميزانية", "مدة التنفيذ", "مدة المشروع", "عدد العروض",
+    "العروض", "الأسئلة", "الأسئلة الشائعة", "عن صاحب المشروع", "مشاريع أخرى", "تسجيل الدخول", "إنشاء حساب",
 )
 ERROR_MARKERS = (
-    "403 forbidden", "401 unauthorized", "404 not found", "429 too many requests",
-    "access denied", "request blocked", "captcha", "cloudflare", "service unavailable",
+    "403 forbidden", "401 unauthorized", "404 not found", "429 too many requests", "access denied",
+    "request blocked", "captcha", "cloudflare", "service unavailable",
 )
 
 
@@ -45,39 +41,34 @@ def _clean(value: str) -> str:
 
 
 def _legal_score(title: str, description: str) -> int:
-    title_text = _clean(title).lower()
-    body_text = _clean(description).lower()
-    title_strong = sum(1 for term in STRONG_TERMS if term in title_text)
-    title_normal = sum(1 for term in LEGAL_TERMS if term in title_text)
-    body_strong = sum(1 for term in STRONG_TERMS if term in body_text)
-    body_normal = sum(1 for term in LEGAL_TERMS if term in body_text)
-    if title_strong == 0 and title_normal == 0 and body_strong == 0:
+    t, b = _clean(title).lower(), _clean(description).lower()
+    ts = sum(x in t for x in STRONG_TERMS)
+    tn = sum(x in t for x in LEGAL_TERMS)
+    bs = sum(x in b for x in STRONG_TERMS)
+    bn = sum(x in b for x in LEGAL_TERMS)
+    if ts == 0 and tn == 0 and bs == 0:
         return 0
-    score = 20 + title_strong * 20 + title_normal * 8 + body_strong * 10 + body_normal * 3
-    if title_strong:
+    score = 20 + ts * 20 + tn * 8 + bs * 10 + bn * 3
+    if ts:
         score += 25
     return min(100, score)
 
 
 def _canonical_url(href: str) -> str:
     href = urljoin(BASE_URL, unescape(href).replace("\\/", "/").strip())
-    parsed = urlsplit(href)
-    host = (parsed.hostname or "").lower()
-    if host not in {"mostaql.com", "www.mostaql.com"}:
+    p = urlsplit(href)
+    if (p.hostname or "").lower() not in {"mostaql.com", "www.mostaql.com"}:
         return ""
-    path = parsed.path.rstrip("/")
-    return f"https://mostaql.com{path}" if path else ""
+    return f"https://mostaql.com{p.path.rstrip('/')}"
 
 
 def _is_project_url(href: str) -> bool:
     path = urlsplit(href).path.rstrip("/")
-    if path == "/project/create":
-        return False
-    return bool(re.fullmatch(r"/project/[^/?#\s<>\"']+", path, re.I))
+    return path != "/project/create" and bool(re.fullmatch(r"/project/[^/?#\s<>\"']+", path, re.I))
 
 
-def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
-         description: str, limit: int, *, official: bool = False) -> None:
+def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str, description: str,
+         limit: int, *, official: bool = False) -> None:
     href = _canonical_url(href)
     if len(results) >= limit or not href or href in seen or not _is_project_url(href):
         return
@@ -87,42 +78,29 @@ def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
     score = _legal_score(title, description)
     if not official and score < 24:
         return
-    if official and score < 24:
-        score = 1
     seen.add(href)
-    results.append({
-        "platform": "mostaql", "title": title, "description": description or title,
-        "source_url": href, "discovery_score": score,
-    })
+    results.append({"platform": "mostaql", "title": title, "description": description or title,
+                    "source_url": href, "discovery_score": score if score >= 24 else 1})
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
-    """Extract real /project/<slug> links from the canonical Business response."""
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    anchor_pattern = re.compile(
-        r'<a\b[^>]*?href=["\'](?P<href>[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S
-    )
-    url_pattern = re.compile(
-        r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\s<>"\']+)', re.I
-    )
-    for match in anchor_pattern.finditer(text):
-        href = _canonical_url(match.group("href"))
-        if not href or not _is_project_url(href):
-            continue
-        body = _clean(match.group("body"))
-        _add(results, seen, href, body, body, limit, official=official)
-        if len(results) >= limit:
-            return results
-    for match in url_pattern.finditer(text):
-        href = _canonical_url(match.group("href"))
-        if not href or not _is_project_url(href):
-            continue
-        slug = _clean(href.rsplit("/", 1)[-1].replace("-", " "))
-        _add(results, seen, href, slug, slug, limit, official=official)
-        if len(results) >= limit:
-            return results
+    anchor = re.compile(r'<a\b[^>]*?href=["\'](?P<href>[^"\']+)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S)
+    urls = re.compile(r'(?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[^/?#\s<>"\']+)', re.I)
+    for m in anchor.finditer(text):
+        href = _canonical_url(m.group("href"))
+        if _is_project_url(href):
+            body = _clean(m.group("body"))
+            _add(results, seen, href, body, body, limit, official=official)
+            if len(results) >= limit: return results
+    for m in urls.finditer(text):
+        href = _canonical_url(m.group("href"))
+        if _is_project_url(href):
+            slug = _clean(href.rsplit("/", 1)[-1].replace("-", " "))
+            _add(results, seen, href, slug, slug, limit, official=official)
+            if len(results) >= limit: return results
     return results
 
 
@@ -131,9 +109,8 @@ def _reader_url(target: str) -> str:
 
 
 def _translate_url(target: str) -> str:
-    parts = urlsplit(target)
-    path = quote(parts.path, safe="/:")
-    query = quote(parts.query, safe="=&%")
+    p = urlsplit(target)
+    path, query = quote(p.path, safe="/:"), quote(p.query, safe="=&%")
     suffix = f"?{query}&" if query else "?"
     return f"https://mostaql-com.translate.goog{path}{suffix}_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en"
 
@@ -142,47 +119,29 @@ def _agentsweb_url(target: str) -> str:
     return "https://agentsweb.org/fetch?url=" + quote(target, safe="")
 
 
-def _transport_urls(target: str) -> tuple[str, ...]:
-    return (target, _reader_url(target), _translate_url(target), _agentsweb_url(target))
-
-
-def _looks_like_business_response(body: str) -> bool:
-    if not body or len(body) < 300:
-        return False
-    normalized = body.lower()
-    return ("mostaql" in normalized or "مستقل" in normalized) and bool(
-        re.search(r"/project/[^/?#\s<>\"']+", body, re.I)
-    )
-
-
 def _looks_like_error_page(body: str) -> bool:
-    if not body:
-        return True
-    normalized = _clean(body[:12000]).lower()
-    return any(marker in normalized for marker in ERROR_MARKERS)
+    if not body: return True
+    text = _clean(body[:12000]).lower()
+    return any(x in text for x in ERROR_MARKERS)
 
 
 def _get(url: str, timeout: int) -> str:
     try:
-        response = requests.get(url, timeout=min(timeout, 15), headers={
-            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/24.3)"
-        })
-        if not response.ok:
-            return ""
-        body = response.text
-        return "" if _looks_like_error_page(body) else body
+        r = requests.get(url, timeout=min(timeout, 15), headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/25.0)"})
+        if not r.ok or _looks_like_error_page(r.text): return ""
+        return r.text
     except requests.RequestException:
         return ""
 
 
+def _looks_like_business_response(body: str) -> bool:
+    return bool(body and len(body) >= 300 and ("mostaql" in body.lower() or "مستقل" in body.lower()) and
+                re.search(r"/project/[^/?#\s<>\"']+", body, re.I))
+
+
 def _fetch_business_page(timeout: int) -> str:
-    variants = (
-        BUSINESS_FILTER_URL,
-        BUSINESS_FILTER_URL + "?sort=latest",
-        BUSINESS_FILTER_URL + "?page=1",
-    )
-    for target in variants:
-        for transport in _transport_urls(target):
+    for target in (BASE_URL, BASE_URL + "?sort=latest", BASE_URL + "?page=1"):
+        for transport in (target, _reader_url(target), _translate_url(target), _agentsweb_url(target)):
             body = _get(transport, timeout)
             if _looks_like_business_response(body) and parse_projects(body, 1, official=True):
                 return body
@@ -198,15 +157,9 @@ def _fetch_project_page(url: str, timeout: int) -> str:
 
 
 def _project_is_open_text(text: str) -> bool:
-    normalized = _clean(unescape(text)).lower()
-    if not normalized or _looks_like_error_page(normalized):
-        return False
-    closed_terms = (
-        "حالة المشروع مغلق", "المشروع مغلق", "حالة المشروع: مغلق", "حالة المشروع منتهي",
-        "المشروع منتهي", "تم إغلاق المشروع", "تم التوظيف", "closed", "project closed",
-        "project is closed", "expired", "archived",
-    )
-    return not any(term in normalized for term in closed_terms)
+    n = _clean(text).lower()
+    if not n or _looks_like_error_page(n): return False
+    return not any(x in n for x in ("المشروع مغلق", "المشروع منتهي", "تم إغلاق المشروع", "تم التوظيف", "closed", "expired", "archived"))
 
 
 def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> bool:
@@ -214,102 +167,78 @@ def _project_is_open(url: str, page: str | None = None, timeout: int = 8) -> boo
     return bool(body) and _project_is_open_text(body)
 
 
+def validate_live_projects(projects: list[dict[str, Any]], *, limit: int = 10, timeout: int = 8) -> list[dict[str, Any]]:
+    valid = []
+    for item in projects:
+        if len(valid) >= limit: break
+        if _project_is_open(str(item.get("source_url", "")), timeout=timeout):
+            valid.append({**item, "live": True})
+    return valid
+
+
 def _is_noise_title(title: str) -> bool:
-    normalized = _clean(title).lower()
-    noise = (
-        "var ishomepage", "title:", "403 forbidden", "404 not found", "401 unauthorized",
-        "mostaql", "مستقل", "تسجيل الدخول", "إنشاء حساب", "access denied",
-    )
-    return len(normalized) < 4 or any(marker in normalized for marker in noise)
+    n = _clean(title).lower()
+    return len(n) < 4 or any(x in n for x in ("var ishomepage", "var isorganizationpage", "403 forbidden", "404 not found", "401 unauthorized", "mostaql", "مستقل", "تسجيل الدخول", "إنشاء حساب", "access denied"))
 
 
 def _extract_project_content(page: str, fallback_title: str) -> tuple[str, str]:
-    """Extract project details while excluding Mostaql navigation/chrome."""
+    """Keep the Business-filter title authoritative; extract only the project detail body from the page."""
     raw = unescape(page).replace("\\/", "/")
-    lines = [_clean(line) for line in raw.splitlines()]
-    lines = [line for line in lines if line]
+    lines = [_clean(x) for x in raw.splitlines() if _clean(x)]
     title = _clean(fallback_title)[:180]
-
-    for line in lines[:100]:
+    # Never promote arbitrary first-page lines (often JS variables) to title.
+    for line in lines[:120]:
         heading = re.sub(r"^#{1,6}\s*", "", line).strip()
-        if not _is_noise_title(heading) and 4 <= len(heading) <= 180:
-            # Prefer a line containing a project-like legal/business phrase over boilerplate.
-            if _legal_score(heading, "") > 0 or len(heading.split()) >= 4:
+        if heading.startswith("#") or _is_noise_title(heading):
+            continue
+        if len(heading) <= 180 and _legal_score(heading, "") >= 45 and heading != title:
+            # Only accept a strong explicit project heading; otherwise retain Business title.
+            if re.match(r"^(?:مشروع|مطلوب|طلب|خبير|مستشار|مراجعة|صياغة|استشارة|محامي|خدمة)", heading):
                 title = heading
                 break
-
-    detail_heads = {h.rstrip(":").strip().lower() for h in DETAIL_HEADINGS}
-    stop_heads = {h.rstrip(":").strip().lower() for h in STOP_HEADINGS}
-    start = None
-    for index, line in enumerate(lines):
-        normalized = line.rstrip(":").strip().lower()
-        if normalized in detail_heads:
-            start = index + 1
-            break
-
+    details = {x.rstrip(":").strip().lower() for x in DETAIL_HEADINGS}
+    stops = {x.rstrip(":").strip().lower() for x in STOP_HEADINGS}
+    start = next((i + 1 for i, line in enumerate(lines) if line.rstrip(":").strip().lower() in details), None)
     if start is None:
-        start = 1 if lines else 0
-
-    body_lines: list[str] = []
+        start = 0
+    body = []
     for line in lines[start:]:
-        normalized = line.rstrip(":").strip().lower()
-        if normalized in stop_heads:
-            break
-        if _is_noise_title(line):
-            continue
-        if re.fullmatch(r"[-*_]{3,}", line):
-            continue
-        body_lines.append(line)
-        if sum(len(x) for x in body_lines) >= 5000:
-            break
-
-    description = _clean(" ".join(body_lines))[:4000]
-    return title, description
+        n = line.rstrip(":").strip().lower()
+        if n in stops: break
+        if _is_noise_title(line) or re.fullmatch(r"[-*_]{3,}", line): continue
+        # Ignore obvious scripts/config/navigation that can contaminate reader output.
+        if line.startswith(("var ", "const ", "let ", "function ")): continue
+        body.append(line)
+        if sum(map(len, body)) >= 5000: break
+    return title, _clean(" ".join(body))[:4000]
 
 
 def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20) -> list[dict[str, Any]]:
-    """Discover legal opportunities exclusively from the canonical Business filter."""
     _ = url
     raw = _fetch_business_page(timeout)
     candidates = parse_projects(raw, limit=max(limit * 20, 200), official=True) if raw else []
-    if not candidates:
-        return []
-
+    if not candidates: return []
     def inspect(item: dict[str, Any]) -> dict[str, Any] | None:
         page = _fetch_project_page(str(item["source_url"]), min(timeout, 8))
-        if not page or not _project_is_open(str(item["source_url"]), page):
-            return None
-        extracted_title, description = _extract_project_content(page, item.get("title", ""))
-        title = item.get("title", "") if _is_noise_title(extracted_title) else extracted_title
+        if not page or not _project_is_open(str(item["source_url"]), page): return None
+        title, description = _extract_project_content(page, item.get("title", ""))
         score = _legal_score(title, description)
-        # A legal title from the Business filter is authoritative enough to survive a thin details page;
-        # unrelated projects must still have a legal-specific title or substantive legal details.
-        if score < 24:
-            return None
-        return {
-            **item,
-            "title": _clean(title)[:180],
-            "description": description or _clean(title),
-            "discovery_score": score,
-            "live": True,
-            "source_filter": BUSINESS_FILTER_URL,
-            "source_kind": "mostaql_business_filter",
-        }
-
-    scored: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=12) as executor:
-        futures = [executor.submit(inspect, item) for item in candidates]
+        if score < 24: return None
+        return {**item, "title": _clean(title)[:180], "description": description or _clean(title),
+                "discovery_score": score, "live": True, "source_filter": BUSINESS_FILTER_URL,
+                "source_kind": "mostaql_business_filter"}
+    scored = []
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        futures = [pool.submit(inspect, item) for item in candidates]
         for future in as_completed(futures):
             item = future.result()
-            if item:
-                scored.append(item)
+            if item: scored.append(item)
     return sorted(scored, key=lambda x: int(x.get("discovery_score", 0)), reverse=True)[:limit]
 
 
 def merge_discoveries(existing: list[dict[str, Any]], discovered: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_url = {str(item.get("source_url")): item for item in existing if item.get("source_url")}
+    by_url = {str(x.get("source_url")): x for x in existing if x.get("source_url")}
     for item in discovered:
         key = str(item.get("source_url"))
-        if key:
-            by_url[key] = {**by_url.get(key, {}), **item}
+        if key: by_url[key] = {**by_url.get(key, {}), **item}
     return sorted(by_url.values(), key=lambda x: int(x.get("discovery_score", 0)), reverse=True)
