@@ -11,7 +11,7 @@ import requests
 from PIL import Image
 
 IMAGE_MODEL = "gemini-2.5-flash-image"
-TEXT_MODEL = "gemini-2.5-flash"
+TEXT_MODEL = "gemini-3.6-flash"
 KHAMSAT_SIZE = (1700, 970)
 
 
