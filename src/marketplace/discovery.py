@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
-from typing import Any, Callable
-from urllib.parse import quote, urljoin
+from typing import Any
+from urllib.parse import quote, urljoin, urlsplit
 
 import requests
 
@@ -45,10 +45,8 @@ def _canonical_url(href: str) -> str:
     )
 
 
-def _add(
-    results: list[dict[str, Any]], seen: set[str], href: str, title: str,
-    description: str, limit: int, *, official: bool = False,
-) -> None:
+def _add(results: list[dict[str, Any]], seen: set[str], href: str, title: str,
+         description: str, limit: int, *, official: bool = False) -> None:
     href = _canonical_url(href)
     if (
         len(results) >= limit or href in seen or href.rstrip("/") == BASE_URL
@@ -64,26 +62,18 @@ def _add(
     if official and score < 24:
         score = 60
     seen.add(href)
-    results.append({
-        "platform": "mostaql", "title": title, "description": description or title,
-        "source_url": href, "discovery_score": score,
-    })
+    results.append({"platform": "mostaql", "title": title, "description": description or title,
+                    "source_url": href, "discovery_score": score})
 
 
 def parse_projects(text: str, limit: int = 40, *, official: bool = False) -> list[dict[str, Any]]:
-    """Parse project links from a response obtained only from the Business filter."""
+    """Parse only real /project/... links from the canonical Business response."""
     text = unescape(text).replace("\\/", "/")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     patterns = (
-        re.compile(
-            r'<a[^>]+href=["\'](?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^"\']*)["\'][^>]*>(?P<body>.*?)</a>',
-            re.I | re.S,
-        ),
-        re.compile(
-            r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^)]*)\)',
-            re.I,
-        ),
+        re.compile(r'<a[^>]+href=["\'](?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^"\']*)["\'][^>]*>(?P<body>.*?)</a>', re.I | re.S),
+        re.compile(r'\[(?P<title>[^\]]+)\]\((?P<href>(?:https?://(?:www\.)?mostaql\.com)?/project/[A-Za-z0-9][^)]*)\)', re.I),
         re.compile(r'https?://(?:www\.)?mostaql\.com/project/[A-Za-z0-9][^\s)<>"\']*|(?<![A-Za-z0-9])(/project/[A-Za-z0-9][^\s)<>"\']*)', re.I),
     )
     for index, pattern in enumerate(patterns):
@@ -105,7 +95,11 @@ def _reader_url(target: str) -> str:
 
 
 def _translate_url(target: str) -> str:
-    return "https://mostaql-com.translate.goog/projects/business?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en"
+    parts = urlsplit(target)
+    path = quote(parts.path, safe="/:")
+    query = quote(parts.query, safe="=&%")
+    suffix = f"?{query}" if query else ""
+    return f"https://mostaql-com.translate.goog{path}{suffix}&_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en"
 
 
 def _agentsweb_url(target: str) -> str:
@@ -113,7 +107,7 @@ def _agentsweb_url(target: str) -> str:
 
 
 def _transport_urls(target: str) -> tuple[str, ...]:
-    """Return transport URLs that all represent the same canonical Business page."""
+    """Transport alternatives; every URL still resolves the same Mostaql target."""
     return (target, _reader_url(target), _translate_url(target), _agentsweb_url(target))
 
 
@@ -121,25 +115,21 @@ def _looks_like_business_response(body: str) -> bool:
     if not body or len(body) < 300:
         return False
     normalized = body.lower()
-    if "mostaql" not in normalized and "مستقل" not in normalized:
-        return False
-    return bool(re.search(r"/project/[A-Za-z0-9]", body, re.I))
+    return ("mostaql" in normalized or "مستقل" in normalized) and bool(re.search(r"/project/[A-Za-z0-9]", body, re.I))
 
 
 def _get(url: str, timeout: int) -> str:
     try:
-        response = requests.get(
-            url,
-            timeout=min(timeout, 15),
-            headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/20.0)"},
-        )
+        response = requests.get(url, timeout=min(timeout, 15), headers={
+            "User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/21.0)"
+        })
         return response.text if response.ok else ""
     except requests.RequestException:
         return ""
 
 
 def _fetch_business_page(timeout: int) -> str:
-    """Fetch the canonical Business page; transports cannot change the source."""
+    """Fetch the canonical Business filter. No search engine or alternate category is used."""
     variants = (BUSINESS_FILTER_URL, BUSINESS_FILTER_URL + "?sort=latest", BUSINESS_FILTER_URL + "?page=1")
     for target in variants:
         for transport in _transport_urls(target):
@@ -150,7 +140,7 @@ def _fetch_business_page(timeout: int) -> str:
 
 
 def _fetch_project_page(url: str, timeout: int) -> str:
-    """Read a discovered project's own page; discovery provenance remains Business filter."""
+    """Read a discovered project's own page for liveness/details only."""
     for transport in (_reader_url(url), _translate_url(url), _agentsweb_url(url)):
         body = _get(transport, timeout)
         if body and ("mostaql" in body.lower() or "مستقل" in body.lower()):
@@ -201,15 +191,9 @@ def discover_mostaql(*, url: str = BASE_URL, limit: int = 10, timeout: int = 20)
         score = _legal_score(title, clean_page)
         if score < 24:
             return None
-        return {
-            **item,
-            "title": title,
-            "description": clean_page[:4000],
-            "discovery_score": score,
-            "live": True,
-            "source_filter": BUSINESS_FILTER_URL,
-            "source_kind": "mostaql_business_filter",
-        }
+        return {**item, "title": title, "description": clean_page[:4000],
+                "discovery_score": score, "live": True,
+                "source_filter": BUSINESS_FILTER_URL, "source_kind": "mostaql_business_filter"}
 
     scored: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=12) as executor:
