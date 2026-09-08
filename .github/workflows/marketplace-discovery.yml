@@ -32,6 +32,7 @@ jobs:
       - name: Discover and sync live public Mostaql projects
         run: |
           python - <<'PY'
+          import hashlib
           import json
           from pathlib import Path
           from marketplace.discovery import discover_mostaql, merge_discoveries
@@ -77,8 +78,9 @@ jobs:
                   continue
 
               score, rationale = score_opportunity(item.get('title', ''), item.get('description', ''))
+              stable_id = 'opp-discovery-' + hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]
               opportunity = {
-                  'id': 'opp-discovery-' + str(abs(hash(url))),
+                  'id': stable_id,
                   'platform': 'mostaql',
                   'title': item.get('title', ''),
                   'description': item.get('description', '') or item.get('title', ''),
