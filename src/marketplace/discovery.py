@@ -5,7 +5,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import requests
 
@@ -72,13 +72,23 @@ def _reader_url(target_url: str) -> str:
     return "https://r.jina.ai/https://" + target
 
 
+def _agentsweb_url(target_url: str) -> str:
+    return "https://agentsweb.org/fetch?url=" + quote(target_url, safe="")
+
+
 def _fetch_business_page(timeout: int) -> str:
-    """Fetch only the official Business filter; Jina is transport only."""
+    """Fetch only the official Business filter through free transport readers."""
     candidates = [BUSINESS_FILTER_URL, BUSINESS_FILTER_URL + "?page=1", BUSINESS_FILTER_URL + "?sort=latest", BUSINESS_FILTER_URL + "?sort=latest&page=1"]
     for target in candidates:
-        for fetch_url in (target, _reader_url(target), "https://r.jina.ai/http://" + target.removeprefix("https://")):
+        transports = (
+            target,
+            _reader_url(target),
+            "https://r.jina.ai/http://" + target.removeprefix("https://"),
+            _agentsweb_url(target),
+        )
+        for fetch_url in transports:
             try:
-                response = requests.get(fetch_url, timeout=min(timeout, 15), headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/14.0)"})
+                response = requests.get(fetch_url, timeout=min(timeout, 15), headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratMarketplaceDiscovery/15.0)"})
                 if not response.ok or not response.text.strip():
                     continue
                 body = response.text
