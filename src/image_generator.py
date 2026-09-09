@@ -16,23 +16,23 @@ IMAGE_ENDPOINT = (
     "@cf/black-forest-labs/flux-1-schnell"
 )
 MAX_PROMPT_LENGTH = 1800
-# Keep image generation deliberately inexpensive. FLUX Schnell consumes more
-# Workers AI neurons as sampling steps increase; 4 is sufficient for this
-# editorial use and halves the previous 8-step request cost.
 IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "4")), 4))
-DEFAULT_PAGE_NAME = "اسأل محمود"
+DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
 BRAND_MARGIN = 42
-BRAND_HEIGHT = 88
-BRAND_HORIZONTAL_PADDING = 36
+BRAND_HEIGHT = 96
+BRAND_HORIZONTAL_PADDING = 30
 BRAND_RADIUS = 28
-BRAND_FONT_SIZE = 52
-BRAND_MIN_FONT_SIZE = 30
-BRAND_MAX_WIDTH_RATIO = 0.72
-BRAND_BACKGROUND = (12, 12, 12, 208)
+BRAND_FONT_SIZE = 46
+BRAND_MIN_FONT_SIZE = 26
+BRAND_MAX_WIDTH_RATIO = 0.82
+BRAND_BACKGROUND = (12, 12, 12, 215)
 BRAND_TEXT = (255, 255, 255, 255)
+FACEBOOK_BLUE = (24, 119, 242, 255)
+
 
 class ImageGenerationError(RuntimeError):
     """Raised when Cloudflare image generation or finalization fails."""
+
 
 def _extract_image_bytes(response: requests.Response) -> bytes:
     content_type = response.headers.get("content-type", "").lower()
@@ -58,6 +58,7 @@ def _extract_image_bytes(response: requests.Response) -> bytes:
         return base64.b64decode(image_base64, validate=True)
     except Exception as exc:
         raise ImageGenerationError("Cloudflare returned invalid Base64 image data.") from exc
+
 
 def _build_prompt(topic: str, image_brief: str) -> str:
     topic = topic.strip().replace("\r", " ").replace("\n", " ")
@@ -104,6 +105,7 @@ Depict the actual story.
         prompt = prompt[:MAX_PROMPT_LENGTH].rsplit(" ", 1)[0].strip()
     return prompt
 
+
 def _find_brand_font() -> Path | None:
     candidates = [
         os.getenv("KHYRAT_BRAND_FONT", "").strip(),
@@ -114,12 +116,10 @@ def _find_brand_font() -> Path | None:
         "C:/Windows/Fonts/Arial.ttf",
     ]
     for candidate in candidates:
-        if not candidate:
-            continue
-        path = Path(candidate)
-        if path.is_file():
-            return path
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
     return None
+
 
 def _load_brand_font(size: int) -> ImageFont.ImageFont:
     font_path = _find_brand_font()
@@ -132,19 +132,31 @@ def _load_brand_font(size: int) -> ImageFont.ImageFont:
         print(f"Branding warning: could not load font '{font_path}': {exc}. Using Pillow default font.")
         return ImageFont.load_default()
 
-def _measure_brand_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> tuple[int, int, tuple[int, int, int, int]]:
+
+def _measure_brand_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> tuple[int, int]:
     try:
         bbox = draw.textbbox((0, 0), text, font=font, direction="rtl", language="ar")
-        return max(1, bbox[2] - bbox[0]), max(1, bbox[3] - bbox[1]), bbox
     except (TypeError, ValueError):
         bbox = draw.textbbox((0, 0), text, font=font)
-        return max(1, bbox[2] - bbox[0]), max(1, bbox[3] - bbox[1]), bbox
+    return max(1, bbox[2] - bbox[0]), max(1, bbox[3] - bbox[1])
+
 
 def _draw_brand_text(draw: ImageDraw.ImageDraw, position: tuple[int, int], text: str, font: ImageFont.ImageFont) -> None:
     try:
         draw.text(position, text, font=font, fill=BRAND_TEXT, anchor="rm", direction="rtl", language="ar")
     except (TypeError, ValueError):
         draw.text(position, text, font=font, fill=BRAND_TEXT, anchor="rm")
+
+
+def _draw_facebook_badge(draw: ImageDraw.ImageDraw, center: tuple[int, int], radius: int) -> None:
+    cx, cy = center
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=FACEBOOK_BLUE)
+    font = _load_brand_font(int(radius * 1.65))
+    try:
+        draw.text((cx, cy + 2), "f", font=font, fill=(255, 255, 255, 255), anchor="mm")
+    except Exception:
+        draw.text((cx, cy), "f", font=font, fill=(255, 255, 255, 255), anchor="mm")
+
 
 def _add_page_branding(image: Image.Image, page_name: str | None = None) -> Image.Image:
     name = (page_name or os.getenv("KHYRAT_PAGE_NAME", DEFAULT_PAGE_NAME)).strip() or DEFAULT_PAGE_NAME
@@ -154,23 +166,32 @@ def _add_page_branding(image: Image.Image, page_name: str | None = None) -> Imag
     max_text_width = int(base.width * BRAND_MAX_WIDTH_RATIO)
     font_size = BRAND_FONT_SIZE
     font = _load_brand_font(font_size)
-    text_width, text_height, _ = _measure_brand_text(draw, name, font)
-    while text_width > max_text_width and font_size > BRAND_MIN_FONT_SIZE:
+    text_width, text_height = _measure_brand_text(draw, name, font)
+    icon_radius = 26
+    icon_gap = 18
+    required_width = text_width + (BRAND_HORIZONTAL_PADDING * 2) + (icon_radius * 2) + icon_gap
+    while required_width > int(base.width * 0.92) and font_size > BRAND_MIN_FONT_SIZE:
         font_size -= 2
         font = _load_brand_font(font_size)
-        text_width, text_height, _ = _measure_brand_text(draw, name, font)
-    badge_width = min(base.width - (BRAND_MARGIN * 2), text_width + (BRAND_HORIZONTAL_PADDING * 2))
+        text_width, text_height = _measure_brand_text(draw, name, font)
+        required_width = text_width + (BRAND_HORIZONTAL_PADDING * 2) + (icon_radius * 2) + icon_gap
+    badge_width = min(base.width - (BRAND_MARGIN * 2), max(required_width, int(base.width * 0.46)))
     badge_height = max(BRAND_HEIGHT, text_height + 32)
     right = base.width - BRAND_MARGIN
     bottom = base.height - BRAND_MARGIN
     left = right - badge_width
     top = bottom - badge_height
     draw.rounded_rectangle((left, top, right, bottom), radius=BRAND_RADIUS, fill=BRAND_BACKGROUND)
-    accent_width = 6
-    accent_margin = 18
-    draw.rounded_rectangle((left + accent_margin, top + 20, left + accent_margin + accent_width, bottom - 20), radius=accent_width // 2, fill=(214, 174, 92, 255))
-    _draw_brand_text(draw, (right - BRAND_HORIZONTAL_PADDING, top + (badge_height // 2)), name, font)
+    icon_center = (left + BRAND_HORIZONTAL_PADDING + icon_radius, top + (badge_height // 2))
+    _draw_facebook_badge(draw, icon_center, icon_radius)
+    _draw_brand_text(
+        draw,
+        (right - BRAND_HORIZONTAL_PADDING, top + (badge_height // 2)),
+        name,
+        font,
+    )
     return Image.alpha_composite(base, overlay).convert("RGB")
+
 
 def _convert_to_4x5(image_bytes: bytes, output_path: Path, page_name: str | None = None) -> None:
     try:
@@ -181,6 +202,7 @@ def _convert_to_4x5(image_bytes: bytes, output_path: Path, page_name: str | None
     final_image = _add_page_branding(final_image, page_name=page_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     final_image.save(output_path, format="JPEG", quality=94, optimize=True)
+
 
 def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, page_name: str | None = None) -> str:
     account_id = (cloudflare_account_id or "").strip()
