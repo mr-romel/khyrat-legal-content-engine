@@ -19,7 +19,8 @@ export default {
         service: "khyrat-github-scheduler-dispatch",
         workflow: WORKFLOW,
         ref: REF,
-        cron: "*/15 * * * *",
+        cron: "0 * * * *",
+        timezone: "UTC (publishing slots are Cairo-local)",
         timestamp: new Date().toISOString(),
       }), { headers: { "content-type": "application/json; charset=utf-8" } });
     }
