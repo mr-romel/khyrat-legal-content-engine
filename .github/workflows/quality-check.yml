@@ -35,7 +35,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, comment_engine, config, content_planner, content_system, content_system_runtime, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, comment_engine, config, content_planner, content_system, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify strategic content system unit tests
@@ -90,14 +90,23 @@ jobs:
           assert summary["healthy_diversity"] is True
           print("Final feedback + similarity + monitoring acceptance check: OK")
           PY
-      - name: Verify publishing schedule is 11:00, 15:00 and 19:00 Cairo time
+      - name: Verify two variable daily publishing slots in Cairo time
         run: |
           python - <<'PY'
-          import monthly_recycler
-          from recycler_rules import POSTING_TIMES
-          assert POSTING_TIMES == ("11:00", "15:00", "19:00")
-          assert monthly_recycler.POSTING_TIMES == POSTING_TIMES
-          print("Publishing schedule check: 11:00 + 15:00 + 19:00 Cairo time: OK")
+          from daily_schedule import START_HOUR, END_HOUR, daily_posting_times
+          from monthly_recycler import _target_slots
+          from datetime import date
+          assert (START_HOUR, END_HOUR) == (10, 22)
+          for sample in (date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 5)):
+              slots = daily_posting_times(sample.year, sample.month, sample.day)
+              assert len(slots) == 2
+              assert slots[0] != slots[1]
+              assert all(10 <= int(slot[:2]) <= 22 and slot.endswith(":00") for slot in slots)
+              assert daily_posting_times(sample.year, sample.month, sample.day) == slots
+          assert len(set(daily_posting_times(2026, 9, d) for d in range(1, 6))) >= 2
+          target_slots = _target_slots(date(2026, 9, 1))
+          assert len(target_slots) == 2
+          print("Publishing schedule check: exactly 2 stable variable slots/day, 10:00-22:00 Cairo time: OK")
           PY
       - name: Verify Gemini runtime architecture
         run: |
