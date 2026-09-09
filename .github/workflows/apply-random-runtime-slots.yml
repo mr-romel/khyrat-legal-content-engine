@@ -1,0 +1,67 @@
+name: Apply Random Runtime Publishing Slots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-random-runtime-slots.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch runtime
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          p = Path('src/run_main.py')
+          s = p.read_text()
+          if 'from daily_schedule import daily_posting_times' not in s:
+              s = s.replace('from content_style_v3 import build_style_context\n', 'from content_style_v3 import build_style_context\nfrom daily_schedule import daily_posting_times\n', 1)
+          old = '''    candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    if not candidates:
+        candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_failed_retry(r, current)]
+'''
+          new = '''    daily_times = daily_posting_times(current.year, current.month, current.day)
+    current_slot = current.strftime("%H:00")
+    print(f"Daily randomized publish slots (Cairo): {daily_times}; current slot={current_slot}")
+    if current_slot not in daily_times:
+        print("Outside today's randomized publishing slots; no publication.")
+        return
+    candidates = [(i, r) for i, r in enumerate(rows, start=2)
+                  if str(r.get("تاريخ النشر", "")).strip() == current.date().isoformat()
+                  and str(r.get("الحالة", "READY")).strip().upper() in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}]
+    if not candidates:
+        print("No publishable row remains for today's randomized slot.")
+        return
+'''
+          if old not in s:
+              raise SystemExit('run_main target block not found')
+          p.write_text(s.replace(old, new, 1))
+          subprocess.run(['python','-m','py_compile','src/run_main.py','src/daily_schedule.py'], check=True)
+          import sys
+          sys.path.insert(0, 'src')
+          from daily_schedule import daily_posting_times
+          pairs = [daily_posting_times(2026, 9, d) for d in range(1, 31)]
+          assert all(len(x) == 2 and x[0] != x[1] for x in pairs)
+          assert all(10 <= int(x[:2]) <= 22 for pair in pairs for x in pair)
+          assert len(set(pairs)) > 1
+          print('RANDOM_RUNTIME_PATCH_OK')
+          PY
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-random-runtime-slots.yml
+          git add src/run_main.py
+          git commit -m "feat: use two randomized daily social publish slots"
+          git push origin HEAD:main
