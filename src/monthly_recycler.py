@@ -52,17 +52,13 @@ def _migrate_future_slots(service, spreadsheet_id, sheet_name, values, current, 
         year, month, day = (int(part) for part in publish_date.split("-"))
         targets = list(daily_posting_times(year, month, day))
         occupied = set()
-        for _, row in entries:
-            time = row.get("ساعة النشر", "").strip()
-            if time in targets and time not in occupied:
-                occupied.add(time)
-
+        kept_target = False
         for row_number, row in entries:
             old_time = row.get("ساعة النشر", "").strip()
-            if old_time in targets and old_time in occupied:
-                # Keep the first valid row for each target; duplicate target rows are cancelled below.
-                if sum(1 for n, r in entries if r.get("ساعة النشر", "").strip() == old_time and n < row_number) == 0:
-                    continue
+            if old_time in targets and not kept_target:
+                occupied.add(old_time)
+                kept_target = True
+                continue
             missing = [time for time in targets if time not in occupied]
             notes = row.get("ملاحظات", "")
             if missing:
@@ -70,17 +66,17 @@ def _migrate_future_slots(service, spreadsheet_id, sheet_name, values, current, 
                 update_row(service, spreadsheet_id, sheet_name, row_number, {
                     "ساعة النشر": target_time,
                     "الحالة": "READY",
-                    "ملاحظات": f"{notes} | تم توحيد الموعد إلى {target_time} بتوقيت القاهرة وفق الجدول اليومي المتغير.",
+                    "ملاحظات": f"{notes} | تم توحيد الموعد إلى {target_time} بتوقيت القاهرة وفق جدول منشور واحد يوميًا.",
                 })
                 occupied.add(target_time)
             else:
                 update_row(service, spreadsheet_id, sheet_name, row_number, {
                     "الحالة": "CANCELLED",
-                    "ملاحظات": f"{notes} | تم إلغاء slot زائد بعد اعتماد موعدين فقط لليوم {publish_date}.",
+                    "ملاحظات": f"{notes} | تم إلغاء slot زائد بعد اعتماد منشور واحد فقط لليوم {publish_date}.",
                 })
             changed += 1
     if changed:
-        print(f"Monthly recycler: normalized {changed} future rows to two variable Cairo slots per day.")
+        print(f"Monthly recycler: normalized {changed} future rows to one variable Cairo slot per day.")
     return changed
 
 
@@ -183,7 +179,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
     prepared = prepared_slots(values, current_key)
     missing_slots = sorted(expected_slots - prepared)
     if not missing_slots:
-        print(f"Monthly recycler: {current_key} has exactly two variable slots per day from 10:00 through 22:00 Cairo time.")
+        print(f"Monthly recycler: {current_key} has exactly one variable slot per day from 10:00 through 22:00 Cairo time.")
         return migrated + replaced
 
     print(f"Monthly recycler: creating {len(missing_slots)} missing variable slots for {current_key}.")
@@ -199,7 +195,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         brief = _select_next_brief(topic_pool, used_topics, used_bases, recent_signature)
         if brief:
             topic = brief["topic"].strip(); angle = brief["angle"].strip(); source = brief["legal_sources"].strip()
-            category = brief["category"]; fmt = brief["format"]; objective = brief["objective"]
+            category, fmt, objective = brief["category"], brief["format"], brief["objective"]
             source_label = "500-Topic-Bank adaptive rotation"
             topic_pool.remove(brief)
         else:
@@ -210,7 +206,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
                 if not brief:
                     break
                 topic = brief["topic"].strip(); angle = brief["angle"].strip(); source = brief["legal_sources"].strip()
-                category = brief["category"]; fmt = brief["format"]; objective = brief["objective"]
+                category, fmt, objective = brief["category"], brief["format"], brief["objective"]
                 source_label = "500-Topic-Bank new cycle"
                 topic_pool.remove(brief)
             else:
@@ -236,7 +232,7 @@ def recycle_month_if_needed(*, service, spreadsheet_id: str, sheet_name: str, cu
         insert_row_at_top(service, spreadsheet_id, sheet_name, row)
         created += 1
 
-    print(f"Monthly recycler: created {created} missing rows using the daily two-slot variable schedule.")
+    print(f"Monthly recycler: created {created} missing rows using the daily one-slot variable schedule.")
     return migrated + replaced + created
 
 
