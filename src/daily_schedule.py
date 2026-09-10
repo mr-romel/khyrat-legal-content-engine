@@ -7,24 +7,22 @@ START_HOUR = 10
 END_HOUR = 22
 
 
-def daily_posting_times(year: int, month: int, day: int) -> tuple[str, str]:
-    """Return two stable, different hourly Cairo slots for the given date."""
+def _daily_hour(value: date) -> int:
+    """Return one stable, variable hourly Cairo slot for the given date."""
     hours = list(range(START_HOUR, END_HOUR + 1))
-    digest = hashlib.sha256(f"{year:04d}-{month:02d}-{day:02d}".encode("utf-8")).digest()
-    first = hours[digest[0] % len(hours)]
-    second = hours[digest[1] % len(hours)]
-    if second == first:
-        second = hours[(hours.index(second) + 1 + digest[2] % (len(hours) - 1)) % len(hours)]
+    digest = hashlib.sha256(value.isoformat().encode("utf-8")).digest()
+    hour = hours[digest[0] % len(hours)]
 
-    previous = date(year, month, day) - timedelta(days=1)
+    # Avoid repeating the exact hour on consecutive days when possible.
+    previous = value - timedelta(days=1)
     previous_digest = hashlib.sha256(previous.isoformat().encode("utf-8")).digest()
-    previous_first = hours[previous_digest[0] % len(hours)]
-    previous_second = hours[previous_digest[1] % len(hours)]
-    if previous_second == previous_first:
-        previous_second = hours[(hours.index(previous_second) + 1 + previous_digest[2] % (len(hours) - 1)) % len(hours)]
-    if {first, second} == {previous_first, previous_second}:
-        second = hours[(hours.index(second) + 1) % len(hours)]
-        if second == first:
-            second = hours[(hours.index(second) + 1) % len(hours)]
+    previous_hour = hours[previous_digest[0] % len(hours)]
+    if hour == previous_hour:
+        hour = hours[(hours.index(hour) + 1 + digest[1] % (len(hours) - 1)) % len(hours)]
+    return hour
 
-    return tuple(f"{hour:02d}:00" for hour in sorted((first, second)))
+
+def daily_posting_times(year: int, month: int, day: int) -> tuple[str]:
+    """Return exactly one stable, variable hourly Cairo slot for the given date."""
+    current = date(year, month, day)
+    return (f"{_daily_hour(current):02d}:00",)
