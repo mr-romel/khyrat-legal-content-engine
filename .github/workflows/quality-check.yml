@@ -90,23 +90,25 @@ jobs:
           assert summary["healthy_diversity"] is True
           print("Final feedback + similarity + monitoring acceptance check: OK")
           PY
-      - name: Verify two variable daily publishing slots in Cairo time
+      - name: Verify exactly one variable daily publishing slot in Cairo time
         run: |
           python - <<'PY'
           from daily_schedule import START_HOUR, END_HOUR, daily_posting_times
           from monthly_recycler import _target_slots
           from datetime import date
           assert (START_HOUR, END_HOUR) == (10, 22)
-          for sample in (date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 5)):
+          samples = (date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 5))
+          slots_seen = []
+          for sample in samples:
               slots = daily_posting_times(sample.year, sample.month, sample.day)
-              assert len(slots) == 2
-              assert slots[0] != slots[1]
-              assert all(10 <= int(slot[:2]) <= 22 and slot.endswith(":00") for slot in slots)
+              assert len(slots) == 1
+              assert 10 <= int(slots[0][:2]) <= 22 and slots[0].endswith(":00")
               assert daily_posting_times(sample.year, sample.month, sample.day) == slots
-          assert len(set(daily_posting_times(2026, 9, d) for d in range(1, 6))) >= 2
+              slots_seen.append(slots[0])
+          assert len(set(slots_seen)) >= 2
           target_slots = _target_slots(date(2026, 9, 1))
-          assert len(target_slots) == 2
-          print("Publishing schedule check: exactly 2 stable variable slots/day, 10:00-22:00 Cairo time: OK")
+          assert len(target_slots) == 1
+          print("Publishing schedule check: exactly 1 stable variable slot/day, 10:00-22:00 Cairo time: OK")
           PY
       - name: Verify Gemini runtime architecture
         run: |
