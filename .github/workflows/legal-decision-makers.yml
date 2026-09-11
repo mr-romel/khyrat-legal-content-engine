@@ -1,6 +1,12 @@
 name: Khyrat Legal Decision Makers
 
 on:
+  push:
+    paths:
+      - 'src/legal_decision_makers.py'
+      - 'src/legal_decision_makers_dashboard.py'
+      - 'tests/test_legal_decision_makers.py'
+      - '.github/workflows/legal-decision-makers.yml'
   workflow_dispatch:
     inputs:
       limit:
