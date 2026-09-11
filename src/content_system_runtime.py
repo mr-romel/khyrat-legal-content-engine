@@ -1,28 +1,10 @@
 from __future__ import annotations
 
 import run_main
-import monthly_recycler
 from content_planner import classify
 from content_system import ensure_system_sheets, record_publication_intelligence
 from post_bank import get_bank_rows
 from sheets import create_service
-
-
-# The publishing calendar is intentionally limited to even-numbered days.
-# Keep this rule at the runtime boundary so legacy scheduler/planner modules
-# cannot silently re-expand the calendar to daily publishing.
-_original_posting_days = monthly_recycler.posting_days
-
-
-def _even_posting_days(year: int, month: int, start_day: int) -> list[int]:
-    return [
-        day
-        for day in _original_posting_days(year, month, start_day)
-        if day % 2 == 0
-    ]
-
-
-monthly_recycler.posting_days = _even_posting_days
 
 
 _original_process_row = run_main.production_main.process_row
