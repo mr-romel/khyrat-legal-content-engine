@@ -41,26 +41,74 @@ _original_log_publication = production_main.log_publication
 _latest_editorial: dict = {}
 
 
-def _strengthen_linkedin_post(post: str) -> str:
-    """Keep short LinkedIn drafts from falling back to consumer-style brevity."""
+def _linkedin_word_count(text: str) -> int:
+    return len(str(text or "").strip().split())
+
+
+def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", topic: str = "", legal_sources: str = "") -> str:
+    """Prevent LinkedIn from falling back to short consumer-style copy."""
     text = str(post or "").strip()
-    if not text or len(text) >= 2200:
+    if not text:
         return text
-    business_additions = (
-        "\n\nبالنسبة للشركات، النقطة الأهم مش مجرد معرفة الحكم القانوني، لكن معرفة أثره على القرار نفسه. هل العقد أو الإجراء الحالي بيحدد المسؤوليات بوضوح؟ هل المستندات المطلوبة موجودة؟ وهل الشركة عارفة مسبقًا إيه اللي ممكن يتحول من مشكلة بسيطة إلى نزاع أو تكلفة تشغيلية؟\n\n"
-        "وده بيخلي المراجعة القانونية جزء من إدارة المخاطر، مش خطوة بنفتكرها بعد ما المشكلة تحصل. كل ما اتراجع القرار أو العقد أو الإجراء في وقت بدري، كان أسهل على الإدارة إنها تختار بين البدائل وهي عارفة تبعات كل اختيار."
+
+    minimum_words = 350
+    target_words = 450
+    current_words = _linkedin_word_count(text)
+    if current_words >= minimum_words:
+        return text
+
+    expansion_context = (
+        "CURRENT LINKEDIN DRAFT THAT IS TOO SHORT:\n"
+        f"{text}\n\n"
+        "EXPANSION REQUIREMENT:\n"
+        f"Expand this LinkedIn draft into a substantive Egyptian legal-business post of approximately {target_words} words and never fewer than {minimum_words} words. "
+        "Preserve the legal meaning and any legally important qualifications already present. Do not merely repeat or pad the existing paragraphs. "
+        "Add useful analysis: the practical business problem, who inside a company should care, the legal/operational risk, what documents or facts management should check, "
+        "the decision points before acting, a realistic example or scenario where appropriate, and a concise conclusion. "
+        "Keep a professional Egyptian lawyer voice. Do not turn it into a sales pitch, generic motivational post, or list of empty tips. "
+        "Do not mention that you are expanding a draft. Return only the finished LinkedIn post."
     )
-    if len(text) < 1500:
-        text += business_additions
+    try:
+        expanded = _diverse_generate_post(
+            api_key=api_key,
+            model=model,
+            topic=topic,
+            legal_sources=legal_sources,
+            previous_context=expansion_context,
+        )
+        candidate = str(expanded.get("post", "") or "").strip()
+        if _linkedin_word_count(candidate) >= minimum_words:
+            print(f"LinkedIn depth gate: expanded {current_words} -> {_linkedin_word_count(candidate)} words.")
+            return candidate
+        if candidate:
+            text = candidate
+    except Exception as exc:
+        print(f"LinkedIn depth gate expansion unavailable; using structured fallback: {exc}")
+
+    # Safety fallback: add substantive business analysis instead of allowing a short post through.
+    fallback = (
+        "\n\nمن زاوية الإدارة، المهم هنا مش بس معرفة القاعدة القانونية، لكن ترجمتها إلى قرار عملي. قبل توقيع العقد أو اتخاذ الإجراء، لازم المسؤول المختص يراجع الوقائع والمستندات المرتبطة بالموضوع، ويحدد بوضوح مين عليه الالتزام، وإيه المستند اللي يثبت تنفيذه، وإيه النتيجة لو حصل إخلال أو تأخير. النقطة دي بتفرق جدًا بين إدارة المخاطر قبل المشكلة وبين محاولة علاجها بعد ما تتحول لنزاع.\n\n"
+        "كمان لازم يتراجع أثر القرار على التشغيل والتكلفة والعلاقة مع الطرف الآخر. أحيانًا يكون التصرف صحيحًا من الناحية القانونية في الأصل، لكن طريقة تنفيذه أو صياغة المستندات المصاحبة له تخلق نزاعًا كان ممكن تجنبه. لذلك الأفضل إن المراجعة القانونية ما تكونش مجرد سؤال: هل ده قانوني؟ وإنما تشمل أيضًا: ما المخاطر؟ ما البدائل؟ وما الإجراء أو المستند الذي يقلل احتمال النزاع ويحافظ على موقف الشركة إذا وقع الخلاف؟\n\n"
+        "وعمليًا، أي شركة تتعامل مع المسألة دي بشكل منظم هتحتاج تحدد المستندات الأساسية، المسؤول عن اتخاذ القرار، المواعيد والالتزامات، وآلية التعامل مع الإخلال أو الاعتراض. وكلما اتعملت المراجعة في مرحلة مبكرة، كانت تكلفة التصحيح أقل، وكانت الإدارة أقدر على اختيار البديل المناسب وهي فاهمة تبعاته القانونية والتجارية."
+    )
+    text = text + fallback
+    print(f"LinkedIn depth gate: fallback applied; final={_linkedin_word_count(text)} words.")
     return text
 
 
 def _capture_editorial_assets(*args, **kwargs):
     global _latest_editorial
     result = _original_prepare_editorial_assets(*args, **kwargs)
-    result["linkedin_post"] = _strengthen_linkedin_post(result.get("linkedin_post", ""))
+    config = kwargs.get("config") or {}
     topic = str(kwargs.get("topic", "") or "").strip()
     legal_sources = str(kwargs.get("legal_sources", "") or "").strip()
+    result["linkedin_post"] = _strengthen_linkedin_post(
+        result.get("linkedin_post", ""),
+        api_key=config.get("gemini_api_key", ""),
+        model=config.get("gemini_model", ""),
+        topic=topic,
+        legal_sources=legal_sources,
+    )
     _latest_editorial = dict(result)
     _latest_editorial["legal_sources"] = legal_sources
     _latest_editorial.setdefault("similarity_score", "")
@@ -68,7 +116,6 @@ def _capture_editorial_assets(*args, **kwargs):
     if "زاوية جديدة:" in topic:
         _latest_editorial["angle"] = topic.split("زاوية جديدة:", 1)[1].strip()
     try:
-        config = kwargs.get("config") or {}
         service = create_service(config["service_account_info"])
         bank_rows = get_bank_rows(service, config["sheet_id"])
         previous_posts = [str(row.get("المحتوى", "") or "").strip() for row in bank_rows if str(row.get("المحتوى", "") or "").strip()]
@@ -83,10 +130,12 @@ def _capture_editorial_assets(*args, **kwargs):
             return result
         print(f"Similarity gate: REWRITE requested ({score:.2f} >= {threshold:.2f}).")
         context = build_previous_context(bank_rows, limit=8)
-        context += ("\n\nPRE-PUBLICATION SIMILARITY WARNING. Rewrite the post from scratch while preserving the legal meaning. "
-                    "Use a materially different hook, sentence rhythm, ordering of ideas, examples, and CTA. "
-                    "Do not reuse distinctive phrases from previous posts. "
-                    f"The closest previous post begins: {match[:350]}")
+        context += (
+            "\n\nPRE-PUBLICATION SIMILARITY WARNING. Rewrite the post from scratch while preserving the legal meaning. "
+            "Use a materially different hook, sentence rhythm, ordering of ideas, examples, and CTA. "
+            "Do not reuse distinctive phrases from previous posts. "
+            f"The closest previous post begins: {match[:350]}"
+        )
         try:
             rewritten = _diverse_generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=legal_sources, previous_context=context)
             rewritten_post = str(rewritten.get("post", "") or "").strip()
@@ -97,7 +146,13 @@ def _capture_editorial_assets(*args, **kwargs):
             if score_after < threshold:
                 print(f"Similarity gate: REWRITE PASS ({score_after:.2f} < {threshold:.2f}).")
                 refreshed = _original_prepare_editorial_assets(config=config, topic=topic, facebook_post=rewritten_post, legal_sources=legal_sources)
-                refreshed["linkedin_post"] = _strengthen_linkedin_post(refreshed.get("linkedin_post", ""))
+                refreshed["linkedin_post"] = _strengthen_linkedin_post(
+                    refreshed.get("linkedin_post", ""),
+                    api_key=config.get("gemini_api_key", ""),
+                    model=config.get("gemini_model", ""),
+                    topic=topic,
+                    legal_sources=legal_sources,
+                )
                 refreshed["similarity_score"] = f"{score_after:.4f}"
                 refreshed["rewrite_applied"] = "YES"
                 _latest_editorial = dict(refreshed)
