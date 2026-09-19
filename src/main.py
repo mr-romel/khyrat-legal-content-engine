@@ -15,7 +15,7 @@ from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
-from linkedin_publisher import LinkedInPublishError, add_comment as linkedin_add_comment, like_post as linkedin_like_post, publish_to_linkedin, resolve_member_urn
+from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, notify_linkedin_interaction, send_review_request
@@ -121,22 +121,6 @@ def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int
     return published
 
 
-def _publish_extra_linkedin_comments(post_urn: str, author_urn: str, comments: list[str], config) -> tuple[int, list[str], bool]:
-    published, failures, permission_blocked = 0, [], False
-    for index, message in enumerate(comments[1:LINKEDIN_COMMENT_LIMIT], start=2):
-        result = linkedin_add_comment(token=config["linkedin_access_token"], actor_urn=author_urn, post_urn=post_urn, message=message)
-        if result.status == "PUBLISHED":
-            published += 1
-        else:
-            failures.append(f"comment {index}: {result.error or result.status}")
-            permission_blocked = permission_blocked or _is_permission_blocked(result)
-            if permission_blocked:
-                break
-        print(f"LinkedIn comment {index}/{LINKEDIN_COMMENT_LIMIT}: {result.status} | http={result.http_status} | error={result.error}")
-        time.sleep(COMMENT_DELAY_SECONDS)
-    return published, failures, permission_blocked
-
-
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     reviewed = review_and_prepare(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, facebook_post=facebook_post, facebook_comments=comments["facebook_comments"][:5], linkedin_comments=comments["linkedin_comments"], legal_sources=legal_sources)
@@ -154,10 +138,12 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
     if recovery and existing_post and image_path.is_file():
         return existing_post, existing_image_url, image_path, "CLEAR", ""
-    previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
+    previous_context = build_previous_context(bank_rows) + "
+" + build_diversity_context(topic, build_previous_context(bank_rows))
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
-        previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
+        previous_context += f"
+IMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
     result = generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=row.get("المصادر القانونية", ""), previous_context=previous_context)
     post = str(result.get("post", "") or "").strip()
     image_brief = str(result.get("image_brief", "") or "").strip()
@@ -203,15 +189,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             raise RuntimeError("Content/image generation did not produce publishable assets.")
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
         facebook_post, linkedin_post = editorial["facebook_post"], editorial["linkedin_post"]
-        facebook_comments_ready, linkedin_comments_ready = editorial["facebook_comments"], editorial["linkedin_comments"]
+        facebook_comments_ready = editorial["facebook_comments"]
 
         facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         linkedin_post_id = str(row.get("LinkedIn Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         facebook_comments = 0
         linkedin_comments = 0
         linkedin_interaction_errors: list[str] = []
-        linkedin_comment_status = str(row.get("LinkedIn Comment Status", "")).strip().upper()
-        linkedin_reaction_status = str(row.get("LinkedIn Reaction Status", "")).strip().upper()
 
         if facebook_post_id and str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED":
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
@@ -235,86 +219,28 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
 
         linkedin_status = str(row.get("LinkedIn Status", "")).strip().upper()
         if linkedin_post_id and linkedin_status == "PUBLISHED":
-            print(f"Idempotency: LinkedIn post already published as {linkedin_post_id}; retrying only eligible interactions.")
-            token = config["linkedin_access_token"]
-            author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-            if linkedin_comment_status not in {"PUBLISHED", "DISABLED"}:
-                try:
-                    result = linkedin_add_comment(token=token, actor_urn=author, post_urn=linkedin_post_id, message=linkedin_comments_ready[0])
-                    if result.status == "PUBLISHED":
-                        linkedin_comments = 1
-                    elif _is_permission_blocked(result):
-                        linkedin_comment_status = "DISABLED"
-                        linkedin_interaction_errors.append(result.error or "LinkedIn comment permission unavailable")
-                    else:
-                        linkedin_interaction_errors.append(result.error or result.status)
-                except Exception as exc:
-                    if _is_permission_blocked(exc):
-                        linkedin_comment_status = "DISABLED"
-                    else:
-                        linkedin_interaction_errors.append(f"first comment retry: {exc}")
-            if linkedin_comment_status == "PUBLISHED":
-                linkedin_comments = max(linkedin_comments, 1)
-            if linkedin_comment_status not in {"DISABLED", "FAILED"} and linkedin_comments:
-                try:
-                    extra_count, extra_errors, blocked = _publish_extra_linkedin_comments(linkedin_post_id, author, linkedin_comments_ready, config)
-                    linkedin_comments += extra_count
-                    linkedin_interaction_errors.extend(extra_errors)
-                    if blocked:
-                        linkedin_comment_status = "DISABLED"
-                except Exception as exc:
-                    linkedin_interaction_errors.append(str(exc))
-            if linkedin_comment_status not in {"DISABLED", "PUBLISHED"}:
-                linkedin_comment_status = "PUBLISHED" if linkedin_comments >= LINKEDIN_COMMENT_LIMIT else "FAILED"
-            if linkedin_reaction_status not in {"LIKED", "DISABLED"}:
-                try:
-                    reaction = linkedin_like_post(token=token, actor_urn=author, post_urn=linkedin_post_id)
-                    if reaction.status == "LIKED":
-                        linkedin_reaction_status = "LIKED"
-                    elif _is_permission_blocked(reaction):
-                        linkedin_reaction_status = "DISABLED"
-                        linkedin_interaction_errors.append(reaction.error or "LinkedIn reaction permission unavailable")
-                    else:
-                        linkedin_reaction_status = "FAILED"
-                        linkedin_interaction_errors.append(reaction.error or reaction.status)
-                except Exception as exc:
-                    linkedin_reaction_status = "DISABLED" if _is_permission_blocked(exc) else "FAILED"
-                    if linkedin_reaction_status == "FAILED":
-                        linkedin_interaction_errors.append(f"reaction retry: {exc}")
-            update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Comment Status": linkedin_comment_status or "FAILED", "LinkedIn Reaction Status": linkedin_reaction_status or "FAILED", "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500]})
+            print(f"Idempotency: LinkedIn post already published as {linkedin_post_id}; skipping duplicate LinkedIn post.")
         else:
             try:
                 token = config["linkedin_access_token"]
                 author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-                linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment=linkedin_comments_ready[0])
+                linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
                 linkedin_post_id = linkedin["post_urn"]
                 comment_result, like_result = linkedin["comment"], linkedin["like"]
-                comment_status = _interaction_status(comment_result, "PUBLISHED", "DISABLED")
-                reaction_status = _interaction_status(like_result, "LIKED", "DISABLED")
-                if comment_status == "PUBLISHED":
-                    linkedin_comments = 1
-                if comment_status != "PUBLISHED":
-                    linkedin_interaction_errors.append(comment_result.get("error") or comment_result.get("status") or "first comment failed")
-                if reaction_status != "LIKED":
-                    linkedin_interaction_errors.append(like_result.get("error") or like_result.get("status") or "post reaction failed")
-                if comment_status == "PUBLISHED":
-                    try:
-                        extra_count, extra_errors, blocked = _publish_extra_linkedin_comments(linkedin_post_id, author, linkedin_comments_ready, config)
-                        linkedin_comments += extra_count
-                        linkedin_interaction_errors.extend(extra_errors)
-                        if blocked:
-                            comment_status = "DISABLED"
-                        elif linkedin_comments >= LINKEDIN_COMMENT_LIMIT:
-                            comment_status = "PUBLISHED"
-                    except Exception as exc:
-                        linkedin_interaction_errors.append(str(exc))
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "PUBLISHED", "LinkedIn Post ID": linkedin_post_id, "LinkedIn Comment Status": comment_status, "LinkedIn Reaction Status": reaction_status, "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500]})
-                permission_only = bool(linkedin_interaction_errors) and all(_is_permission_blocked(x) for x in [comment_result, like_result] if x.get("status") != "PUBLISHED" and x.get("status") != "LIKED")
-                if linkedin_interaction_errors and not permission_only:
-                    try:
-                        notify_linkedin_interaction(topic=topic, post_urn=linkedin_post_id, comment=comment_result, like=like_result)
-                    except Exception as exc:
-                        print(f"Telegram LinkedIn diagnostic failed: {exc}")
+                linkedin_interaction_errors.extend([x for x in (comment_result.get("error"), like_result.get("error")) if x])
+                update_row(
+                    service,
+                    config["sheet_id"],
+                    sheet_name,
+                    row_number,
+                    {
+                        "LinkedIn Status": "PUBLISHED",
+                        "LinkedIn Post ID": linkedin_post_id,
+                        "LinkedIn Comment Status": "DISABLED",
+                        "LinkedIn Reaction Status": "DISABLED",
+                        "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500],
+                    },
+                )
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
@@ -329,15 +255,34 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         else:
             final_status = "PARTIAL_FAILED"
         final_error = " | ".join(linkedin_interaction_errors)[:1500]
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": final_status, "Facebook Status": "PUBLISHED" if fb_ok else "FAILED", "Facebook Post ID": facebook_post_id, "LinkedIn Status": "PUBLISHED" if li_post_ok else "FAILED", "LinkedIn Post ID": linkedin_post_id, "وقت آخر تشغيل": current.isoformat(), "آخر خطأ": final_error})
+        update_row(
+            service,
+            config["sheet_id"],
+            sheet_name,
+            row_number,
+            {
+                "الحالة": final_status,
+                "Facebook Status": "PUBLISHED" if fb_ok else "FAILED",
+                "Facebook Post ID": facebook_post_id,
+                "LinkedIn Status": "PUBLISHED" if li_post_ok else "FAILED",
+                "LinkedIn Post ID": linkedin_post_id,
+                "LinkedIn Comment Status": "DISABLED" if li_post_ok else str(row.get("LinkedIn Comment Status", "")).strip().upper(),
+                "LinkedIn Reaction Status": "DISABLED" if li_post_ok else str(row.get("LinkedIn Reaction Status", "")).strip().upper(),
+                "وقت آخر تشغيل": current.isoformat(),
+                "آخر خطأ": final_error,
+            },
+        )
         if final_status == "PUBLISHED":
             try:
                 add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=facebook_post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
-                log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments=str(facebook_comments), linkedin_comments=str(linkedin_comments), status=final_status)
+                log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments=str(facebook_comments), linkedin_comments="0", status=final_status)
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
-            interaction_note = " | LinkedIn interactions: disabled by API permissions" if any(x == "DISABLED" for x in (linkedin_comment_status, linkedin_reaction_status)) else ""
-            notify(f"✅ Khyrat Legal Content Engine\nتم نشر: {topic}\nFacebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_post_ok else '❌'}\nالتعليقات: Facebook {facebook_comments}/20 | LinkedIn {linkedin_comments}/5{interaction_note}")
+            notify(
+                f"✅ Khyrat Legal Content Engine\nتم نشر: {topic}\n"
+                f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_post_ok else '❌'}\n"
+                f"التعليقات: Facebook {facebook_comments}/20 | LinkedIn 0/5 (معطلة بصلاحيات LinkedIn الحالية)"
+            )
         else:
             detail = final_error or "LinkedIn publishing did not complete."
             notify(f"🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\nالموضوع: {topic}\nLinkedIn: {detail}")
