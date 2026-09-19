@@ -64,6 +64,19 @@ def load_video_config() -> dict:
     }
 
 
+def load_engagement_config() -> dict:
+    """Load only credentials required by the isolated LinkedIn engagement worker."""
+    return {
+        "service_account_info": _service_account_info(),
+        "sheet_id": _required("GOOGLE_SHEET_ID"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "gemini_api_key": _required("GEMINI_API_KEY"),
+        "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+        "linkedin_access_token": _required("LINKEDIN_ACCESS_TOKEN"),
+        "linkedin_author_urn": _optional("LINKEDIN_AUTHOR_URN", ""),
+    }
+
+
 def load_config() -> dict:
     service_account_info = _service_account_info()
 
