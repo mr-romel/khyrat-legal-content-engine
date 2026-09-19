@@ -7,7 +7,6 @@ from urllib.parse import quote
 
 import requests
 
-
 LINKEDIN_VERSION = "202607"
 REST_PROTOCOL = "2.0.0"
 LINKEDIN_REST_BASE = "https://api.linkedin.com/rest"
@@ -35,7 +34,11 @@ class LinkedInActionResult:
 
 
 def _headers(token: str, *, json_content: bool = False) -> dict[str, str]:
-    headers = {"Authorization": f"Bearer {token}", "Linkedin-Version": LINKEDIN_VERSION, "X-Restli-Protocol-Version": REST_PROTOCOL}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Linkedin-Version": LINKEDIN_VERSION,
+        "X-Restli-Protocol-Version": REST_PROTOCOL,
+    }
     if json_content:
         headers["Content-Type"] = "application/json"
     return headers
@@ -68,7 +71,7 @@ def _interaction_result(action: str, response: requests.Response) -> LinkedInAct
     if status == 401:
         label = "UNAUTHORIZED_TOKEN"
     elif status == 403:
-        label = "INSUFFICIENT_PERMISSION_OR_ACCESS"
+        label = "DISABLED_PERMISSION"
     elif status == 404:
         label = "NOT_FOUND"
     elif status == 400:
@@ -158,13 +161,11 @@ def upload_image(*, token: str, upload_url: str, image_path: str | Path) -> None
 
 
 def _strengthen_commentary(commentary: str) -> str:
-    """Guarantee a substantive LinkedIn version; never allow a tiny title-only post through."""
     text = str(commentary or "").strip()
     if len(text) >= MIN_LINKEDIN_POST_CHARS:
         if len(text) > MAX_LINKEDIN_POST_CHARS:
             raise LinkedInPublishError(
-                f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); "
-                "refusing to truncate a sentence."
+                f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); refusing to truncate a sentence."
             )
         return text.rstrip()
     sections = [
@@ -181,8 +182,7 @@ def _strengthen_commentary(commentary: str) -> str:
         raise LinkedInPublishError(f"LinkedIn commentary remained below required minimum ({len(text)} characters).")
     if len(text) > MAX_LINKEDIN_POST_CHARS:
         raise LinkedInPublishError(
-            f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); "
-            "refusing to truncate a sentence."
+            f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); refusing to truncate a sentence."
         )
     return text.rstrip()
 
@@ -190,8 +190,6 @@ def _strengthen_commentary(commentary: str) -> str:
 def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str) -> str:
     endpoint = f"{LINKEDIN_REST_BASE}/posts"
     commentary = _strengthen_commentary(commentary)
-    if len(commentary) < MIN_LINKEDIN_POST_CHARS:
-        raise LinkedInPublishError(f"LinkedIn post rejected locally: only {len(commentary)} characters after expansion.")
     body = {
         "author": author_urn,
         "commentary": commentary,
@@ -214,10 +212,6 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
     return post_urn
 
 
-def _comment_urn(post_urn: str, comment_id: str) -> str:
-    return f"urn:li:comment:({post_urn},{comment_id})" if comment_id else ""
-
-
 def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> LinkedInActionResult:
     endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments"
     body = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
@@ -228,10 +222,7 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     comment_id = (result.headers.get("x-restli-id", "") or result.headers.get("X-RestLi-Id", "")).strip()
     if not comment_id:
         return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
-    comment_urn = _comment_urn(post_urn, comment_id)
-    like = like_comment(token=token, actor_urn=actor_urn, comment_urn=comment_urn)
-    print(f"LinkedIn comment: PUBLISHED | like={like.status} | like_http={like.http_status} | like_error={like.error}")
-    return LinkedInActionResult(status="PUBLISHED", item_id=comment_urn, error=like.error, http_status=result.status_code)
+    return LinkedInActionResult(status="PUBLISHED", item_id=f"urn:li:comment:({post_urn},{comment_id})", http_status=result.status_code)
 
 
 def like_post(*, token: str, actor_urn: str, post_urn: str) -> LinkedInActionResult:
@@ -271,6 +262,14 @@ def publish_to_linkedin(*, token: str, author_urn: str, image_path: str | Path, 
     upload_url, image_urn = initialize_image_upload(token=token, owner_urn=author_urn)
     upload_image(token=token, upload_url=upload_url, image_path=image_path)
     post_urn = create_post(token=token, author_urn=author_urn, commentary=commentary, image_urn=image_urn)
-    comment = add_comment(token=token, actor_urn=author_urn, post_urn=post_urn, message=first_comment)
-    like = like_post(token=token, actor_urn=author_urn, post_urn=post_urn)
+
+    comment = LinkedInActionResult(
+        status="DISABLED",
+        error="LinkedIn member-feed comments are disabled for this token; w_member_social_feed is not granted.",
+    )
+    like = LinkedInActionResult(
+        status="DISABLED",
+        error="LinkedIn member-feed reactions are disabled for this token; w_member_social_feed is not granted.",
+    )
+    print("LinkedIn post published; member-feed comments/reactions skipped because w_member_social_feed is not granted.")
     return {"image_urn": image_urn, "post_urn": post_urn, "comment": comment.as_dict(), "like": like.as_dict()}
