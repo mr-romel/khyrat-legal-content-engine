@@ -36,6 +36,7 @@ MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 DELAY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_DELAY_MINUTES", "15") or "15")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
+DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "48") or "48")
 
 
 def now_cairo() -> datetime:
@@ -159,6 +160,9 @@ def enqueue_new_posts(service, spreadsheet_id: str, sheet_range: str, existing: 
         post_urn = str(row.get("LinkedIn Post ID", "")).strip()
         if str(row.get("LinkedIn Status", "")).strip().upper() != "PUBLISHED" or not post_urn:
             continue
+        published_at = parse_dt(row.get("وقت آخر تشغيل", ""))
+        if published_at is None or published_at < current - timedelta(hours=DISCOVERY_HOURS):
+            continue
         event_id = f"COMMENT:{post_urn}:1"
         if event_id in existing_events or post_urn in known_posts:
             continue
@@ -226,7 +230,7 @@ def main() -> int:
     capability = check_comment_capability(token=token)
     print(f"Capability: {capability.status} http={capability.http_status}")
 
-    if capability.status == "BLOCKED_PERMISSION":
+    if capability.status == "BLOCKED_PERMISSION" and not dry_run:
         for event in due:
             row_number = int(event["_row_number"])
             update_event(
@@ -242,6 +246,8 @@ def main() -> int:
             )
         print("Comment permission is blocked; publisher remains unaffected.")
         return 0
+    if capability.status == "BLOCKED_PERMISSION" and dry_run:
+        print("DRY RUN: permission is blocked, but comment generation will still be tested.")
 
     if capability.status in {"UNAUTHORIZED_TOKEN", "NETWORK_FAILED", "TRANSIENT_FAILURE"}:
         for event in due:
