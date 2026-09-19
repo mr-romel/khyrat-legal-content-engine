@@ -133,7 +133,17 @@ def read_content_rows(service, spreadsheet_id, sheet_range):
 
 
 def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
-    known_posts = {str(x.get("post_urn", "")).strip() for x in existing if x.get("post_urn")}
+    bundled_posts = {
+        str(x.get("post_urn", "")).strip()
+        for x in existing
+        if str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")
+    }
+    legacy_rows_by_post = {}
+    for item in existing:
+        post = str(item.get("post_urn", "")).strip()
+        event_id = str(item.get("event_id", "")).strip()
+        if post and event_id.startswith("COMMENT:") and not event_id.startswith("COMMENT_BUNDLE:"):
+            legacy_rows_by_post.setdefault(post, []).append(item)
     created = 0
     for source_row, row in read_content_rows(service, spreadsheet_id, sheet_range):
         post_urn = str(row.get("LinkedIn Post ID", "")).strip()
@@ -142,8 +152,18 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         published_at = parse_dt(row.get("وقت آخر تشغيل", ""))
         if published_at is None or published_at < current - timedelta(hours=DISCOVERY_HOURS):
             continue
-        if post_urn in known_posts:
+        if post_urn in bundled_posts:
             continue
+
+        # Retire the earlier one-comment-per-post queue format before creating
+        # the new bundle. No old queued comment is ever sent after migration.
+        for legacy in legacy_rows_by_post.get(post_urn, []):
+            if str(legacy.get("status", "")).upper() in {"PENDING", "RETRY", "BLOCKED_PERMISSION"}:
+                update_event(
+                    service, spreadsheet_id, int(legacy["_row_number"]),
+                    {"status": "OBSOLETE_LEGACY_QUEUE", "updated_at": iso(current),
+                     "last_error": "Superseded by the 3-7 comment bundle worker."},
+                )
 
         count = choose_comment_count(post_urn)
         comments = generate_linkedin_comments(
@@ -179,7 +199,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
                 "dry_run": "true" if DRY_RUN else "false",
             }
             append_event(service, spreadsheet_id, event)
-        known_posts.add(post_urn)
+        bundled_posts.add(post_urn)
         created += count
         print(f"Queued {count} contextual LinkedIn comments for {post_urn}")
     return created
