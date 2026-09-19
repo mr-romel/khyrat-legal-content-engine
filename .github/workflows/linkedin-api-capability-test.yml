@@ -45,6 +45,7 @@ jobs:
                 -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
                 -H "Linkedin-Version: $LINKEDIN_VERSION" \
                 -H "X-Restli-Protocol-Version: 2.0.0")
+
             fi
 
             code="${response##*$'\n'}"
@@ -58,7 +59,6 @@ jobs:
             LAST_PAYLOAD="$payload"
           }
 
-          # 1) Identity: read-only, no side effect.
           api "1. userinfo" GET "https://api.linkedin.com/v2/userinfo"
 
           if [[ "$LAST_CODE" =~ ^2 ]]; then
@@ -74,15 +74,11 @@ jobs:
             exit 1
           fi
 
-          # 2) Image upload initialization: creates only an upload slot, not a published post.
           body=$(jq -nc --arg owner "$MEMBER_URN" '{initializeUploadRequest:{owner:$owner}}')
           api "2. images initializeUpload" POST "https://api.linkedin.com/rest/images?action=initializeUpload" "$body"
 
-          # 3) Posts authorization gate: deliberately invalid payload.
-          # A 400/422 means the request reached validation; a 401/403 points to auth/permission.
           api "3. posts authorization gate" POST "https://api.linkedin.com/rest/posts" '{"author":"'$MEMBER_URN'"}'
 
-          # 4) Comments authorization gate: deliberately fake post URN; no comment is created.
           fake_post='urn:li:share:0000000000000000000'
           encoded_post=$(python - <<'PY'
 import urllib.parse
@@ -92,14 +88,13 @@ PY
           comment_body=$(jq -nc --arg actor "$MEMBER_URN" '{actor:$actor,message:{text:"capability-test"}}')
           api "4. comments authorization gate" POST "https://api.linkedin.com/rest/socialActions/$encoded_post/comments" "$comment_body"
 
-          # 5) Reactions authorization gate: deliberately fake post URN; no reaction is created.
-          encoded_post=$(python - <<'PY'
+          encoded_actor=$(python - <<PY
 import urllib.parse
-print(urllib.parse.quote("urn:li:share:0000000000000000000", safe=""))
+print(urllib.parse.quote("$MEMBER_URN", safe=""))
 PY
 )
           reaction_body=$(jq -nc --arg root "$fake_post" '{root:$root,reactionType:"LIKE"}')
-          api "5. reactions authorization gate" POST "https://api.linkedin.com/rest/reactions?actor=${encoded_actor}" "$reaction_body" || true
+          api "5. reactions authorization gate" POST "https://api.linkedin.com/rest/reactions?actor=$encoded_actor" "$reaction_body"
 
           echo
           echo "=== Interpretation ==="
