@@ -1,31 +1,30 @@
 from __future__ import annotations
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from unittest.mock import Mock, patch
 
-from linkedin_engagement_worker import parse_dt, select_due
-
-
-def test_parse_dt_cairo():
-    value = parse_dt("2026-09-19T15:00:00+03:00")
-    assert value is not None
-    assert value.tzinfo is not None
-    assert value.hour == 15
+from linkedin_engagement import CapabilityResult, check_comment_capability, comment_fingerprint
 
 
-def test_select_due_ignores_published_and_future():
-    rows = [
-        {"status": "PENDING", "scheduled_at": "2026-09-19T14:00:00+03:00"},
-        {"status": "PUBLISHED", "scheduled_at": "2026-09-19T14:00:00+03:00"},
-        {"status": "RETRY", "scheduled_at": "2026-09-19T16:00:00+03:00"},
-    ]
-    current = datetime(2026, 9, 19, 15, 0, tzinfo=ZoneInfo("Africa/Cairo"))
-    due = select_due(rows, current)
-    assert len(due) == 1
-    assert due[0]["status"] == "PENDING"
+def test_comment_fingerprint_is_stable():
+    assert comment_fingerprint("urn:li:share:1", "hello") == comment_fingerprint("urn:li:share:1", "hello")
+    assert comment_fingerprint("urn:li:share:1", "hello") != comment_fingerprint("urn:li:share:2", "hello")
 
 
-def test_select_due_includes_permission_recheck():
-    rows = [{"status": "BLOCKED_PERMISSION", "scheduled_at": "2026-09-19T14:00:00+03:00"}]
-    current = datetime(2026, 9, 19, 15, 0, tzinfo=ZoneInfo("Africa/Cairo"))
-    assert len(select_due(rows, current)) == 1
+def test_capability_403_is_permission_blocked():
+    response = Mock(status_code=403)
+    response.json.return_value = {"message": "Not enough permissions"}
+    with patch("linkedin_engagement.requests.post", return_value=response):
+        result = check_comment_capability(token="token")
+    assert isinstance(result, CapabilityResult)
+    assert result.status == "BLOCKED_PERMISSION"
+    assert result.http_status == 403
+
+
+def test_capability_404_is_probably_available_without_creating_comment():
+    response = Mock(status_code=404)
+    response.json.return_value = {"message": "Not found"}
+    with patch("linkedin_engagement.requests.post", return_value=response) as post:
+        result = check_comment_capability(token="token")
+    post.assert_called_once()
+    assert result.status == "PROBABLE_AVAILABLE"
+    assert result.http_status == 404
