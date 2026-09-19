@@ -1,0 +1,41 @@
+name: LinkedIn Token Inspector
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect-linkedin-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect LinkedIn access token
+        env:
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${LINKEDIN_CLIENT_ID}" || -z "${LINKEDIN_CLIENT_SECRET}" || -z "${LINKEDIN_ACCESS_TOKEN}" ]]; then
+            echo "ERROR: One or more required LinkedIn secrets are missing."
+            exit 1
+          fi
+
+          response="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://www.linkedin.com/oauth/v2/introspectToken" \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "client_id=${LINKEDIN_CLIENT_ID}" \
+            --data-urlencode "client_secret=${LINKEDIN_CLIENT_SECRET}" \
+            --data-urlencode "token=${LINKEDIN_ACCESS_TOKEN}")"
+
+          echo "LinkedIn token inspection result:"
+          echo "${response}" | jq '{active,status,auth_type,client_id,created_at,authorized_at,expires_at,scope}'
+
+          {
+            echo "## LinkedIn Token Inspection"
+            echo
+            echo '```json'
+            echo "${response}" | jq '{active,status,auth_type,client_id,created_at,authorized_at,expires_at,scope}'
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
