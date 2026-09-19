@@ -88,7 +88,7 @@ SYSTEM_PROMPT = """
 - لا تجعل كل منشور ينتهي بدعوة مباشرة للخدمة؛ استخدم CTA أو سؤالًا عندما يكون له سبب حقيقي في سياق الموضوع، وغيّر طريقة النهاية من منشور لآخر.
 - لا تجعل LinkedIn نسخة مزخرفة من Facebook؛ يجب أن يكون له زاوية وقيمة مستقلة حتى لو تناول نفس الموضوع.
 - لا تضحِ بالطبيعية لصالح الفصحى الثقيلة، ولا تستخدم العامية بشكل يضعف المهنية. استخدم مصرية مهنية يفهمها صاحب العمل والمتخصص وغير المتخصص.
-- تجنب المبالغة في استخدام الشرطات الطويلة، النقط المتتابعة، الرموز، وعلامات التعجب، وأي زخرفة توحي بنص مولد آليًا.
+- تجنب المبالغة في استخدام الشرطات الطويلة، الرموز، وعلامات التعجب، وأي زخرفة توحي بنص مولد آليًا. ممنوع استخدام النقط المتتابعة (...) أو (…) كبديل لنهاية الجملة. كل جملة يجب أن تنتهي بعلامة ترقيم طبيعية أو بنهاية مكتملة.
 - لا تكتب أي تعليق جديد؛ راجع التعليقات الموجودة فقط.
 - لا تخترع مادة أو حكمًا أو رقم طعن أو عقوبة أو ميعاد أو رابط مصدر.
 - أعد JSON فقط، دون Markdown أو شرح خارجي.
@@ -97,6 +97,7 @@ SYSTEM_PROMPT = """
 REVIEW_CONFIG = types.GenerateContentConfig(
     temperature=0.1,
     response_mime_type="application/json",
+    max_output_tokens=8192,
 )
 
 
@@ -416,6 +417,13 @@ Facebook قبل المراجعة:
     linkedin = str(data.get("linkedin_post", "")).strip()
     if not facebook or not linkedin:
         raise RuntimeError("Legal/editorial review returned empty Facebook or LinkedIn content.")
+
+    # Reject signs of an interrupted/truncated LinkedIn generation before publication.
+    linkedin_tail = re.sub(r"\s+", " ", linkedin).strip()
+    if re.search(r"(?:\.\.\.|…)$", linkedin_tail) or re.search(r"(?:\s(?:و|أو|لكن|لأن|لذلك|ثم|كما|بحيث|التي|الذي))$", linkedin_tail):
+        raise RuntimeError("LinkedIn draft appears truncated or ends with a continuation marker.")
+    if len(linkedin_tail) < 900:
+        raise RuntimeError("LinkedIn draft is too short for the editorial LinkedIn version.")
 
     return {
         "legal_status": legal_status,
