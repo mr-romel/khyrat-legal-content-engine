@@ -61,6 +61,34 @@ def _clean_linkedin_ellipsis(text: str) -> str:
     return re.sub(r"\.{3}|…", ".", str(text or "")).strip()
 
 
+def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str, legal_sources: str, max_chars: int = 2900) -> str:
+    text = _clean_linkedin_ellipsis(text)
+    if len(text) <= max_chars:
+        return text
+    prompt = (
+        "LINKEDIN CHARACTER-LIMIT REPAIR:\n"
+        f"Rewrite this complete LinkedIn post to fit within {max_chars} characters. "
+        "Preserve the core legal meaning, practical business analysis, qualifications, and conclusion. "
+        "Remove repetition and low-value wording instead of cutting sentences. "
+        "The result MUST end with a complete thought and natural punctuation. Never use '...' or '…'. "
+        "Return only the finished LinkedIn post.\n\n"
+        f"Topic: {topic}\nLegal sources: {legal_sources or 'none'}\n\nPost:\n{text}"
+    )
+    result = _diverse_generate_post(
+        api_key=api_key,
+        model=model,
+        topic=topic,
+        legal_sources=legal_sources,
+        previous_context=prompt,
+    )
+    candidate = _clean_linkedin_ellipsis(str(result.get("post", "") or "").strip())
+    if candidate and len(candidate) <= max_chars and not _linkedin_needs_completion(candidate):
+        return candidate
+    raise RuntimeError(
+        f"LinkedIn post is {len(text)} characters and could not be safely reduced below {max_chars} without truncation."
+    )
+
+
 def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", topic: str = "", legal_sources: str = "") -> str:
     """Prevent LinkedIn from becoming short, truncated, or AI-styled."""
     text = _clean_linkedin_ellipsis(str(post or "").strip())
@@ -97,7 +125,8 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
         candidate = str(expanded.get("post", "") or "").strip()
         candidate = _clean_linkedin_ellipsis(candidate)
         if _linkedin_word_count(candidate) >= minimum_words and not _linkedin_needs_completion(candidate):
-            print(f"LinkedIn depth gate: completed {current_words} -> {_linkedin_word_count(candidate)} words.")
+            candidate = _fit_linkedin_char_limit(candidate, api_key=api_key, model=model, topic=topic, legal_sources=legal_sources)
+            print(f"LinkedIn depth gate: completed {current_words} -> {_linkedin_word_count(candidate)} words / {len(candidate)} chars.")
             return candidate
         if candidate:
             text = candidate
@@ -111,7 +140,8 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
         "وعمليًا، أي شركة تتعامل مع المسألة دي بشكل منظم هتحتاج تحدد المستندات الأساسية، المسؤول عن اتخاذ القرار، المواعيد والالتزامات، وآلية التعامل مع الإخلال أو الاعتراض. وكلما اتعملت المراجعة في مرحلة مبكرة، كانت تكلفة التصحيح أقل، وكانت الإدارة أقدر على اختيار البديل المناسب وهي فاهمة تبعاته القانونية والتجارية."
     )
     text = text + fallback
-    print(f"LinkedIn depth gate: fallback applied; final={_linkedin_word_count(text)} words.")
+    text = _fit_linkedin_char_limit(text, api_key=api_key, model=model, topic=topic, legal_sources=legal_sources)
+    print(f"LinkedIn depth gate: fallback applied; final={_linkedin_word_count(text)} words / {len(text)} chars.")
     return text
 
 
