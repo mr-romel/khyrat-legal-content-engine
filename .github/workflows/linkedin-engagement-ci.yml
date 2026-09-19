@@ -1,0 +1,31 @@
+name: LinkedIn Engagement CI
+
+on:
+  push:
+    paths:
+      - "src/linkedin_engagement.py"
+      - "src/linkedin_engagement_worker.py"
+      - "src/config.py"
+      - "tests/test_linkedin_engagement.py"
+      - ".github/workflows/linkedin-engagement-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile engagement modules
+        run: |
+          python -m py_compile src/config.py src/linkedin_engagement.py src/linkedin_engagement_worker.py tests/test_linkedin_engagement.py
+      - name: Run engagement tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_linkedin_engagement.py
