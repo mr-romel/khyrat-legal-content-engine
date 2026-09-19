@@ -7,7 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from comment_engine import generate_comments
-from config import load_config
+from config import load_engagement_config
 from linkedin_engagement import (
     add_linkedin_comment,
     check_comment_capability,
@@ -204,7 +204,7 @@ def main() -> int:
     print("KHYRAT LINKEDIN ENGAGEMENT WORKER")
     print("=" * 72)
 
-    config = load_config()
+    config = load_engagement_config()
     service = create_service(config["service_account_info"])
     sheet_range = config["sheet_range"]
     ensure_engagement_sheet(service, config["sheet_id"])
