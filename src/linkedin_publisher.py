@@ -263,13 +263,15 @@ def publish_to_linkedin(*, token: str, author_urn: str, image_path: str | Path, 
     upload_image(token=token, upload_url=upload_url, image_path=image_path)
     post_urn = create_post(token=token, author_urn=author_urn, commentary=commentary, image_urn=image_urn)
 
+    # Engagement is intentionally decoupled from publishing.
+    # The independent LinkedIn Engagement Worker decides whether/when to comment.
     comment = LinkedInActionResult(
-        status="DISABLED",
-        error="LinkedIn member-feed comments are disabled for this token; w_member_social_feed is not granted.",
+        status="QUEUED",
+        error="Post published. Independent LinkedIn Engagement Worker owns comments.",
     )
     like = LinkedInActionResult(
-        status="DISABLED",
-        error="LinkedIn member-feed reactions are disabled for this token; w_member_social_feed is not granted.",
+        status="NOT_HANDLED",
+        error="Reactions are intentionally handled outside the publisher.",
     )
-    print("LinkedIn post published; member-feed comments/reactions skipped because w_member_social_feed is not granted.")
+    print("LinkedIn post published; comments/reactions delegated to independent workers.")
     return {"image_urn": image_urn, "post_urn": post_urn, "comment": comment.as_dict(), "like": like.as_dict()}
