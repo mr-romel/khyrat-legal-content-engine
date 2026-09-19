@@ -45,7 +45,6 @@ jobs:
                 -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
                 -H "Linkedin-Version: $LINKEDIN_VERSION" \
                 -H "X-Restli-Protocol-Version: 2.0.0")
-
             fi
 
             code="${response##*$'\n'}"
@@ -68,6 +67,7 @@ jobs:
               exit 1
             fi
             MEMBER_URN="urn:li:person:$sub"
+            export MEMBER_URN
             echo "MEMBER_URN: $MEMBER_URN"
           else
             echo "userinfo failed; cannot continue safely."
@@ -77,22 +77,16 @@ jobs:
           body=$(jq -nc --arg owner "$MEMBER_URN" '{initializeUploadRequest:{owner:$owner}}')
           api "2. images initializeUpload" POST "https://api.linkedin.com/rest/images?action=initializeUpload" "$body"
 
-          api "3. posts authorization gate" POST "https://api.linkedin.com/rest/posts" '{"author":"'$MEMBER_URN'"}'
+          post_body=$(jq -nc --arg author "$MEMBER_URN" '{author:$author}')
+          api "3. posts authorization gate" POST "https://api.linkedin.com/rest/posts" "$post_body"
 
           fake_post='urn:li:share:0000000000000000000'
-          encoded_post=$(python - <<'PY'
-import urllib.parse
-print(urllib.parse.quote("urn:li:share:0000000000000000000", safe=""))
-PY
-)
+          encoded_post=$(python -c 'import urllib.parse; print(urllib.parse.quote("urn:li:share:0000000000000000000", safe=""))')
+
           comment_body=$(jq -nc --arg actor "$MEMBER_URN" '{actor:$actor,message:{text:"capability-test"}}')
           api "4. comments authorization gate" POST "https://api.linkedin.com/rest/socialActions/$encoded_post/comments" "$comment_body"
 
-          encoded_actor=$(python - <<PY
-import urllib.parse
-print(urllib.parse.quote("$MEMBER_URN", safe=""))
-PY
-)
+          encoded_actor=$(python -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["MEMBER_URN"], safe=""))')
           reaction_body=$(jq -nc --arg root "$fake_post" '{root:$root,reactionType:"LIKE"}')
           api "5. reactions authorization gate" POST "https://api.linkedin.com/rest/reactions?actor=$encoded_actor" "$reaction_body"
 
@@ -102,5 +96,5 @@ PY
           echo "images initializeUpload: 2xx = image-upload permission/path accepted; 401/403 = auth/permission issue."
           echo "posts authorization gate: 400/422 = token reached endpoint validation; 401/403 = auth/permission issue."
           echo "comments authorization gate: 404/400 may mean fake target validation; 401/403 indicates auth/permission issue."
-          echo "reactions authorization gate: current LinkedIn docs associate member feed reactions with w_member_social_feed."
+          echo "reactions authorization gate: member feed reactions are associated with w_member_social_feed."
           echo "No public post, comment, or reaction is intentionally created by this workflow."
