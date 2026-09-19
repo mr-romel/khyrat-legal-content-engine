@@ -45,28 +45,45 @@ def _linkedin_word_count(text: str) -> int:
     return len(str(text or "").strip().split())
 
 
+def _linkedin_needs_completion(text: str) -> bool:
+    compact = " ".join(str(text or "").strip().split())
+    if not compact:
+        return True
+    if re.search(r"(?:\.\.\.|…)$", compact):
+        return True
+    if re.search(r"\s(?:و|أو|لكن|لأن|لذلك|ثم|كما|بحيث|التي|الذي)$", compact):
+        return True
+    return False
+
+
+def _clean_linkedin_ellipsis(text: str) -> str:
+    return re.sub(r"\.{3}|…", ".", str(text or "")).strip()
+
+
 def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", topic: str = "", legal_sources: str = "") -> str:
-    """Prevent LinkedIn from falling back to short consumer-style copy."""
-    text = str(post or "").strip()
+    """Prevent LinkedIn from becoming short, truncated, or AI-styled."""
+    text = _clean_linkedin_ellipsis(str(post or "").strip())
     if not text:
         return text
 
     minimum_words = 350
     target_words = 450
     current_words = _linkedin_word_count(text)
-    if current_words >= minimum_words:
+    if current_words >= minimum_words and not _linkedin_needs_completion(text):
         return text
 
     expansion_context = (
         "CURRENT LINKEDIN DRAFT THAT IS TOO SHORT:\n"
         f"{text}\n\n"
-        "EXPANSION REQUIREMENT:\n"
-        f"Expand this LinkedIn draft into a substantive Egyptian legal-business post of approximately {target_words} words and never fewer than {minimum_words} words. "
+        "EXPANSION/COMPLETION REQUIREMENT:\n"
+        f"Write a complete, substantive Egyptian legal-business LinkedIn post of approximately {target_words} words and never fewer than {minimum_words} words. "
+        "If the draft is already substantive, preserve its useful content and repair/complete its ending instead of shortening it. "
         "Preserve the legal meaning and any legally important qualifications already present. Do not merely repeat or pad the existing paragraphs. "
         "Add useful analysis: the practical business problem, who inside a company should care, the legal/operational risk, what documents or facts management should check, "
         "the decision points before acting, a realistic example or scenario where appropriate, and a concise conclusion. "
-        "Keep a professional Egyptian lawyer voice. Do not turn it into a sales pitch, generic motivational post, or list of empty tips. "
-        "Do not mention that you are expanding a draft. Return only the finished LinkedIn post."
+        "The post MUST end with a complete thought and a natural sentence ending. Never end with '...', '…', a comma, a colon, or a dangling conjunction such as 'و'. "
+        "Do not use ellipses anywhere in the post. Keep a professional Egyptian lawyer voice. Do not turn it into a sales pitch, generic motivational post, or list of empty tips. "
+        "Do not mention that you are expanding or repairing a draft. Return only the finished LinkedIn post."
     )
     try:
         expanded = _diverse_generate_post(
@@ -77,8 +94,9 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
             previous_context=expansion_context,
         )
         candidate = str(expanded.get("post", "") or "").strip()
-        if _linkedin_word_count(candidate) >= minimum_words:
-            print(f"LinkedIn depth gate: expanded {current_words} -> {_linkedin_word_count(candidate)} words.")
+        candidate = _clean_linkedin_ellipsis(candidate)
+        if _linkedin_word_count(candidate) >= minimum_words and not _linkedin_needs_completion(candidate):
+            print(f"LinkedIn depth gate: completed {current_words} -> {_linkedin_word_count(candidate)} words.")
             return candidate
         if candidate:
             text = candidate
