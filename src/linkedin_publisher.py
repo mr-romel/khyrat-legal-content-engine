@@ -161,7 +161,12 @@ def _strengthen_commentary(commentary: str) -> str:
     """Guarantee a substantive LinkedIn version; never allow a tiny title-only post through."""
     text = str(commentary or "").strip()
     if len(text) >= MIN_LINKEDIN_POST_CHARS:
-        return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
+        if len(text) > MAX_LINKEDIN_POST_CHARS:
+            raise LinkedInPublishError(
+                f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); "
+                "refusing to truncate a sentence."
+            )
+        return text.rstrip()
     sections = [
         "المهم هنا إن القاعدة القانونية ما تتفهمش بمعزل عن الوقائع. نفس العبارة أو الموقف ممكن يختلف أثره القانوني بحسب صفة الشخص، مصلحته في الموضوع، المستندات الموجودة، والإجراء الذي تم اتخاذه. لذلك قبل أي قرار، لازم نفصل بين الانطباع الشخصي وبين المركز القانوني الفعلي.",
         "عمليًا، قبل اتخاذ القرار اسأل أولًا: مين صاحب الصفة في الموضوع؟ وهل له مصلحة قانونية حقيقية ومباشرة؟ وإيه المستند أو الواقعة اللي تثبت الكلام ده؟ الأسئلة دي بتمنع أخطاء شائعة، خصوصًا لما يكون القرار مبنيًا على افتراض إن مجرد وجود علاقة أو مصلحة شخصية كفاية لإثبات الحق أو السماح باتخاذ إجراء معين.",
@@ -174,7 +179,12 @@ def _strengthen_commentary(commentary: str) -> str:
         text = f"{text}\n\n{section}" if text else section
     if len(text) < MIN_LINKEDIN_POST_CHARS:
         raise LinkedInPublishError(f"LinkedIn commentary remained below required minimum ({len(text)} characters).")
-    return text[:MAX_LINKEDIN_POST_CHARS].rstrip()
+    if len(text) > MAX_LINKEDIN_POST_CHARS:
+        raise LinkedInPublishError(
+            f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); "
+            "refusing to truncate a sentence."
+        )
+    return text.rstrip()
 
 
 def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str) -> str:
