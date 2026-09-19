@@ -97,7 +97,7 @@ jobs:
           from monthly_recycler import _target_slots
           from datetime import date
           assert (START_HOUR, END_HOUR) == (10, 22)
-          samples = (date(2026, 9, 2), date(2026, 9, 4), date(2026, 9, 6), date(2026, 9, 8), date(2026, 9, 10))
+          samples = (date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 5))
           slots_seen = []
           for sample in samples:
               slots = daily_posting_times(sample.year, sample.month, sample.day)
@@ -108,7 +108,7 @@ jobs:
           assert len(set(slots_seen)) >= 2
           target_slots = _target_slots(date(2026, 9, 2))
           assert len(target_slots) == 1
-          print("Publishing schedule check: exactly 1 stable variable slot/day on even-numbered publishing days, 10:00-22:00 Cairo time: OK")
+          print("Publishing schedule check: exactly 1 stable variable slot/day on every calendar day, 10:00-22:00 Cairo time: OK")
           PY
       - name: Verify Gemini runtime architecture
         run: |
