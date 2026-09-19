@@ -12,14 +12,15 @@ jobs:
     env:
       LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
       LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION || '202607' }}
+
     steps:
       - name: Run safe LinkedIn capability probes
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           if [[ -z "${LINKEDIN_ACCESS_TOKEN:-}" ]]; then
-            echo "ERROR: LINKEDIN_ACCESS_TOKEN is missing."
+            echo "RESULT: LINKEDIN_ACCESS_TOKEN = MISSING"
             exit 1
           fi
 
@@ -28,10 +29,7 @@ jobs:
             local method="$2"
             local url="$3"
             local body="${4:-}"
-
-            echo "::group::$label"
-            echo "METHOD: $method"
-            echo "URL: $url"
+            local response code payload
 
             if [[ -n "$body" ]]; then
               response=$(curl -sS -w $'\n%{http_code}' -X "$method" "$url" \
@@ -50,51 +48,59 @@ jobs:
             code="${response##*$'\n'}"
             payload="${response%$'\n'*}"
 
+            echo
+            echo "===== $label ====="
             echo "HTTP_STATUS: $code"
             echo "RESPONSE: $payload"
-            echo "::endgroup::"
 
             LAST_CODE="$code"
             LAST_PAYLOAD="$payload"
           }
 
-          api "1. userinfo" GET "https://api.linkedin.com/v2/userinfo"
+          echo "===== LinkedIn capability test ====="
+
+          api "1. USERINFO" GET "https://api.linkedin.com/v2/userinfo"
 
           if [[ "$LAST_CODE" =~ ^2 ]]; then
             sub=$(printf '%s' "$LAST_PAYLOAD" | jq -r '.sub // empty')
             if [[ -z "$sub" ]]; then
-              echo "ERROR: userinfo succeeded but did not return sub."
+              echo "RESULT: USERINFO = FAILED (no sub)"
               exit 1
             fi
             MEMBER_URN="urn:li:person:$sub"
             export MEMBER_URN
+            echo "RESULT: USERINFO = $LAST_CODE (identity OK)"
             echo "MEMBER_URN: $MEMBER_URN"
           else
-            echo "userinfo failed; cannot continue safely."
+            echo "RESULT: USERINFO = $LAST_CODE (identity FAILED)"
             exit 1
           fi
 
           body=$(jq -nc --arg owner "$MEMBER_URN" '{initializeUploadRequest:{owner:$owner}}')
-          api "2. images initializeUpload" POST "https://api.linkedin.com/rest/images?action=initializeUpload" "$body"
+          api "2. IMAGE INITIALIZE" POST "https://api.linkedin.com/rest/images?action=initializeUpload" "$body"
+          echo "RESULT: IMAGE_INITIALIZE = $LAST_CODE"
 
           post_body=$(jq -nc --arg author "$MEMBER_URN" '{author:$author}')
-          api "3. posts authorization gate" POST "https://api.linkedin.com/rest/posts" "$post_body"
+          api "3. POSTS AUTHORIZATION GATE" POST "https://api.linkedin.com/rest/posts" "$post_body"
+          echo "RESULT: POSTS_GATE = $LAST_CODE"
 
           fake_post='urn:li:share:0000000000000000000'
           encoded_post=$(python -c 'import urllib.parse; print(urllib.parse.quote("urn:li:share:0000000000000000000", safe=""))')
-
           comment_body=$(jq -nc --arg actor "$MEMBER_URN" '{actor:$actor,message:{text:"capability-test"}}')
-          api "4. comments authorization gate" POST "https://api.linkedin.com/rest/socialActions/$encoded_post/comments" "$comment_body"
+          api "4. COMMENTS AUTHORIZATION GATE" POST "https://api.linkedin.com/rest/socialActions/$encoded_post/comments" "$comment_body"
+          echo "RESULT: COMMENTS_GATE = $LAST_CODE"
 
           encoded_actor=$(python -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["MEMBER_URN"], safe=""))')
           reaction_body=$(jq -nc --arg root "$fake_post" '{root:$root,reactionType:"LIKE"}')
-          api "5. reactions authorization gate" POST "https://api.linkedin.com/rest/reactions?actor=$encoded_actor" "$reaction_body"
+          api "5. REACTIONS AUTHORIZATION GATE" POST "https://api.linkedin.com/rest/reactions?actor=$encoded_actor" "$reaction_body"
+          echo "RESULT: REACTIONS_GATE = $LAST_CODE"
 
           echo
-          echo "=== Interpretation ==="
-          echo "userinfo: 2xx = identity scope works."
-          echo "images initializeUpload: 2xx = image-upload permission/path accepted; 401/403 = auth/permission issue."
-          echo "posts authorization gate: 400/422 = token reached endpoint validation; 401/403 = auth/permission issue."
-          echo "comments authorization gate: 404/400 may mean fake target validation; 401/403 indicates auth/permission issue."
-          echo "reactions authorization gate: member feed reactions are associated with w_member_social_feed."
-          echo "No public post, comment, or reaction is intentionally created by this workflow."
+          echo "===== Interpretation ====="
+          echo "2xx = endpoint accepted the request."
+          echo "400/422 = request reached endpoint validation; not proof of permission."
+          echo "401 = token authentication problem."
+          echo "403 = permission/access problem."
+          echo "404 = target/path validation problem is possible."
+          echo
+          echo "No public post, comment, or reaction is intentionally created."
