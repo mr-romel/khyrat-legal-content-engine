@@ -418,12 +418,12 @@ Facebook قبل المراجعة:
     if not facebook or not linkedin:
         raise RuntimeError("Legal/editorial review returned empty Facebook or LinkedIn content.")
 
-    # Reject signs of an interrupted/truncated LinkedIn generation before publication.
+    # Flag, but do not block here; run_main has a dedicated LinkedIn completion/expansion gate.
     linkedin_tail = re.sub(r"\s+", " ", linkedin).strip()
     if re.search(r"(?:\.\.\.|…)$", linkedin_tail) or re.search(r"(?:\s(?:و|أو|لكن|لأن|لذلك|ثم|كما|بحيث|التي|الذي))$", linkedin_tail):
-        raise RuntimeError("LinkedIn draft appears truncated or ends with a continuation marker.")
+        print("Editorial review: LinkedIn draft appears truncated; completion gate will repair it before publication.")
     if len(linkedin_tail) < 900:
-        raise RuntimeError("LinkedIn draft is too short for the editorial LinkedIn version.")
+        print("Editorial review: LinkedIn draft is short; depth gate will expand it before publication.")
 
     return {
         "legal_status": legal_status,
