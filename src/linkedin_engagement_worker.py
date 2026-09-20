@@ -27,9 +27,9 @@ ENGAGEMENT_HEADERS = [
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
-DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "48") or "48")
+DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "6") or "6")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
-MAX_COMMENTS_PER_POST_PER_RUN = 1
+MAX_COMMENTS_PER_POST_PER_RUN = 2
 
 
 def now_cairo():
@@ -149,8 +149,22 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         post_urn = str(row.get("LinkedIn Post ID", "")).strip()
         if str(row.get("LinkedIn Status", "")).strip().upper() != "PUBLISHED" or not post_urn:
             continue
+        # Prefer the actual scheduled publication date/time. The generic
+        # "وقت آخر تشغيل" cell can be overwritten by recovery/analytics.
+        # Keep discovery short so old posts never become a comment backlog.
         published_at = parse_dt(row.get("وقت آخر تشغيل", ""))
-        if published_at is None or published_at < current - timedelta(hours=DISCOVERY_HOURS):
+        if published_at is None:
+            date_text = str(row.get("تاريخ النشر", "")).strip()
+            time_text = str(row.get("ساعة النشر", "")).strip()
+            if date_text and time_text:
+                try:
+                    from datetime import date, time as dt_time
+                    parsed_date = date.fromisoformat(date_text[:10])
+                    parsed_time = dt_time.fromisoformat(time_text[:8])
+                    published_at = datetime.combine(parsed_date, parsed_time, tzinfo=CAIRO)
+                except (ValueError, TypeError):
+                    published_at = None
+        if published_at is None or published_at < current - timedelta(hours=DISCOVERY_HOURS) or published_at > current + timedelta(minutes=10):
             continue
         if post_urn in bundled_posts:
             continue
