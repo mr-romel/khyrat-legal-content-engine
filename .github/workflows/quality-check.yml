@@ -110,7 +110,9 @@ jobs:
               slots_seen.append(slots[0])
           assert len(set(slots_seen)) >= 2
           target_slots = _target_slots(date(2026, 9, 2))
-          assert len(target_slots) == 1
+          assert len(target_slots) == 29
+          assert len({publish_date for publish_date, _ in target_slots}) == 29
+          assert all(len(daily_posting_times(*map(int, publish_date.split("-")))) == 1 for publish_date, _ in target_slots)
           print("Publishing schedule check: exactly 1 stable variable slot/day on every calendar day, 10:00-22:00 Cairo time: OK")
           PY
       - name: Verify Gemini runtime architecture
