@@ -138,12 +138,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
     if recovery and existing_post and image_path.is_file():
         return existing_post, existing_image_url, image_path, "CLEAR", ""
-    previous_context = build_previous_context(bank_rows) + "
-" + build_diversity_context(topic, build_previous_context(bank_rows))
+    previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
-        previous_context += f"
-IMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
+        previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
     result = generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=row.get("المصادر القانونية", ""), previous_context=previous_context)
     post = str(result.get("post", "") or "").strip()
     image_brief = str(result.get("image_brief", "") or "").strip()
