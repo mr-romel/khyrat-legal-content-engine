@@ -79,7 +79,7 @@ def choose_comment_count(post_urn: str) -> int:
     return 7
 
 def comment_schedule_offsets(count: int) -> list[int]:
-    offsets = [20, 55, 120, 300, 1320, 2160, 2880]
+    offsets = [5, 10, 15, 20, 30, 40, 50]
     return offsets[:count]
 
 def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
