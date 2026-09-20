@@ -21,9 +21,10 @@ def test_comment_count_can_vary_by_post():
 
 
 def test_schedule_offsets_match_comment_count():
-    assert comment_schedule_offsets(3) == [20, 55, 120]
+    assert comment_schedule_offsets(3) == [5, 10, 15]
     assert len(comment_schedule_offsets(7)) == 7
     assert comment_schedule_offsets(7) == sorted(comment_schedule_offsets(7))
+    assert comment_schedule_offsets(7)[-1] < 60
 
 
 def test_capability_uses_real_post_read_not_fake_post_write():
