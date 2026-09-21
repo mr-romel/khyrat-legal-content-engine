@@ -27,9 +27,9 @@ ENGAGEMENT_HEADERS = [
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
-DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "6") or "6")
+DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or "24")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
-MAX_COMMENTS_PER_POST_PER_RUN = 2
+MAX_COMMENTS_PER_POST_PER_RUN = 3
 
 
 def now_cairo():
@@ -132,11 +132,36 @@ def read_content_rows(service, spreadsheet_id, sheet_range):
     return result
 
 
+def _published_at_from_row(row):
+    # The publication schedule is the stable source for ordering posts.
+    # Fall back to the runtime timestamp only when the schedule fields are unavailable.
+    date_text = str(row.get("تاريخ النشر", "")).strip()
+    time_text = str(row.get("ساعة النشر", "")).strip()
+    if date_text and time_text:
+        try:
+            from datetime import date, time as dt_time
+            parsed_date = date.fromisoformat(date_text[:10])
+            parsed_time = dt_time.fromisoformat(time_text[:8])
+            return datetime.combine(parsed_date, parsed_time, tzinfo=CAIRO)
+        except (ValueError, TypeError):
+            pass
+    return parse_dt(row.get("وقت آخر تشغيل", ""))
+
+
 def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     bundled_posts = {
         str(x.get("post_urn", "")).strip()
         for x in existing
         if str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")
+    }
+    # The latest post that has actually received a comment is the watermark.
+    # Never fall back to an older post once a newer post has been commented.
+    commented_posts = {
+        str(x.get("post_urn", "")).strip()
+        for x in existing
+        if str(x.get("action", "")).upper() == "COMMENT"
+        and str(x.get("status", "")).upper() == "PUBLISHED"
+        and str(x.get("post_urn", "")).strip()
     }
     legacy_rows_by_post = {}
     for item in existing:
@@ -144,80 +169,102 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         event_id = str(item.get("event_id", "")).strip()
         if post and event_id.startswith("COMMENT:") and not event_id.startswith("COMMENT_BUNDLE:"):
             legacy_rows_by_post.setdefault(post, []).append(item)
-    created = 0
+
+    candidates = []
     for source_row, row in read_content_rows(service, spreadsheet_id, sheet_range):
         post_urn = str(row.get("LinkedIn Post ID", "")).strip()
         if str(row.get("LinkedIn Status", "")).strip().upper() != "PUBLISHED" or not post_urn:
             continue
-        # Prefer the actual scheduled publication date/time. The generic
-        # "وقت آخر تشغيل" cell can be overwritten by recovery/analytics.
-        # Keep discovery short so old posts never become a comment backlog.
-        published_at = parse_dt(row.get("وقت آخر تشغيل", ""))
+        published_at = _published_at_from_row(row)
         if published_at is None:
-            date_text = str(row.get("تاريخ النشر", "")).strip()
-            time_text = str(row.get("ساعة النشر", "")).strip()
-            if date_text and time_text:
-                try:
-                    from datetime import date, time as dt_time
-                    parsed_date = date.fromisoformat(date_text[:10])
-                    parsed_time = dt_time.fromisoformat(time_text[:8])
-                    published_at = datetime.combine(parsed_date, parsed_time, tzinfo=CAIRO)
-                except (ValueError, TypeError):
-                    published_at = None
-        if published_at is None or published_at < current - timedelta(hours=DISCOVERY_HOURS) or published_at > current + timedelta(minutes=10):
             continue
-        if post_urn in bundled_posts:
+        if published_at < current - timedelta(hours=DISCOVERY_HOURS) or published_at > current + timedelta(minutes=10):
             continue
+        candidates.append((published_at, source_row, row, post_urn))
 
-        # Retire the earlier one-comment-per-post queue format before creating
-        # the new bundle. No old queued comment is ever sent after migration.
-        for legacy in legacy_rows_by_post.get(post_urn, []):
-            if str(legacy.get("status", "")).upper() in {"PENDING", "RETRY", "BLOCKED_PERMISSION"}:
-                update_event(
-                    service, spreadsheet_id, int(legacy["_row_number"]),
-                    {"status": "OBSOLETE_LEGACY_QUEUE", "updated_at": iso(current),
-                     "last_error": "Superseded by the 3-7 comment bundle worker."},
-                )
+    if not candidates:
+        return 0
 
-        count = choose_comment_count(post_urn)
-        comments = generate_linkedin_comments(
-            api_key=CONFIG["gemini_api_key"],
-            model=CONFIG["gemini_model"],
-            post_urn=post_urn,
-            topic=row.get("الموضوع", ""),
-            post=row.get("المحتوى", ""),
-            legal_sources=row.get("المصادر القانونية", ""),
-            count=count,
-        )
-        offsets = comment_schedule_offsets(count)
-        bundle_id = f"COMMENT_BUNDLE:{post_urn}"
-        for sequence, (message, offset) in enumerate(zip(comments, offsets), start=1):
-            event_id = f"{bundle_id}:{sequence}"
-            event = {
-                "event_id": event_id,
-                "source_row": str(source_row),
-                "post_urn": post_urn,
-                "topic": row.get("الموضوع", ""),
-                "post_text": row.get("المحتوى", ""),
-                "legal_sources": row.get("المصادر القانونية", ""),
-                "action": "COMMENT",
-                "sequence": str(sequence),
-                "scheduled_at": iso(current + timedelta(minutes=offset)),
-                "status": "PENDING",
-                "comment_text": message,
-                "attempts": "0",
-                "capability_status": "NOT_CHECKED",
-                "fingerprint": comment_fingerprint(post_urn, message),
-                "created_at": iso(current),
-                "updated_at": iso(current),
-                "dry_run": "true" if DRY_RUN else "false",
-            }
-            append_event(service, spreadsheet_id, event)
-        bundled_posts.add(post_urn)
-        created += count
-        print(f"Queued {count} contextual LinkedIn comments for {post_urn}")
-    return created
+    candidates.sort(key=lambda item: item[0], reverse=True)
 
+    # Only the newest eligible post is allowed to start a comment bundle.
+    # This prevents a missed/old post from creating a backlog behind the latest post.
+    latest_published_at, source_row, row, post_urn = candidates[0]
+
+    if post_urn in bundled_posts:
+        return 0
+
+    # If an older post was the last one to receive a comment, the newest post
+    # is still allowed through. Older candidates are never backfilled.
+    if commented_posts:
+        commented_times = {
+            p: next((item[0] for item in candidates if item[3] == p), None)
+            for p in commented_posts
+        }
+        known_times = [t for t in commented_times.values() if t is not None]
+        if known_times and latest_published_at <= max(known_times):
+            return 0
+
+    # Retire the earlier one-comment-per-post queue format before creating
+    # the new bundle. No old queued comment is ever sent after migration.
+    for legacy in legacy_rows_by_post.get(post_urn, []):
+        if str(legacy.get("status", "")).upper() in {"PENDING", "RETRY", "BLOCKED_PERMISSION"}:
+            update_event(
+                service, spreadsheet_id, int(legacy["_row_number"]),
+                {"status": "OBSOLETE_LEGACY_QUEUE", "updated_at": iso(current),
+                 "last_error": "Superseded by the 3-7 comment bundle worker."},
+            )
+
+    count = choose_comment_count(post_urn)
+    comments = generate_linkedin_comments(
+        api_key=CONFIG["gemini_api_key"],
+        model=CONFIG["gemini_model"],
+        post_urn=post_urn,
+        topic=row.get("الموضوع", ""),
+        post=row.get("المحتوى", ""),
+        legal_sources=row.get("المصادر القانونية", ""),
+        count=count,
+    )
+    offsets = comment_schedule_offsets(count)
+    bundle_id = f"COMMENT_BUNDLE:{post_urn}"
+
+    # Normal case: offsets are measured from publication.
+    # Recovery case: if discovery happened after the intended window, restart
+    # the bundle from the current worker run so the missed comments are still
+    # delivered as one short burst instead of being spread over hours/days.
+    elapsed_minutes = max(0.0, (current - latest_published_at).total_seconds() / 60.0)
+    recovery_mode = elapsed_minutes > 55
+    base_time = current if recovery_mode else latest_published_at
+
+    for sequence, (message, offset) in enumerate(zip(comments, offsets), start=1):
+        event_id = f"{bundle_id}:{sequence}"
+        event = {
+            "event_id": event_id,
+            "source_row": str(source_row),
+            "post_urn": post_urn,
+            "topic": row.get("الموضوع", ""),
+            "post_text": row.get("المحتوى", ""),
+            "legal_sources": row.get("المصادر القانونية", ""),
+            "action": "COMMENT",
+            "sequence": str(sequence),
+            "scheduled_at": iso(base_time + timedelta(minutes=offset)),
+            "status": "PENDING",
+            "comment_text": message,
+            "attempts": "0",
+            "capability_status": "NOT_CHECKED",
+            "fingerprint": comment_fingerprint(post_urn, message),
+            "created_at": iso(current),
+            "updated_at": iso(current),
+            "dry_run": "true" if DRY_RUN else "false",
+        }
+        append_event(service, spreadsheet_id, event)
+
+    bundled_posts.add(post_urn)
+    print(
+        f"Queued {count} contextual LinkedIn comments for {post_urn} "
+        f"({'recovery' if recovery_mode else 'publication'} schedule)"
+    )
+    return count
 
 def select_due(existing, current):
     due = []
