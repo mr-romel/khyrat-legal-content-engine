@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
-from linkedin_publisher import like_post, resolve_member_urn
+from linkedin_publisher import like_comment, like_post, resolve_member_urn
 from sheets import create_service, get_values
 
 ENGAGEMENT_SHEET = os.getenv("LINKEDIN_ENGAGEMENT_SHEET", "LinkedIn Engagement").strip() or "LinkedIn Engagement"
@@ -29,7 +29,7 @@ MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or "24")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
-MAX_COMMENTS_PER_POST_PER_RUN = 7
+MAX_COMMENTS_PER_POST_PER_RUN = 1
 
 
 def now_cairo():
@@ -349,9 +349,18 @@ def select_due(existing, current):
             if per_post_comments.get(post, 0) >= MAX_COMMENTS_PER_POST_PER_RUN:
                 continue
             per_post_comments[post] = per_post_comments.get(post, 0) + 1
-        elif action != "REACTION":
+        elif action not in {"REACTION", "COMMENT_LIKE"}:
             continue
         due.append(row)
+
+    # A single worker cycle publishes at most one new comment for the newest
+    # post. This is the key guard against multiple queued comments dropping
+    # together when several scheduled_at values are already overdue.
+    comments = [x for x in due if str(x.get("action", "")).upper() == "COMMENT"]
+    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
+    if comments:
+        comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+        due = non_comments + comments[:1]
     return due
 
 
@@ -412,6 +421,10 @@ def main():
             result = like_post(
                 token=token, actor_urn=actor, post_urn=event["post_urn"]
             )
+        elif action == "COMMENT_LIKE":
+            result = like_comment(
+                token=token, actor_urn=actor, comment_urn=event["comment_urn"]
+            )
         else:
             result = add_linkedin_comment(
                 token=token, actor_urn=actor, post_urn=event["post_urn"],
@@ -426,7 +439,7 @@ def main():
         if result.status in {"PUBLISHED", "LIKED"}:
             changes.update({
                 "status": result.status,
-                "comment_urn": result.item_id if action == "COMMENT" else "",
+                "comment_urn": result.item_id if action == "COMMENT" else event.get("comment_urn", ""),
                 "last_error": "",
             })
         elif result.http_status == 403 or result.status == "DISABLED_PERMISSION":
@@ -447,6 +460,41 @@ def main():
                 "scheduled_at": iso(current + timedelta(minutes=RETRY_MINUTES)),
             })
         update_event(service, CONFIG["sheet_id"], row_number, changes)
+
+        # Immediately queue a durable like-on-comment event after a successful
+        # comment. It is processed on the next worker cycle if it cannot be
+        # completed in this cycle, so a transient failure cannot cause a lost
+        # comment-like and a rerun cannot duplicate it.
+        if action == "COMMENT" and result.status == "PUBLISHED" and result.item_id:
+            like_event_id = f"{event['event_id']}:LIKE"
+            existing_like = any(
+                str(x.get("event_id", "")).strip() == like_event_id
+                for x in existing
+            )
+            if not existing_like:
+                like_event = {
+                    "event_id": like_event_id,
+                    "source_row": event.get("source_row", ""),
+                    "post_urn": event.get("post_urn", ""),
+                    "topic": event.get("topic", ""),
+                    "post_text": event.get("post_text", ""),
+                    "legal_sources": event.get("legal_sources", ""),
+                    "action": "COMMENT_LIKE",
+                    "sequence": event.get("sequence", ""),
+                    "scheduled_at": iso(current),
+                    "status": "PENDING",
+                    "comment_text": "",
+                    "comment_urn": result.item_id,
+                    "attempts": "0",
+                    "capability_status": "NOT_CHECKED",
+                    "fingerprint": comment_fingerprint(result.item_id, "__LIKE_COMMENT__"),
+                    "created_at": iso(current),
+                    "updated_at": iso(current),
+                    "dry_run": "true" if DRY_RUN else "false",
+                }
+                append_event(service, CONFIG["sheet_id"], like_event)
+                print(f"{like_event_id} -> PENDING")
+
         print(f"{event['event_id']} -> {changes['status']}")
 
     return 0
