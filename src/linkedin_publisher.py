@@ -216,6 +216,18 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments"
     body = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
     result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action="comment")
+    if isinstance(result, LinkedInActionResult) and result.http_status == 403:
+        # Some tokens expose w_member_social but not the newer *_social_feed
+        # permission required by the versioned /rest/socialActions endpoint.
+        # Try the legacy v2 route as a compatibility fallback.
+        legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(post_urn, safe='')}/comments"
+        legacy_result = _post_legacy_interaction(legacy_endpoint, token=token, body=body, action="comment_v2")
+        if isinstance(legacy_result, requests.Response):
+            comment_id = (legacy_result.headers.get("x-restli-id", "") or legacy_result.headers.get("X-RestLi-Id", "")).strip()
+            if comment_id:
+                return LinkedInActionResult(status="PUBLISHED", item_id=f"urn:li:comment:({post_urn},{comment_id})", http_status=legacy_result.status_code)
+        if isinstance(legacy_result, LinkedInActionResult):
+            print(f"LinkedIn comment v2 fallback: {legacy_result.status} | http={legacy_result.http_status} | error={legacy_result.error}")
     if isinstance(result, LinkedInActionResult):
         print(f"LinkedIn comment: {result.status} | http={result.http_status} | error={result.error}")
         return result
@@ -223,6 +235,21 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     if not comment_id:
         return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
     return LinkedInActionResult(status="PUBLISHED", item_id=f"urn:li:comment:({post_urn},{comment_id})", http_status=result.status_code)
+
+
+def _post_legacy_interaction(endpoint: str, *, token: str, body: dict[str, Any], action: str):
+    try:
+        response = requests.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0"},
+            json=body,
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        return LinkedInActionResult(status="NETWORK_FAILED", error=f"{action}: {exc}")
+    if response.ok:
+        return response
+    return _interaction_result(action, response)
 
 
 def like_post(*, token: str, actor_urn: str, post_urn: str) -> LinkedInActionResult:
@@ -238,6 +265,21 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
     endpoint = f"{LINKEDIN_REST_BASE}/reactions?actor={encoded_actor}"
     body = {"root": root_urn, "reactionType": "LIKE"}
     result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action=action)
+    if isinstance(result, LinkedInActionResult) and result.http_status == 403:
+        legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(root_urn, safe='')}/likes"
+        legacy_body = {"actor": actor_urn, "object": root_urn}
+        legacy_result = _post_legacy_interaction(legacy_endpoint, token=token, body=legacy_body, action=f"{action}_v2")
+        if isinstance(legacy_result, requests.Response):
+            reaction_id = ""
+            try:
+                payload = legacy_result.json()
+                if isinstance(payload, dict):
+                    reaction_id = str(payload.get("id", "")).strip()
+            except ValueError:
+                pass
+            return LinkedInActionResult(status="LIKED", item_id=reaction_id, http_status=legacy_result.status_code)
+        if isinstance(legacy_result, LinkedInActionResult):
+            print(f"LinkedIn {action} v2 fallback: {legacy_result.status} | http={legacy_result.http_status} | error={legacy_result.error}")
     if isinstance(result, LinkedInActionResult):
         print(f"LinkedIn {action}: {result.status} | http={result.http_status} | error={result.error}")
         return result
