@@ -141,8 +141,8 @@ def _published_at_from_row(row):
     time_text = str(row.get("ساعة النشر", "")).strip()
     if date_text and time_text:
         import re
-        date_match = re.search(r"(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})", date_text)
-        time_match = re.search(r"(\\d{1,2}):(\\d{2})(?::(\\d{2}))?", time_text)
+        date_match = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", date_text)
+        time_match = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", time_text)
         if date_match and time_match:
             try:
                 from datetime import date, time as dt_time
