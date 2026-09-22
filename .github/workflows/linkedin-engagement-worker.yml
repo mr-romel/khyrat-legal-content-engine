@@ -1,7 +1,6 @@
 name: LinkedIn Engagement Worker
 
 on:
-  push:
     branches: [main]
     paths:
       - "src/linkedin_engagement_worker.py"
@@ -9,7 +8,7 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch:
   workflow_run:
-    workflows: ["Khyrat Legal Content Engine Scheduled", "Khyrat Engine Quality Check"]
+    workflows: ["Khyrat Legal Content Engine Scheduled"]
     types: [completed]
 
 permissions:
