@@ -220,6 +220,8 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     latest_published_at, source_row, row, post_urn = candidates[0]
 
     if post_urn in bundled_posts:
+        bundle_rows = [x for x in existing if str(x.get("post_urn", "")).strip() == post_urn and str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")]
+        print("Existing bundle for newest post:", [(x.get("event_id"), x.get("action"), x.get("status"), x.get("scheduled_at"), x.get("last_http_status"), x.get("last_error")) for x in bundle_rows])
         return 0
 
     # If an older post was the last one to receive a comment, the newest post
