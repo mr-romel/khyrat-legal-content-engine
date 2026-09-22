@@ -29,7 +29,7 @@ MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or "24")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
-MAX_COMMENTS_PER_POST_PER_RUN = 3  # Keep each worker run bounded while the bundle spans multiple runs.
+MAX_COMMENTS_PER_POST_PER_RUN = 3
 
 
 def now_cairo():
@@ -202,18 +202,13 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             published_at = current
         candidates.append((published_at, source_row, row, post_urn))
 
-    print(f"Content rows scanned: {len(read_content_rows(service, spreadsheet_id, sheet_range))}; eligible published LinkedIn rows: {len(candidates)}")
-    if candidates:
-        for published_at, candidate_row, candidate_row_data, candidate_post_urn in candidates[:5]:
-            print(f"Candidate row {candidate_row}: published_at={published_at.isoformat()}, status={candidate_row_data.get('LinkedIn Status', '')!r}, post_id_present={bool(candidate_post_urn)}, scheduled={candidate_row_data.get('تاريخ النشر', '')} {candidate_row_data.get('ساعة النشر', '')}")
     if not candidates:
         return 0
 
     candidates.sort(key=lambda item: (item[0], int(item[1])), reverse=True)
     if candidates:
         latest_debug = candidates[0]
-        print(f"Newest eligible row after sort: row={latest_debug[1]}, published_at={latest_debug[0].isoformat()}, post_id={latest_debug[3]!r}, bundled={latest_debug[3] in bundled_posts}")
-        print(f"Commented post count={len(commented_posts)}")
+        print(f"Newest eligible LinkedIn post: row={latest_debug[1]}, published_at={latest_debug[0].isoformat()}, post_id={latest_debug[3]!r}")
 
     # Only the newest eligible post is allowed to start a comment bundle.
     # This prevents a missed/old post from creating a backlog behind the latest post.
@@ -221,7 +216,29 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
 
     if post_urn in bundled_posts:
         bundle_rows = [x for x in existing if str(x.get("post_urn", "")).strip() == post_urn and str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")]
-        print("Existing bundle for newest post:", [(x.get("event_id"), x.get("action"), x.get("status"), x.get("scheduled_at"), x.get("last_http_status"), x.get("last_error")) for x in bundle_rows])
+        has_reaction = any(str(x.get("action", "")).upper() == "REACTION" for x in bundle_rows)
+        if not has_reaction:
+            reaction_event = {
+                "event_id": f"COMMENT_BUNDLE:{post_urn}:REACTION",
+                "source_row": str(source_row),
+                "post_urn": post_urn,
+                "topic": row.get("الموضوع", ""),
+                "post_text": row.get("المحتوى", ""),
+                "legal_sources": row.get("المصادر القانونية", ""),
+                "action": "REACTION",
+                "sequence": "0",
+                "scheduled_at": iso(current),
+                "status": "PENDING",
+                "comment_text": "",
+                "attempts": "0",
+                "capability_status": "NOT_CHECKED",
+                "fingerprint": comment_fingerprint(post_urn, "__LIKE_POST__"),
+                "created_at": iso(current),
+                "updated_at": iso(current),
+                "dry_run": "true" if DRY_RUN else "false",
+            }
+            append_event(service, spreadsheet_id, reaction_event)
+            print(f"Added missing reaction event for existing bundle: {post_urn}")
         return 0
 
     # If an older post was the last one to receive a comment, the newest post
