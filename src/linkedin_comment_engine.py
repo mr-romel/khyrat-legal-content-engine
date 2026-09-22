@@ -66,20 +66,15 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     return result[:count]
 
 def choose_comment_count(post_urn: str) -> int:
+    # The worker executes every 15 minutes and the engagement window is
+    # intentionally kept inside the first hour after publication.
+    # Therefore a post can receive 3 or 4 comments, never more than one per run.
     digest = hashlib.sha256(post_urn.encode("utf-8")).digest()
-    bucket = digest[0] % 100
-    if bucket < 20:
-        return 3
-    if bucket < 45:
-        return 4
-    if bucket < 70:
-        return 5
-    if bucket < 90:
-        return 6
-    return 7
+    return 3 if digest[0] % 2 == 0 else 4
 
 def comment_schedule_offsets(count: int) -> list[int]:
-    offsets = [5, 10, 15, 20, 30, 40, 50]
+    # One comment becomes due on each 15-minute worker cycle.
+    offsets = [15, 30, 45, 60]
     return offsets[:count]
 
 def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
