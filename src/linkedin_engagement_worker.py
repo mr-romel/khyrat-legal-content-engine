@@ -210,6 +210,10 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         return 0
 
     candidates.sort(key=lambda item: (item[0], int(item[1])), reverse=True)
+    if candidates:
+        latest_debug = candidates[0]
+        print(f"Newest eligible row after sort: row={latest_debug[1]}, published_at={latest_debug[0].isoformat()}, post_id={latest_debug[3]!r}, bundled={latest_debug[3] in bundled_posts}")
+        print(f"Commented post count={len(commented_posts)}")
 
     # Only the newest eligible post is allowed to start a comment bundle.
     # This prevents a missed/old post from creating a backlog behind the latest post.
