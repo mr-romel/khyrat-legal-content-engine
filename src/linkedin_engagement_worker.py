@@ -219,9 +219,11 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         has_reaction = any(str(x.get("action", "")).upper() == "REACTION" for x in bundle_rows)
         for bundle_row in bundle_rows:
             if (
-                str(bundle_row.get("action", "")).upper() == "COMMENT"
-                and str(bundle_row.get("status", "")).upper() == "BLOCKED_PERMISSION"
-                and "partnerApiSocialActions.CREATE" in str(bundle_row.get("last_error", ""))
+                str(bundle_row.get("status", "")).upper() == "BLOCKED_PERMISSION"
+                and (
+                    "partnerApiSocialActions.CREATE" in str(bundle_row.get("last_error", ""))
+                    or "partnerApiReactions.CREATE" in str(bundle_row.get("last_error", ""))
+                )
             ):
                 update_event(
                     service, spreadsheet_id, int(bundle_row["_row_number"]),
