@@ -29,7 +29,7 @@ MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or "24")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
-MAX_COMMENTS_PER_POST_PER_RUN = 5  # bounded burst for the generated 3-7 comment bundle
+MAX_COMMENTS_PER_POST_PER_RUN = 7
 
 
 def now_cairo():
@@ -217,21 +217,6 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     if post_urn in bundled_posts:
         bundle_rows = [x for x in existing if str(x.get("post_urn", "")).strip() == post_urn and str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")]
         has_reaction = any(str(x.get("action", "")).upper() == "REACTION" for x in bundle_rows)
-        for bundle_row in bundle_rows:
-            if (
-                str(bundle_row.get("status", "")).upper() == "BLOCKED_PERMISSION"
-                and (
-                    "partnerApiSocialActions.CREATE" in str(bundle_row.get("last_error", ""))
-                    or "partnerApiReactions.CREATE" in str(bundle_row.get("last_error", ""))
-                )
-            ):
-                update_event(
-                    service, spreadsheet_id, int(bundle_row["_row_number"]),
-                    {"status": "PENDING", "scheduled_at": iso(current),
-                     "last_error": "Requeued for legacy-v2 member social-actions compatibility test.",
-                     "updated_at": iso(current)},
-                )
-                print(f"Requeued blocked comment: {bundle_row.get('event_id')}")
         if not has_reaction:
             reaction_event = {
                 "event_id": f"COMMENT_BUNDLE:{post_urn}:REACTION",
