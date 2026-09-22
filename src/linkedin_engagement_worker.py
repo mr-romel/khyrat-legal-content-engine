@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
-from linkedin_publisher import resolve_member_urn
+from linkedin_publisher import like_post, resolve_member_urn
 from sheets import create_service, get_values
 
 ENGAGEMENT_SHEET = os.getenv("LINKEDIN_ENGAGEMENT_SHEET", "LinkedIn Engagement").strip() or "LinkedIn Engagement"
@@ -236,6 +236,27 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     recovery_mode = elapsed_minutes > 55
     base_time = current if recovery_mode else latest_published_at
 
+    reaction_event = {
+        "event_id": f"{bundle_id}:REACTION",
+        "source_row": str(source_row),
+        "post_urn": post_urn,
+        "topic": row.get("الموضوع", ""),
+        "post_text": row.get("المحتوى", ""),
+        "legal_sources": row.get("المصادر القانونية", ""),
+        "action": "REACTION",
+        "sequence": "0",
+        "scheduled_at": iso(current),
+        "status": "PENDING",
+        "comment_text": "",
+        "attempts": "0",
+        "capability_status": "NOT_CHECKED",
+        "fingerprint": comment_fingerprint(post_urn, "__LIKE_POST__"),
+        "created_at": iso(current),
+        "updated_at": iso(current),
+        "dry_run": "true" if DRY_RUN else "false",
+    }
+    append_event(service, spreadsheet_id, reaction_event)
+
     for sequence, (message, offset) in enumerate(zip(comments, offsets), start=1):
         event_id = f"{bundle_id}:{sequence}"
         event = {
@@ -268,18 +289,22 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
 
 def select_due(existing, current):
     due = []
-    per_post = {}
+    per_post_comments = {}
     for row in existing:
         if str(row.get("status", "")).upper() not in {"PENDING", "RETRY"}:
             continue
         scheduled = parse_dt(row.get("scheduled_at", ""))
         if not scheduled or scheduled > current:
             continue
+        action = str(row.get("action", "COMMENT")).upper()
         post = row.get("post_urn", "")
-        if per_post.get(post, 0) >= MAX_COMMENTS_PER_POST_PER_RUN:
+        if action == "COMMENT":
+            if per_post_comments.get(post, 0) >= MAX_COMMENTS_PER_POST_PER_RUN:
+                continue
+            per_post_comments[post] = per_post_comments.get(post, 0) + 1
+        elif action != "REACTION":
             continue
         due.append(row)
-        per_post[post] = per_post.get(post, 0) + 1
     return due
 
 
@@ -313,7 +338,14 @@ def main():
     for event in due:
         row_number = int(event["_row_number"])
         attempts = int(event.get("attempts", "0") or "0") + 1
-        if not event.get("comment_text"):
+        action = str(event.get("action", "COMMENT")).upper()
+        if action not in {"COMMENT", "REACTION"}:
+            update_event(service, CONFIG["sheet_id"], row_number, {
+                "status": "FAILED", "last_error": f"Unsupported engagement action: {action}",
+                "attempts": str(attempts), "updated_at": iso(current)
+            })
+            continue
+        if action == "COMMENT" and not event.get("comment_text"):
             update_event(service, CONFIG["sheet_id"], row_number, {
                 "status": "FAILED", "last_error": "Queue row has no generated comment text.",
                 "attempts": str(attempts), "updated_at": iso(current)
@@ -329,20 +361,25 @@ def main():
             print(f"DRY RUN ready: {event['event_id']}")
             continue
 
-        result = add_linkedin_comment(
-            token=token, actor_urn=actor, post_urn=event["post_urn"],
-            message=event["comment_text"], dry_run=False
-        )
+        if action == "REACTION":
+            result = like_post(
+                token=token, actor_urn=actor, post_urn=event["post_urn"]
+            )
+        else:
+            result = add_linkedin_comment(
+                token=token, actor_urn=actor, post_urn=event["post_urn"],
+                message=event["comment_text"], dry_run=False
+            )
         changes = {
             "attempts": str(attempts),
             "last_http_status": str(result.http_status or ""),
             "last_error": str(result.error or "")[:1500],
             "updated_at": iso(current),
         }
-        if result.status == "PUBLISHED":
+        if result.status in {"PUBLISHED", "LIKED"}:
             changes.update({
-                "status": "PUBLISHED",
-                "comment_urn": result.item_id,
+                "status": result.status,
+                "comment_urn": result.item_id if action == "COMMENT" else "",
                 "last_error": "",
             })
         elif result.http_status == 403 or result.status == "DISABLED_PERMISSION":
