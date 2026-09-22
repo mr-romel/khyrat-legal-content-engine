@@ -134,17 +134,32 @@ def read_content_rows(service, spreadsheet_id, sheet_range):
 
 def _published_at_from_row(row):
     # The publication schedule is the stable source for ordering posts.
-    # Fall back to the runtime timestamp only when the schedule fields are unavailable.
+    # Support common sheet display formats and never use "وقت آخر تشغيل"
+    # when schedule fields are present but malformed; that field is an
+    # execution timestamp and can make an old post look newer than it is.
     date_text = str(row.get("تاريخ النشر", "")).strip()
     time_text = str(row.get("ساعة النشر", "")).strip()
     if date_text and time_text:
-        try:
-            from datetime import date, time as dt_time
-            parsed_date = date.fromisoformat(date_text[:10])
-            parsed_time = dt_time.fromisoformat(time_text[:8])
-            return datetime.combine(parsed_date, parsed_time, tzinfo=CAIRO)
-        except (ValueError, TypeError):
-            pass
+        import re
+        date_match = re.search(r"(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})", date_text)
+        time_match = re.search(r"(\\d{1,2}):(\\d{2})(?::(\\d{2}))?", time_text)
+        if date_match and time_match:
+            try:
+                from datetime import date, time as dt_time
+                parsed_date = date(
+                    int(date_match.group(1)),
+                    int(date_match.group(2)),
+                    int(date_match.group(3)),
+                )
+                parsed_time = dt_time(
+                    int(time_match.group(1)),
+                    int(time_match.group(2)),
+                    int(time_match.group(3) or 0),
+                )
+                return datetime.combine(parsed_date, parsed_time, tzinfo=CAIRO)
+            except (ValueError, TypeError):
+                return None
+        return None
     return parse_dt(row.get("وقت آخر تشغيل", ""))
 
 
@@ -176,10 +191,13 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         if str(row.get("LinkedIn Status", "")).strip().upper() != "PUBLISHED" or not post_urn:
             continue
         published_at = _published_at_from_row(row)
-        # The worker must be able to recover the latest published post even
-        # when the scheduler/worker was offline for more than DISCOVERY_HOURS.
-        # If the sheet lacks a parseable publication timestamp, keep the row
-        # eligible and use its sheet position as the fallback ordering signal.
+        # If schedule fields exist but are malformed, do not let the execution
+        # timestamp masquerade as publication time. Skip that row for ordering.
+        if published_at is None and str(row.get("تاريخ النشر", "")).strip() and str(row.get("ساعة النشر", "")).strip():
+            print(f"Skipping published LinkedIn row {source_row}: invalid schedule date/time")
+            continue
+        # Rows with no schedule fields at all can still be recovered using
+        # current time plus sheet position as the fallback ordering signal.
         if published_at is None:
             published_at = current
         candidates.append((published_at, source_row, row, post_urn))
