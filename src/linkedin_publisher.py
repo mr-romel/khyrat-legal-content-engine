@@ -279,6 +279,9 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
                 pass
             return LinkedInActionResult(status="LIKED", item_id=reaction_id, http_status=legacy_result.status_code)
         if isinstance(legacy_result, LinkedInActionResult):
+            if legacy_result.http_status == 409:
+                print(f"LinkedIn {action} v2 fallback: ALREADY_REACTED | http=409")
+                return LinkedInActionResult(status="LIKED", item_id="", http_status=409)
             print(f"LinkedIn {action} v2 fallback: {legacy_result.status} | http={legacy_result.http_status} | error={legacy_result.error}")
     if isinstance(result, LinkedInActionResult):
         print(f"LinkedIn {action}: {result.status} | http={result.http_status} | error={result.error}")
