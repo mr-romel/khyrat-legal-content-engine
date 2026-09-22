@@ -395,7 +395,7 @@ def main():
         row_number = int(event["_row_number"])
         attempts = int(event.get("attempts", "0") or "0") + 1
         action = str(event.get("action", "COMMENT")).upper()
-        if action not in {"COMMENT", "REACTION"}:
+        if action not in {"COMMENT", "REACTION", "COMMENT_LIKE"}:
             update_event(service, CONFIG["sheet_id"], row_number, {
                 "status": "FAILED", "last_error": f"Unsupported engagement action: {action}",
                 "attempts": str(attempts), "updated_at": iso(current)
