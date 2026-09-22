@@ -1,17 +1,9 @@
 name: LinkedIn Engagement Worker
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/linkedin_engagement_worker.py"
-      - "src/linkedin_publisher.py"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Khyrat Legal Content Engine Scheduled"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -22,7 +14,6 @@ concurrency:
 
 jobs:
   engagement:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     name: Process LinkedIn engagement queue
     runs-on: ubuntu-latest
     timeout-minutes: 15
