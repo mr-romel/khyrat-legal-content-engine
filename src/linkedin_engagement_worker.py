@@ -184,6 +184,10 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             published_at = current
         candidates.append((published_at, source_row, row, post_urn))
 
+    print(f"Content rows scanned: {len(read_content_rows(service, spreadsheet_id, sheet_range))}; eligible published LinkedIn rows: {len(candidates)}")
+    if candidates:
+        for published_at, candidate_row, candidate_row_data, candidate_post_urn in candidates[:5]:
+            print(f"Candidate row {candidate_row}: status={candidate_row_data.get('LinkedIn Status', '')!r}, post_id_present={bool(candidate_post_urn)}, scheduled={candidate_row_data.get('تاريخ النشر', '')} {candidate_row_data.get('ساعة النشر', '')}")
     if not candidates:
         return 0
 
