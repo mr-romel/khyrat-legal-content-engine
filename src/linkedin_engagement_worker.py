@@ -176,16 +176,18 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         if str(row.get("LinkedIn Status", "")).strip().upper() != "PUBLISHED" or not post_urn:
             continue
         published_at = _published_at_from_row(row)
+        # The worker must be able to recover the latest published post even
+        # when the scheduler/worker was offline for more than DISCOVERY_HOURS.
+        # If the sheet lacks a parseable publication timestamp, keep the row
+        # eligible and use its sheet position as the fallback ordering signal.
         if published_at is None:
-            continue
-        if published_at < current - timedelta(hours=DISCOVERY_HOURS) or published_at > current + timedelta(minutes=10):
-            continue
+            published_at = current
         candidates.append((published_at, source_row, row, post_urn))
 
     if not candidates:
         return 0
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
+    candidates.sort(key=lambda item: (item[0], int(item[1])), reverse=True)
 
     # Only the newest eligible post is allowed to start a comment bundle.
     # This prevents a missed/old post from creating a backlog behind the latest post.
