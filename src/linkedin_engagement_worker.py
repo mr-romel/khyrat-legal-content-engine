@@ -194,7 +194,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         # If schedule fields exist but are malformed, do not let the execution
         # timestamp masquerade as publication time. Skip that row for ordering.
         if published_at is None and str(row.get("تاريخ النشر", "")).strip() and str(row.get("ساعة النشر", "")).strip():
-            print(f"Skipping published LinkedIn row {source_row}: invalid schedule date/time")
+            print(f"Skipping published LinkedIn row {source_row}: invalid schedule date/time; date={row.get('تاريخ النشر', '')!r}; time={row.get('ساعة النشر', '')!r}")
             continue
         # Rows with no schedule fields at all can still be recovered using
         # current time plus sheet position as the fallback ordering signal.
