@@ -9,7 +9,7 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch:
   workflow_run:
-    workflows: ["Khyrat Legal Content Engine Scheduled"]
+    workflows: ["Khyrat Legal Content Engine Scheduled", "Khyrat Engine Quality Check"]
     types: [completed]
 
 permissions:
