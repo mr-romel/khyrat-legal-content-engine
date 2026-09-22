@@ -1,10 +1,6 @@
 name: LinkedIn Engagement Worker
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/linkedin_engagement_worker.py"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
