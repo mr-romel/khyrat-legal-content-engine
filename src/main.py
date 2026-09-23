@@ -141,7 +141,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         return None, None, None, "BLOCK", review_text
     if review_level == "REVIEW":
         notify(f"🟡 Review advisory — سيتم النشر تلقائيًا.\nالموضوع: {topic}\nالملاحظة: {review_text or 'مراجعة مستحسنة'}")
-    create_legal_image(topic=topic, image_brief=image_brief, output_path=str(image_path), cloudflare_account_id=config["cloudflare_account_id"], cloudflare_api_token=config["cloudflare_api_token"])
+    create_legal_image(topic=topic, image_brief=image_brief, output_path=str(image_path), cloudflare_account_id=config["cloudflare_account_id"], cloudflare_api_token=config["cloudflare_api_token"], gemini_api_key=config["gemini_api_key"])
     image_url = github_raw_url(str(image_path))
     update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "READY_FOR_SOCIAL_PUBLISH", "المحتوى": post, "وصف الصورة": image_brief, "رابط الصورة": image_url, "وقت آخر تشغيل": current.isoformat()})
     return post, image_url, image_path, review_level, review_text
