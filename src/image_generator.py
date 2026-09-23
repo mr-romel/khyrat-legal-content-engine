@@ -25,6 +25,9 @@ DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشرك�
 # keep the reference assets separate from the scene and encode only stable visual
 # traits in the prompt; backgrounds/poses/compositions are never copied.
 CHARACTER_REFERENCE_DIR = Path("assets/reference")
+CHARACTER_REFERENCE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"
+}
 CHARACTER_REFERENCE_PROFILE = (
     "The recurring male subject is an Egyptian professional man in his early-to-mid 30s, "
     "with a slim-to-average build, short dark black hair, a neatly trimmed short dark beard, "
@@ -239,9 +242,14 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
     if not image_brief.strip():
         raise ImageGenerationError("Image brief is empty.")
     reference_dir = Path(os.getenv("KHYRAT_CHARACTER_REFERENCE_DIR", str(CHARACTER_REFERENCE_DIR)))
-    reference_files = sorted(reference_dir.glob("*"))
+    reference_files = sorted(
+        path for path in reference_dir.iterdir()
+        if path.is_file() and path.suffix.lower() in CHARACTER_REFERENCE_EXTENSIONS
+    ) if reference_dir.is_dir() else []
     if reference_files:
+        reference_names = ", ".join(path.name for path in reference_files)
         print(f"Character reference assets detected: {len(reference_files)} file(s) in {reference_dir}")
+        print(f"Character reference files: {reference_names}")
     else:
         print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
     prompt = _build_prompt(topic, image_brief)
