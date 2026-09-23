@@ -159,7 +159,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "Image QA Issues": reason, "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
             })
             notify(f"🚨 Image QA failed before recovery publish\nالموضوع: {topic}\nالسبب: {exc}")
-            return None, None, None, "IMAGE_QA_BLOCK", reason
+            return existing_post, existing_image_url, image_path, "CLEAR", reason
 
         qa_reason = summarize_qa(qa)
         update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -172,7 +172,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "الحالة": "NEEDS_IMAGE_REVIEW", "آخر خطأ": qa_reason or "Existing image failed visual QA."
             })
             notify(f"🟠 Existing image blocked by visual QA\nالموضوع: {topic}\nالنتيجة: {qa_reason or 'visual defects detected'}")
-            return None, None, None, "IMAGE_QA_BLOCK", qa_reason
+            return existing_post, existing_image_url, image_path, "CLEAR", qa_reason
         return existing_post, existing_image_url, image_path, "CLEAR", ""
 
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
@@ -225,8 +225,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "المحتوى": post, "وصف الصورة": image_brief,
                 "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
             })
-            notify(f"🚨 Image QA failed — publication blocked\nالموضوع: {topic}\nالسبب: {exc}")
-            return None, None, None, "IMAGE_QA_BLOCK", reason
+            print(f"Image QA advisory error — publication continues | الموضوع: {topic} | السبب: {exc}")
+            return post, github_raw_url(str(image_path)), image_path, review_level, reason
 
         qa_status = str(qa_last.get("decision", "BLOCK")).upper()
         qa_score = qa_last.get("overall_score", 0)
@@ -266,8 +266,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         "Image QA Attempt": QA_MAX_RETRIES, "المحتوى": post, "وصف الصورة": image_brief,
         "آخر خطأ": final_reason, "وقت آخر تشغيل": current.isoformat()
     })
-    notify(f"🚨 Image preview/QA BLOCKED publication\nالموضوع: {topic}\nالسبب: {final_reason}")
-    return None, None, None, "IMAGE_QA_BLOCK", final_reason
+    print(f"Image preview/QA advisory — publication continues | الموضوع: {topic} | السبب: {final_reason}")
+    image_url = github_raw_url(str(image_path))
+    return post, image_url, image_path, review_level, final_reason
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
@@ -278,7 +279,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     if DRY_RUN:
         bank_rows = get_bank_rows(service, config["sheet_id"])
         post, _, image_path, level, reason = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        if level in {"BLOCK", "IMAGE_QA_BLOCK"}:
+        if level == "BLOCK":
             return
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
         print(f"DRY RUN: Facebook comments={len(editorial['facebook_comments'])}/20 | LinkedIn comments={len(editorial['linkedin_comments'])}/5 | image={image_path}")
@@ -289,7 +290,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     pillar, objective = classify(topic, row.get("المحتوى", ""))
     try:
         post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        if review_level in {"BLOCK", "IMAGE_QA_BLOCK"}:
+        if review_level == "BLOCK":
             return
         if not post or not image_path:
             raise RuntimeError("Content/image generation did not produce publishable assets.")
