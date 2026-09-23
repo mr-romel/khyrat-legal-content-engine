@@ -8,6 +8,8 @@ from typing import Any
 
 from google import genai
 
+from engagement_strategy import choose_comment_count, normalize_comment
+
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
@@ -100,7 +102,7 @@ def _normalize(value: Any, limit: int) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for item in value:
-        text = str(item or "").strip()
+        text = normalize_comment(str(item or ""))
         key = re.sub(r"\s+", " ", text).casefold()
         if text and key not in seen:
             seen.add(key)
@@ -134,11 +136,12 @@ def generate_comments(
     topic: str,
     post: str,
     legal_sources: str = "",
+    count: int | None = None,
 ) -> dict[str, list[str]]:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
 
-    primary_model = (model or "").strip()
+    primary_model = (model or "").strip()\n    count = count if count is not None else choose_comment_count(f"{topic}|{post}")\n    if count < 5 or count > 10:\n        raise ValueError("Comment count must be between 5 and 10.")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
     cached = _COMMENT_CACHE.get(cache_key)
@@ -158,7 +161,7 @@ def generate_comments(
 المصادر القانونية المتاحة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
-اختر عدد تعليقات Facebook بين 5 و10 تعليقات بناءً على طبيعة الموضوع، ويجب أن يكون الاختيار متغيرًا بين المنشورات وليس ثابتًا.
+أنشئ بالضبط {count} تعليقات Facebook لهذا المنشور. العدد تم اختياره مسبقًا بين 5 و10 ويختلف من منشور لآخر؛ لا تغير العدد.
 لا تقلل العدد لمجرد تقليل المجهود، ولا تزوده لمجرد الوصول إلى 20؛ المطلوب عدد يبدو طبيعيًا لهذا المنشور تحديدًا.
 
 Facebook: اكتب التعليقات بصوت الصفحة نفسها، بالمصري الطبيعي، وبأسلوب بسيط ومهني وغير متكلف.
@@ -172,7 +175,7 @@ CTA: استخدم CTA عاديًا من الصفحة عندما يكون منا�
 لا تجعل كل التعليقات أسئلة، ولا تجعل كل التعليقات تطلب المشاركة.
 كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا، وألا يبدو جزءًا من قالب آلي متكرر.
 
-LinkedIn: أنشئ نفس عدد تعليقات Facebook بالضبط، بين 5 و10، بلسان صاحب الحساب نفسه، business-oriented، متنوعة، طبيعية، ومتصلة بالمنشور. تعليق واحد فقط CTA عند ملاءمة الموضوع
+LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Facebook، بلسان صاحب الحساب نفسه، business-oriented، متنوعة، طبيعية، ومتصلة بالمنشور. تعليق واحد فقط CTA عند ملاءمة الموضوع
 """
 
     try:
@@ -184,9 +187,8 @@ LinkedIn: أنشئ نفس عدد تعليقات Facebook بالضبط، بين 5
         response = _generate_with_retry(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
 
     data = _extract_json(getattr(response, "text", ""))
-    facebook = _normalize(data.get("facebook_comments"), 10)
-    linkedin = _normalize(data.get("linkedin_comments"), 10)
-    if len(facebook) < 5 or len(facebook) > 10 or len(linkedin) != len(facebook):
+    facebook = _normalize(data.get("facebook_comments"), count)\n    linkedin = _normalize(data.get("linkedin_comments"), count)
+    if len(facebook) != count or len(linkedin) != count:
         raise RuntimeError("Comment engine must return 5-10 Facebook comments and the same count for LinkedIn.")
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
