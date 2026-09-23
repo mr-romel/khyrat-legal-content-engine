@@ -14,6 +14,7 @@ from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
+from social_content import append_hashtags, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
@@ -112,6 +113,24 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
     reviewed = review_and_prepare(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, facebook_post=facebook_post, facebook_comments=comments["facebook_comments"][:5], linkedin_comments=comments["linkedin_comments"], legal_sources=legal_sources)
     reviewed["facebook_comments"] = reviewed["facebook_comments"] + comments["facebook_comments"][5:FACEBOOK_COMMENT_LIMIT]
     reviewed["facebook_post"] = _ensure_facebook_cta(reviewed["facebook_post"])
+
+    # Shared social-content contract: both platforms always receive the same
+    # topic-derived hashtag set while keeping their platform-specific body.
+    reviewed["facebook_post"] = append_hashtags(reviewed["facebook_post"], topic)
+    linkedin_body, _ = split_hashtags(reviewed.get("linkedin_post", ""))
+    reviewed["linkedin_post"] = append_hashtags(linkedin_body, topic)
+
+    # Preserve the hashtag suffix when LinkedIn approaches its safe 2,900-char
+    # publication ceiling; never hard-truncate the body mid-sentence.
+    linkedin_post = reviewed["linkedin_post"]
+    if len(linkedin_post) > 2900:
+        body, tag_suffix = split_hashtags(linkedin_post)
+        budget = 2900 - len(tag_suffix) - 2
+        if budget < 2200:
+            budget = 2200
+        if len(body) > budget:
+            body = body[:budget].rsplit(" ", 1)[0].rstrip()
+        reviewed["linkedin_post"] = f"{body}\n\n{tag_suffix}".strip()
     return reviewed
 
 
