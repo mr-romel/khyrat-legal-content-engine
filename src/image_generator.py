@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from google import genai
+from google.genai import types
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
@@ -35,6 +37,8 @@ CHARACTER_REFERENCE_PROFILE = (
     "Keep facial identity and general proportions consistent across generated scenes, but do not copy "
     "any reference pose, camera angle, background, furniture, room, clothing, lighting setup, or framing."
 )
+CHARACTER_ANALYSIS_MODEL = os.getenv("KHYRAT_CHARACTER_ANALYSIS_MODEL", "gemini-3.1-flash-lite")
+_CHARACTER_IDENTITY_PROFILE_CACHE: str | None = None
 BRAND_MARGIN = 42
 BRAND_HEIGHT = 96
 BRAND_HORIZONTAL_PADDING = 30
@@ -77,7 +81,81 @@ def _extract_image_bytes(response: requests.Response) -> bytes:
         raise ImageGenerationError("Cloudflare returned invalid Base64 image data.") from exc
 
 
-def _build_prompt(topic: str, image_brief: str) -> str:
+def _build_character_identity_profile(reference_files: list[Path], gemini_api_key: str | None) -> str:
+    """Analyze all available reference photos with a free-tier Gemini vision model.
+
+    This is identity analysis only; it does not generate an image and does not store
+    the resulting profile. The actual image generation remains on Cloudflare FLUX.
+    """
+    global _CHARACTER_IDENTITY_PROFILE_CACHE
+    if _CHARACTER_IDENTITY_PROFILE_CACHE:
+        return _CHARACTER_IDENTITY_PROFILE_CACHE
+    if not gemini_api_key or not reference_files:
+        return CHARACTER_REFERENCE_PROFILE
+
+    prompt = """
+Analyze the attached reference photos as multiple views of the SAME recurring male subject.
+Create one concise English visual identity profile for an image-generation prompt.
+
+Include only stable visual characteristics that help preserve resemblance:
+- approximate age range
+- face shape and proportions
+- hair style/color
+- beard/facial-hair pattern
+- eyebrows and eyes
+- skin tone
+- distinctive but non-sensitive facial features
+- general body/build proportions
+- overall professional appearance
+
+Do NOT identify or name the person.
+Do NOT describe the locations, furniture, backgrounds, camera framing, poses, clothing,
+lighting setups, or objects as identity traits.
+Do NOT copy any single photograph.
+Return one compact paragraph, no bullets, no markdown.
+"""
+
+    try:
+        client = genai.Client(api_key=gemini_api_key)
+        contents: list[Any] = [prompt]
+        for path in reference_files:
+            try:
+                mime_type = {
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".png": "image/png",
+                    ".webp": "image/webp",
+                    ".heic": "image/heic",
+                    ".heif": "image/heif",
+                    ".avif": "image/avif",
+                }.get(path.suffix.lower())
+                if not mime_type:
+                    continue
+                contents.append(
+                    types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
+                )
+            except OSError as exc:
+                print(f"Character reference read warning for {path.name}: {exc}")
+        response = client.models.generate_content(
+            model=CHARACTER_ANALYSIS_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(max_output_tokens=500),
+        )
+        profile = (getattr(response, "text", None) or "").strip()
+        if profile:
+            _CHARACTER_IDENTITY_PROFILE_CACHE = profile
+            print(
+                f"Character identity profile analyzed from {len(reference_files)} reference photo(s) "
+                f"using {CHARACTER_ANALYSIS_MODEL}."
+            )
+            return profile
+    except Exception as exc:
+        print(f"Character identity analysis warning: {exc}; using fallback profile.")
+
+    return CHARACTER_REFERENCE_PROFILE
+
+
+def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None) -> str:
     topic = topic.strip().replace("\r", " ").replace("\n", " ")
     brief = image_brief.strip().replace("\r", " ").replace("\n\n", "\n")
     if len(brief) > 900:
@@ -86,7 +164,7 @@ def _build_prompt(topic: str, image_brief: str) -> str:
 Create one realistic cinematic editorial photograph.
 
 CHARACTER REFERENCE / IDENTITY ONLY:
-{CHARACTER_REFERENCE_PROFILE}
+{character_profile or CHARACTER_REFERENCE_PROFILE}
 
 The repository contains character reference photos under assets/reference/.
 Treat them as identity references only. The generated image MUST be a new scene.
@@ -252,7 +330,8 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         print(f"Character reference files: {reference_names}")
     else:
         print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
-    prompt = _build_prompt(topic, image_brief)
+    character_profile = _build_character_identity_profile(reference_files, os.getenv("GEMINI_API_KEY"))
+    prompt = _build_prompt(topic, image_brief, character_profile=character_profile)
     print(f"Cloudflare prompt length: {len(prompt)} characters")
     endpoint = IMAGE_ENDPOINT.format(account_id=account_id)
     request_body = {"prompt": prompt, "steps": IMAGE_STEPS}
