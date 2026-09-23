@@ -18,6 +18,20 @@ IMAGE_ENDPOINT = (
 MAX_PROMPT_LENGTH = 1800
 IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "4")), 4))
 DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
+
+# Character reference assets are stored in the repository and used as an identity
+# guide in the visual prompt. The current zero-additional-cost FLUX.1-schnell
+# endpoint is text-to-image, so it cannot ingest the JPEGs directly. We therefore
+# keep the reference assets separate from the scene and encode only stable visual
+# traits in the prompt; backgrounds/poses/compositions are never copied.
+CHARACTER_REFERENCE_DIR = Path("assets/reference")
+CHARACTER_REFERENCE_PROFILE = (
+    "The recurring male subject is an Egyptian professional man in his early-to-mid 30s, "
+    "with a slim-to-average build, short dark black hair, a neatly trimmed short dark beard, "
+    "medium-light warm skin tone, dark eyes, defined eyebrows, and a clean professional appearance. "
+    "Keep facial identity and general proportions consistent across generated scenes, but do not copy "
+    "any reference pose, camera angle, background, furniture, room, clothing, lighting setup, or framing."
+)
 BRAND_MARGIN = 42
 BRAND_HEIGHT = 96
 BRAND_HORIZONTAL_PADDING = 30
@@ -67,6 +81,15 @@ def _build_prompt(topic: str, image_brief: str) -> str:
         brief = brief[:900].rsplit(" ", 1)[0].strip()
     prompt = f"""
 Create one realistic cinematic editorial photograph.
+
+CHARACTER REFERENCE / IDENTITY ONLY:
+{CHARACTER_REFERENCE_PROFILE}
+
+The repository contains character reference photos under assets/reference/.
+Treat them as identity references only. The generated image MUST be a new scene.
+Do not reproduce the reference photographs, their backgrounds, furniture, rooms,
+poses, body position, camera angles, framing, or clothing. Change the pose,
+composition, environment, camera perspective, and wardrobe according to the scene brief.
 
 LEGAL STORY:
 {topic}
@@ -215,6 +238,12 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         raise ImageGenerationError("Topic is empty.")
     if not image_brief.strip():
         raise ImageGenerationError("Image brief is empty.")
+    reference_dir = Path(os.getenv("KHYRAT_CHARACTER_REFERENCE_DIR", str(CHARACTER_REFERENCE_DIR)))
+    reference_files = sorted(reference_dir.glob("*"))
+    if reference_files:
+        print(f"Character reference assets detected: {len(reference_files)} file(s) in {reference_dir}")
+    else:
+        print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
     prompt = _build_prompt(topic, image_brief)
     print(f"Cloudflare prompt length: {len(prompt)} characters")
     endpoint = IMAGE_ENDPOINT.format(account_id=account_id)
