@@ -308,7 +308,7 @@ def _convert_to_4x5(image_bytes: bytes, output_path: Path, page_name: str | None
     final_image.save(output_path, format="JPEG", quality=94, optimize=True)
 
 
-def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, page_name: str | None = None) -> str:
+def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, gemini_api_key: str | None = None, page_name: str | None = None) -> str:
     account_id = (cloudflare_account_id or "").strip()
     api_token = (cloudflare_api_token or "").strip()
     if not account_id:
@@ -330,7 +330,7 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         print(f"Character reference files: {reference_names}")
     else:
         print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
-    character_profile = _build_character_identity_profile(reference_files, os.getenv("GEMINI_API_KEY"))
+    character_profile = _build_character_identity_profile(reference_files, gemini_api_key or os.getenv("GEMINI_API_KEY"))
     prompt = _build_prompt(topic, image_brief, character_profile=character_profile)
     print(f"Cloudflare prompt length: {len(prompt)} characters")
     endpoint = IMAGE_ENDPOINT.format(account_id=account_id)
