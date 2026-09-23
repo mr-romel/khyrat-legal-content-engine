@@ -93,8 +93,8 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
     count = count if count is not None else choose_comment_count(post_urn)
-    if count < 5 or count > 10:
-        raise ValueError("LinkedIn comment count must be between 5 and 10.")
+    if count < 5 or count > 8:
+        raise ValueError("LinkedIn comment count must be between 5 and 8.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
 أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
