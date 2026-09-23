@@ -9,7 +9,7 @@ from typing import Any
 
 from google import genai
 
-from engagement_strategy import choose_comment_count, normalize_comment, comment_schedule_offsets as shared_schedule_offsets
+from engagement_strategy import choose_comment_count as shared_choose_comment_count, normalize_comment, comment_schedule_offsets as shared_schedule_offsets
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
@@ -70,12 +70,11 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     return result[:count]
 
 def choose_comment_count(post_urn: str) -> int:
-    return choose_comment_count_shared(post_urn)
+    return shared_choose_comment_count(post_urn)
 
 def comment_schedule_offsets(count: int) -> list[int]:
     return shared_schedule_offsets(count)
 
-choose_comment_count_shared = choose_comment_count
 
 def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
     for attempt in range(1, attempts + 1):
