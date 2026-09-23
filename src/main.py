@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import time
 import traceback
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -22,9 +21,8 @@ from telegram_bot import notify, notify_linkedin_interaction, send_review_reques
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
-COMMENT_DELAY_SECONDS = 12
-FACEBOOK_COMMENT_LIMIT = 20
-LINKEDIN_COMMENT_LIMIT = 5
+FACEBOOK_COMMENT_LIMIT = 10
+LINKEDIN_COMMENT_LIMIT = 10
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -109,18 +107,6 @@ def _ensure_facebook_cta(post: str) -> str:
     return text + ("\n\n" + "\n".join(additions) if additions else "")
 
 
-def _publish_comments_facebook(post_id: str, comments: list[str], config) -> int:
-    published = 0
-    for index, message in enumerate(comments[:FACEBOOK_COMMENT_LIMIT], start=1):
-        result = facebook_add_comment(post_id=post_id, page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=message)
-        count = int(result.get("published_count", 1) or 0)
-        if result.get("status") == "PUBLISHED":
-            published += count
-        print(f"Facebook comment {index}: {result.get('status')} | like={result.get('like_status')} | like_error={result.get('like_error', '')}")
-        time.sleep(COMMENT_DELAY_SECONDS)
-    return published
-
-
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     reviewed = review_and_prepare(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, facebook_post=facebook_post, facebook_comments=comments["facebook_comments"][:5], linkedin_comments=comments["linkedin_comments"], legal_sources=legal_sources)
@@ -187,7 +173,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             raise RuntimeError("Content/image generation did not produce publishable assets.")
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
         facebook_post, linkedin_post = editorial["facebook_post"], editorial["linkedin_post"]
-        facebook_comments_ready = editorial["facebook_comments"]
+
 
         facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
         linkedin_post_id = str(row.get("LinkedIn Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
@@ -203,7 +189,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 facebook_post_id = facebook["post_id"]
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id})
                 try:
-                    facebook_comments = _publish_comments_facebook(facebook_post_id, facebook_comments_ready, config)
+                    print("Facebook comments are now handled by the dedicated engagement worker; inline publishing skipped.")
                 except Exception as exc:
                     print(f"Facebook comment engine failed: {exc}")
                 try:
@@ -234,8 +220,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     {
                         "LinkedIn Status": "PUBLISHED",
                         "LinkedIn Post ID": linkedin_post_id,
-                        "LinkedIn Comment Status": "DISABLED",
-                        "LinkedIn Reaction Status": "DISABLED",
+                        "LinkedIn Comment Status": "QUEUED",
+                        "LinkedIn Reaction Status": "QUEUED",
                         "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500],
                     },
                 )
@@ -264,8 +250,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 "Facebook Post ID": facebook_post_id,
                 "LinkedIn Status": "PUBLISHED" if li_post_ok else "FAILED",
                 "LinkedIn Post ID": linkedin_post_id,
-                "LinkedIn Comment Status": "DISABLED" if li_post_ok else str(row.get("LinkedIn Comment Status", "")).strip().upper(),
-                "LinkedIn Reaction Status": "DISABLED" if li_post_ok else str(row.get("LinkedIn Reaction Status", "")).strip().upper(),
+                "LinkedIn Comment Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Comment Status", "")).strip().upper(),
+                "LinkedIn Reaction Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Reaction Status", "")).strip().upper(),
                 "وقت آخر تشغيل": current.isoformat(),
                 "آخر خطأ": final_error,
             },
@@ -273,13 +259,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         if final_status == "PUBLISHED":
             try:
                 add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=facebook_post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
-                log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments=str(facebook_comments), linkedin_comments="0", status=final_status)
+                log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments="0", linkedin_comments="0", status=final_status)
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
             notify(
                 f"✅ Khyrat Legal Content Engine\nتم نشر: {topic}\n"
                 f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_post_ok else '❌'}\n"
-                f"التعليقات: Facebook {facebook_comments}/20 | LinkedIn 0/5 (معطلة بصلاحيات LinkedIn الحالية)"
+                f"التعليقات: Facebook 0/5-10 | LinkedIn 0/5-10 (يتم تشغيلها عبر Engagement Workers)"
             )
         else:
             detail = final_error or "LinkedIn publishing did not complete."
