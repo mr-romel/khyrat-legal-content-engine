@@ -14,6 +14,7 @@ from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
+from image_qa import ImageQAError, QA_MAX_RETRIES, qa_image, summarize_qa
 from social_content import append_hashtags, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -141,30 +142,132 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
     recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
+
     if recovery and existing_post and image_path.is_file():
+        try:
+            qa = qa_image(
+                api_key=config["gemini_api_key"],
+                image_path=str(image_path),
+                topic=topic,
+                image_brief=str(row.get("وصف الصورة", "") or "").strip() or "Existing generated visual for this legal topic.",
+                model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
+            )
+        except ImageQAError as exc:
+            reason = f"Image QA unavailable: {exc}"
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "ERROR",
+                "Image QA Issues": reason, "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
+            })
+            notify(f"🚨 Image QA failed before recovery publish\nالموضوع: {topic}\nالسبب: {exc}")
+            return None, None, None, "IMAGE_QA_BLOCK", reason
+
+        qa_reason = summarize_qa(qa)
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Image QA Status": qa.get("decision", "BLOCK"), "Image QA Score": qa.get("overall_score", 0),
+            "Image QA Issues": qa_reason, "Image QA Attempt": "RECOVERY",
+            "وقت آخر تشغيل": current.isoformat()
+        })
+        if qa.get("decision") != "PASS":
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "NEEDS_IMAGE_REVIEW", "آخر خطأ": qa_reason or "Existing image failed visual QA."
+            })
+            notify(f"🟠 Existing image blocked by visual QA\nالموضوع: {topic}\nالنتيجة: {qa_reason or 'visual defects detected'}")
+            return None, None, None, "IMAGE_QA_BLOCK", qa_reason
         return existing_post, existing_image_url, image_path, "CLEAR", ""
+
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
         previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
-    result = generate_post(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, legal_sources=row.get("المصادر القانونية", ""), previous_context=previous_context)
+
+    result = generate_post(
+        api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic,
+        legal_sources=row.get("المصادر القانونية", ""), previous_context=previous_context
+    )
     post = str(result.get("post", "") or "").strip()
     image_brief = str(result.get("image_brief", "") or "").strip()
     review_level = str(result.get("review_level", "REVIEW") or "REVIEW").upper()
     review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     if not post or not image_brief:
         raise RuntimeError("Gemini returned incomplete content.")
+
     if review_level == "BLOCK":
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "NEEDS_REVIEW", "المحتوى": post, "وصف الصورة": image_brief, "آخر خطأ": review_text or "Legal review required.", "وقت آخر تشغيل": current.isoformat()})
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "الحالة": "NEEDS_REVIEW", "المحتوى": post, "وصف الصورة": image_brief,
+            "آخر خطأ": review_text or "Legal review required.", "وقت آخر تشغيل": current.isoformat()
+        })
         _notify_review(row_number, {**row, "المحتوى": post}, "BLOCK", review_text, config)
         return None, None, None, "BLOCK", review_text
     if review_level == "REVIEW":
         notify(f"🟡 Review advisory — سيتم النشر تلقائيًا.\nالموضوع: {topic}\nالملاحظة: {review_text or 'مراجعة مستحسنة'}")
-    create_legal_image(topic=topic, image_brief=image_brief, output_path=str(image_path), cloudflare_account_id=config["cloudflare_account_id"], cloudflare_api_token=config["cloudflare_api_token"], gemini_api_key=config["gemini_api_key"])
-    image_url = github_raw_url(str(image_path))
-    update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "READY_FOR_SOCIAL_PUBLISH", "المحتوى": post, "وصف الصورة": image_brief, "رابط الصورة": image_url, "وقت آخر تشغيل": current.isoformat()})
-    return post, image_url, image_path, review_level, review_text
 
+    qa_last: dict = {}
+    working_brief = image_brief
+    for attempt in range(1, QA_MAX_RETRIES + 1):
+        create_legal_image(
+            topic=topic, image_brief=working_brief, output_path=str(image_path),
+            cloudflare_account_id=config["cloudflare_account_id"],
+            cloudflare_api_token=config["cloudflare_api_token"],
+            gemini_api_key=config["gemini_api_key"],
+        )
+
+        try:
+            qa_last = qa_image(
+                api_key=config["gemini_api_key"], image_path=str(image_path), topic=topic,
+                image_brief=working_brief,
+                model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
+            )
+        except ImageQAError as exc:
+            reason = f"Image QA unavailable: {exc}"
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "ERROR",
+                "Image QA Attempt": attempt, "Image QA Issues": reason,
+                "المحتوى": post, "وصف الصورة": image_brief,
+                "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
+            })
+            notify(f"🚨 Image QA failed — publication blocked\nالموضوع: {topic}\nالسبب: {exc}")
+            return None, None, None, "IMAGE_QA_BLOCK", reason
+
+        qa_status = str(qa_last.get("decision", "BLOCK")).upper()
+        qa_score = qa_last.get("overall_score", 0)
+        qa_reason = summarize_qa(qa_last)
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Image QA Status": qa_status, "Image QA Score": qa_score,
+            "Image QA Issues": qa_reason, "Image QA Attempt": attempt,
+            "المحتوى": post, "وصف الصورة": image_brief, "وقت آخر تشغيل": current.isoformat()
+        })
+
+        if qa_status == "PASS":
+            image_url = github_raw_url(str(image_path))
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "READY_FOR_SOCIAL_PUBLISH", "رابط الصورة": image_url,
+                "Image QA Status": "PASS", "Image QA Score": qa_score,
+                "Image QA Issues": qa_reason, "Image QA Attempt": attempt,
+                "آخر خطأ": "", "وقت آخر تشغيل": current.isoformat()
+            })
+            print(
+                f"Image preview/QA PASS: attempt={attempt} score={qa_score} "
+                f"composition={qa_last.get('composition_score')} relevance={qa_last.get('relevance_score')} "
+                f"text_detected={qa_last.get('text_detected')}"
+            )
+            return post, image_url, image_path, review_level, review_text
+
+        if qa_status == "BLOCK":
+            break
+
+        correction = str(qa_last.get("regeneration_prompt", "")).strip()
+        working_brief = f"{image_brief}\n\nFINAL IMAGE QA CORRECTIONS — MUST FIX:\n{correction or 'Fix every detected visual QA defect while preserving the legal story and reference identity.'}"
+        print(f"Image preview/QA REGENERATE: attempt={attempt} | {qa_reason or correction}")
+
+    final_reason = summarize_qa(qa_last) or "Final generated image did not pass visual QA."
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "BLOCK",
+        "Image QA Score": qa_last.get("overall_score", 0), "Image QA Issues": final_reason,
+        "Image QA Attempt": QA_MAX_RETRIES, "المحتوى": post, "وصف الصورة": image_brief,
+        "آخر خطأ": final_reason, "وقت آخر تشغيل": current.isoformat()
+    })
+    notify(f"🚨 Image preview/QA BLOCKED publication\nالموضوع: {topic}\nالسبب: {final_reason}")
+    return None, None, None, "IMAGE_QA_BLOCK", final_reason
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
@@ -175,7 +278,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     if DRY_RUN:
         bank_rows = get_bank_rows(service, config["sheet_id"])
         post, _, image_path, level, reason = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        if level == "BLOCK":
+        if level in {"BLOCK", "IMAGE_QA_BLOCK"}:
             return
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
         print(f"DRY RUN: Facebook comments={len(editorial['facebook_comments'])}/20 | LinkedIn comments={len(editorial['linkedin_comments'])}/5 | image={image_path}")
@@ -186,7 +289,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     pillar, objective = classify(topic, row.get("المحتوى", ""))
     try:
         post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        if review_level == "BLOCK":
+        if review_level in {"BLOCK", "IMAGE_QA_BLOCK"}:
             return
         if not post or not image_path:
             raise RuntimeError("Content/image generation did not produce publishable assets.")
