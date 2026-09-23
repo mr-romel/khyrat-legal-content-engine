@@ -9,22 +9,22 @@ def test_comment_fingerprint_is_stable():
     assert comment_fingerprint("urn:li:share:1", "hello") != comment_fingerprint("urn:li:share:2", "hello")
 
 
-def test_comment_count_is_always_between_5_and_10_and_stable():
+def test_comment_count_is_always_between_5_and_8_and_stable():
     urn = "urn:li:share:123"
-    assert 5 <= choose_comment_count(urn) <= 10
+    assert 5 <= choose_comment_count(urn) <= 8
     assert choose_comment_count(urn) == choose_comment_count(urn)
 
 
 def test_comment_count_can_vary_by_post():
     counts = {choose_comment_count(f"urn:li:share:{i}") for i in range(1, 500)}
-    assert counts == set(range(5, 11))
+    assert counts == set(range(5, 9))
 
 
 def test_schedule_offsets_match_comment_count():
     assert comment_schedule_offsets(5) == [0, 15, 30, 45, 60]
-    assert len(comment_schedule_offsets(10)) == 10
-    assert comment_schedule_offsets(10) == sorted(comment_schedule_offsets(10))
-    assert comment_schedule_offsets(10)[-1] == 135
+    assert len(comment_schedule_offsets(8)) == 8
+    assert comment_schedule_offsets(8) == sorted(comment_schedule_offsets(8))
+    assert comment_schedule_offsets(8)[-1] == 105
 
 
 def test_capability_uses_real_post_read_not_fake_post_write():
