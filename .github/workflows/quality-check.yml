@@ -132,7 +132,7 @@ jobs:
           KHYRAT_DRY_RUN: "true"
           GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check"}'
           GOOGLE_SHEET_ID: "quality-check-sheet"
-          GOOGLE_SHEET_RANGE: "Content!A:U"
+          GOOGLE_SHEET_RANGE: "Content!A:Y"
           GEMINI_API_KEY: "quality-check-key"
           GEMINI_MODEL: "gemini-3.8-flash"
         run: |
