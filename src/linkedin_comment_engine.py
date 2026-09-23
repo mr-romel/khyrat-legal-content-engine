@@ -9,6 +9,8 @@ from typing import Any
 
 from google import genai
 
+from engagement_strategy import choose_comment_count, normalize_comment, comment_schedule_offsets as shared_schedule_offsets
+
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 PRIMARY_RETRIES = 3
@@ -20,7 +22,7 @@ SYSTEM_PROMPT = """
 أنشئ تعليقات يكتبها صاحب الحساب على منشوراته هو لإضافة قيمة حقيقية للنقاش.
 ممنوع الحشو، والمجاملة العامة، وإعادة صياغة المنشور، واختلاق وقائع أو مصادر أو تجارب.
 كل تعليق يجب أن يرتبط مباشرة بالمنشور ويضيف زاوية مختلفة.
-لا تجعل كل التعليقات أسئلة أو CTA.
+لا تجعل كل التعليقات أسئلة أو CTA. لا تنهِ أي تعليق بنقطة ولا تستخدم صياغة مصقولة بشكل مفرط أو نمطًا متكررًا
 في كل حزمة، اجعل CTA قويًا ومباشرًا في تعليق واحد فقط عندما يكون مناسبًا للموضوع، ويكون مرتبطًا بهدف المنشور وموجهًا للفئة المستهدفة (مثل صاحب عمل، HR، مدير، مستثمر أو شخص يواجه مشكلة قانونية)، وليس CTA عامًا من نوع "ما رأيكم؟".
 التعليقات الأخرى يجب أن تضيف قيمة تحليلية مستقلة بدون دعوة لاتخاذ إجراء.
 اللغة عربية مصرية مهنية وواضحة وتناسب LinkedIn.
@@ -60,7 +62,7 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     result = []
     seen = set()
     for item in value:
-        text = re.sub(r"\s+", " ", str(item or "").strip())
+        text = normalize_comment(str(item or ""))
         key = text.casefold()
         if text and key not in seen:
             seen.add(key)
@@ -68,16 +70,12 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     return result[:count]
 
 def choose_comment_count(post_urn: str) -> int:
-    # The worker executes every 15 minutes and the engagement window is
-    # intentionally kept inside the first hour after publication.
-    # Therefore a post can receive 3 or 4 comments, never more than one per run.
-    digest = hashlib.sha256(post_urn.encode("utf-8")).digest()
-    return 3 if digest[0] % 2 == 0 else 4
+    return choose_comment_count_shared(post_urn)
 
 def comment_schedule_offsets(count: int) -> list[int]:
-    # One comment becomes due on each 15-minute worker cycle.
-    offsets = [15, 30, 45, 60]
-    return offsets[:count]
+    return shared_schedule_offsets(count)
+
+choose_comment_count_shared = choose_comment_count
 
 def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
     for attempt in range(1, attempts + 1):
@@ -96,11 +94,11 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
     count = count if count is not None else choose_comment_count(post_urn)
-    if count < 3 or count > 7:
-        raise ValueError("LinkedIn comment count must be between 3 and 7.")
+    if count < 5 or count > 10:
+        raise ValueError("LinkedIn comment count must be between 5 and 10.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
-أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور.
+أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
 الموضوع: {topic}
 نص المنشور:
 {post}
