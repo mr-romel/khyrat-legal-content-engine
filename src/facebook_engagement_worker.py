@@ -210,7 +210,6 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
 
 def due_events(events, current):
     due = []
-    comment_count = 0
     for event in events:
         if str(event.get("status", "")).upper() not in {"PENDING", "RETRY"}:
             continue
@@ -219,11 +218,9 @@ def due_events(events, current):
             continue
         if str(event.get("action", "")).upper() != "COMMENT":
             continue
-        if comment_count >= MAX_COMMENTS_PER_RUN:
-            break
         due.append(event)
-        comment_count += 1
     due.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+    # Exactly one new comment per 15-minute worker cycle
     return due[:MAX_COMMENTS_PER_RUN]
 
 
