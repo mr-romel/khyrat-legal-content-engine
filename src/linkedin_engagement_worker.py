@@ -259,7 +259,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             update_event(
                 service, spreadsheet_id, int(legacy["_row_number"]),
                 {"status": "OBSOLETE_LEGACY_QUEUE", "updated_at": iso(current),
-                 "last_error": "Superseded by the 3-7 comment bundle worker."},
+                 "last_error": "Superseded by the 5-8 comment bundle worker."},
             )
 
     count = choose_comment_count(post_urn)
@@ -275,13 +275,11 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     offsets = comment_schedule_offsets(count)
     bundle_id = f"COMMENT_BUNDLE:{post_urn}"
 
-    # Normal case: offsets are measured from publication.
-    # Recovery case: if discovery happened after the intended window, restart
-    # the bundle from the current worker run so the missed comments are still
-    # delivered as one short burst instead of being spread over hours/days.
-    elapsed_minutes = max(0.0, (current - latest_published_at).total_seconds() / 60.0)
-    recovery_mode = elapsed_minutes > 55
-    base_time = current if recovery_mode else latest_published_at
+    # Schedule comments from publication with a 15-minute gap.
+    # There is intentionally no one-hour cutoff: 5-8 comments may span
+    # beyond the first hour while the worker still publishes at most one
+    # new comment per 15-minute cycle.
+    base_time = latest_published_at
 
     reaction_event = {
         "event_id": f"{bundle_id}:REACTION",
@@ -330,7 +328,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     bundled_posts.add(post_urn)
     print(
         f"Queued {count} contextual LinkedIn comments for {post_urn} "
-        f"({'recovery' if recovery_mode else 'publication'} schedule)"
+        "15-minute spaced schedule"
     )
     return count
 
