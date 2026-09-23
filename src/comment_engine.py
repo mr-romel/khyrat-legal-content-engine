@@ -141,7 +141,10 @@ def generate_comments(
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
 
-    primary_model = (model or "").strip()\n    count = count if count is not None else choose_comment_count(f"{topic}|{post}")\n    if count < 5 or count > 10:\n        raise ValueError("Comment count must be between 5 and 10.")
+    primary_model = (model or "").strip()
+    count = count if count is not None else choose_comment_count(f"{topic}|{post}")
+    if count < 5 or count > 10:
+        raise ValueError("Comment count must be between 5 and 10.")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
     cached = _COMMENT_CACHE.get(cache_key)
