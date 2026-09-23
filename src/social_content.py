@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+import re
+
+CORE_HASHTAGS = ["#قانون", "#محامي", "#استشارات_قانونية", "#قانون_مصري"]
+
+KEYWORD_HASHTAGS = {
+    "عقد": "#عقود",
+    "عقود": "#عقود",
+    "شركة": "#شركات",
+    "شركات": "#شركات",
+    "عمل": "#قانون_العمل",
+    "عمال": "#قانون_العمل",
+    "موظف": "#قانون_العمل",
+    "موظفين": "#قانون_العمل",
+    "إيجار": "#الإيجار",
+    "ايجار": "#الإيجار",
+    "مستأجر": "#الإيجار",
+    "مالك": "#الإيجار",
+    "تجاري": "#قانون_تجاري",
+    "تجارة": "#قانون_تجاري",
+    "شيك": "#شيكات",
+    "شيكات": "#شيكات",
+    "ميراث": "#مواريث",
+    "تركة": "#مواريث",
+    "طلاق": "#أحوال_شخصية",
+    "زواج": "#أحوال_شخصية",
+    "نفقة": "#أحوال_شخصية",
+    "أسرة": "#أحوال_شخصية",
+    "اسرة": "#أحوال_شخصية",
+    "جنائي": "#قانون_جنائي",
+    "جريمة": "#قانون_جنائي",
+    "جناي": "#قانون_جنائي",
+    "مدني": "#قانون_مدني",
+    "تعويض": "#تعويضات",
+    "دعوى": "#دعاوى",
+    "محكمة": "#محاكم",
+    "حكم": "#أحكام_قضائية",
+    "استثمار": "#استثمار",
+    "ضريبة": "#ضرائب",
+    "ضرائب": "#ضرائب",
+    "تأمين": "#تأمين",
+    "علامة": "#ملكية_فكرية",
+    "براءة": "#ملكية_فكرية",
+    "ملكية": "#ملكية_فكرية",
+}
+
+HASHTAG_RE = re.compile(
+    r"(?<!\w)#(?:[\w\u0600-\u06FF]+(?:_[\w\u0600-\u06FF]+)*)",
+    re.UNICODE,
+)
+
+
+def build_hashtags(topic: str, *, max_tags: int = 8) -> list[str]:
+    text = str(topic or "").strip().casefold()
+    tags: list[str] = list(CORE_HASHTAGS)
+    for keyword, tag in KEYWORD_HASHTAGS.items():
+        if keyword.casefold() in text and tag not in tags:
+            tags.append(tag)
+        if len(tags) >= max_tags:
+            break
+    return tags[:max_tags]
+
+
+def append_hashtags(post: str, topic: str, *, max_tags: int = 8) -> str:
+    text = str(post or "").strip()
+    if not text:
+        return text
+    existing = set(HASHTAG_RE.findall(text))
+    tags = [tag for tag in build_hashtags(topic, max_tags=max_tags) if tag not in existing]
+    if not tags:
+        return text
+    return f"{text.rstrip()}\n\n{' '.join(tags)}"
+
+
+def split_hashtags(post: str) -> tuple[str, str]:
+    text = str(post or "").strip()
+    if not text:
+        return "", ""
+    matches = list(HASHTAG_RE.finditer(text))
+    if not matches:
+        return text, ""
+    start = matches[0].start()
+    return text[:start].rstrip(), text[start:].strip()
