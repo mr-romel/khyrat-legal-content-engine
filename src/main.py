@@ -155,10 +155,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         except ImageQAError as exc:
             reason = f"Image QA unavailable: {exc}"
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "ERROR",
-                "Image QA Issues": reason, "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
+                "Image QA Status": "ERROR", "Image QA Issues": reason,
+                "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
             })
-            notify(f"🚨 Image QA failed before recovery publish\nالموضوع: {topic}\nالسبب: {exc}")
+            print(f"Image QA advisory error during recovery — publication continues | الموضوع: {topic} | السبب: {exc}")
             return existing_post, existing_image_url, image_path, "CLEAR", reason
 
         qa_reason = summarize_qa(qa)
@@ -169,9 +169,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         })
         if qa.get("decision") != "PASS":
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "NEEDS_IMAGE_REVIEW", "آخر خطأ": qa_reason or "Existing image failed visual QA."
+                "Image QA Issues": qa_reason or "Existing image did not pass visual QA.",
+                "آخر خطأ": ""
             })
-            notify(f"🟠 Existing image blocked by visual QA\nالموضوع: {topic}\nالنتيجة: {qa_reason or 'visual defects detected'}")
+            print(f"Existing image QA advisory — publication continues | الموضوع: {topic} | النتيجة: {qa_reason or 'visual defects detected'}")
             return existing_post, existing_image_url, image_path, "CLEAR", qa_reason
         return existing_post, existing_image_url, image_path, "CLEAR", ""
 
