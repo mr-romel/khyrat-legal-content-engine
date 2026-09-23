@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 from typing import Iterable
 
 MIN_COMMENTS = 5
-MAX_COMMENTS = 10
+MAX_COMMENTS = 8
 COMMENT_INTERVAL_MINUTES = 15
 
 
 def choose_comment_count(post_key: str) -> int:
-    """Deterministically select 5-10 comments per post, while varying by post."""
+    """Deterministically select 5-8 comments per post, varying by post."""
     key = str(post_key or "").strip().encode("utf-8")
     if not key:
         return MIN_COMMENTS
@@ -31,7 +31,6 @@ def comment_schedule_offsets(count: int) -> list[int]:
 
 def normalize_comment(text: str) -> str:
     value = re.sub(r"\s+", " ", str(text or "").strip())
-    # User requirement: no full-stop at the end of a comment
     value = re.sub(r"[.。]+$", "", value).rstrip()
     return value
 
