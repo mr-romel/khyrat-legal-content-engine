@@ -190,7 +190,8 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
         response = _generate_with_retry(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
 
     data = _extract_json(getattr(response, "text", ""))
-    facebook = _normalize(data.get("facebook_comments"), count)\n    linkedin = _normalize(data.get("linkedin_comments"), count)
+    facebook = _normalize(data.get("facebook_comments"), count)
+    linkedin = _normalize(data.get("linkedin_comments"), count)
     if len(facebook) != count or len(linkedin) != count:
         raise RuntimeError("Comment engine must return 5-10 Facebook comments and the same count for LinkedIn.")
 
