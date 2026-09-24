@@ -259,7 +259,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             update_event(
                 service, spreadsheet_id, int(legacy["_row_number"]),
                 {"status": "OBSOLETE_LEGACY_QUEUE", "updated_at": iso(current),
-                 "last_error": "Superseded by the 5-8 comment bundle worker."},
+                 "last_error": "Superseded by the 3-7 comment bundle worker."},
             )
 
     count = choose_comment_count(post_urn)
@@ -276,7 +276,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     bundle_id = f"COMMENT_BUNDLE:{post_urn}"
 
     # Schedule comments from publication with a 15-minute gap.
-    # There is intentionally no one-hour cutoff: 5-8 comments may span
+    # There is intentionally no one-hour cutoff: 3-7 comments may span
     # beyond the first hour while the worker still publishes at most one
     # new comment per 15-minute cycle.
     base_time = latest_published_at
