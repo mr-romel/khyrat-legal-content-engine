@@ -183,6 +183,25 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {count}")
 
     bundle_id = f"COMMENT_BUNDLE:{post_id}"
+    append_event(service, spreadsheet_id, {
+        "event_id": f"{bundle_id}:REACTION",
+        "source_row": str(source_row),
+        "post_id": post_id,
+        "topic": row.get("الموضوع", ""),
+        "post_text": row.get("المحتوى", ""),
+        "legal_sources": row.get("المصادر القانونية", ""),
+        "action": "REACTION",
+        "sequence": "0",
+        "scheduled_at": iso(published_at),
+        "status": "PENDING",
+        "comment_text": "",
+        "attempts": "0",
+        "fingerprint": fingerprint(post_id, "__LIKE_POST__"),
+        "created_at": iso(current),
+        "updated_at": iso(current),
+        "dry_run": "true" if dry_run else "false",
+    })
+
     for sequence, message in enumerate(comments, start=1):
         clean = normalize_comment(message)
         scheduled = published_at + timedelta(minutes=15 * (sequence - 1))
@@ -216,7 +235,7 @@ def due_events(events, current):
         scheduled = parse_dt(event.get("scheduled_at", ""))
         if not scheduled or scheduled > current:
             continue
-        if str(event.get("action", "")).upper() != "COMMENT":
+        if str(event.get("action", "")).upper() not in {"COMMENT", "REACTION"}:
             continue
         due.append(event)
     due.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
@@ -247,12 +266,19 @@ def main():
             update_event(service, CONFIG["sheet_id"], row_number, {
                 "status": "DRY_RUN_READY",
                 "attempts": attempts,
-                "last_error": "DRY RUN: no Facebook comment was sent",
+                "last_error": "DRY RUN: no Facebook engagement was sent",
                 "updated_at": iso(current),
             })
             continue
 
-        result = add_comment(
+        if str(event.get("action", "")).upper() == "REACTION":
+            result = like_post(
+                post_id=event["post_id"],
+                page_access_token=CONFIG["facebook_page_access_token"],
+                graph_version=CONFIG["facebook_graph_version"],
+            )
+        else:
+            result = add_comment(
             post_id=event["post_id"],
             page_access_token=CONFIG["facebook_page_access_token"],
             graph_version=CONFIG["facebook_graph_version"],
@@ -263,10 +289,10 @@ def main():
             "last_error": result.get("error", ""),
             "updated_at": iso(current),
         }
-        if result.get("status") == "PUBLISHED":
+        if result.get("status") in {"PUBLISHED", "LIKED"}:
             comment_id = result.get("comment_id", "")
             changes.update({
-                "status": "PUBLISHED",
+                "status": result.get("status"),
                 "comment_id": comment_id,
                 "last_error": "",
             })
