@@ -13,7 +13,7 @@ from engagement_strategy import choose_comment_count, normalize_comment
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
-أنشئ عددًا متغيرًا وطبيعيًا من تعليقات Facebook بين 5 و10 تعليقات، واختَر العدد بشكل حتمي مختلفًا حسب المنشور، وليس رقمًا ثابتًا.\nأنشئ لنفس المعيار عددًا متغيرًا بين 5 و10 تعليقات لـLinkedIn.
+أنشئ عددًا متغيرًا وطبيعيًا من تعليقات Facebook بين 3 و7 تعليقات، واختَر العدد بشكل حتمي مختلفًا حسب المنشور، وليس رقمًا ثابتًا.\nأنشئ لنفس المعيار عددًا متغيرًا بين 3 و7 تعليقات لـLinkedIn.
 
 قاعدة أساسية ومهمة جدًا لـFacebook:
 - جميع تعليقات Facebook المطلوب توليدها تُكتب بلسان الصفحة/الحساب نفسه، وليس بلسان متابع أو شخص من الجمهور.
@@ -143,7 +143,7 @@ def generate_comments(
 
     primary_model = (model or "").strip()
     count = count if count is not None else choose_comment_count(f"{topic}|{post}")
-    if count < 5 or count > 10:
+    if count < 3 or count > 7:
         raise ValueError("Comment count must be between 5 and 10.")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
@@ -193,11 +193,11 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
     facebook = _normalize(data.get("facebook_comments"), count)
     linkedin = _normalize(data.get("linkedin_comments"), count)
     if len(facebook) != count or len(linkedin) != count:
-        raise RuntimeError("Comment engine must return 5-10 Facebook comments and the same count for LinkedIn.")
+        raise RuntimeError("Comment engine must return 3-7 Facebook comments and the same count for LinkedIn.")
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
     _COMMENT_CACHE[cache_key] = result
-    print(f"Adaptive comment count selected: Facebook={len(facebook)}/10 | LinkedIn={len(linkedin)}/10")
+    print(f"Adaptive comment count selected: Facebook={len(facebook)}/7 | LinkedIn={len(linkedin)}/7")
     return {
         "facebook_comments": list(facebook),
         "linkedin_comments": list(linkedin),
