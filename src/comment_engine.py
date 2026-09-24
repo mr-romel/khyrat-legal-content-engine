@@ -144,7 +144,7 @@ def generate_comments(
     primary_model = (model or "").strip()
     count = count if count is not None else choose_comment_count(f"{topic}|{post}")
     if count < 3 or count > 7:
-        raise ValueError("Comment count must be between 5 and 10.")
+        raise ValueError("Comment count must be between 3 and 7.")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
     cached = _COMMENT_CACHE.get(cache_key)
@@ -164,7 +164,7 @@ def generate_comments(
 المصادر القانونية المتاحة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
-أنشئ بالضبط {count} تعليقات Facebook لهذا المنشور. العدد تم اختياره مسبقًا بين 5 و10 ويختلف من منشور لآخر؛ لا تغير العدد.
+أنشئ بالضبط {count} تعليقات Facebook لهذا المنشور. العدد تم اختياره مسبقًا بين 3 و7 ويختلف من منشور لآخر؛ لا تغير العدد.
 لا تقلل العدد لمجرد تقليل المجهود، ولا تزوده لمجرد الوصول إلى 20؛ المطلوب عدد يبدو طبيعيًا لهذا المنشور تحديدًا.
 
 Facebook: اكتب التعليقات بصوت الصفحة نفسها، بالمصري الطبيعي، وبأسلوب بسيط ومهني وغير متكلف.
