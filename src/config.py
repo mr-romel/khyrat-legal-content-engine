@@ -60,7 +60,7 @@ def load_video_config() -> dict:
     return {
         "service_account_info": _service_account_info(),
         "sheet_id": _required("GOOGLE_SHEET_ID"),
-        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:AF"),
     }
 
 
