@@ -73,7 +73,7 @@ def _process_facebook(service, config, sheet_name: str, row_number: int, row: di
             "آخر خطأ": str(result.get("error", ""))[:1500],
         })
         if status != "LIKED":
-            return
+            print(f"Facebook reaction did not complete; continuing with comments: {status}")
 
     queue = _queue(row, "Facebook Comment Queue", config=config)
     published = _count(row, "Facebook Comments Published")
@@ -123,7 +123,7 @@ def _process_linkedin(service, config, sheet_name: str, row_number: int, row: di
             "آخر خطأ": result.error[:1500],
         })
         if status not in {"LIKED"}:
-            return
+            print(f"LinkedIn reaction did not complete; continuing with comments: {status}")
 
     queue = _queue(row, "LinkedIn Comment Queue", config=config)
     published = _count(row, "LinkedIn Comments Published")
