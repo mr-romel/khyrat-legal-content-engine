@@ -91,6 +91,22 @@ def load_engagement_config() -> dict:
     }
 
 
+
+def load_social_engagement_config() -> dict:
+    """Load credentials required by the independent Facebook + LinkedIn engagement worker."""
+    return {
+        "service_account_info": _service_account_info(),
+        "sheet_id": _required("GOOGLE_SHEET_ID"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:AF"),
+        "gemini_api_key": _required("GEMINI_API_KEY"),
+        "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+        "facebook_page_id": _optional("FACEBOOK_PAGE_ID", DEFAULT_FACEBOOK_PAGE_ID),
+        "facebook_page_access_token": _required("FACEBOOK_PAGE_ACCESS_TOKEN"),
+        "facebook_graph_version": _optional("FACEBOOK_GRAPH_VERSION", DEFAULT_FACEBOOK_GRAPH_VERSION),
+        "linkedin_access_token": _required("LINKEDIN_ACCESS_TOKEN"),
+        "linkedin_author_urn": _optional("LINKEDIN_AUTHOR_URN", ""),
+    }
+
 def load_config() -> dict:
     service_account_info = _service_account_info()
 
