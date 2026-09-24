@@ -12,7 +12,7 @@ from config import load_config
 from content_planner import classify
 from content_diversity import build_diversity_context
 from editorial_review import review_and_prepare
-from facebook_publisher import FacebookPublishError, add_comment as facebook_add_comment, like_post as facebook_like_post, publish_photo
+from facebook_publisher import FacebookPublishError, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
 from image_qa import ImageQAError, QA_MAX_RETRIES, qa_image, summarize_qa
@@ -20,7 +20,7 @@ from social_content import append_hashtags, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
-from telegram_bot import notify, notify_linkedin_interaction, send_review_request
+from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
