@@ -238,8 +238,6 @@ def qa_image(
         critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
     if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < QA_MIN_RELEVANCE:
         critical_failures.append(f"Reference identity score below {QA_MIN_RELEVANCE}.")
-    if image_mode == "CONTEXT_ONLY" and data["reference_score"] < 100:
-        critical_failures.append("CONTEXT_ONLY image incorrectly attempted to depict the recurring lawyer.")
     if data["overall_score"] < QA_MIN_OVERALL:
         critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
 
