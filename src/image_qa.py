@@ -76,7 +76,7 @@ def _normalize_score(value: Any, fallback: int = 0) -> int:
         return fallback
 
 
-def _build_prompt(topic: str, image_brief: str, hard: dict[str, Any], reference_count: int) -> str:
+def _build_prompt(topic: str, image_brief: str, hard: dict[str, Any], reference_count: int, image_mode: str) -> str:
     return f"""
 You are the final visual QA editor for a professional Egyptian legal-content publishing engine.
 
@@ -92,11 +92,11 @@ HARD IMAGE CHECK:
 - Final dimensions: {hard['width']}x{hard['height']}
 - Target aspect ratio: 4:5 (0.8)
 - Local aspect-ratio check: {'PASS' if hard['aspect_ratio_ok'] else 'FAIL'}
-- Character reference images supplied for comparison: {reference_count}
+- Image mode: {image_mode}\n- Character reference images supplied for comparison: {reference_count}
 
 REFERENCE IMAGE RULE:
-The attached reference photos are the identity source for the recurring subject. Compare only stable
-identity traits when the recurring subject appears. Do not require the scene, pose, wardrobe, camera,
+If image mode is REFERENCE_SUBJECT, the attached reference photos are the identity source for the recurring subject. Compare only stable
+identity traits when the recurring subject appears. If image mode is CONTEXT_ONLY, do not depict the recurring lawyer as the subject.\nDo not require the scene, pose, wardrobe, camera,
 background, furniture, lighting, or framing to match the references. The generated scene must be new.
 
 BRAND OVERLAY RULE:
@@ -113,7 +113,7 @@ CHECK THESE FOUR THINGS:
    bottom-right brand overlay described above. If any other text exists, mark text_detected=true and list it.
 3. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
-4. REFERENCE CONSISTENCY: If the recurring male subject is present, does he reasonably preserve the
+4. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, does the recurring male subject reasonably preserve the
    stable identity traits from the reference photos while using a new pose/scene?
 
 DECISION:
