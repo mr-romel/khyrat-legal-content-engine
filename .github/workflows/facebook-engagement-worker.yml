@@ -23,7 +23,7 @@ jobs:
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:U' }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
       GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
