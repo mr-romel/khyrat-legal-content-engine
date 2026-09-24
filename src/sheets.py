@@ -15,10 +15,12 @@ HEADERS = [
     "المحتوى", "وصف الصورة", "رابط الصورة", "Facebook Status", "LinkedIn Status",
     "Facebook Post ID", "LinkedIn Post ID", "Facebook Comment Status", "Facebook Comment ID",
     "Facebook Like Status", "LinkedIn Image ID", "آخر خطأ", "وقت آخر تشغيل",
-    "المصادر القانونية", "ملاحظات", "Image QA Status", "Image QA Score", "Image QA Issues", "Image QA Attempt",
+    "المصادر القانونية", "ملاحظات", "Image QA Status", "Image QA Score", "Image QA Issues", "Image QA Attempt", "Image Mode",
+    "Facebook Comment Queue", "Facebook Comments Published", "Facebook Reaction Status",
+    "LinkedIn Comment Queue", "LinkedIn Comments Published", "LinkedIn Reaction Status",
 ]
 
-SHEET_LAST_COLUMN = "Y"
+SHEET_LAST_COLUMN = "AF"
 
 T = TypeVar("T")
 
