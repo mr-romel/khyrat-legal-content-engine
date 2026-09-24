@@ -11,14 +11,14 @@ from google import genai
 from google.genai import types
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+IMAGE_MODEL = os.getenv("KHYRAT_IMAGE_MODEL", "@cf/black-forest-labs/flux-2-dev")
 IMAGE_ENDPOINT = (
     "https://api.cloudflare.com/client/v4/accounts/"
     "{account_id}/ai/run/"
-    "@cf/black-forest-labs/flux-1-schnell"
+    "@cf/black-forest-labs/flux-2-dev"
 )
 MAX_PROMPT_LENGTH = 1800
-IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "4")), 4))
+IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "25")), 50))
 DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
 
 # Character reference assets are stored in the repository and used as an identity
@@ -155,22 +155,34 @@ Return one compact paragraph, no bullets, no markdown.
     return CHARACTER_REFERENCE_PROFILE
 
 
-def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None) -> str:
+def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None, image_mode: str = "CONTEXT_ONLY") -> str:
     topic = topic.strip().replace("\r", " ").replace("\n", " ")
     brief = image_brief.strip().replace("\r", " ").replace("\n\n", "\n")
     if len(brief) > 900:
         brief = brief[:900].rsplit(" ", 1)[0].strip()
+    mode = image_mode.strip().upper()
+    if mode == "REFERENCE_SUBJECT":
+        subject_block = f"""
+REFERENCE SUBJECT MODE:
+Use the supplied reference photos as the actual identity reference for the recurring male subject.
+The person in the generated scene must visibly resemble the same person in the references.
+Keep stable facial identity, hair, beard, skin tone, facial proportions, and general build consistent.
+Create a completely new scene, pose, wardrobe, camera angle, environment, and composition.
+Do not copy any reference photo's background, furniture, pose, framing, or lighting.
+The recurring subject MUST be doing the exact legal action described in the visual brief.
+"""
+    else:
+        subject_block = """
+CONTEXT-ONLY MODE:
+Do NOT use the recurring lawyer as a subject.
+Do NOT attempt to approximate his appearance.
+Build the image entirely from the legal situation itself: the relevant people,
+documents, objects, location, action, and emotional context.
+"""
     prompt = f"""
 Create one realistic cinematic editorial photograph.
 
-CHARACTER REFERENCE / IDENTITY ONLY:
-{character_profile or CHARACTER_REFERENCE_PROFILE}
-
-The repository contains character reference photos under assets/reference/.
-Treat them as identity references only. The generated image MUST be a new scene.
-Do not reproduce the reference photographs, their backgrounds, furniture, rooms,
-poses, body position, camera angles, framing, or clothing. Change the pose,
-composition, environment, camera perspective, and wardrobe according to the scene brief.
+{subject_block}
 
 LEGAL STORY:
 {topic}
@@ -178,10 +190,9 @@ LEGAL STORY:
 VISUAL DIRECTOR BRIEF:
 {brief}
 
-Depict the exact human/legal situation described above.
-Show the people, their action, the important document or object,
-the setting, and the emotional tension.
-
+Depict the exact legal situation described above, not a generic interpretation.
+The image must communicate the same core fact pattern as the post.
+Show the specific people, action, important document/object, setting, and practical tension.
 Use realistic Egyptian context when appropriate.
 Professional documentary/editorial photography.
 Photorealistic people and materials.
@@ -189,9 +200,9 @@ Natural expressions and body language.
 Strong focal subject.
 Realistic cinematic lighting.
 Natural depth of field.
-Portrait-friendly composition.
+Portrait-friendly 4:5 composition.
 
-The viewer should understand the situation from the image itself.
+The viewer should understand the legal situation from the image itself without reading the post.
 
 ABSOLUTELY NO:
 text, Arabic letters, English letters, readable writing,
@@ -200,7 +211,7 @@ poster, infographic, presentation, quote card,
 social-media template, collage, split screen, UI,
 generic lawyer-at-desk scene, generic courthouse,
 generic justice scales, random legal symbols,
-abstract legal background.
+abstract legal background, unrelated office scene.
 
 Do not create a generic legal image.
 Depict the actual story.
@@ -208,7 +219,6 @@ Depict the actual story.
     if len(prompt) > MAX_PROMPT_LENGTH:
         prompt = prompt[:MAX_PROMPT_LENGTH].rsplit(" ", 1)[0].strip()
     return prompt
-
 
 def _find_brand_font() -> Path | None:
     candidates = [
@@ -308,7 +318,35 @@ def _convert_to_4x5(image_bytes: bytes, output_path: Path, page_name: str | None
     final_image.save(output_path, format="JPEG", quality=94, optimize=True)
 
 
-def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, gemini_api_key: str | None = None, page_name: str | None = None) -> str:
+def _prepare_reference_bytes(path: Path) -> bytes:
+    try:
+        with Image.open(path) as image:
+            image = image.convert("RGB")
+            image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG", quality=90, optimize=True)
+            return buffer.getvalue()
+    except Exception as exc:
+        raise ImageGenerationError(f"Could not prepare reference image {path.name}: {exc}") from exc
+
+
+def _cloudflare_generate(*, endpoint: str, headers: dict[str, str], prompt: str, reference_files: list[Path]) -> requests.Response:
+    data = {
+        "prompt": prompt,
+        "steps": str(IMAGE_STEPS),
+        "width": "1024",
+        "height": "1280",
+    }
+    files: list[tuple[str, tuple[str, bytes, str]]] = []
+    for index, ref in enumerate(reference_files[:4]):
+        files.append((f"input_image_{index}", (ref.name, _prepare_reference_bytes(ref), "image/jpeg")))
+    try:
+        return requests.post(endpoint, headers=headers, data=data, files=files, timeout=240)
+    except requests.RequestException as exc:
+        raise ImageGenerationError(f"Cloudflare image request failed: {exc}") from exc
+
+
+def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, gemini_api_key: str | None = None, page_name: str | None = None, image_mode: str = "CONTEXT_ONLY") -> str:
     account_id = (cloudflare_account_id or "").strip()
     api_token = (cloudflare_api_token or "").strip()
     if not account_id:
@@ -330,24 +368,22 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         print(f"Character reference files: {reference_names}")
     else:
         print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
-    character_profile = _build_character_identity_profile(reference_files, gemini_api_key or os.getenv("GEMINI_API_KEY"))
-    prompt = _build_prompt(topic, image_brief, character_profile=character_profile)
-    print(f"Cloudflare prompt length: {len(prompt)} characters")
+    image_mode = (image_mode or "CONTEXT_ONLY").strip().upper()
+    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
+        image_mode = "CONTEXT_ONLY"
+    if image_mode == "REFERENCE_SUBJECT" and not reference_files:
+        raise ImageGenerationError("REFERENCE_SUBJECT was requested but no reference images were found.")
+    character_profile = _build_character_identity_profile(reference_files, gemini_api_key) if image_mode == "REFERENCE_SUBJECT" else ""
+    prompt = _build_prompt(topic, image_brief, character_profile=character_profile, image_mode=image_mode)
+    print(f"Cloudflare prompt length: {len(prompt)} characters | image_mode={image_mode}")
     endpoint = IMAGE_ENDPOINT.format(account_id=account_id)
-    request_body = {"prompt": prompt, "steps": IMAGE_STEPS}
-    if "seed" in request_body:
-        raise ImageGenerationError("Internal safety check failed: unsupported 'seed' field.")
-    headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json", "Accept": "application/json"}
-    try:
-        response = requests.post(endpoint, headers=headers, json=request_body, timeout=180)
-    except requests.RequestException as exc:
-        raise ImageGenerationError(f"Cloudflare image request failed: {exc}") from exc
-    if not response.ok:
-        try:
-            error_payload = response.json()
-        except ValueError:
-            error_payload = response.text
-        raise ImageGenerationError(f"Cloudflare image API failed: HTTP {response.status_code} - {error_payload}")
+    headers = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
+    response = _cloudflare_generate(
+        endpoint=endpoint,
+        headers=headers,
+        prompt=prompt,
+        reference_files=reference_files if image_mode == "REFERENCE_SUBJECT" else [],
+    )
     image_bytes = _extract_image_bytes(response)
     if not image_bytes:
         raise ImageGenerationError("Cloudflare returned empty image bytes.")
