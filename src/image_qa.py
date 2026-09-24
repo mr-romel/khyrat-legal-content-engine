@@ -146,6 +146,7 @@ def qa_image(
     topic: str,
     image_brief: str,
     model: str | None = None,
+    image_mode: str = "CONTEXT_ONLY",
 ) -> dict[str, Any]:
     if not api_key:
         raise ImageQAError("GEMINI_API_KEY is missing for image QA.")
@@ -155,7 +156,10 @@ def qa_image(
         raise ImageQAError(f"Image does not exist for QA: {path}")
 
     hard = _hard_checks(path)
-    references = _reference_files()
+    image_mode = (image_mode or "CONTEXT_ONLY").strip().upper()
+    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
+        image_mode = "CONTEXT_ONLY"
+    references = _reference_files() if image_mode == "REFERENCE_SUBJECT" else []
 
     if not hard["aspect_ratio_ok"]:
         return {
@@ -176,7 +180,7 @@ def qa_image(
 
     client = genai.Client(api_key=api_key)
     contents: list[Any] = [
-        _build_prompt(topic, image_brief, hard, len(references)),
+        _build_prompt(topic, image_brief, hard, len(references), image_mode),
         types.Part.from_bytes(data=path.read_bytes(), mime_type="image/jpeg"),
     ]
 
@@ -213,7 +217,7 @@ def qa_image(
     data["decision"] = decision
     data["composition_score"] = _normalize_score(data.get("composition_score"))
     data["relevance_score"] = _normalize_score(data.get("relevance_score"))
-    data["reference_score"] = _normalize_score(data.get("reference_score"), 100 if not references else 0)
+    data["reference_score"] = _normalize_score(data.get("reference_score"), 100 if image_mode == "CONTEXT_ONLY" else 0)
     data["overall_score"] = _normalize_score(data.get("overall_score"))
     data["text_detected"] = bool(data.get("text_detected", False))
     for field in ("detected_text", "composition_findings", "relevance_findings", "reference_findings", "issues"):
@@ -223,6 +227,7 @@ def qa_image(
         data[field] = [str(item).strip() for item in value if str(item).strip()]
     data["regeneration_prompt"] = str(data.get("regeneration_prompt", "")).strip()
     data["hard_checks"] = hard
+    data["image_mode"] = image_mode
 
     critical_failures = []
     if data["text_detected"]:
@@ -231,6 +236,10 @@ def qa_image(
         critical_failures.append(f"Composition score below {QA_MIN_COMPOSITION}.")
     if data["relevance_score"] < QA_MIN_RELEVANCE:
         critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
+    if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < QA_MIN_RELEVANCE:
+        critical_failures.append(f"Reference identity score below {QA_MIN_RELEVANCE}.")
+    if image_mode == "CONTEXT_ONLY" and data["reference_score"] < 100:
+        critical_failures.append("CONTEXT_ONLY image incorrectly attempted to depict the recurring lawyer.")
     if data["overall_score"] < QA_MIN_OVERALL:
         critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
 
