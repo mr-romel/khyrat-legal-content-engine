@@ -29,6 +29,7 @@ def test_qa_prompt_preserves_reference_as_identity_source():
         "A realistic office scene showing the disputed contract being reviewed.",
         {"width": 1024, "height": 1280, "aspect_ratio": 0.8, "aspect_ratio_ok": True},
         3,
+        "REFERENCE_SUBJECT",
     )
     assert "identity source" in prompt
     assert "new pose/scene" in prompt
