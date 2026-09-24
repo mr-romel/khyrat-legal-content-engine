@@ -16,8 +16,8 @@ TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 PRIMARY_RETRIES = 3
 FALLBACK_RETRIES = 2
 INITIAL_BACKOFF_SECONDS = 5.0
-LINKEDIN_MIN_COMMENTS = 5
-LINKEDIN_MAX_COMMENTS = 8
+LINKEDIN_MIN_COMMENTS = 3
+LINKEDIN_MAX_COMMENTS = 7
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل مهني لصفحة محامٍ مصري على LinkedIn.
@@ -72,7 +72,7 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     return result[:count]
 
 def choose_comment_count(post_urn: str) -> int:
-    """Deterministically select 5-8 comments for LinkedIn, independently of the shared 5-10 strategy."""
+    """Deterministically select 3-7 comments for LinkedIn, independently of the shared 5-10 strategy."""
     key = str(post_urn or "").strip().encode("utf-8")
     if not key:
         return LINKEDIN_MIN_COMMENTS
@@ -80,7 +80,7 @@ def choose_comment_count(post_urn: str) -> int:
     return LINKEDIN_MIN_COMMENTS + (digest[0] % (LINKEDIN_MAX_COMMENTS - LINKEDIN_MIN_COMMENTS + 1))
 
 def comment_schedule_offsets(count: int) -> list[int]:
-    """Return LinkedIn schedule offsets for at most 8 comments, 15 minutes apart."""
+    """Return LinkedIn schedule offsets for at most 7 comments, 15 minutes apart."""
     count = max(LINKEDIN_MIN_COMMENTS, min(LINKEDIN_MAX_COMMENTS, int(count)))
     return shared_schedule_offsets(count)
 
@@ -103,7 +103,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         raise RuntimeError("GEMINI_API_KEY is missing.")
     count = count if count is not None else choose_comment_count(post_urn)
     if count < LINKEDIN_MIN_COMMENTS or count > LINKEDIN_MAX_COMMENTS:
-        raise ValueError("LinkedIn comment count must be between 5 and 8.")
+        raise ValueError("LinkedIn comment count must be between 3 and 7.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
 أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
