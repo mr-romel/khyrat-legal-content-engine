@@ -272,16 +272,26 @@ def _smart_target_datetime(row: dict[str, str]):
 
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
+    """
+    Keep an unprocessed scheduled row eligible after its target time.
+    A missed/delayed run must be recovered automatically by the next run.
+    The sheet publication state is the source of truth; only successful
+    publication removes a row from eligibility.
+    """
     status = str(row.get("الحالة", "READY")).strip().upper()
     if status not in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}:
         return False
     target = _smart_target_datetime(row)
     if target is None or current < target:
         return False
-    return current - target <= timedelta(hours=1)
+    return True
 
 
 def _smart_failed_retry(row: dict[str, str], current) -> bool:
+    """
+    Failed/partial rows remain retryable on every subsequent run after
+    their scheduled time. There is intentionally no one-hour expiry.
+    """
     return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and _smart_is_due(row, current)
 
 
