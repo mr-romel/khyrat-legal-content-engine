@@ -43,3 +43,24 @@ The reference images under `assets/reference/` remain the identity source. They 
 If QA returns `REGENERATE`, the QA correction is appended to the visual brief and the image is generated again. Publication is blocked after the configured retry limit or on a hard QA error. A failed/recovered image is never published merely because the file already exists.
 
 Google Sheets records `Image QA Status`, `Image QA Score`, `Image QA Issues`, and `Image QA Attempt`.
+
+
+## Engagement Worker
+
+Facebook and LinkedIn engagement is handled by `src/engagement_worker.py`, independently from the publisher.
+
+For each published post:
+- the worker attempts one post reaction on each available platform;
+- it publishes a deterministic, post-specific queue of **3 to 7 comments** per platform;
+- it publishes at most one pending comment per worker run, so comments are naturally spread across scheduled runs;
+- it records queue and progress state in Google Sheets and is idempotent across retries.
+
+The worker runs every 15 minutes through `.github/workflows/engagement-worker.yml`.
+
+## Image identity and relevance
+
+The editorial generator now chooses between:
+- `REFERENCE_SUBJECT`: the actual reference photos are supplied to FLUX.2 as image inputs, and the final QA checks the subject's identity against those references;
+- `CONTEXT_ONLY`: reference photos are not supplied, and the image must depict the legal situation itself without forcing the recurring lawyer into an unrelated scene.
+
+Publication is blocked when final image QA fails. A failed image is regenerated only when the QA result is recoverable; otherwise the row remains in `NEEDS_IMAGE_REVIEW`.
