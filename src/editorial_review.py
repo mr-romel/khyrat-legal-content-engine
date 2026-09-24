@@ -178,7 +178,7 @@ def _extract_json(text: str) -> dict[str, Any]:
     raise RuntimeError("Legal/editorial review response contained invalid JSON.")
 
 
-def _clean_list(value: Any, minimum: int = 5) -> list[str]:
+def _clean_list(value: Any, minimum: int = 3) -> list[str]:
     if not isinstance(value, list):
         raise RuntimeError("Legal/editorial review returned an invalid comment list.")
     result: list[str] = []
@@ -191,7 +191,7 @@ def _clean_list(value: Any, minimum: int = 5) -> list[str]:
             result.append(text)
     if len(result) < minimum:
         raise RuntimeError(f"Legal/editorial review returned fewer than {minimum} comments.")
-    return result[:5]
+    return result[:7]
 
 
 def _normalize_status(value: Any, allowed: set[str], default: str) -> str:
@@ -349,8 +349,8 @@ Facebook قبل المراجعة:
   "decision_reason": "...",
   "facebook_post": "...",
   "linkedin_post": "...",
-  "facebook_comments": ["...", "...", "...", "...", "..."],
-  "linkedin_comments": ["...", "...", "...", "...", "..."]
+  "facebook_comments": ["...", "...", "..."],
+  "linkedin_comments": ["...", "...", "..."]
 }}
 """
 
