@@ -24,8 +24,8 @@ from telegram_bot import notify, notify_linkedin_interaction, send_review_reques
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
-FACEBOOK_COMMENT_LIMIT = 10
-LINKEDIN_COMMENT_LIMIT = 10
+FACEBOOK_COMMENT_LIMIT = 7
+LINKEDIN_COMMENT_LIMIT = 7
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -329,10 +329,6 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     print("Facebook engagement queued for dedicated worker.")
                 except Exception as exc:
                     print(f"Facebook comment engine failed: {exc}")
-                try:
-                    print(f"Facebook like: {facebook_like_post(post_id=facebook_post_id, page_access_token=config['facebook_page_access_token'], graph_version=config['facebook_graph_version'])['status']}")
-                except Exception as exc:
-                    print(f"Facebook like failed: {exc}")
             except FacebookPublishError as exc:
                 error = f"Facebook: {exc}"
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
@@ -402,7 +398,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             notify(
                 f"✅ Khyrat Legal Content Engine\nتم نشر: {topic}\n"
                 f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_post_ok else '❌'}\n"
-                f"التعليقات: Facebook 0/5-10 | LinkedIn 0/5-10 (يتم تشغيلها عبر Engagement Workers)"
+                f"التعليقات: Facebook 3-7 | LinkedIn 3-7 (تم وضعها في Queue ويشغلها Engagement Worker)"
             )
         else:
             detail = final_error or "LinkedIn publishing did not complete."
