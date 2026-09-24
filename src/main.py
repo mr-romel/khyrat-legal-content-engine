@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import traceback
 from difflib import SequenceMatcher
@@ -151,6 +152,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 topic=topic,
                 image_brief=str(row.get("وصف الصورة", "") or "").strip() or "Existing generated visual for this legal topic.",
                 model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
+                image_mode=str(row.get("Image Mode", "") or "CONTEXT_ONLY").strip().upper() or "CONTEXT_ONLY",
             )
         except ImageQAError as exc:
             reason = f"Image QA unavailable: {exc}"
@@ -158,8 +160,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "Image QA Status": "ERROR", "Image QA Issues": reason,
                 "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
             })
-            print(f"Image QA advisory error during recovery — publication continues | الموضوع: {topic} | السبب: {exc}")
-            return existing_post, existing_image_url, image_path, "CLEAR", reason
+            print(f"Image QA hard failure during recovery — publication blocked | الموضوع: {topic} | السبب: {exc}")
+            return existing_post, existing_image_url, image_path, "BLOCK", reason
 
         qa_reason = summarize_qa(qa)
         update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -172,8 +174,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "Image QA Issues": qa_reason or "Existing image did not pass visual QA.",
                 "آخر خطأ": ""
             })
-            print(f"Existing image QA advisory — publication continues | الموضوع: {topic} | النتيجة: {qa_reason or 'visual defects detected'}")
-            return existing_post, existing_image_url, image_path, "CLEAR", qa_reason
+            print(f"Existing image QA blocked publication | الموضوع: {topic} | النتيجة: {qa_reason or 'visual defects detected'}")
+            return existing_post, existing_image_url, image_path, "BLOCK", qa_reason
         return existing_post, existing_image_url, image_path, "CLEAR", ""
 
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
@@ -187,6 +189,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     )
     post = str(result.get("post", "") or "").strip()
     image_brief = str(result.get("image_brief", "") or "").strip()
+    image_mode = str(result.get("image_mode", "CONTEXT_ONLY") or "CONTEXT_ONLY").strip().upper()
+    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
+        image_mode = "CONTEXT_ONLY"
     review_level = str(result.get("review_level", "REVIEW") or "REVIEW").upper()
     review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     if not post or not image_brief:
@@ -210,6 +215,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
             gemini_api_key=config["gemini_api_key"],
+            image_mode=image_mode,
         )
 
         try:
@@ -217,17 +223,18 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 api_key=config["gemini_api_key"], image_path=str(image_path), topic=topic,
                 image_brief=working_brief,
                 model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
+                image_mode=image_mode,
             )
         except ImageQAError as exc:
             reason = f"Image QA unavailable: {exc}"
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "ERROR",
+                "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "ERROR", "Image Mode": image_mode,
                 "Image QA Attempt": attempt, "Image QA Issues": reason,
                 "المحتوى": post, "وصف الصورة": image_brief,
                 "آخر خطأ": reason, "وقت آخر تشغيل": current.isoformat()
             })
-            print(f"Image QA advisory error — publication continues | الموضوع: {topic} | السبب: {exc}")
-            return post, github_raw_url(str(image_path)), image_path, review_level, reason
+            print(f"Image QA hard failure — publication blocked | الموضوع: {topic} | السبب: {exc}")
+            return post, github_raw_url(str(image_path)), image_path, "BLOCK", reason
 
         qa_status = str(qa_last.get("decision", "BLOCK")).upper()
         qa_score = qa_last.get("overall_score", 0)
@@ -235,13 +242,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Image QA Status": qa_status, "Image QA Score": qa_score,
             "Image QA Issues": qa_reason, "Image QA Attempt": attempt,
-            "المحتوى": post, "وصف الصورة": image_brief, "وقت آخر تشغيل": current.isoformat()
+            "المحتوى": post, "وصف الصورة": image_brief, "Image Mode": image_mode, "وقت آخر تشغيل": current.isoformat()
         })
 
         if qa_status == "PASS":
             image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "READY_FOR_SOCIAL_PUBLISH", "رابط الصورة": image_url,
+                "الحالة": "READY_FOR_SOCIAL_PUBLISH", "رابط الصورة": image_url, "Image Mode": image_mode,
                 "Image QA Status": "PASS", "Image QA Score": qa_score,
                 "Image QA Issues": qa_reason, "Image QA Attempt": attempt,
                 "آخر خطأ": "", "وقت آخر تشغيل": current.isoformat()
@@ -267,9 +274,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         "Image QA Attempt": QA_MAX_RETRIES, "المحتوى": post, "وصف الصورة": image_brief,
         "آخر خطأ": final_reason, "وقت آخر تشغيل": current.isoformat()
     })
-    print(f"Image preview/QA advisory — publication continues | الموضوع: {topic} | السبب: {final_reason}")
+    print(f"Image preview/QA BLOCK — publication blocked | الموضوع: {topic} | السبب: {final_reason}")
     image_url = github_raw_url(str(image_path))
-    return post, image_url, image_path, review_level, final_reason
+    return post, image_url, image_path, "BLOCK", final_reason
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
@@ -297,6 +304,12 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             raise RuntimeError("Content/image generation did not produce publishable assets.")
         editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
         facebook_post, linkedin_post = editorial["facebook_post"], editorial["linkedin_post"]
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
+            "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
+            "Facebook Comments Published": row.get("Facebook Comments Published", "") or "0",
+            "LinkedIn Comments Published": row.get("LinkedIn Comments Published", "") or "0",
+        })
 
 
         facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
@@ -311,9 +324,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
                 facebook_post_id = facebook["post_id"]
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id})
+                update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id, "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
                 try:
-                    print("Facebook comments are now handled by the dedicated engagement worker; inline publishing skipped.")
+                    print("Facebook engagement queued for dedicated worker.")
                 except Exception as exc:
                     print(f"Facebook comment engine failed: {exc}")
                 try:
