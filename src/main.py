@@ -112,8 +112,16 @@ def _ensure_facebook_cta(post: str) -> str:
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
+    target_count = len(comments["facebook_comments"])
     reviewed = review_and_prepare(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, facebook_post=facebook_post, facebook_comments=comments["facebook_comments"][:5], linkedin_comments=comments["linkedin_comments"], legal_sources=legal_sources)
-    reviewed["facebook_comments"] = reviewed["facebook_comments"] + comments["facebook_comments"][5:FACEBOOK_COMMENT_LIMIT]
+    reviewed_fb = list(reviewed.get("facebook_comments", []))[:target_count]
+    reviewed_li = list(reviewed.get("linkedin_comments", []))[:target_count]
+    if len(reviewed_fb) < target_count:
+        reviewed_fb.extend(comments["facebook_comments"][len(reviewed_fb):target_count])
+    if len(reviewed_li) < target_count:
+        reviewed_li.extend(comments["linkedin_comments"][len(reviewed_li):target_count])
+    reviewed["facebook_comments"] = reviewed_fb[:target_count]
+    reviewed["linkedin_comments"] = reviewed_li[:target_count]
     reviewed["facebook_post"] = _ensure_facebook_cta(reviewed["facebook_post"])
 
     # Shared social-content contract: both platforms always receive the same
