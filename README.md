@@ -47,7 +47,7 @@ Google Sheets records `Image QA Status`, `Image QA Score`, `Image QA Issues`, an
 
 ## Engagement Worker
 
-Facebook and LinkedIn engagement is handled by `src/engagement_worker.py`, independently from the publisher.
+Facebook and LinkedIn engagement is handled by `src/facebook_engagement_worker.py` and `src/linkedin_engagement_worker.py`, independently from the publisher.
 
 For each published post:
 - the worker attempts one post reaction on each available platform;
@@ -55,7 +55,7 @@ For each published post:
 - it publishes at most one pending comment per worker run, so comments are naturally spread across scheduled runs;
 - it records queue and progress state in Google Sheets and is idempotent across retries.
 
-The worker runs every 15 minutes through `.github/workflows/engagement-worker.yml`.
+Both workers run every 15 minutes through `.github/workflows/facebook-engagement-worker.yml` and `.github/workflows/linkedin-engagement-worker.yml`.
 
 ## Image identity and relevance
 
