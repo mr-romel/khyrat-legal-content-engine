@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from comment_engine import generate_comments
-from config import load_engagement_config
+from config import load_social_engagement_config
 from facebook_publisher import add_comment as facebook_add_comment, like_post as facebook_like_post
 from linkedin_publisher import add_comment as linkedin_add_comment, like_post as linkedin_like_post, resolve_member_urn
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
@@ -155,7 +155,7 @@ def _process_linkedin(service, config, sheet_name: str, row_number: int, row: di
 
 
 def main() -> None:
-    config = load_engagement_config()
+    config = load_social_engagement_config()
     service = create_service(config["service_account_info"])
     sheet_name = sheet_name_from_range(config["sheet_range"])
     ensure_headers(service, config["sheet_id"], sheet_name)
