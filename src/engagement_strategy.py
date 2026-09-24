@@ -5,13 +5,13 @@ import re
 from datetime import datetime, timedelta
 from typing import Iterable
 
-MIN_COMMENTS = 5
-MAX_COMMENTS = 10
+MIN_COMMENTS = 3
+MAX_COMMENTS = 7
 COMMENT_INTERVAL_MINUTES = 15
 
 
 def choose_comment_count(post_key: str) -> int:
-    """Deterministically select 5-10 comments per post, varying by post."""
+    """Deterministically select 3-7 comments per post, varying by post."""
     key = str(post_key or "").strip().encode("utf-8")
     if not key:
         return MIN_COMMENTS
