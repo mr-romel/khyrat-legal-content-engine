@@ -16,7 +16,7 @@ from facebook_publisher import FacebookPublishError, publish_photo
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
 from image_qa import ImageQAError, QA_MAX_RETRIES, qa_image, summarize_qa
-from social_content import append_hashtags, split_hashtags
+from social_content import append_hashtags, sanitize_social_copy, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
@@ -126,9 +126,9 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
 
     # Shared social-content contract: both platforms always receive the same
     # topic-derived hashtag set while keeping their platform-specific body.
-    reviewed["facebook_post"] = append_hashtags(reviewed["facebook_post"], topic)
+    reviewed["facebook_post"] = append_hashtags(sanitize_social_copy(reviewed["facebook_post"]), topic)
     linkedin_body, _ = split_hashtags(reviewed.get("linkedin_post", ""))
-    reviewed["linkedin_post"] = append_hashtags(linkedin_body, topic)
+    reviewed["linkedin_post"] = append_hashtags(sanitize_social_copy(linkedin_body), topic)
 
     # Preserve the hashtag suffix when LinkedIn approaches its safe 2,900-char
     # publication ceiling; never hard-truncate the body mid-sentence.
