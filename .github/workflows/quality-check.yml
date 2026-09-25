@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: quality-check-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHONPATH: .:src
 
