@@ -98,6 +98,20 @@ def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
             time.sleep(delay)
     raise RuntimeError("LinkedIn comment generation failed.")
 
+def _fallback_linkedin_comments(topic: str, count: int) -> list[str]:
+    subject = str(topic or "").strip() or "الموضوع المطروح"
+    templates = [
+        f"في {subject}، المراجعة القانونية المبكرة تساعد الإدارة على رؤية أثر القرار قبل الالتزام به",
+        "من منظور إداري، تحديد المسؤوليات والمواعيد والالتزامات قبل التنفيذ يقلل تكلفة التصحيح",
+        "القاعدة القانونية وحدها لا تكفي؛ الوقائع والمستندات هي التي تحدد القرار العملي المناسب",
+        "القرار السريع ليس دائمًا الأقل تكلفة عندما يكون له أثر تعاقدي أو مالي",
+        "التمييز بين القاعدة العامة والوقائع الخاصة مهم قبل بناء قرار إداري على فهم مختصر",
+        "المراجعة القانونية هنا أداة لإدارة المخاطر وليست مجرد خطوة شكلية قبل التوقيع",
+        "عندما توجد بدائل متعددة، تقييم أثر كل بديل قانونيًا وتجاريًا يجعل القرار أكثر وضوحًا",
+    ]
+    return [normalize_comment(x) for x in templates[:count]]
+
+
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing.")
@@ -123,9 +137,15 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
     except Exception as primary_exc:
         status = _extract_status_code(primary_exc)
-        if status not in TRANSIENT_STATUS_CODES or not fallback or fallback == model.strip():
-            raise
-        response = _generate(client=client, model=fallback, prompt=prompt, attempts=FALLBACK_RETRIES)
+        if status in TRANSIENT_STATUS_CODES and fallback and fallback != model.strip():
+            try:
+                response = _generate(client=client, model=fallback, prompt=prompt, attempts=FALLBACK_RETRIES)
+            except Exception as fallback_exc:
+                print(f"LinkedIn comment AI unavailable; using deterministic fallback: {fallback_exc}")
+                return _fallback_linkedin_comments(topic, count)
+        else:
+            print(f"LinkedIn comment AI unavailable; using deterministic fallback: {primary_exc}")
+            return _fallback_linkedin_comments(topic, count)
     data = _extract_json(getattr(response, "text", ""))
     comments = _normalize_comments(data.get("linkedin_comments"), count)
     if len(comments) != count:
