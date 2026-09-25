@@ -275,11 +275,10 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     offsets = comment_schedule_offsets(count)
     bundle_id = f"COMMENT_BUNDLE:{post_urn}"
 
-    # Schedule comments from publication with a 15-minute gap.
-    # There is intentionally no one-hour cutoff: 3-7 comments may span
-    # beyond the first hour while the worker still publishes at most one
-    # new comment per 15-minute cycle.
-    base_time = latest_published_at
+    # Start from discovery time, not the original publication timestamp.
+    # If the worker was delayed, never create a backlog of already-overdue
+    # comments. Remaining comments are re-based after each actual publication.
+    base_time = current
 
     reaction_event = {
         "event_id": f"{bundle_id}:REACTION",
@@ -376,7 +375,69 @@ def release_legacy_permission_blocks(service, spreadsheet_id, existing, current)
     return released
 
 
+def _latest_bundle_post(existing):
+    bundles = []
+    for row in existing:
+        event_id = str(row.get("event_id", "")).strip()
+        if not event_id.startswith("COMMENT_BUNDLE:"):
+            continue
+        post_urn = str(row.get("post_urn", "")).strip()
+        if not post_urn:
+            continue
+        created = parse_dt(row.get("created_at", "")) or datetime.min.replace(tzinfo=CAIRO)
+        source_row = int(row.get("source_row", "0") or "0")
+        bundles.append((created, source_row, post_urn))
+    if not bundles:
+        return ""
+    bundles.sort(reverse=True)
+    return bundles[0][2]
+
+
+def _rebaseline_pending_comments(service, spreadsheet_id, existing, post_urn, anchor, interval_minutes=15):
+    """Rebase remaining comments from the actual last successful publication."""
+    pending = [
+        row for row in existing
+        if str(row.get("post_urn", "")).strip() == post_urn
+        and str(row.get("action", "")).upper() == "COMMENT"
+        and str(row.get("status", "")).upper() in {"PENDING", "RETRY"}
+    ]
+    pending.sort(key=lambda row: int(row.get("sequence", "0") or "0"))
+    for index, row in enumerate(pending, start=1):
+        target = anchor + timedelta(minutes=interval_minutes * index)
+        current_scheduled = parse_dt(row.get("scheduled_at", ""))
+        if current_scheduled is None or abs((current_scheduled - target).total_seconds()) > 1:
+            update_event(
+                service,
+                spreadsheet_id,
+                int(row["_row_number"]),
+                {"scheduled_at": iso(target), "updated_at": iso(anchor)},
+            )
+
+
 def select_due(existing, current):
+    latest_post = _latest_bundle_post(existing)
+    due = []
+    for row in existing:
+        if str(row.get("post_urn", "")).strip() != latest_post:
+            continue
+        if str(row.get("status", "")).upper() not in {"PENDING", "RETRY"}:
+            continue
+        scheduled = parse_dt(row.get("scheduled_at", ""))
+        if not scheduled or scheduled > current:
+            continue
+        action = str(row.get("action", "COMMENT")).upper()
+        if action not in {"COMMENT", "REACTION", "COMMENT_LIKE"}:
+            continue
+        due.append(row)
+
+    comments = [x for x in due if str(x.get("action", "")).upper() == "COMMENT"]
+    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
+    if comments:
+        comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+        due = non_comments + comments[:1]
+    return due
+
+
     due = []
     per_post_comments = {}
     for row in existing:
@@ -510,6 +571,17 @@ def main():
                 "scheduled_at": iso(current + timedelta(minutes=RETRY_MINUTES)),
             })
         update_event(service, CONFIG["sheet_id"], row_number, changes)
+
+        if action == "COMMENT" and result.status == "PUBLISHED":
+            refreshed = read_engagement_rows(service, CONFIG["sheet_id"])
+            _rebaseline_pending_comments(
+                service,
+                CONFIG["sheet_id"],
+                refreshed,
+                event["post_urn"],
+                current,
+                interval_minutes=15,
+            )
 
         # Immediately queue a durable like-on-comment event after a successful
         # comment. It is processed on the next worker cycle if it cannot be
