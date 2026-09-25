@@ -403,9 +403,9 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
         if status == "RETRY" and capability != "RECOVERY_RELEASED":
             recovery_status = "RETRY"
             recovery_note = "One-time recovery retry after LinkedIn reaction API route upgrade."
-        elif status == "FAILED" and capability == "RECOVERY_RELEASED":
+        elif status == "FAILED" and capability in {"RECOVERY_RELEASED", "RECOVERY_DIAGNOSTIC_RELEASED"}:
             recovery_status = "RETRY"
-            recovery_note = "One-time diagnostic retry after LinkedIn reaction failure."
+            recovery_note = "Final idempotent reaction retry after LinkedIn 409 handling upgrade."
         else:
             continue
         update_event(
@@ -416,7 +416,7 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
                 "status": recovery_status,
                 "scheduled_at": iso(current),
                 "last_error": recovery_note,
-                "capability_status": "RECOVERY_DIAGNOSTIC_RELEASED",
+                "capability_status": "RECOVERY_FINAL_RELEASED",
                 "updated_at": iso(current),
             },
         )
