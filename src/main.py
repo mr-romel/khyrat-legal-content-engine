@@ -320,7 +320,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
-        facebook_post, linkedin_post = editorial["facebook_post"], editorial["linkedin_post"]
+        facebook_post = append_hashtags(sanitize_social_copy(editorial["facebook_post"]), topic)
+        linkedin_body, _ = split_hashtags(editorial.get("linkedin_post", ""))
+        linkedin_post = append_hashtags(sanitize_social_copy(linkedin_body), topic)
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
