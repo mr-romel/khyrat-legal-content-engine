@@ -170,6 +170,10 @@ Keep stable facial identity, hair, beard, skin tone, facial proportions, and gen
 Create a completely new scene, pose, wardrobe, camera angle, environment, and composition.
 Do not copy any reference photo's background, furniture, pose, framing, or lighting.
 The recurring subject MUST be doing the exact legal action described in the visual brief.
+REFERENCE INPUTS:
+The uploaded reference photos are attached as input_image_0, input_image_1, input_image_2, and input_image_3 (whichever are present).
+Use those images as the PRIMARY visual identity source for the recurring subject. Preserve the same facial identity and recognizable features.
+Do not invent a generic look. Do not substitute another man. The identity should be recognizable as the same person while the scene, pose, clothing, camera, and environment are new.
 """
     else:
         subject_block = """
@@ -186,6 +190,9 @@ Create one realistic cinematic editorial photograph.
 
 LEGAL STORY:
 {topic}
+
+CHARACTER IDENTITY PROFILE:
+{character_profile or "Use the attached reference images as the identity source."}
 
 VISUAL DIRECTOR BRIEF:
 {brief}
@@ -361,7 +368,7 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
     reference_files = sorted(
         path for path in reference_dir.iterdir()
         if path.is_file() and path.suffix.lower() in CHARACTER_REFERENCE_EXTENSIONS
-    ) if reference_dir.is_dir() else []
+    )[:4] if reference_dir.is_dir() else []
     if reference_files:
         reference_names = ", ".join(path.name for path in reference_files)
         print(f"Character reference assets detected: {len(reference_files)} file(s) in {reference_dir}")
