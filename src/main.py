@@ -174,6 +174,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     audience, audience_goal = infer_audience_persona(topic, existing_post, "LINKEDIN")
     visual_id, visual_name = choose_visual_concept(topic, existing_post)
     previous_context += f"\nAUDIENCE: {audience}\nAUDIENCE GOAL: {audience_goal}\nVISUAL CONCEPT: {visual_id} / {visual_name}"
+    try:
+        strategy_rows = get_values(service, config["sheet_id"], "StrategyRecommendations!A:I")
+        if len(strategy_rows) > 1:
+            latest_strategy = strategy_rows[-6:]
+            previous_context += "\nCURRENT CONTENT STRATEGY SIGNALS:\n" + "\n".join(" | ".join(map(str, x)) for x in latest_strategy)
+    except Exception as strategy_exc:
+        print(f"Strategy context unavailable: {strategy_exc}")
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
         previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
