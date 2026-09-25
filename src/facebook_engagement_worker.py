@@ -169,7 +169,22 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
     if post_id in bundled:
         return 0
 
-    count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+    target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+    published_comment_count = sum(
+        1
+        for event in events
+        if str(event.get("post_id", "")).strip() == post_id
+        and str(event.get("action", "")).upper() == "COMMENT"
+        and str(event.get("status", "")).upper() == "PUBLISHED"
+    )
+    if published_comment_count >= target_count:
+        print(
+            f"Facebook comment target already reached for {post_id}: "
+            f"{published_comment_count}/{target_count}; no new comments queued."
+        )
+        return 0
+
+    count = target_count - published_comment_count
     generated = generate_comments(
         api_key=CONFIG["gemini_api_key"],
         model=CONFIG["gemini_model"],
