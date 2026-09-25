@@ -39,7 +39,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify final image preview QA tests
@@ -50,7 +50,7 @@ jobs:
           python -m pytest -q tests/test_engagement_strategy.py tests/test_linkedin_engagement.py tests/test_linkedin_publisher.py
       - name: Verify strategic content system unit tests
         run: |
-          python -m pytest -q tests/test_content_system.py
+          python -m pytest -q tests/test_content_system.py tests/test_content_intelligence_upgrade.py
       - name: Verify 500 distinct legal subject bank
         run: |
           python - <<'PY'
