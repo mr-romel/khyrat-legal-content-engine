@@ -453,35 +453,6 @@ def select_due(existing, current):
     return due
 
 
-    due = []
-    per_post_comments = {}
-    for row in existing:
-        if str(row.get("status", "")).upper() not in {"PENDING", "RETRY"}:
-            continue
-        scheduled = parse_dt(row.get("scheduled_at", ""))
-        if not scheduled or scheduled > current:
-            continue
-        action = str(row.get("action", "COMMENT")).upper()
-        post = row.get("post_urn", "")
-        if action == "COMMENT":
-            if per_post_comments.get(post, 0) >= MAX_COMMENTS_PER_POST_PER_RUN:
-                continue
-            per_post_comments[post] = per_post_comments.get(post, 0) + 1
-        elif action not in {"REACTION", "COMMENT_LIKE"}:
-            continue
-        due.append(row)
-
-    # A single worker cycle publishes at most one new comment for the newest
-    # post. This is the key guard against multiple queued comments dropping
-    # together when several scheduled_at values are already overdue.
-    comments = [x for x in due if str(x.get("action", "")).upper() == "COMMENT"]
-    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
-    if comments:
-        comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-        due = non_comments + comments[:1]
-    return due
-
-
 def _main_impl():
     print("=" * 72)
     print("KHYRAT LINKEDIN ENGAGEMENT WORKER")
