@@ -11,7 +11,7 @@ from comment_engine import generate_comments
 from config import load_config
 from content_planner import classify
 from content_diversity import build_diversity_context
-from content_system import record_fingerprint
+from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, publish_photo
 from gemini import generate_post
@@ -171,6 +171,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         return existing_post, existing_image_url, image_path, "CLEAR", "Existing image reused."
 
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
+    audience, audience_goal = infer_audience_persona(topic, existing_post, "LINKEDIN")
+    visual_id, visual_name = choose_visual_concept(topic, existing_post)
+    previous_context += f"\nAUDIENCE: {audience}\nAUDIENCE GOAL: {audience_goal}\nVISUAL CONCEPT: {visual_id} / {visual_name}"
     duplicate_score, duplicate_topic = _duplicate_score(topic, bank_rows)
     if duplicate_score >= 0.88:
         previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
