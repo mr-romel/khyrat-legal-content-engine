@@ -113,7 +113,8 @@ CHECK THESE FOUR THINGS:
    bottom-right brand overlay described above. If any other text exists, mark text_detected=true and list it.
 3. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
-4. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, compare the face directly against the attached reference photos.
+4. ANATOMY AND VISUAL INTEGRITY: Check for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra fingers, fused fingers, missing fingers, unnatural wrists, twisted arms, duplicated objects, or obvious generative artifacts. Treat obvious anatomy defects as a REGENERATE signal and explain them in composition_findings or issues
+5. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, compare the face directly against the attached reference photos.
    This is an identity gate, not a generic attractiveness/similarity judgment. Check facial proportions, eyes/brows, nose,
    mouth/lip shape, jaw/chin, hairline, hairstyle, beard pattern, skin tone, and overall facial geometry.
    If you cannot confidently conclude that the same person is depicted, score reference_score below 80 and choose REGENERATE.
