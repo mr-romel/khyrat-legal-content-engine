@@ -98,7 +98,7 @@ def append_hashtags(post: str, topic: str, *, max_tags: int = 8) -> str:
     tags = [tag for tag in build_hashtags(topic, max_tags=max_tags) if tag not in existing]
     if not tags:
         return text
-    return f"{text.rstrip()}\n\n{' '.join(tags)}"
+    return sanitize_social_copy(f"{text.rstrip()}\n\n{' '.join(tags)}")
 
 
 def split_hashtags(post: str) -> tuple[str, str]:
