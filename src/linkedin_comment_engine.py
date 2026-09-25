@@ -9,7 +9,7 @@ from typing import Any
 
 from google import genai
 
-from engagement_strategy import normalize_comment, comment_schedule_offsets as shared_schedule_offsets
+from engagement_strategy import normalize_comment, comment_schedule_offsets as shared_schedule_offsets, choose_comment_count as shared_choose_comment_count
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
@@ -71,13 +71,10 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
             result.append(text)
     return result[:count]
 
-def choose_comment_count(post_urn: str) -> int:
-    """Deterministically select 3-7 comments for LinkedIn, independently of the shared 5-10 strategy."""
-    key = str(post_urn or "").strip().encode("utf-8")
-    if not key:
-        return LINKEDIN_MIN_COMMENTS
-    digest = hashlib.sha256(key).digest()
-    return LINKEDIN_MIN_COMMENTS + (digest[0] % (LINKEDIN_MAX_COMMENTS - LINKEDIN_MIN_COMMENTS + 1))
+def choose_comment_count(topic_or_key: str, post: str = "") -> int:
+    """Use the same deterministic 3-7 target as Facebook for the same post."""
+    key = f"{str(topic_or_key or '').strip()}|{str(post or '').strip()}" if post else str(topic_or_key or '').strip()
+    return shared_choose_comment_count(key)
 
 def comment_schedule_offsets(count: int) -> list[int]:
     """Return LinkedIn schedule offsets for at most 7 comments, 15 minutes apart."""
@@ -113,7 +110,7 @@ def _fallback_linkedin_comments(topic: str, count: int) -> list[str]:
 
 
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
-    count = count if count is not None else choose_comment_count(post_urn)
+    count = count if count is not None else choose_comment_count(topic, post)
     if not api_key:
         print("GEMINI_API_KEY is missing; using deterministic LinkedIn comments.")
         return _fallback_linkedin_comments(topic, count)
@@ -147,8 +144,14 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         else:
             print(f"LinkedIn comment AI unavailable; using deterministic fallback: {primary_exc}")
             return _fallback_linkedin_comments(topic, count)
-    data = _extract_json(getattr(response, "text", ""))
-    comments = _normalize_comments(data.get("linkedin_comments"), count)
-    if len(comments) != count:
-        raise RuntimeError(f"LinkedIn comment engine returned {len(comments)} unique comments; expected {count}.")
+    try:
+        data = _extract_json(getattr(response, "text", ""))
+        comments = _normalize_comments(data.get("linkedin_comments"), count)
+        if len(comments) != count:
+            raise RuntimeError(
+                f"LinkedIn comment engine returned {len(comments)} unique comments; expected {count}."
+            )
+    except Exception as exc:
+        print(f"LinkedIn comment AI output validation failed; using deterministic fallback: {exc}")
+        return _fallback_linkedin_comments(topic, count)
     return comments
