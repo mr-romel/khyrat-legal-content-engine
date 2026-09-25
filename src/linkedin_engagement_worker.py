@@ -400,7 +400,7 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
             continue
         if str(row.get("status", "")).upper() != "RETRY":
             continue
-        if int(row.get("attempts", "0") or "0") != 1:
+        if str(row.get("capability_status", "")).upper() == "RECOVERY_RELEASED":
             continue
         update_event(
             service,
@@ -410,6 +410,7 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
                 "status": "RETRY",
                 "scheduled_at": iso(current),
                 "last_error": "One-time recovery retry after LinkedIn reaction API route upgrade.",
+                "capability_status": "RECOVERY_RELEASED",
                 "updated_at": iso(current),
             },
         )
@@ -519,6 +520,12 @@ def _main_impl():
     existing = read_engagement_rows(service, CONFIG["sheet_id"])
     due = select_due(existing, current)
     print(f"Due events: {len(due)}")
+    reaction_debug = [
+        (str(x.get("event_id", "")), str(x.get("status", "")), str(x.get("attempts", "")), str(x.get("scheduled_at", "")), str(x.get("last_error", ""))[:180])
+        for x in existing
+        if str(x.get("action", "")).upper() == "REACTION"
+    ]
+    print(f"LinkedIn reaction queue: {reaction_debug[-5:]}")
     if not due:
         return 0
 
