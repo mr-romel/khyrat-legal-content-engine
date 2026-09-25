@@ -35,3 +35,19 @@ def test_qa_prompt_preserves_reference_as_identity_source():
     assert "new pose/scene" in prompt
     assert "bottom-right overlay" in prompt
     assert "legal situation" in prompt
+
+
+def test_context_only_is_not_publishable(tmp_path):
+    from image_qa import qa_image
+
+    path = tmp_path / "image.jpg"
+    Image.new("RGB", (1024, 1280), "white").save(path)
+    result = qa_image(
+        api_key="test-key",
+        image_path=str(path),
+        topic="نزاع حول توقيع عقد",
+        image_brief="A realistic contract review scene.",
+        image_mode="CONTEXT_ONLY",
+    )
+    assert result["decision"] == "BLOCK"
+    assert "uploaded reference subject" in " ".join(result["issues"])
