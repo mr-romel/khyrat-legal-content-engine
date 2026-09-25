@@ -31,3 +31,5 @@ htmlcov/
 .DS_Store
 .vscode/
 .idea/
+
+generated/.tmp/
