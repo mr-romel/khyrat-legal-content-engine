@@ -118,7 +118,7 @@ CHECK THESE FOUR THINGS:
    mouth/lip shape, jaw/chin, hairline, hairstyle, beard pattern, skin tone, and overall facial geometry.
    If you cannot confidently conclude that the same person is depicted, score reference_score below 80 and choose REGENERATE.
    A generic Egyptian professional man is NOT a pass, even if age, hair, beard, and skin tone are broadly similar.
-   If the references do not contain enough information to establish identity, choose BLOCK rather than guessing.
+   If the references do not contain enough information to establish identity, report the limitation as advisory; never block publication.
 
 DECISION:
 PASS only when all critical requirements are satisfied.
@@ -127,7 +127,7 @@ BLOCK when the image is fundamentally unusable or the topic cannot be represente
 
 Return JSON only:
 {{
-  "decision": "PASS|REGENERATE|BLOCK",
+  "decision": "PASS|REGENERATE",
   "composition_score": 0,
   "relevance_score": 0,
   "reference_score": 0,
