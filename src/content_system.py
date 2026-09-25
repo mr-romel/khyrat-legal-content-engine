@@ -18,6 +18,11 @@ SYSTEM_SHEETS = {
     "VoiceProfile": ["Version", "Principles", "Preferred Openings", "Forbidden", "Tone", "CTA", "Updated At"],
     "ContentExperiments": ["Experiment ID", "Post ID", "Variable", "Variant", "Hypothesis", "Status", "Created At"],
     "ContentMetrics": ["Post ID", "Topic", "Platform", "Impressions", "Reach", "Reactions", "Comments", "Shares", "Saves", "Clicks", "Leads", "Captured At"],
+    "AudiencePersonas": ["Persona", "Platform", "Primary Goal", "Signals", "Preferred Hook", "Preferred CTA", "Updated At"],
+    "ContentFingerprints": ["Fingerprint", "Post ID", "Platform", "Topic", "Angle", "Audience", "Objective", "Hook Type", "Structure", "CTA Type", "Visual Concept", "Created At"],
+    "VisualConcepts": ["Concept ID", "Concept", "Use When", "Avoid When", "Prompt Direction", "Updated At"],
+    "StrategyRecommendations": ["Recommendation ID", "Priority", "Platform", "Audience", "Pillar", "Angle", "Action", "Evidence", "Updated At"],
+    "DashboardSnapshots": ["Snapshot At", "Posts", "Winners", "Top Topics", "Top Hooks", "Top CTAs", "Top Visuals", "Audience Signals", "Recommendations"],
 }
 
 DERIVATIVE_TYPES = [
@@ -111,6 +116,107 @@ def build_content_tree(topic: str, angle: str, objective: str, platform: str) ->
     } for asset in DERIVATIVE_TYPES]
 
 
+def infer_audience_persona(topic: str, post: str, platform: str) -> tuple[str, str]:
+    text = f"{topic} {post}".casefold()
+    platform = str(platform or "").upper()
+    if platform == "LINKEDIN":
+        if any(x in text for x in ("شركة", "مدير", "تعاقد", "قرار", "شريك", "استثمار")):
+            return "صاحب شركة / مدير", "تقليل المخاطر واتخاذ قرار عملي"
+        if any(x in text for x in ("موظف", "عامل", "فصل", "مرتب", "استقالة")):
+            return "HR / مدير موارد بشرية", "إدارة موقف قانوني قبل تصعيده"
+        return "صاحب قرار مهني", "فهم الأثر القانوني قبل التحرك"
+    if any(x in text for x in ("شركة", "عقد", "مدير", "شريك")):
+        return "صاحب شركة", "حل المشكلة قبل تحولها إلى نزاع"
+    if any(x in text for x in ("موظف", "عامل", "فصل", "مرتب")):
+        return "موظف / عامل", "معرفة الحق والخطوة التالية"
+    return "جمهور عام", "فهم القاعدة القانونية وتطبيقها عمليًا"
+
+
+def hook_type(post: str) -> str:
+    first = str(post or "").strip().split("\n", 1)[0]
+    if "؟" in first:
+        return "QUESTION"
+    if any(x in first for x in ("أنا ", "مرة", "حصل", "قال لي", "بيسألني")):
+        return "STORY"
+    if any(x in first for x in ("خد بالك", "احذر", "ممنوع", "قبل ما")):
+        return "WARNING"
+    return "DIRECT_INSIGHT"
+
+
+def cta_type(post: str) -> str:
+    low = str(post or "").casefold()
+    if any(x in low for x in ("اكتب سؤالك", "التعليقات", "قول لنا")):
+        return "COMMENT"
+    if any(x in low for x in ("ابعتله", "شارك", "شير", "ابعته")):
+        return "SHARE"
+    return "SOFT_CTA"
+
+
+def structure_type(post: str) -> str:
+    lines = [x.strip() for x in str(post or "").split("\n") if x.strip()]
+    if len(lines) >= 6 and any(x.startswith(("١", "٢", "٣", "أولاً", "ثانياً", "ثالثاً")) for x in lines):
+        return "CHECKLIST"
+    if len(lines) <= 4:
+        return "SHORT_EXPLAINER"
+    return "EXPLAINER"
+
+
+VISUAL_CONCEPTS = [
+    ("DECISION_REVIEW", "مراجعة قرار إداري", "قرارات الشركات والعقود والمسؤولية", "مشاهد مكتب قانوني عامة بلا فعل واضح", "مستشار قانوني يراجع مستندًا مرتبطًا بقرار مع مدير شركة، تركيز على المستند والقرار، وجه واضح، يدان طبيعية"),
+    ("CONTRACT_REVIEW", "مراجعة عقد", "بنود وتوقيع وإنهاء تعاقد", "عقد عشوائي أو نصوص مولدة داخل الصورة", "مراجعة عقد بين محامٍ وصاحب شركة، صفحات غير مقروءة، تركيز على التفاعل لا على الكتابة"),
+    ("BOARD_DECISION", "اجتماع قرار", "شراكة وإدارة ومخاطر الشركات", "اجتماع عام بلا قصة قانونية", "اجتماع مهني صغير حول قرار شركة، المحامي حاضر كمستشار، تكوين واقعي ووجوه واضحة"),
+    ("TIMELINE_RISK", "خط زمني للمخاطر", "المواعيد والإجراءات والطعون", "إنفوجرافيك نصي داخل الصورة", "محامٍ يراجع مستندات ومواعيد على مكتب، إشارات بصرية للترتيب الزمني دون أي نص"),
+    ("EMPLOYMENT_CONFLICT", "موقف عمل", "فصل واستقالة وجزاءات", "مشهد درامي أو مبالغ فيه", "مناقشة مهنية بين مدير وموظف بحضور مستشار قانوني، تعبيرات طبيعية دون مبالغة"),
+]
+
+
+def choose_visual_concept(topic: str, post: str = "") -> tuple[str, str]:
+    text = f"{topic} {post}".casefold()
+    if any(x in text for x in ("موظف", "عامل", "فصل", "استقالة", "جزاء")):
+        return VISUAL_CONCEPTS[4][0], VISUAL_CONCEPTS[4][1]
+    if any(x in text for x in ("ميعاد", "مدة", "طعن", "اعتراض", "إجراء")):
+        return VISUAL_CONCEPTS[3][0], VISUAL_CONCEPTS[3][1]
+    if any(x in text for x in ("عقد", "تعاقد", "شرط", "بند")):
+        return VISUAL_CONCEPTS[1][0], VISUAL_CONCEPTS[1][1]
+    if any(x in text for x in ("شركة", "قرار", "مدير", "شريك")):
+        return VISUAL_CONCEPTS[0][0], VISUAL_CONCEPTS[0][1]
+    return VISUAL_CONCEPTS[2][0], VISUAL_CONCEPTS[2][1]
+
+
+def content_fingerprint(*, topic: str, post: str, angle: str, objective: str, platform: str) -> dict[str, str]:
+    audience, _ = infer_audience_persona(topic, post, platform)
+    visual_id, visual_name = choose_visual_concept(topic, post)
+    hook = hook_type(post)
+    structure = structure_type(post)
+    cta = cta_type(post)
+    raw = "|".join([str(platform), str(topic), str(angle), audience, str(objective), hook, structure, cta, visual_id])
+    return {
+        "fingerprint": hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20],
+        "audience": audience,
+        "hook_type": hook,
+        "structure": structure,
+        "cta_type": cta,
+        "visual_concept": f"{visual_id}:{visual_name}",
+    }
+
+
+def record_fingerprint(service, spreadsheet_id: str, *, post_id: str, topic: str, post: str, angle: str, objective: str, platform: str) -> None:
+    fp = content_fingerprint(topic=topic, post=post, angle=angle, objective=objective, platform=platform)
+    _append(service, spreadsheet_id, "ContentFingerprints", [
+        fp["fingerprint"], post_id, platform, topic, angle, fp["audience"], objective,
+        fp["hook_type"], fp["structure"], fp["cta_type"], fp["visual_concept"], _now(),
+    ])
+
+
+def ensure_visual_concepts(service, spreadsheet_id: str) -> None:
+    _ensure_sheet(service, spreadsheet_id, "VisualConcepts", SYSTEM_SHEETS["VisualConcepts"])
+    existing = get_values(service, spreadsheet_id, "VisualConcepts!A:G")
+    existing_ids = {str(row[0]).strip() for row in existing[1:] if row}
+    for concept_id, concept, use_when, avoid_when, direction in VISUAL_CONCEPTS:
+        if concept_id not in existing_ids:
+            _append(service, spreadsheet_id, "VisualConcepts", [concept_id, concept, use_when, avoid_when, direction, _now()])
+
+
 def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_id: str, topic: str, angle: str, objective: str, platform: str, post_id: str) -> None:
     try:
         ensure_system_sheets(service, spreadsheet_id)
@@ -123,6 +229,8 @@ def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_
         _append(service, spreadsheet_id, "ContentExperiments", [experiment_id, post_id, variable, experiment.split(" | ")[0], experiment.split(" | ", 1)[1], "ACTIVE", _now()])
         _append(service, spreadsheet_id, "ConversionMap", [topic, service_name, intent, cta, "COMMENT_OR_MESSAGE"])
         _append(service, spreadsheet_id, "VoiceProfile", [VOICE_PROFILE["version"], VOICE_PROFILE["principles"], VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now()])
+        record_fingerprint(service, spreadsheet_id, post_id=post_id, topic=topic, post="", angle=angle, objective=objective, platform=platform)
+        ensure_visual_concepts(service, spreadsheet_id)
         print(f"Content system: lineage={root} derivatives={len(tree)} service={service_name} experiment={experiment_id}")
     except Exception as exc:
         print(f"Content system intelligence logging failed (non-blocking): {exc}")
