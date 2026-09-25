@@ -405,7 +405,6 @@ production_main.log_publication = _capture_publication_analytics
 production_main.notify = _single_telegram_notify
 production_main.notify_linkedin_interaction = _linkedin_interaction_diagnostic
 production_main._is_due = _smart_is_due
-production_main._failed_retry = _smart_failed_retry
 
 if __name__ == "__main__":
     _smart_main()
