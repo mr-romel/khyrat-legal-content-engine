@@ -594,7 +594,7 @@ def main():
                 CONFIG["sheet_id"],
                 refreshed,
                 event["post_urn"],
-                current,
+                now_cairo(),
                 interval_minutes=15,
             )
 
