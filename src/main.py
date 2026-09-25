@@ -152,7 +152,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
     recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
 
-    if recovery and existing_post and image_path.is_file():
+    stored_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
+    if recovery and existing_post and image_path.is_file() and stored_image_mode in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
         try:
             qa = qa_image(
                 api_key=config["gemini_api_key"],
