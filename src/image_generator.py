@@ -171,7 +171,7 @@ Do not copy any reference photo's background, furniture, pose, framing, or light
 The recurring subject MUST be doing the exact legal action described in the visual brief.
 REFERENCE INPUTS:
 The uploaded reference photos are attached as input_image_0, input_image_1, input_image_2, and input_image_3 (whichever are present).
-Use those images as the PRIMARY visual identity source for the recurring subject. Preserve the same facial identity and recognizable features.
+Use input_image_0 as the PRIMARY facial identity reference. Use input_image_1, input_image_2, and input_image_3 only as secondary consistency references. Preserve the same facial identity and recognizable features.
 Do not invent a generic look. Do not substitute another man. The identity should be recognizable as the same person while the scene, pose, clothing, camera, and environment are new.
 """
     else:
@@ -201,12 +201,15 @@ The image must communicate the same core fact pattern as the post.
 Show the specific people, action, important document/object, setting, and practical tension.
 Use realistic Egyptian context when appropriate.
 Professional documentary/editorial photography.
-Photorealistic people and materials.
+Photorealistic people and materials. Preserve realistic anatomy and facial proportions.
 Natural expressions and body language.
+Medium shot or medium-wide shot; keep the face clearly visible and stable.
+Do not make hands or fingers a focal element. If hands are visible, keep them naturally posed, anatomically correct, with exactly five fingers per hand and no overlapping or fused fingers.
+No extra limbs, duplicated body parts, warped facial features, asymmetrical eyes, malformed teeth, distorted ears, or plastic-looking skin.
 Strong focal subject.
 Realistic cinematic lighting.
 Natural depth of field.
-Portrait-friendly 4:5 composition.
+Portrait-friendly 4:5 composition with the subject comfortably inside the frame and enough headroom. Avoid extreme close-ups, extreme wide angles, and aggressive perspective distortion.
 
 The viewer should understand the legal situation from the image itself without reading the post.
 
