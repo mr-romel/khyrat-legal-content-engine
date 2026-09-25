@@ -202,9 +202,13 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         "dry_run": "true" if dry_run else "false",
     })
 
+    # If discovery happens late, do not create an already-overdue backlog.
+    # Comment 1 is due now; later comments are spaced from this worker's
+    # discovery time and subsequently re-based from each real publication.
+    bundle_anchor = current
     for sequence, message in enumerate(comments, start=1):
         clean = normalize_comment(message)
-        scheduled = published_at + timedelta(minutes=15 * (sequence - 1))
+        scheduled = bundle_anchor + timedelta(minutes=15 * (sequence - 1))
         append_event(service, spreadsheet_id, {
             "event_id": f"{bundle_id}:{sequence}",
             "source_row": str(source_row),
@@ -227,9 +231,51 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
     return count
 
 
+def _latest_bundle_post(events):
+    bundles = []
+    for event in events:
+        event_id = str(event.get("event_id", "")).strip()
+        if not event_id.startswith("COMMENT_BUNDLE:"):
+            continue
+        post_id = str(event.get("post_id", "")).strip()
+        if not post_id:
+            continue
+        created = parse_dt(event.get("created_at", "")) or datetime.min.replace(tzinfo=CAIRO)
+        source_row = int(event.get("source_row", "0") or "0")
+        bundles.append((created, source_row, post_id))
+    if not bundles:
+        return ""
+    bundles.sort(reverse=True)
+    return bundles[0][2]
+
+
+def _rebaseline_pending_comments(service, spreadsheet_id, events, post_id, anchor, interval_minutes=15):
+    """Keep the remaining bundle on a real 15-minute clock after a delayed run."""
+    pending = [
+        x for x in events
+        if str(x.get("post_id", "")).strip() == post_id
+        and str(x.get("action", "")).upper() == "COMMENT"
+        and str(x.get("status", "")).upper() in {"PENDING", "RETRY"}
+    ]
+    pending.sort(key=lambda x: int(x.get("sequence", "0") or "0"))
+    for index, event in enumerate(pending, start=1):
+        target = anchor + timedelta(minutes=interval_minutes * index)
+        current_scheduled = parse_dt(event.get("scheduled_at", ""))
+        if current_scheduled is None or abs((current_scheduled - target).total_seconds()) > 1:
+            update_event(
+                service,
+                spreadsheet_id,
+                int(event["_row_number"]),
+                {"scheduled_at": iso(target), "updated_at": iso(anchor)},
+            )
+
+
 def due_events(events, current):
+    latest_post = _latest_bundle_post(events)
     due = []
     for event in events:
+        if str(event.get("post_id", "")).strip() != latest_post:
+            continue
         if str(event.get("status", "")).upper() not in {"PENDING", "RETRY"}:
             continue
         scheduled = parse_dt(event.get("scheduled_at", ""))
@@ -239,7 +285,9 @@ def due_events(events, current):
             continue
         due.append(event)
     due.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-    # Exactly one new comment per 15-minute worker cycle
+    # Exactly one new comment per worker cycle. The next comment is re-based
+    # from the actual successful publication time, so a missed cron run cannot
+    # create an hours/days catch-up backlog.
     return due[:MAX_COMMENTS_PER_RUN]
 
 
@@ -307,6 +355,17 @@ def main():
             })
             print(f"{event['event_id']} -> RETRY")
         update_event(service, CONFIG["sheet_id"], row_number, changes)
+
+        if str(event.get("action", "")).upper() == "COMMENT" and result.get("status") == "PUBLISHED":
+            refreshed = read_events(service, CONFIG["sheet_id"])
+            _rebaseline_pending_comments(
+                service,
+                CONFIG["sheet_id"],
+                refreshed,
+                event["post_id"],
+                current,
+                interval_minutes=15,
+            )
 
     return 0
 
