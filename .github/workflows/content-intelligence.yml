@@ -33,3 +33,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           PYTHONPATH=src python scripts/run_content_intelligence.py
+      - name: Upload content intelligence dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-content-intelligence-dashboard
+          path: reports/content-intelligence.html
+          if-no-files-found: error
