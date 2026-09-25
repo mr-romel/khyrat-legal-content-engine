@@ -262,7 +262,22 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
                  "last_error": "Superseded by the 3-7 comment bundle worker."},
             )
 
-    count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+    target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+    published_comment_count = sum(
+        1
+        for event in existing
+        if str(event.get("post_urn", "")).strip() == post_urn
+        and str(event.get("action", "")).upper() == "COMMENT"
+        and str(event.get("status", "")).upper() == "PUBLISHED"
+    )
+    if published_comment_count >= target_count:
+        print(
+            f"LinkedIn comment target already reached for {post_urn}: "
+            f"{published_comment_count}/{target_count}; no new comments queued."
+        )
+        return 0
+
+    count = target_count - published_comment_count
     comments = generate_linkedin_comments(
         api_key=CONFIG["gemini_api_key"],
         model=CONFIG["gemini_model"],
