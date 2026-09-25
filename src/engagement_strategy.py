@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Iterable
 
+from social_content import sanitize_social_copy
+
 MIN_COMMENTS = 3
 MAX_COMMENTS = 7
 COMMENT_INTERVAL_MINUTES = 15
@@ -30,7 +32,8 @@ def comment_schedule_offsets(count: int) -> list[int]:
 
 
 def normalize_comment(text: str) -> str:
-    value = re.sub(r"\\s+", " ", str(text or "").strip())
+    value = sanitize_social_copy(str(text or ""))
+    value = re.sub(r"\\s+", " ", value).strip()
     value = re.sub(r"[.。]+$", "", value).rstrip()
     return value
 
