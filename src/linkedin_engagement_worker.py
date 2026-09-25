@@ -398,19 +398,25 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
     for row in existing:
         if str(row.get("action", "")).upper() != "REACTION":
             continue
-        if str(row.get("status", "")).upper() != "RETRY":
-            continue
-        if str(row.get("capability_status", "")).upper() == "RECOVERY_RELEASED":
+        status = str(row.get("status", "")).upper()
+        capability = str(row.get("capability_status", "")).upper()
+        if status == "RETRY" and capability != "RECOVERY_RELEASED":
+            recovery_status = "RETRY"
+            recovery_note = "One-time recovery retry after LinkedIn reaction API route upgrade."
+        elif status == "FAILED" and capability == "RECOVERY_RELEASED":
+            recovery_status = "RETRY"
+            recovery_note = "One-time diagnostic retry after LinkedIn reaction failure."
+        else:
             continue
         update_event(
             service,
             spreadsheet_id,
             int(row["_row_number"]),
             {
-                "status": "RETRY",
+                "status": recovery_status,
                 "scheduled_at": iso(current),
-                "last_error": "One-time recovery retry after LinkedIn reaction API route upgrade.",
-                "capability_status": "RECOVERY_RELEASED",
+                "last_error": recovery_note,
+                "capability_status": "RECOVERY_DIAGNOSTIC_RELEASED",
                 "updated_at": iso(current),
             },
         )
@@ -647,7 +653,10 @@ def _main_impl():
                 append_event(service, CONFIG["sheet_id"], like_event)
                 print(f"{like_event_id} -> PENDING")
 
-        print(f"{event['event_id']} -> {changes['status']}")
+        print(
+            f"{event['event_id']} -> {changes['status']} | "
+            f"http={changes.get('last_http_status', '')} | error={changes.get('last_error', '')[:500]}"
+        )
 
     return 0
 
