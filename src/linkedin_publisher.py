@@ -212,6 +212,35 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
     return post_urn
 
 
+
+def publish_text_to_linkedin(*, token: str, author_urn: str, commentary: str) -> dict[str, Any]:
+    """Publish a text-only LinkedIn post when image generation is unavailable."""
+    token = (token or "").strip()
+    author_urn = (author_urn or "").strip()
+    if not token or not author_urn:
+        raise LinkedInPublishError("LinkedIn text publication credentials are incomplete.")
+    commentary = _strengthen_commentary(commentary)
+    endpoint = f"{LINKEDIN_REST_BASE}/posts"
+    body = {
+        "author": author_urn,
+        "commentary": commentary,
+        "visibility": "PUBLIC",
+        "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False,
+    }
+    try:
+        response = requests.post(endpoint, headers=_headers(token, json_content=True), json=body, timeout=60)
+    except requests.RequestException as exc:
+        raise LinkedInPublishError(f"LinkedIn text post network error: {exc}") from exc
+    if not response.ok:
+        _raise_required_error("LinkedIn text post creation", response)
+    post_urn = (response.headers.get("x-restli-id", "") or response.headers.get("X-RestLi-Id", "")).strip()
+    if not post_urn:
+        raise LinkedInPublishError("LinkedIn text post created but returned no post URN.")
+    print(f"LinkedIn text publication completed: post_urn={post_urn}")
+    return {"post_urn": post_urn, "comment": {"status": "SKIPPED"}, "like": {"status": "SKIPPED"}}
+
 def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> LinkedInActionResult:
     """
     Publish a comment as the authenticated personal member.
