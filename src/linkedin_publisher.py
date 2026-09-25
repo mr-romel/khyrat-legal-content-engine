@@ -213,28 +213,80 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
 
 
 def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> LinkedInActionResult:
-    endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments"
+    """
+    Publish a comment as the authenticated personal member.
+
+    This project uses a personal LinkedIn account with the member write scope
+    that is already available to the app. Do not make the newer
+    *_member_social_feed permission a prerequisite.
+
+    The legacy member socialActions write route is deliberately attempted
+    first because that is the path this token/app has successfully used.
+    The versioned /rest route remains only as a compatibility fallback for
+    tokens that can use it.
+    """
     body = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
-    result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action="comment")
-    if isinstance(result, LinkedInActionResult) and result.http_status == 403:
-        # Some tokens expose w_member_social but not the newer *_social_feed
-        # permission required by the versioned /rest/socialActions endpoint.
-        # Try the legacy v2 route as a compatibility fallback.
-        legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(post_urn, safe='')}/comments"
-        legacy_result = _post_legacy_interaction(legacy_endpoint, token=token, body=body, action="comment_v2")
-        if isinstance(legacy_result, requests.Response):
-            comment_id = (legacy_result.headers.get("x-restli-id", "") or legacy_result.headers.get("X-RestLi-Id", "")).strip()
-            if comment_id:
-                return LinkedInActionResult(status="PUBLISHED", item_id=f"urn:li:comment:({post_urn},{comment_id})", http_status=legacy_result.status_code)
-        if isinstance(legacy_result, LinkedInActionResult):
-            print(f"LinkedIn comment v2 fallback: {legacy_result.status} | http={legacy_result.http_status} | error={legacy_result.error}")
+
+    # Personal member path: keep the known-working w_member_social route first.
+    legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(post_urn, safe='')}/comments"
+    legacy_result = _post_legacy_interaction(
+        legacy_endpoint,
+        token=token,
+        body=body,
+        action="comment_v2",
+    )
+    if isinstance(legacy_result, requests.Response):
+        comment_id = (
+            legacy_result.headers.get("x-restli-id", "")
+            or legacy_result.headers.get("X-RestLi-Id", "")
+        ).strip()
+        if comment_id:
+            return LinkedInActionResult(
+                status="PUBLISHED",
+                item_id=f"urn:li:comment:({post_urn},{comment_id})",
+                http_status=legacy_result.status_code,
+            )
+        return LinkedInActionResult(
+            status="FAILED",
+            error="comment_v2: LinkedIn returned no comment ID",
+            http_status=legacy_result.status_code,
+        )
+
+    # Compatibility fallback. This is not required for the personal
+    # w_member_social path; it is only useful when the token also has access
+    # to the newer versioned socialActions API.
+    if legacy_result.http_status not in {400, 401, 403, 404}:
+        return legacy_result
+
+    endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments"
+    result = _post_interaction_with_retry(
+        endpoint=endpoint,
+        token=token,
+        body=body,
+        action="comment",
+    )
     if isinstance(result, LinkedInActionResult):
-        print(f"LinkedIn comment: {result.status} | http={result.http_status} | error={result.error}")
+        print(
+            f"LinkedIn comment: {result.status} | http={result.http_status} | "
+            f"error={result.error}"
+        )
         return result
-    comment_id = (result.headers.get("x-restli-id", "") or result.headers.get("X-RestLi-Id", "")).strip()
+
+    comment_id = (
+        result.headers.get("x-restli-id", "")
+        or result.headers.get("X-RestLi-Id", "")
+    ).strip()
     if not comment_id:
-        return LinkedInActionResult(status="FAILED", error="comment: LinkedIn returned no comment ID", http_status=result.status_code)
-    return LinkedInActionResult(status="PUBLISHED", item_id=f"urn:li:comment:({post_urn},{comment_id})", http_status=result.status_code)
+        return LinkedInActionResult(
+            status="FAILED",
+            error="comment: LinkedIn returned no comment ID",
+            http_status=result.status_code,
+        )
+    return LinkedInActionResult(
+        status="PUBLISHED",
+        item_id=f"urn:li:comment:({post_urn},{comment_id})",
+        http_status=result.status_code,
+    )
 
 
 def _post_legacy_interaction(endpoint: str, *, token: str, body: dict[str, Any], action: str):
@@ -261,31 +313,49 @@ def like_comment(*, token: str, actor_urn: str, comment_urn: str) -> LinkedInAct
 
 
 def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) -> LinkedInActionResult:
+    # Keep reactions on the same personal-member path as comments. This avoids
+    # requiring *_member_social_feed merely to add a like from the member token.
+    legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(root_urn, safe='')}/likes"
+    legacy_body = {"actor": actor_urn, "object": root_urn}
+    legacy_result = _post_legacy_interaction(
+        legacy_endpoint,
+        token=token,
+        body=legacy_body,
+        action=f"{action}_v2",
+    )
+    if isinstance(legacy_result, requests.Response):
+        reaction_id = ""
+        try:
+            payload = legacy_result.json()
+            if isinstance(payload, dict):
+                reaction_id = str(payload.get("id", "")).strip()
+        except ValueError:
+            pass
+        return LinkedInActionResult(
+            status="LIKED",
+            item_id=reaction_id,
+            http_status=legacy_result.status_code,
+        )
+
+    if legacy_result.http_status not in {400, 401, 403, 404}:
+        return legacy_result
+
     encoded_actor = quote(actor_urn, safe="")
     endpoint = f"{LINKEDIN_REST_BASE}/reactions?actor={encoded_actor}"
     body = {"root": root_urn, "reactionType": "LIKE"}
-    result = _post_interaction_with_retry(endpoint=endpoint, token=token, body=body, action=action)
-    if isinstance(result, LinkedInActionResult) and result.http_status == 403:
-        legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(root_urn, safe='')}/likes"
-        legacy_body = {"actor": actor_urn, "object": root_urn}
-        legacy_result = _post_legacy_interaction(legacy_endpoint, token=token, body=legacy_body, action=f"{action}_v2")
-        if isinstance(legacy_result, requests.Response):
-            reaction_id = ""
-            try:
-                payload = legacy_result.json()
-                if isinstance(payload, dict):
-                    reaction_id = str(payload.get("id", "")).strip()
-            except ValueError:
-                pass
-            return LinkedInActionResult(status="LIKED", item_id=reaction_id, http_status=legacy_result.status_code)
-        if isinstance(legacy_result, LinkedInActionResult):
-            if legacy_result.http_status == 409:
-                print(f"LinkedIn {action} v2 fallback: ALREADY_REACTED | http=409")
-                return LinkedInActionResult(status="LIKED", item_id="", http_status=409)
-            print(f"LinkedIn {action} v2 fallback: {legacy_result.status} | http={legacy_result.http_status} | error={legacy_result.error}")
+    result = _post_interaction_with_retry(
+        endpoint=endpoint,
+        token=token,
+        body=body,
+        action=action,
+    )
     if isinstance(result, LinkedInActionResult):
-        print(f"LinkedIn {action}: {result.status} | http={result.http_status} | error={result.error}")
+        print(
+            f"LinkedIn {action}: {result.status} | http={result.http_status} | "
+            f"error={result.error}"
+        )
         return result
+
     reaction_id = ""
     try:
         payload = result.json()
@@ -293,7 +363,11 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
             reaction_id = str(payload.get("id", "")).strip()
     except ValueError:
         pass
-    return LinkedInActionResult(status="LIKED", item_id=reaction_id, http_status=result.status_code)
+    return LinkedInActionResult(
+        status="LIKED",
+        item_id=reaction_id,
+        http_status=result.status_code,
+    )
 
 
 def publish_to_linkedin(*, token: str, author_urn: str, image_path: str | Path, commentary: str, first_comment: str) -> dict[str, Any]:
