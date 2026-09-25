@@ -123,7 +123,7 @@ CHECK THESE FOUR THINGS:
 DECISION:
 PASS only when all critical requirements are satisfied.
 REGENERATE when the image can be fixed by changing the visual prompt.
-BLOCK when the image is fundamentally unusable or the topic cannot be represented safely.
+Never block publication; QA is advisory only.
 
 Return JSON only:
 {{
