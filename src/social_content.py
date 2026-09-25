@@ -45,6 +45,34 @@ KEYWORD_HASHTAGS = {
     "ملكية": "#ملكية_فكرية",
 }
 
+AI_SIGNAL_PATTERNS = (
+    "ذكاء اصطناعي",
+    "الذكاء الاصطناعي",
+    "مولد آلي",
+    "مولد تلقائي",
+    "محتوى مولد",
+    "نموذج لغوي",
+    "بواسطة النموذج",
+    "تم توليد",
+)
+
+QUOTE_CHARS = str.maketrans({
+    "«": "", "»": "", "“": "", "”": "", "„": "", "‟": "", '"': "", "′": "", "″": "",
+})
+
+def sanitize_social_copy(post: str) -> str:
+    """Normalize human-style social copy without changing its substantive meaning."""
+    text = str(post or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = text.translate(QUOTE_CHARS)
+    for marker in AI_SIGNAL_PATTERNS:
+        text = re.sub(re.escape(marker), "", text, flags=re.IGNORECASE)
+    # Remove sentence-final full stops while preserving question/exclamation punctuation,
+    # decimals, URLs, and hashtag syntax.
+    text = re.sub(r"[.。]+(?=\s+(?:[A-Za-z\u0600-\u06FF])|\s*$)", "", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
 HASHTAG_RE = re.compile(
     r"(?<!\w)#(?:[\w\u0600-\u06FF]+(?:_[\w\u0600-\u06FF]+)*)",
     re.UNICODE,
@@ -63,7 +91,7 @@ def build_hashtags(topic: str, *, max_tags: int = 8) -> list[str]:
 
 
 def append_hashtags(post: str, topic: str, *, max_tags: int = 8) -> str:
-    text = str(post or "").strip()
+    text = sanitize_social_copy(str(post or "").strip())
     if not text:
         return text
     existing = set(HASHTAG_RE.findall(text))
