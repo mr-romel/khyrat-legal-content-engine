@@ -224,11 +224,17 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
             print(f"Comment AI unavailable; using deterministic platform-specific comments: {primary_exc}")
             return _fallback_comments(topic=topic, post=post, count=count)
 
-    data = _extract_json(getattr(response, "text", ""))
-    facebook = _normalize(data.get("facebook_comments"), count)
-    linkedin = _normalize(data.get("linkedin_comments"), count)
-    if len(facebook) != count or len(linkedin) != count:
-        raise RuntimeError("Comment engine must return 3-7 Facebook comments and the same count for LinkedIn.")
+    try:
+        data = _extract_json(getattr(response, "text", ""))
+        facebook = _normalize(data.get("facebook_comments"), count)
+        linkedin = _normalize(data.get("linkedin_comments"), count)
+        if len(facebook) != count or len(linkedin) != count:
+            raise RuntimeError(
+                f"Comment engine returned Facebook={len(facebook)} and LinkedIn={len(linkedin)}; expected {count} each."
+            )
+    except Exception as exc:
+        print(f"Comment AI output validation failed; using deterministic platform-specific comments: {exc}")
+        return _fallback_comments(topic=topic, post=post, count=count)
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
     _COMMENT_CACHE[cache_key] = result
