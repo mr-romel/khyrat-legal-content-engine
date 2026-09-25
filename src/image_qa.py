@@ -150,7 +150,7 @@ def qa_image(
     topic: str,
     image_brief: str,
     model: str | None = None,
-    image_mode: str = "CONTEXT_ONLY",
+    image_mode: str = "REFERENCE_SUBJECT",
 ) -> dict[str, Any]:
     if not api_key:
         raise ImageQAError("GEMINI_API_KEY is missing for image QA.")
@@ -160,10 +160,25 @@ def qa_image(
         raise ImageQAError(f"Image does not exist for QA: {path}")
 
     hard = _hard_checks(path)
-    image_mode = (image_mode or "CONTEXT_ONLY").strip().upper()
-    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
-        image_mode = "CONTEXT_ONLY"
-    references = _reference_files() if image_mode == "REFERENCE_SUBJECT" else []
+    image_mode = (image_mode or "REFERENCE_SUBJECT").strip().upper()
+    if image_mode != "REFERENCE_SUBJECT":
+        return {
+            "decision": "BLOCK",
+            "composition_score": 0,
+            "relevance_score": 0,
+            "reference_score": 0,
+            "overall_score": 0,
+            "text_detected": False,
+            "detected_text": [],
+            "composition_findings": [],
+            "relevance_findings": [],
+            "reference_findings": ["CONTEXT_ONLY is disabled by the publication contract."],
+            "issues": ["Publishable images must use the uploaded reference subject."],
+            "regeneration_prompt": "",
+            "hard_checks": hard,
+            "image_mode": image_mode,
+        }
+    references = _reference_files()
 
     if not hard["aspect_ratio_ok"]:
         return {
