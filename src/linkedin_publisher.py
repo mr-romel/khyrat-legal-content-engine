@@ -235,7 +235,7 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
         body=body,
         action="comment_v2",
     )
-    if isinstance(legacy_result, requests.Response):
+    if _is_http_response(legacy_result):
         comment_id = (
             legacy_result.headers.get("x-restli-id", "")
             or legacy_result.headers.get("X-RestLi-Id", "")
@@ -289,6 +289,13 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     )
 
 
+def _is_http_response(value: Any) -> bool:
+    """Accept real requests responses and lightweight response doubles in tests."""
+    return isinstance(value, requests.Response) or (
+        hasattr(value, "status_code") and hasattr(value, "headers") and hasattr(value, "ok")
+    )
+
+
 def _post_legacy_interaction(endpoint: str, *, token: str, body: dict[str, Any], action: str):
     try:
         response = requests.post(
@@ -323,7 +330,7 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
         body=legacy_body,
         action=f"{action}_v2",
     )
-    if isinstance(legacy_result, requests.Response):
+    if _is_http_response(legacy_result):
         reaction_id = ""
         try:
             payload = legacy_result.json()
