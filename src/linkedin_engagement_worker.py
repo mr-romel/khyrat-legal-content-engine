@@ -262,7 +262,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
                  "last_error": "Superseded by the 3-7 comment bundle worker."},
             )
 
-    count = choose_comment_count(post_urn)
+    count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
     comments = generate_linkedin_comments(
         api_key=CONFIG["gemini_api_key"],
         model=CONFIG["gemini_model"],
