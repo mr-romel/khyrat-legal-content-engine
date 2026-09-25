@@ -399,6 +399,21 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
         if str(row.get("action", "")).upper() != "REACTION":
             continue
         status = str(row.get("status", "")).upper()
+        if status == "FAILED" and "http 409" in str(row.get("last_error", "")).lower():
+            update_event(
+                service,
+                spreadsheet_id,
+                int(row["_row_number"]),
+                {
+                    "status": "LIKED",
+                    "last_error": "",
+                    "capability_status": "RECOVERY_IDEMPOTENT_409",
+                    "updated_at": iso(current),
+                },
+            )
+            print("Marked LinkedIn post reaction as LIKED because LinkedIn returned HTTP 409 for an existing reaction.")
+            released += 1
+            break
         capability = str(row.get("capability_status", "")).upper()
         if status == "RETRY" and capability != "RECOVERY_RELEASED":
             recovery_status = "RETRY"
