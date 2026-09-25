@@ -32,7 +32,7 @@ def test_qa_prompt_preserves_reference_as_identity_source():
         "REFERENCE_SUBJECT",
     )
     assert "identity source" in prompt
-    assert "new pose/scene" in prompt
+    assert "generated scene must be new" in prompt
     assert "bottom-right overlay" in prompt
     assert "legal situation" in prompt
 
