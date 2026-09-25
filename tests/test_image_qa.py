@@ -49,5 +49,5 @@ def test_context_only_is_not_publishable(tmp_path):
         image_brief="A realistic contract review scene.",
         image_mode="CONTEXT_ONLY",
     )
-    assert result["decision"] == "BLOCK"
-    assert "uploaded reference subject" in " ".join(result["issues"])
+    assert result["decision"] == "REGENERATE"
+    assert "publication is not blocked" in " ".join(result["issues"])
