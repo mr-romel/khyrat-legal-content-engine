@@ -1,8 +1,10 @@
 name: Facebook Engagement Worker
 
 on:
-  # Scheduling is owned by the external Cloudflare scheduler.
-  # Keep manual dispatch for diagnostics and emergency recovery.
+  # Cloudflare remains the primary scheduler. GitHub schedule is a redundancy
+  # path so a missed external dispatch cannot silently stop engagement.
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
