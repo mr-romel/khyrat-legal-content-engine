@@ -1,6 +1,9 @@
 name: Facebook Engagement Worker
 
 on:
+  push:
+    paths:
+      - "ops/engagement-kick.txt"
   # Cloudflare remains the primary scheduler. GitHub schedule is a redundancy
   # path so a missed external dispatch cannot silently stop engagement.
   schedule:
