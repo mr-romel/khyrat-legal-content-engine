@@ -150,10 +150,11 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     raw_id = row.get("ID", "") or f"row-{row_number}"
     safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
+    working_image_path = GENERATED_DIR / ".tmp" / f"{safe_id}.jpg"
     recovery = str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"}
 
     stored_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
-    if recovery and existing_post and image_path.is_file() and stored_image_mode in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
+    if recovery and existing_post and image_path.is_file() and stored_image_mode == "REFERENCE_SUBJECT":
         try:
             qa = qa_image(
                 api_key=config["gemini_api_key"],
@@ -161,7 +162,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 topic=topic,
                 image_brief=str(row.get("وصف الصورة", "") or "").strip() or "Existing generated visual for this legal topic.",
                 model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
-                image_mode=str(row.get("Image Mode", "") or "CONTEXT_ONLY").strip().upper() or "CONTEXT_ONLY",
+                image_mode="REFERENCE_SUBJECT",
             )
         except ImageQAError as exc:
             reason = f"Image QA unavailable: {exc}"
@@ -229,7 +230,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     working_brief = image_brief
     for attempt in range(1, QA_MAX_RETRIES + 1):
         create_legal_image(
-            topic=topic, image_brief=working_brief, output_path=str(image_path),
+            topic=topic, image_brief=working_brief, output_path=str(working_image_path),
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
             gemini_api_key=config["gemini_api_key"],
@@ -264,6 +265,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         })
 
         if qa_status == "PASS":
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            working_image_path.parent.mkdir(parents=True, exist_ok=True)
+            working_image_path.replace(image_path)
             image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "الحالة": "READY_FOR_SOCIAL_PUBLISH", "رابط الصورة": image_url, "Image Mode": image_mode,
@@ -285,6 +289,11 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         working_brief = f"{image_brief}\n\nFINAL IMAGE QA CORRECTIONS — MUST FIX:\n{correction or 'Fix every detected visual QA defect while preserving the legal story and reference identity.'}"
         print(f"Image preview/QA REGENERATE: attempt={attempt} | {qa_reason or correction}")
 
+    try:
+        if working_image_path.exists():
+            working_image_path.unlink()
+    except OSError:
+        pass
     final_reason = summarize_qa(qa_last) or "Final generated image did not pass visual QA."
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "الحالة": "NEEDS_IMAGE_REVIEW", "Image QA Status": "BLOCK",
