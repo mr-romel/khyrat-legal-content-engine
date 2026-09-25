@@ -273,26 +273,50 @@ def _smart_target_datetime(row: dict[str, str]):
 
 def _smart_is_due(row: dict[str, str], current) -> bool:
     """
-    Keep an unprocessed scheduled row eligible after its target time.
-    A missed/delayed run must be recovered automatically by the next run.
-    The sheet publication state is the source of truth; only successful
-    publication removes a row from eligibility.
+    A row is due whenever its scheduled Cairo time has passed and it has not
+    been successfully published or explicitly cancelled.
+
+    PROCESSING is treated as recoverable after 30 minutes so an interrupted
+    run cannot strand the daily slot forever. Recent PROCESSING rows are kept
+    untouched to avoid duplicate publication during a live/overlapping run.
     """
     status = str(row.get("الحالة", "READY")).strip().upper()
-    if status not in {"READY", "READY_FOR_SOCIAL_PUBLISH", "FAILED", "PARTIAL_FAILED"}:
+    if status in {"PUBLISHED", "CANCELLED"}:
         return False
+
     target = _smart_target_datetime(row)
     if target is None or current < target:
         return False
+
+    if status == "PROCESSING":
+        last_run_raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
+        try:
+            last_run = datetime.fromisoformat(last_run_raw.replace("Z", "+00:00")) if last_run_raw else None
+        except ValueError:
+            last_run = None
+        if last_run is not None:
+            if last_run.tzinfo is None:
+                last_run = last_run.replace(tzinfo=current.tzinfo)
+            return current - last_run >= timedelta(minutes=30)
+        # If the timestamp is malformed/missing, recover only after the slot
+        # itself has been overdue for at least 30 minutes.
+        return current - target >= timedelta(minutes=30)
+
+    # READY/FAILED/PARTIAL_FAILED/blank and other non-terminal states remain
+    # retryable. This is deliberate: component failures must not strand a post.
     return True
 
 
-def _smart_failed_retry(row: dict[str, str], current) -> bool:
-    """
-    Failed/partial rows remain retryable on every subsequent run after
-    their scheduled time. There is intentionally no one-hour expiry.
-    """
-    return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and _smart_is_due(row, current)
+def _due_diagnostics(rows: list[dict[str, str]], current) -> None:
+    status_counts: dict[str, int] = {}
+    overdue = 0
+    for row in rows:
+        status = str(row.get("الحالة", "")).strip().upper() or "<BLANK>"
+        status_counts[status] = status_counts.get(status, 0) + 1
+        target = _smart_target_datetime(row)
+        if target is not None and target <= current and status not in {"PUBLISHED", "CANCELLED"}:
+            overdue += 1
+    print(f"Due diagnostics: overdue_unpublished={overdue}; statuses={status_counts}")
 
 
 def _recover_stale_processing_rows(*, service, spreadsheet_id: str, sheet_name: str, rows: list[dict[str, str]], current) -> int:
@@ -364,8 +388,7 @@ def _smart_main() -> None:
         rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     if not candidates:
-        candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_failed_retry(r, current)]
-    if not candidates:
+        _due_diagnostics(rows, current)
         print("No due rows found.")
         return
     history = get_bank_rows(service, config["sheet_id"])
