@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from content_system import SYSTEM_SHEETS, build_authority_rows, ensure_system_sheets, update_winner
+from content_intelligence_engine import build_dashboard_html, build_strategy
 from post_bank import get_bank_rows
 from sheets import create_service, get_values
 
@@ -77,6 +78,8 @@ def main() -> None:
 
     post_rows = get_bank_rows(service, spreadsheet_id)
     winner_rows = _rows(service, spreadsheet_id, "ContentWinners", SYSTEM_SHEETS["ContentWinners"])
+    strategy = build_strategy(service, spreadsheet_id)
+    dashboard_path = build_dashboard_html(strategy)
     authority = build_authority_rows(post_rows, winner_rows)
     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id, range="AuthorityMap!A1:G1", valueInputOption="RAW",
@@ -87,7 +90,7 @@ def main() -> None:
             spreadsheetId=spreadsheet_id, range="AuthorityMap!A:G", valueInputOption="RAW",
             insertDataOption="INSERT_ROWS", body={"values": authority},
         ).execute()
-    print(json.dumps({"metrics": len(metrics), "winners_scored": len(metrics), "authority_rows": len(authority)}, ensure_ascii=False))
+    print(json.dumps({"metrics": len(metrics), "winners_scored": len(metrics), "authority_rows": len(authority), "recommendations": len(strategy.get("recommendations", [])), "dashboard": dashboard_path}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
