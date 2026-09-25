@@ -163,7 +163,7 @@ def qa_image(
     image_mode = (image_mode or "REFERENCE_SUBJECT").strip().upper()
     if image_mode != "REFERENCE_SUBJECT":
         return {
-            "decision": "BLOCK",
+            "decision": "REGENERATE",
             "composition_score": 0,
             "relevance_score": 0,
             "reference_score": 0,
@@ -230,8 +230,8 @@ def qa_image(
 
     data = _extract_json(getattr(response, "text", ""))
     decision = str(data.get("decision", "")).strip().upper()
-    if decision not in {"PASS", "REGENERATE", "BLOCK"}:
-        decision = "BLOCK"
+    if decision not in {"PASS", "REGENERATE"}:
+        decision = "REGENERATE"
 
     data["decision"] = decision
     data["composition_score"] = _normalize_score(data.get("composition_score"))
@@ -256,7 +256,7 @@ def qa_image(
     if data["relevance_score"] < QA_MIN_RELEVANCE:
         critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
     if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < 90:
-        critical_failures.append("Reference identity score below 90.")
+        critical_failures.append("Reference identity score below 90 (advisory).")
     if data["overall_score"] < QA_MIN_OVERALL:
         critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
 
