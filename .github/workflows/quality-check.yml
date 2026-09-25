@@ -43,7 +43,7 @@ jobs:
           python -m pytest -q tests/test_image_qa.py
       - name: Verify social engagement strategy tests
         run: |
-          python -m pytest -q tests/test_engagement_strategy.py tests/test_linkedin_engagement.py
+          python -m pytest -q tests/test_engagement_strategy.py tests/test_linkedin_engagement.py tests/test_linkedin_publisher.py
       - name: Verify strategic content system unit tests
         run: |
           python -m pytest -q tests/test_content_system.py
