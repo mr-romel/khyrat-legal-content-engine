@@ -11,6 +11,7 @@ from comment_engine import generate_comments
 from config import load_config
 from content_planner import classify
 from content_diversity import build_diversity_context
+from content_system import record_fingerprint
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, publish_photo
 from gemini import generate_post
@@ -430,6 +431,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 add_published_post(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, content=facebook_post, publish_date=current.date().isoformat(), facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, image_url=image_url or "", legal_sources=row.get("المصادر القانونية", ""), angle=row.get("ملاحظات", ""), objective=objective, review_level=review_level)
                 log_publication(service, config["sheet_id"], source_row_id=row.get("ID", ""), topic=topic, pillar=pillar, objective=objective, facebook_post_id=facebook_post_id, linkedin_post_id=linkedin_post_id, facebook_comments="0", linkedin_comments="0", status=final_status)
+                record_fingerprint(service, config["sheet_id"], post_id=facebook_post_id, topic=topic, post=facebook_post, angle=row.get("ملاحظات", ""), objective=objective, platform="FACEBOOK")
+                record_fingerprint(service, config["sheet_id"], post_id=linkedin_post_id, topic=topic, post=linkedin_post, angle=row.get("ملاحظات", ""), objective=objective, platform="LINKEDIN")
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
             notify(
