@@ -154,7 +154,7 @@ Return one compact paragraph, no bullets, no markdown.
     return CHARACTER_REFERENCE_PROFILE
 
 
-def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None, image_mode: str = "CONTEXT_ONLY") -> str:
+def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None, image_mode: str = "REFERENCE_SUBJECT") -> str:
     topic = topic.strip().replace("\r", " ").replace("\n", " ")
     brief = image_brief.strip().replace("\r", " ").replace("\n\n", "\n")
     if len(brief) > 900:
@@ -352,7 +352,7 @@ def _cloudflare_generate(*, endpoint: str, headers: dict[str, str], prompt: str,
         raise ImageGenerationError(f"Cloudflare image request failed: {exc}") from exc
 
 
-def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, gemini_api_key: str | None = None, page_name: str | None = None, image_mode: str = "CONTEXT_ONLY") -> str:
+def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudflare_account_id: str | None = None, cloudflare_api_token: str | None = None, gemini_api_key: str | None = None, page_name: str | None = None, image_mode: str = "REFERENCE_SUBJECT") -> str:
     account_id = (cloudflare_account_id or "").strip()
     api_token = (cloudflare_api_token or "").strip()
     if not account_id:
@@ -374,12 +374,14 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         print(f"Character reference files: {reference_names}")
     else:
         print(f"Character reference assets not found at {reference_dir}; continuing with identity profile only.")
-    image_mode = (image_mode or "CONTEXT_ONLY").strip().upper()
-    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
-        image_mode = "CONTEXT_ONLY"
-    if image_mode == "REFERENCE_SUBJECT" and not reference_files:
+    image_mode = (image_mode or "REFERENCE_SUBJECT").strip().upper()
+    if image_mode != "REFERENCE_SUBJECT":
+        raise ImageGenerationError(
+            "Only REFERENCE_SUBJECT images are publishable; CONTEXT_ONLY is disabled by the publication contract."
+        )
+    if not reference_files:
         raise ImageGenerationError("REFERENCE_SUBJECT was requested but no reference images were found.")
-    character_profile = _build_character_identity_profile(reference_files, gemini_api_key) if image_mode == "REFERENCE_SUBJECT" else ""
+    character_profile = _build_character_identity_profile(reference_files, gemini_api_key)
     prompt = _build_prompt(topic, image_brief, character_profile=character_profile, image_mode=image_mode)
     print(f"Cloudflare prompt length: {len(prompt)} characters | image_mode={image_mode}")
     endpoint = IMAGE_ENDPOINT.format(account_id=account_id)
@@ -388,7 +390,7 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
         endpoint=endpoint,
         headers=headers,
         prompt=prompt,
-        reference_files=reference_files if image_mode == "REFERENCE_SUBJECT" else [],
+        reference_files=reference_files,
     )
     image_bytes = _extract_image_bytes(response)
     if not image_bytes:
