@@ -198,9 +198,18 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     )
     post = str(result.get("post", "") or "").strip()
     image_brief = str(result.get("image_brief", "") or "").strip()
-    image_mode = str(result.get("image_mode", "CONTEXT_ONLY") or "CONTEXT_ONLY").strip().upper()
-    if image_mode not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
-        image_mode = "CONTEXT_ONLY"
+    image_mode = str(result.get("image_mode", "REFERENCE_SUBJECT") or "REFERENCE_SUBJECT").strip().upper()
+    if image_mode != "REFERENCE_SUBJECT":
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "الحالة": "NEEDS_IMAGE_REVIEW",
+            "Image Mode": image_mode,
+            "Image QA Status": "BLOCK",
+            "Image QA Issues": "Publishable images must use the uploaded reference subject.",
+            "آخر خطأ": "The generated image plan did not satisfy the reference-subject publication contract.",
+            "وقت آخر تشغيل": current.isoformat()
+        })
+        _notify_review(row_number, {**row, "المحتوى": post}, "BLOCK", "The image must use the uploaded reference subject and remain directly relevant.", config)
+        return None, None, None, "BLOCK", "The image must use the uploaded reference subject and remain directly relevant."
     review_level = str(result.get("review_level", "REVIEW") or "REVIEW").upper()
     review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     if not post or not image_brief:
