@@ -194,57 +194,82 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
     generated_image_path = None
+    qa_summary = ""
     try:
-        create_legal_image(
-            topic=topic,
-            image_brief=image_brief,
-            output_path=str(working_image_path),
-            cloudflare_account_id=config["cloudflare_account_id"],
-            cloudflare_api_token=config["cloudflare_api_token"],
-            gemini_api_key=config["gemini_api_key"],
-            image_mode="REFERENCE_SUBJECT",
-        )
-        if not working_image_path.is_file() or working_image_path.stat().st_size == 0:
-            raise ImageGenerationError("Generated image file was empty.")
+        best_path = None
+        best_score = -1
+        best_qa = None
+        candidate_brief = image_brief
+
+        for image_attempt in range(1, 3):
+            candidate_path = GENERATED_DIR / ".tmp" / f"{safe_id}.attempt{image_attempt}.jpg"
+            try:
+                create_legal_image(
+                    topic=topic,
+                    image_brief=candidate_brief,
+                    output_path=str(candidate_path),
+                    cloudflare_account_id=config["cloudflare_account_id"],
+                    cloudflare_api_token=config["cloudflare_api_token"],
+                    gemini_api_key=config["gemini_api_key"],
+                    image_mode="REFERENCE_SUBJECT",
+                )
+                if not candidate_path.is_file() or candidate_path.stat().st_size == 0:
+                    raise ImageGenerationError("Generated image file was empty.")
+
+                qa = None
+                try:
+                    qa = qa_image(
+                        api_key=config["gemini_api_key"],
+                        image_path=str(candidate_path),
+                        topic=topic,
+                        image_brief=candidate_brief,
+                        model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
+                        image_mode="REFERENCE_SUBJECT",
+                    )
+                    score = int(qa.get("overall_score", 0) or 0)
+                    if best_path is None or score > best_score:
+                        best_path = candidate_path
+                        best_score = score
+                        best_qa = qa
+                    qa_summary = summarize_qa(qa)
+                    print(f"Image QA advisory attempt {image_attempt}: decision={qa.get('decision')} score={score} | {qa_summary}")
+
+                    if str(qa.get("decision", "")).upper() == "PASS":
+                        break
+
+                    regeneration_prompt = str(qa.get("regeneration_prompt", "") or "").strip()
+                    if regeneration_prompt:
+                        candidate_brief = f"{image_brief}\n\nADVISORY REGENERATION CORRECTIONS:\n{regeneration_prompt}"
+                except Exception as qa_exc:
+                    print(f"Image QA advisory attempt {image_attempt} unavailable: {qa_exc}")
+                    if best_path is None:
+                        best_path = candidate_path
+                        best_score = 0
+
+            except Exception as image_attempt_exc:
+                print(f"Image generation attempt {image_attempt} unavailable: {image_attempt_exc}")
+
+        if best_path is None:
+            raise ImageGenerationError("All image generation attempts failed.")
+
         image_path.parent.mkdir(parents=True, exist_ok=True)
-        working_image_path.replace(image_path)
+        if best_path.resolve() != image_path.resolve():
+            best_path.replace(image_path)
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
+
+        qa_status = "ADVISORY_PASS" if best_qa and str(best_qa.get("decision", "")).upper() == "PASS" else "ADVISORY_REGENERATE"
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "رابط الصورة": image_url,
             "Image Mode": "REFERENCE_SUBJECT",
-            "Image QA Attempt": "ADVISORY",
-            "Image QA Status": "PENDING_ADVISORY",
+            "Image QA Attempt": "ADVISORY_2X",
+            "Image QA Status": qa_status,
+            "Image QA Score": best_qa.get("overall_score", 0) if best_qa else best_score,
+            "Image QA Issues": qa_summary[:1500],
             "المحتوى": post,
             "وصف الصورة": image_brief,
             "وقت آخر تشغيل": current.isoformat(),
         })
-        try:
-            qa = qa_image(
-                api_key=config["gemini_api_key"],
-                image_path=str(image_path),
-                topic=topic,
-                image_brief=image_brief,
-                model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
-                image_mode="REFERENCE_SUBJECT",
-            )
-            qa_reason = summarize_qa(qa)
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image QA Status": f"ADVISORY_{qa.get('decision', 'UNKNOWN')}",
-                "Image QA Score": qa.get("overall_score", 0),
-                "Image QA Issues": qa_reason,
-                "Image QA Attempt": "ADVISORY",
-                "آخر خطأ": "" if qa.get("decision") == "PASS" else qa_reason,
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-            print(f"Image QA advisory only: decision={qa.get('decision')} score={qa.get('overall_score')} | {qa_reason}")
-        except Exception as qa_exc:
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image QA Status": "ADVISORY_UNAVAILABLE",
-                "Image QA Issues": str(qa_exc)[:1500],
-                "Image QA Attempt": "ADVISORY",
-            })
-            print(f"Image QA unavailable — continuing publication: {qa_exc}")
     except Exception as image_exc:
         generated_image_path = image_path if image_path.is_file() else None
         print(f"Image generation unavailable — continuing publication without image: {image_exc}")
@@ -257,7 +282,6 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             "رابط الصورة": existing_image_url,
             "وقت آخر تشغيل": current.isoformat(),
         })
-
     return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
