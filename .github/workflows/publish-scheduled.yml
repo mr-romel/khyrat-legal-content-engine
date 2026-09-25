@@ -53,6 +53,7 @@ jobs:
           GEMINI_PRIMARY_ATTEMPTS: "2"
           GEMINI_FALLBACK_ATTEMPTS: "1"
           CLOUDFLARE_IMAGE_STEPS: "4"
+        continue-on-error: true
         run: |
           echo "GitHub event: ${{ github.event_name }}"
           echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
