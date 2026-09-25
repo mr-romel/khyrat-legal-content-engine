@@ -217,7 +217,7 @@ def ensure_visual_concepts(service, spreadsheet_id: str) -> None:
             _append(service, spreadsheet_id, "VisualConcepts", [concept_id, concept, use_when, avoid_when, direction, _now()])
 
 
-def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_id: str, topic: str, angle: str, objective: str, platform: str, post_id: str) -> None:
+def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_id: str, topic: str, angle: str, objective: str, platform: str, post_id: str, post: str = "") -> None:
     try:
         ensure_system_sheets(service, spreadsheet_id)
         service_name, intent, cta = service_mapping(topic)
@@ -229,7 +229,7 @@ def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_
         _append(service, spreadsheet_id, "ContentExperiments", [experiment_id, post_id, variable, experiment.split(" | ")[0], experiment.split(" | ", 1)[1], "ACTIVE", _now()])
         _append(service, spreadsheet_id, "ConversionMap", [topic, service_name, intent, cta, "COMMENT_OR_MESSAGE"])
         _append(service, spreadsheet_id, "VoiceProfile", [VOICE_PROFILE["version"], VOICE_PROFILE["principles"], VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now()])
-        record_fingerprint(service, spreadsheet_id, post_id=post_id, topic=topic, post="", angle=angle, objective=objective, platform=platform)
+        record_fingerprint(service, spreadsheet_id, post_id=post_id, topic=topic, post=post, angle=angle, objective=objective, platform=platform)
         ensure_visual_concepts(service, spreadsheet_id)
         print(f"Content system: lineage={root} derivatives={len(tree)} service={service_name} experiment={experiment_id}")
     except Exception as exc:
