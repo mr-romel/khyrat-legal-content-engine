@@ -17,15 +17,14 @@ IMAGE_ENDPOINT = (
     "{account_id}/ai/run/"
     "@cf/black-forest-labs/flux-2-dev"
 )
-MAX_PROMPT_LENGTH = 1800
+MAX_PROMPT_LENGTH = 5000
 IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "25")), 50))
 DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
 
-# Character reference assets are stored in the repository and used as an identity
-# guide in the visual prompt. The current zero-additional-cost FLUX.1-schnell
-# endpoint is text-to-image, so it cannot ingest the JPEGs directly. We therefore
-# keep the reference assets separate from the scene and encode only stable visual
-# traits in the prompt; backgrounds/poses/compositions are never copied.
+# Character reference assets are supplied directly to FLUX.2 [dev] as multi-reference
+# image inputs when REFERENCE_SUBJECT mode is selected. The prompt also names the
+# reference image slots explicitly so the model is instructed to preserve identity
+# rather than inventing a generic professional man.
 CHARACTER_REFERENCE_DIR = Path("assets/reference")
 CHARACTER_REFERENCE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"
