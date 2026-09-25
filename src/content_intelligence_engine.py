@@ -41,6 +41,8 @@ def _top(rows: list[dict[str, str]], key: str, n: int = 5) -> list[tuple[str, fl
 
 
 def build_strategy(service, spreadsheet_id: str) -> dict[str, object]:
+    from content_system import ensure_visual_concepts
+    ensure_visual_concepts(service, spreadsheet_id)
     metrics = _rows(service, spreadsheet_id, "ContentMetrics", SYSTEM_SHEETS["ContentMetrics"])
     fingerprints = _rows(service, spreadsheet_id, "ContentFingerprints", SYSTEM_SHEETS["ContentFingerprints"])
     performance = _rows(service, spreadsheet_id, "Performance", [
