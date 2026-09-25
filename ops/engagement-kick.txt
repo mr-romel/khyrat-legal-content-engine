@@ -1,4 +1,4 @@
 Emergency engagement recovery trigger
 Created 2026-09-25
 Purpose: force one durable engagement-worker cycle after queue scheduling recovery
-Last manual recovery trigger: 2026-09-25T20:28:30.955Z
+Last manual recovery trigger: 2026-09-25T20:29:38.786Z
