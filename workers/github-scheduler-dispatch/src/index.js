@@ -4,11 +4,11 @@ const REF = "main";
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
 const SCHEDULES = {
   "0 * * * *": [
-    { workflow: "publish-scheduled.yml", activeWindowMs: 20 * 60 * 1000 },
+    { workflow: "publish-scheduled.yml" },
   ],
   "*/5 * * * *": [
-    { workflow: "facebook-engagement-worker.yml", activeWindowMs: 9 * 60 * 1000 },
-    { workflow: "linkedin-engagement-worker.yml", activeWindowMs: 9 * 60 * 1000 },
+    { workflow: "facebook-engagement-worker.yml" },
+    { workflow: "linkedin-engagement-worker.yml" },
   ],
 };
 const MAX_RETRIES = 3;
@@ -66,11 +66,9 @@ async function dispatchWorkflow(job, headers) {
     { headers },
   );
 
-  const now = Date.now();
   const active = (runs.workflow_runs || []).find((run) => {
     if (run.status !== "queued" && run.status !== "in_progress") return false;
-    const stamp = Date.parse(run.updated_at || run.created_at || "");
-    return Number.isFinite(stamp) && now - stamp < job.activeWindowMs;
+    return true;
   });
 
   if (active) {
