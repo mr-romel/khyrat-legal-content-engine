@@ -169,7 +169,7 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
     if post_id in bundled:
         return 0
 
-    count = choose_comment_count(post_id)
+    count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
     generated = generate_comments(
         api_key=CONFIG["gemini_api_key"],
         model=CONFIG["gemini_model"],
