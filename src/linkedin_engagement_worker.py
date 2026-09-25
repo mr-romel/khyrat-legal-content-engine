@@ -392,6 +392,34 @@ def release_legacy_permission_blocks(service, spreadsheet_id, existing, current)
     return released
 
 
+def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
+    """Immediately retry the first reaction that was parked by the old route."""
+    released = 0
+    for row in existing:
+        if str(row.get("action", "")).upper() != "REACTION":
+            continue
+        if str(row.get("status", "")).upper() != "RETRY":
+            continue
+        if int(row.get("attempts", "0") or "0") != 1:
+            continue
+        update_event(
+            service,
+            spreadsheet_id,
+            int(row["_row_number"]),
+            {
+                "status": "RETRY",
+                "scheduled_at": iso(current),
+                "last_error": "One-time recovery retry after LinkedIn reaction API route upgrade.",
+                "updated_at": iso(current),
+            },
+        )
+        released += 1
+        break
+    if released:
+        print("Released one parked LinkedIn post-reaction for immediate retry.")
+    return released
+
+
 def _latest_bundle_post(existing):
     bundles = []
     for row in existing:
@@ -468,6 +496,13 @@ def _main_impl():
     existing = read_engagement_rows(service, CONFIG["sheet_id"])
 
     release_legacy_permission_blocks(
+        service,
+        CONFIG["sheet_id"],
+        existing,
+        current,
+    )
+    existing = read_engagement_rows(service, CONFIG["sheet_id"])
+    release_one_time_reaction_retry(
         service,
         CONFIG["sheet_id"],
         existing,
