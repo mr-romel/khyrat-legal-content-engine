@@ -332,6 +332,50 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
     )
     return count
 
+def release_legacy_permission_blocks(service, spreadsheet_id, existing, current):
+    """Re-open queue items blocked by the old REST-first member path.
+
+    Before the personal-member route was made primary, a 403 from the
+    versioned REST socialActions endpoint could park an event for 24 hours.
+    Those events must be retried immediately after the route fix; otherwise
+    the old queue state would keep the worker silent even though the known
+    member path is available.
+    """
+    released = 0
+    for row in existing:
+        status = str(row.get("status", "")).upper()
+        if status != "BLOCKED_PERMISSION":
+            continue
+        action = str(row.get("action", "COMMENT")).upper()
+        if action not in {"COMMENT", "REACTION", "COMMENT_LIKE"}:
+            continue
+        error = str(row.get("last_error", "")).lower()
+        # Only release rows blocked by the previous REST-first implementation.
+        # A current v2 permission failure remains blocked and follows the normal
+        # 24-hour recheck policy.
+        if action == "COMMENT" and "comment: http 403" not in error:
+            continue
+        if action == "REACTION" and "like: http 403" not in error:
+            continue
+        if action == "COMMENT_LIKE" and "like_comment: http 403" not in error:
+            continue
+        update_event(
+            service,
+            spreadsheet_id,
+            int(row["_row_number"]),
+            {
+                "status": "RETRY",
+                "scheduled_at": iso(current),
+                "last_error": "Released from legacy REST permission block; retrying with personal member route.",
+                "updated_at": iso(current),
+            },
+        )
+        released += 1
+    if released:
+        print(f"Released {released} legacy LinkedIn permission-blocked event(s) for immediate retry.")
+    return released
+
+
 def select_due(existing, current):
     due = []
     per_post_comments = {}
@@ -372,6 +416,14 @@ def main():
     service = create_service(CONFIG["service_account_info"])
     ensure_engagement_sheet(service, CONFIG["sheet_id"])
     current = now_cairo()
+    existing = read_engagement_rows(service, CONFIG["sheet_id"])
+
+    release_legacy_permission_blocks(
+        service,
+        CONFIG["sheet_id"],
+        existing,
+        current,
+    )
     existing = read_engagement_rows(service, CONFIG["sheet_id"])
 
     if DRY_RUN:
