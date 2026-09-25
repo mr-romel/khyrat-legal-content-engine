@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter, defaultdict
 from datetime import datetime
+import hashlib
 from html import escape
 from pathlib import Path
 
@@ -55,14 +56,12 @@ def build_strategy(service, spreadsheet_id: str) -> dict[str, object]:
         by_platform[str(row.get("Platform", "UNKNOWN")).upper()].append(row)
 
     recommendations = []
-    rid = 0
 
     def add(priority, platform, audience, pillar, angle, action, evidence):
-        nonlocal rid
-        rid += 1
+        key = "|".join([platform, audience, pillar, angle, action])
+        rec_id = "REC-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
         recommendations.append([
-            f"REC-{datetime.now().strftime('%Y%m%d')}-{rid:03d}",
-            priority, platform, audience, pillar, angle, action, evidence, _now(),
+            rec_id, priority, platform, audience, pillar, angle, action, evidence, _now(),
         ])
 
     # Data-backed signals when enough observations exist; otherwise give
@@ -94,11 +93,17 @@ def build_strategy(service, spreadsheet_id: str) -> dict[str, object]:
         ["الجمهور العام", "FACEBOOK", "فهم القاعدة القانونية وتطبيقها", "حق، إجراء، موعد، نزاع", "تحذير أو Myth/Fact", "مشاركة", _now()],
     ]
 
+    existing_personas = _rows(service, spreadsheet_id, "AudiencePersonas", SYSTEM_SHEETS["AudiencePersonas"])
+    persona_keys = {(x.get("Persona", ""), x.get("Platform", "")) for x in existing_personas}
     for row in persona_rows:
-        _append(service, spreadsheet_id, "AudiencePersonas", row)
+        if (row[0], row[1]) not in persona_keys:
+            _append(service, spreadsheet_id, "AudiencePersonas", row)
 
+    existing_recommendations = _rows(service, spreadsheet_id, "StrategyRecommendations", SYSTEM_SHEETS["StrategyRecommendations"])
+    existing_ids = {x.get("Recommendation ID", "") for x in existing_recommendations}
     for row in recommendations:
-        _append(service, spreadsheet_id, "StrategyRecommendations", row)
+        if row[0] not in existing_ids:
+            _append(service, spreadsheet_id, "StrategyRecommendations", row)
 
     return {
         "metrics_count": len(metrics),
