@@ -280,15 +280,6 @@ def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> L
     # Compatibility fallback. This is not required for the personal
     # w_member_social path; it is only useful when the token also has access
     # to the newer versioned socialActions API.
-    # A duplicate reaction is already the desired state. LinkedIn can
-    # return 409 when the authenticated member has already reacted.
-    if legacy_result.http_status == 409:
-        return LinkedInActionResult(
-            status="LIKED",
-            item_id="",
-            error="LinkedIn reported HTTP 409: reaction already exists; treating as idempotent success.",
-            http_status=409,
-        )
     if legacy_result.http_status not in {400, 401, 403, 404}:
         return legacy_result
 
@@ -401,6 +392,16 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
             status="LIKED",
             item_id=reaction_id,
             http_status=legacy_result.status_code,
+        )
+
+    # LinkedIn may return 409 when the member already has the
+    # requested reaction. Treat that as idempotent success.
+    if legacy_result.http_status == 409:
+        return LinkedInActionResult(
+            status="LIKED",
+            item_id="",
+            error="LinkedIn reported HTTP 409: reaction already exists; treating as idempotent success.",
+            http_status=409,
         )
 
     # Prefer a permission error from the modern endpoint only when the legacy
