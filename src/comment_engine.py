@@ -132,6 +132,32 @@ def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, labe
     raise RuntimeError("Comment AI generation failed unexpectedly.")
 
 
+def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[str]]:
+    subject = str(topic or "").strip() or "الموضوع المطروح"
+    fb_templates = [
+        f"النقطة الأهم هنا إن {subject} مايتاخدش بمعزل عن المستندات والوقائع الفعلية",
+        "الخطأ الشائع إننا نراجع القاعدة القانونية وننسى أثرها العملي على القرار نفسه",
+        "قبل أي خطوة، ترتيب المستندات والمواعيد والالتزامات بيفرق جدًا في تحديد الموقف القانوني",
+        "في الحالات دي التفاصيل الصغيرة هي اللي بتحدد هل الإجراء سليم ولا محتاج مراجعة قبل التنفيذ",
+        "كمان لازم نفرق بين القاعدة العامة وبين تطبيقها على كل واقعة حسب مستنداتها وظروفها",
+        "لو فيه التزام تعاقدي أو مالي، الأفضل تحديد المسؤوليات والآثار المحتملة قبل اتخاذ القرار",
+        "ولو الموقف مشابه، السؤال الأهم مش بس هل الإجراء جائز، لكن إيه البدائل الأقل مخاطرة",
+    ]
+    li_templates = [
+        f"في {subject}، قيمة المراجعة القانونية بتظهر قبل القرار وليس بعد ظهور النزاع",
+        "من زاوية الإدارة، تحديد المسؤولية والمواعيد والالتزامات قبل التنفيذ يقلل تكلفة التصحيح",
+        "التفاصيل الواقعية والمستندات هي اللي بتحول القاعدة القانونية إلى قرار قابل للتنفيذ",
+        "في الشركات، القرار السريع مش بالضرورة القرار الأقل تكلفة، خصوصًا لما يكون له أثر تعاقدي",
+        "التمييز بين القاعدة العامة والوقائع الخاصة مهم جدًا قبل بناء قرار إداري عليها",
+        "المراجعة المبكرة هنا مش إجراء شكلي، لكنها أداة لإدارة المخاطر قبل ما تتحول إلى نزاع",
+        "لو القرار له أثر مالي أو تعاقدي، من المفيد تقييم البدائل قبل الالتزام النهائي",
+    ]
+    return {
+        "facebook_comments": [normalize_comment(x) for x in fb_templates[:count]],
+        "linkedin_comments": [normalize_comment(x) for x in li_templates[:count]],
+    }
+
+
 def generate_comments(
     *,
     api_key: str,
@@ -187,10 +213,16 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
     try:
         response = _generate_with_retry(client=client, model=primary_model, prompt=prompt, attempts=MAX_PRIMARY_RETRIES, label=f"primary model {primary_model or 'default'}")
     except Exception as primary_exc:
-        if not _is_transient(primary_exc) or not fallback_model or fallback_model == primary_model:
-            raise
-        print(f"Comment AI primary model remained unavailable; switching to fallback model {fallback_model}.")
-        response = _generate_with_retry(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
+        if _is_transient(primary_exc) and fallback_model and fallback_model != primary_model:
+            try:
+                print(f"Comment AI primary model remained unavailable; switching to fallback model {fallback_model}.")
+                response = _generate_with_retry(client=client, model=fallback_model, prompt=prompt, attempts=MAX_FALLBACK_RETRIES, label=f"fallback model {fallback_model}")
+            except Exception as fallback_exc:
+                print(f"Comment AI fallback unavailable; using deterministic platform-specific comments: {fallback_exc}")
+                return _fallback_comments(topic=topic, post=post, count=count)
+        else:
+            print(f"Comment AI unavailable; using deterministic platform-specific comments: {primary_exc}")
+            return _fallback_comments(topic=topic, post=post, count=count)
 
     data = _extract_json(getattr(response, "text", ""))
     facebook = _normalize(data.get("facebook_comments"), count)
