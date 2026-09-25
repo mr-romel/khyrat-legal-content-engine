@@ -167,10 +167,10 @@ def generate_comments(
     legal_sources: str = "",
     count: int | None = None,
 ) -> dict[str, list[str]]:
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
-
     primary_model = (model or "").strip()
+    if not api_key:
+        print("GEMINI_API_KEY is missing; using deterministic platform-specific comments.")
+        return _fallback_comments(topic=topic, post=post, count=count if count is not None else choose_comment_count(f"{topic}|{post}"))
     count = count if count is not None else choose_comment_count(f"{topic}|{post}")
     if count < 3 or count > 7:
         raise ValueError("Comment count must be between 3 and 7.")
