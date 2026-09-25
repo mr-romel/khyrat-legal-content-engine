@@ -26,7 +26,7 @@ SYSTEM_PROMPT = """
 image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا، واقعيًا، سينمائيًا، تحريريًا، مرتبطًا مباشرة بمضمون الموضوع والمنشور، وبدون نص أو شعار أو علامة مائية داخل الصورة.
 image_mode يجب أن يكون REFERENCE_SUBJECT في كل صورة قابلة للنشر.
 الصورة النهائية يجب أن تحقق الشرطين معًا: ظهور نفس الشخص المرجعي بشكل واضح وقابل للتعرّف، وأن يكون ظهوره جزءًا طبيعيًا من المشهد القانوني المرتبط مباشرة بالموضوع.
-إذا لم تستطع بناء مشهد يحقق الشرطين معًا، لا تستخدم CONTEXT_ONLY ولا تخمّن؛ اجعل review_level=BLOCK مع review_flags تشرح أن صورة مرجعية مرتبطة بالموضوع لم تكن ممكنة.
+إذا لم تستطع بناء مشهد يحقق الشرطين معًا، لا تستخدم CONTEXT_ONLY ولا تخمّن؛ اجعل review_level=REVIEW مع review_flags تشرح أن الصورة المرجعية تحتاج تحسينًا، لكن لا تمنع النشر.
 سيُستخدم ملف المرجع الفعلي لإعادة بناء الشخصية، وليس مجرد وصف عام لها.
 إذا كان ظهور المحامي سيبدو مصطنعًا أو غير مرتبط مباشرة بالواقعة القانونية، استخدم CONTEXT_ONLY وأنشئ مشهدًا واقعيًا للشخص/الأشخاص/المستندات/المكان المذكور في الموضوع من دون إجبار صورة المحامي على الظهور.
 ممنوع اختيار REFERENCE_SUBJECT لمجرد branding أو لمجرد وجود محامٍ في الموضوع. يجب أن يكون ظهور الشخصية مرتبطًا مباشرة بالفعل أو المشكلة القانونية المصوّرة. إذا تعذر ذلك، BLOCK وليس CONTEXT_ONLY.
@@ -37,7 +37,7 @@ image_mode يجب أن يكون REFERENCE_SUBJECT في كل صورة قابلة 
   "post": "...",
   "image_brief": "...",
   "image_mode": "REFERENCE_SUBJECT",
-  "review_level": "CLEAR|REVIEW|BLOCK",
+  "review_level": "CLEAR|REVIEW",
   "review_flags": [],
   "legal_sources_used": []
 }
@@ -77,7 +77,7 @@ def _normalize_list(value: Any) -> list[str]:
 
 def _normalize_review_level(value: Any) -> str:
     level = str(value or "").strip().upper()
-    return level if level in {"CLEAR", "REVIEW", "BLOCK"} else "REVIEW"
+    return level if level in {"CLEAR", "REVIEW"} else "REVIEW"
 
 
 def _validate_image_brief(image_brief: str) -> None:
@@ -185,7 +185,7 @@ def generate_post(
 استهدف تقريبًا 180 إلى 320 كلمة، لكن لا تحشو النص فقط للوصول إلى رقم.
 ابدأ من موقف حقيقي، اشرح الفكرة، وضّح الأثر العملي، وأنهِ بـCTA طبيعية غير بيعية.
 إذا لم تكن معلومة دقيقة متحققة، لا تخترعها؛ احذفها أو صغها بصورة عامة وآمنة.
-أنشئ أيضًا image_brief مناسبًا للمشهد نفسه. يجب أن يكون image_mode=REFERENCE_SUBJECT؛ وإذا لم يكن ظهور الشخص المرجعي طبيعيًا ومباشرًا في المشهد القانوني، استخدم review_level=BLOCK بدلًا من CONTEXT_ONLY.
+أنشئ أيضًا image_brief مناسبًا للمشهد نفسه. يجب أن يكون image_mode=REFERENCE_SUBJECT؛ وإذا لم يكن ظهور الشخص المرجعي طبيعيًا ومباشرًا في المشهد القانوني، استخدم review_level=REVIEW بدلًا من CONTEXT_ONLY.
 """
 
     retry_prompt = base_prompt + """
