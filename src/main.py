@@ -314,6 +314,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     from facebook_publisher import publish_text
                     facebook = publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post)
                 facebook_post_id = facebook["post_id"]
+                row["Facebook Status"] = "PUBLISHED"
                 try:
                     update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id, "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
                 except Exception as state_exc:
@@ -325,7 +326,11 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             except FacebookPublishError as exc:
                 error = f"Facebook: {exc}"
                 publication_errors.append(error)
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
+                row["Facebook Status"] = "FAILED"
+                try:
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
+                except Exception as state_exc:
+                    print(f"Facebook failure state could not be persisted: {state_exc}")
                 notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
         linkedin_status = str(row.get("LinkedIn Status", "")).strip().upper()
@@ -341,7 +346,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     from linkedin_publisher import publish_text_to_linkedin
                     linkedin = publish_text_to_linkedin(token=token, author_urn=author, commentary=linkedin_post)
                 linkedin_post_id = linkedin["post_urn"]
-                comment_result, like_result = linkedin["comment"], linkedin["like"]
+                row["LinkedIn Status"] = "PUBLISHED"
+                comment_result = linkedin.get("comment") or {}
+                like_result = linkedin.get("like") or {}
                 linkedin_interaction_errors.extend([x for x in (comment_result.get("error"), like_result.get("error")) if x])
                 try:
                     update_row(
@@ -362,11 +369,15 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
                 publication_errors.append(error)
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
+                row["LinkedIn Status"] = "FAILED"
+                try:
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
+                except Exception as state_exc:
+                    print(f"LinkedIn failure state could not be persisted: {state_exc}")
                 notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
-        fb_ok = bool(facebook_post_id) and str(row.get("Facebook Status", "PUBLISHED") or "PUBLISHED").strip().upper() == "PUBLISHED"
-        li_post_ok = bool(linkedin_post_id)
+        fb_ok = bool(facebook_post_id) and str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED"
+        li_post_ok = bool(linkedin_post_id) and str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED"
         if not fb_ok and not li_post_ok:
             final_status = "FAILED"
         elif fb_ok and li_post_ok:
