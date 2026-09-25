@@ -1,15 +1,22 @@
 const OWNER = "mr-romel";
 const REPO = "khyrat-legal-content-engine";
-const WORKFLOW = "publish-scheduled.yml";
 const REF = "main";
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
-const ACTIVE_WINDOW_MS = 20 * 60 * 1000;
+const SCHEDULES = {
+  "0 * * * *": [
+    { workflow: "publish-scheduled.yml", activeWindowMs: 20 * 60 * 1000 },
+  ],
+  "*/5 * * * *": [
+    { workflow: "facebook-engagement-worker.yml", activeWindowMs: 9 * 60 * 1000 },
+    { workflow: "linkedin-engagement-worker.yml", activeWindowMs: 9 * 60 * 1000 },
+  ],
+};
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1500, 3500, 7000];
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(dispatch(env));
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispatch(event.cron, env));
   },
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -17,9 +24,9 @@ export default {
       return new Response(JSON.stringify({
         ok: true,
         service: "khyrat-github-scheduler-dispatch",
-        workflow: WORKFLOW,
-        ref: REF,
-        cron: "0 * * * *",
+        workflows: Object.fromEntries(
+          Object.entries(SCHEDULES).map(([cron, jobs]) => [cron, jobs.map((job) => job.workflow)]),
+        ),
         timezone: "UTC (publishing slots are Cairo-local)",
         timestamp: new Date().toISOString(),
       }), { headers: { "content-type": "application/json; charset=utf-8" } });
@@ -28,9 +35,15 @@ export default {
   },
 };
 
-async function dispatch(env) {
+async function dispatch(cron, env) {
   if (!env.GITHUB_DISPATCH_TOKEN) {
     throw new Error("GITHUB_DISPATCH_TOKEN is missing");
+  }
+
+  const jobs = SCHEDULES[cron];
+  if (!jobs) {
+    console.log(`No workflow mapping for cron '${cron}'.`);
+    return;
   }
 
   const headers = {
@@ -40,10 +53,16 @@ async function dispatch(env) {
     "User-Agent": "khyrat-github-scheduler-dispatch",
   };
 
-  console.log(`Scheduler heartbeat: ${new Date().toISOString()}`);
+  console.log(`Scheduler heartbeat: cron=${cron} at ${new Date().toISOString()}`);
 
+  for (const job of jobs) {
+    await dispatchWorkflow(job, headers);
+  }
+}
+
+async function dispatchWorkflow(job, headers) {
   const runs = await github(
-    `${API}/actions/workflows/${WORKFLOW}/runs?branch=${REF}&event=workflow_dispatch&per_page=10`,
+    `${API}/actions/workflows/${job.workflow}/runs?branch=${REF}&event=workflow_dispatch&per_page=10`,
     { headers },
   );
 
@@ -51,15 +70,17 @@ async function dispatch(env) {
   const active = (runs.workflow_runs || []).find((run) => {
     if (run.status !== "queued" && run.status !== "in_progress") return false;
     const stamp = Date.parse(run.updated_at || run.created_at || "");
-    return Number.isFinite(stamp) && now - stamp < ACTIVE_WINDOW_MS;
+    return Number.isFinite(stamp) && now - stamp < job.activeWindowMs;
   });
 
   if (active) {
-    console.log(`Publisher active recently (${active.status}, ${active.id}); skipping duplicate dispatch.`);
+    console.log(
+      `Workflow ${job.workflow} is already active (${active.status}, ${active.id}); skipping duplicate dispatch.`,
+    );
     return;
   }
 
-  const response = await retryFetch(`${API}/actions/workflows/${WORKFLOW}/dispatches`, {
+  const response = await retryFetch(`${API}/actions/workflows/${job.workflow}/dispatches`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ ref: REF }),
@@ -67,10 +88,10 @@ async function dispatch(env) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`GitHub dispatch failed: ${response.status} ${body.slice(0, 500)}`);
+    throw new Error(`GitHub dispatch failed for ${job.workflow}: ${response.status} ${body.slice(0, 500)}`);
   }
 
-  console.log(`Publisher dispatched successfully at ${new Date().toISOString()}`);
+  console.log(`Workflow ${job.workflow} dispatched successfully at ${new Date().toISOString()}`);
 }
 
 async function github(url, options) {
