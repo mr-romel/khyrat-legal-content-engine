@@ -113,6 +113,31 @@ def publish_photo(*, page_id: str, page_access_token: str, graph_version: str, i
         raise FacebookPublishError(f"Facebook publish network error: {exc}") from exc
 
 
+
+def publish_text(*, page_id: str, page_access_token: str, graph_version: str, message: str) -> dict[str, Any]:
+    """Publish a text-only Facebook post when image generation is unavailable."""
+    page_id = page_id.strip()
+    token = page_access_token.strip()
+    if not page_id or not token:
+        raise FacebookPublishError("Facebook text publication credentials are incomplete.")
+    try:
+        response = requests.post(
+            _graph_url(graph_version, page_id, "feed"),
+            headers=_headers(),
+            data={"access_token": token, "message": str(message or "").strip()},
+            timeout=120,
+        )
+        if not response.ok:
+            raise _api_error("Facebook text post publish failed", response)
+        payload = response.json()
+        post_id = str(payload.get("id", "")).strip()
+        if not post_id:
+            raise FacebookPublishError(f"Facebook text publish returned no Post ID: {payload}")
+        print(f"Facebook text publication completed: post_id={post_id}")
+        return {"post_id": post_id, "permalink_url": "", "verified": False, "raw": payload}
+    except requests.RequestException as exc:
+        raise FacebookPublishError(f"Facebook text publish network error: {exc}") from exc
+
 def like_comment(*, comment_id: str, page_access_token: str, graph_version: str) -> dict[str, Any]:
     comment_id = str(comment_id or "").strip()
     if not comment_id:
