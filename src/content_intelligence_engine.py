@@ -105,6 +105,18 @@ def build_strategy(service, spreadsheet_id: str) -> dict[str, object]:
         if row[0] not in existing_ids:
             _append(service, spreadsheet_id, "StrategyRecommendations", row)
 
+    _append(service, spreadsheet_id, "DashboardSnapshots", [
+        _now(),
+        str(len(metrics)),
+        str(len(fingerprints)),
+        json.dumps(_top(metrics, "Topic", 5), ensure_ascii=False),
+        json.dumps(_top(fingerprints, "Hook Type", 5), ensure_ascii=False),
+        json.dumps(_top(fingerprints, "CTA Type", 5), ensure_ascii=False),
+        json.dumps(_top(fingerprints, "Visual Concept", 5), ensure_ascii=False),
+        json.dumps(_top(fingerprints, "Audience", 5), ensure_ascii=False),
+        json.dumps(recommendations[:5], ensure_ascii=False),
+    ])
+
     return {
         "metrics_count": len(metrics),
         "fingerprints_count": len(fingerprints),
