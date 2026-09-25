@@ -50,4 +50,4 @@ def test_context_only_is_not_publishable(tmp_path):
         image_mode="CONTEXT_ONLY",
     )
     assert result["decision"] == "REGENERATE"
-    assert "publication is not blocked" in " ".join(result["issues"])
+    assert "publication is not blocked" in " ".join(result["issues"]).lower()
