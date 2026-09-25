@@ -345,8 +345,33 @@ def like_comment(*, token: str, actor_urn: str, comment_urn: str) -> LinkedInAct
 
 
 def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) -> LinkedInActionResult:
-    # Keep reactions on the same personal-member path as comments. This avoids
-    # requiring *_member_social_feed merely to add a like from the member token.
+    # Prefer the current Reactions API. If this token/app is still on the older
+    # personal-member permission path, fall back to the legacy v2 route.
+    encoded_actor = quote(actor_urn, safe="")
+    endpoint = f"{LINKEDIN_REST_BASE}/reactions?actor={encoded_actor}"
+    body = {"root": root_urn, "reactionType": "LIKE"}
+    result = _post_interaction_with_retry(
+        endpoint=endpoint,
+        token=token,
+        body=body,
+        action=action,
+    )
+    if _is_http_response(result):
+        reaction_id = ""
+        try:
+            payload = result.json()
+            if isinstance(payload, dict):
+                reaction_id = str(payload.get("id", "")).strip()
+        except ValueError:
+            pass
+        return LinkedInActionResult(
+            status="LIKED",
+            item_id=reaction_id,
+            http_status=result.status_code,
+        )
+
+    # Compatibility path for tokens that can still use w_member_social with
+    # the legacy socialActions endpoint.
     legacy_endpoint = f"https://api.linkedin.com/v2/socialActions/{quote(root_urn, safe='')}/likes"
     legacy_body = {"actor": actor_urn, "object": root_urn}
     legacy_result = _post_legacy_interaction(
@@ -369,37 +394,19 @@ def _create_reaction(*, token: str, actor_urn: str, root_urn: str, action: str) 
             http_status=legacy_result.status_code,
         )
 
+    # Prefer a permission error from the modern endpoint only when the legacy
+    # path cannot recover it; otherwise preserve the most actionable result.
+    if legacy_result.http_status in {200, 201, 202, 204}:
+        return LinkedInActionResult(status="LIKED", http_status=legacy_result.http_status)
     if legacy_result.http_status not in {400, 401, 403, 404}:
         return legacy_result
-
-    encoded_actor = quote(actor_urn, safe="")
-    endpoint = f"{LINKEDIN_REST_BASE}/reactions?actor={encoded_actor}"
-    body = {"root": root_urn, "reactionType": "LIKE"}
-    result = _post_interaction_with_retry(
-        endpoint=endpoint,
-        token=token,
-        body=body,
-        action=action,
-    )
     if isinstance(result, LinkedInActionResult):
         print(
             f"LinkedIn {action}: {result.status} | http={result.http_status} | "
             f"error={result.error}"
         )
         return result
-
-    reaction_id = ""
-    try:
-        payload = result.json()
-        if isinstance(payload, dict):
-            reaction_id = str(payload.get("id", "")).strip()
-    except ValueError:
-        pass
-    return LinkedInActionResult(
-        status="LIKED",
-        item_id=reaction_id,
-        http_status=result.status_code,
-    )
+    return LinkedInActionResult(status="FAILED", error=f"{action}: reaction request failed")
 
 
 def publish_to_linkedin(*, token: str, author_urn: str, image_path: str | Path, commentary: str, first_comment: str) -> dict[str, Any]:
