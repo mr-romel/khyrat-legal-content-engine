@@ -286,12 +286,15 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
         facebook_post, linkedin_post = editorial["facebook_post"], editorial["linkedin_post"]
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
-            "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
-            "Facebook Comments Published": row.get("Facebook Comments Published", "") or "0",
-            "LinkedIn Comments Published": row.get("LinkedIn Comments Published", "") or "0",
-        })
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
+                "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
+                "Facebook Comments Published": row.get("Facebook Comments Published", "") or "0",
+                "LinkedIn Comments Published": row.get("LinkedIn Comments Published", "") or "0",
+            })
+        except Exception as queue_exc:
+            print(f"Engagement queue persistence unavailable — social publication continues: {queue_exc}")
 
 
         facebook_post_id = str(row.get("Facebook Post ID", "") or "").strip() if original_status in {"FAILED", "PARTIAL_FAILED", "READY_FOR_SOCIAL_PUBLISH"} else ""
@@ -311,7 +314,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     from facebook_publisher import publish_text
                     facebook = publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post)
                 facebook_post_id = facebook["post_id"]
-                update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id, "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
+                try:
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id, "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
+                except Exception as state_exc:
+                    print(f"Facebook state persistence unavailable after successful publish: {state_exc}")
                 try:
                     print("Facebook engagement queued for dedicated worker.")
                 except Exception as exc:
@@ -337,9 +343,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 linkedin_post_id = linkedin["post_urn"]
                 comment_result, like_result = linkedin["comment"], linkedin["like"]
                 linkedin_interaction_errors.extend([x for x in (comment_result.get("error"), like_result.get("error")) if x])
-                update_row(
-                    service,
-                    config["sheet_id"],
+                try:
+                    update_row(
+                        service,
+                        config["sheet_id"],
                     sheet_name,
                     row_number,
                     {
@@ -348,8 +355,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                         "LinkedIn Comment Status": "QUEUED",
                         "LinkedIn Reaction Status": "QUEUED",
                         "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500],
-                    },
-                )
+                        },
+                    )
+                except Exception as state_exc:
+                    print(f"LinkedIn state persistence unavailable after successful publish: {state_exc}")
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
                 publication_errors.append(error)
