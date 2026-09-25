@@ -24,18 +24,19 @@ SYSTEM_PROMPT = """
 - لا تستخدم النقط المتتابعة (...) أو (…) في المنشور، ولا تنه المنشور بجملة ناقصة أو بحرف عطف أو كلمة تدل على استمرار الكلام. كل منشور يجب أن ينتهي بفكرة مكتملة وعلامة ترقيم طبيعية.
 
 image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا، واقعيًا، سينمائيًا، تحريريًا، مرتبطًا مباشرة بمضمون الموضوع والمنشور، وبدون نص أو شعار أو علامة مائية داخل الصورة.
-image_mode يجب أن يكون واحدًا من REFERENCE_SUBJECT أو CONTEXT_ONLY.
-استخدم REFERENCE_SUBJECT فقط عندما يكون ظهور المحامي نفسه طبيعيًا وضروريًا لفهم المشهد، ويمكن وضعه في مشهد قانوني حقيقي مرتبط مباشرة بالموضوع. في هذه الحالة سيُستخدم ملف المرجع الفعلي لإعادة بناء الشخصية، وليس مجرد وصف عام لها.
+image_mode يجب أن يكون REFERENCE_SUBJECT في كل صورة قابلة للنشر.
+الصورة النهائية يجب أن تحقق الشرطين معًا: ظهور نفس الشخص المرجعي بشكل واضح وقابل للتعرّف، وأن يكون ظهوره جزءًا طبيعيًا من المشهد القانوني المرتبط مباشرة بالموضوع.
+إذا لم تستطع بناء مشهد يحقق الشرطين معًا، لا تستخدم CONTEXT_ONLY ولا تخمّن؛ اجعل review_level=BLOCK مع review_flags تشرح أن صورة مرجعية مرتبطة بالموضوع لم تكن ممكنة.
+سيُستخدم ملف المرجع الفعلي لإعادة بناء الشخصية، وليس مجرد وصف عام لها.
 إذا كان ظهور المحامي سيبدو مصطنعًا أو غير مرتبط مباشرة بالواقعة القانونية، استخدم CONTEXT_ONLY وأنشئ مشهدًا واقعيًا للشخص/الأشخاص/المستندات/المكان المذكور في الموضوع من دون إجبار صورة المحامي على الظهور.
-ممنوع اختيار REFERENCE_SUBJECT لمجرد branding أو لمجرد وجود محامٍ في الموضوع. الأولوية دائمًا لارتباط الصورة بالمضمون.
-إذا لم تستطع صياغة مشهد يجعل الشخصية المرجعية تبدو كالشخص نفسه وفي السياق القانوني المحدد، استخدم CONTEXT_ONLY.
+ممنوع اختيار REFERENCE_SUBJECT لمجرد branding أو لمجرد وجود محامٍ في الموضوع. يجب أن يكون ظهور الشخصية مرتبطًا مباشرة بالفعل أو المشكلة القانونية المصوّرة. إذا تعذر ذلك، BLOCK وليس CONTEXT_ONLY.
 إذا كان المشهد يتضمن الشخصية المرجعية، صمّم وضعية جديدة وبيئة جديدة وزاوية كاميرا جديدة وتكوينًا جديدًا وملابس مناسبة للسياق؛ لا تقلّد وضعية أو خلفية أو أثاث أو إضاءة أو framing الصور المرجعية.
 
 أعد JSON فقط بهذا الشكل:
 {
   "post": "...",
   "image_brief": "...",
-  "image_mode": "REFERENCE_SUBJECT|CONTEXT_ONLY",
+  "image_mode": "REFERENCE_SUBJECT",
   "review_level": "CLEAR|REVIEW|BLOCK",
   "review_flags": [],
   "legal_sources_used": []
@@ -123,9 +124,15 @@ def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
     for field in ("post", "image_brief", "image_mode", "review_level", "review_flags", "legal_sources_used"):
         if field not in data:
             raise RuntimeError(f"Gemini JSON is missing required field: {field}")
-    data["image_mode"] = str(data.get("image_mode", "CONTEXT_ONLY")).strip().upper()
-    if data["image_mode"] not in {"REFERENCE_SUBJECT", "CONTEXT_ONLY"}:
-        data["image_mode"] = "CONTEXT_ONLY"
+    data["image_mode"] = str(data.get("image_mode", "REFERENCE_SUBJECT")).strip().upper()
+    if data["image_mode"] != "REFERENCE_SUBJECT":
+        data["image_mode"] = "REFERENCE_SUBJECT"
+        data["review_level"] = "BLOCK"
+        flags = data.get("review_flags", [])
+        if not isinstance(flags, list):
+            flags = [str(flags)] if flags else []
+        flags.append("A publishable image must use the uploaded reference subject and remain directly relevant to the legal story.")
+        data["review_flags"] = flags
     data["review_level"] = _normalize_review_level(data.get("review_level"))
     data["review_flags"] = _normalize_list(data.get("review_flags"))
     data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
@@ -178,7 +185,7 @@ def generate_post(
 استهدف تقريبًا 180 إلى 320 كلمة، لكن لا تحشو النص فقط للوصول إلى رقم.
 ابدأ من موقف حقيقي، اشرح الفكرة، وضّح الأثر العملي، وأنهِ بـCTA طبيعية غير بيعية.
 إذا لم تكن معلومة دقيقة متحققة، لا تخترعها؛ احذفها أو صغها بصورة عامة وآمنة.
-أنشئ أيضًا image_brief مناسبًا للمشهد نفسه، وحدد image_mode وفق القاعدة: استخدم REFERENCE_SUBJECT فقط إذا كان ظهور المحامي نفسه مرتبطًا مباشرة بالمشهد؛ وإلا استخدم CONTEXT_ONLY.
+أنشئ أيضًا image_brief مناسبًا للمشهد نفسه. يجب أن يكون image_mode=REFERENCE_SUBJECT؛ وإذا لم يكن ظهور الشخص المرجعي طبيعيًا ومباشرًا في المشهد القانوني، استخدم review_level=BLOCK بدلًا من CONTEXT_ONLY.
 """
 
     retry_prompt = base_prompt + """
