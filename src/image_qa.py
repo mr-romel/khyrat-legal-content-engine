@@ -105,7 +105,7 @@ added by the code after generation. This exact overlay is ALLOWED and must NOT b
 Any other visible generated text, fake Arabic/English lettering, gibberish, watermark, logo, headline,
 caption, sign, document writing, or typography is a defect.
 
-CHECK THESE FOUR THINGS:
+CHECK THESE FIVE THINGS:
 1. COMPOSITION: Is the visual clean and professionally composed for a 4:5 social feed?
    Is the focal subject visible? Is the crop safe? Are important hands, faces, documents, and actions
    not awkwardly cut? Is there enough visual breathing room? Is the scene understandable without text?
