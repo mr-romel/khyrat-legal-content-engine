@@ -150,6 +150,7 @@ h1{{margin-bottom:6px}}small{{color:#666}}
 <h1>Khyrat Content Intelligence</h1>
 <small>Snapshot: {escape(_now())}</small>
 <div class="card"><strong>Metrics</strong><p>{snapshot.get("metrics_count", 0)} metric rows | {snapshot.get("fingerprints_count", 0)} fingerprints | {snapshot.get("performance_count", 0)} performance rows</p></div>
+<div class="card"><h2>Operating Model</h2><p>Audience persona → Hook → Structure → CTA → Visual concept → Metrics → Recommendation → Next post</p></div>
 <div class="card"><h2>Strategy Recommendations</h2>
 <table><thead><tr><th>ID</th><th>Priority</th><th>Platform</th><th>Audience</th><th>Pillar</th><th>Angle</th><th>Action</th><th>Evidence</th><th>Updated</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
