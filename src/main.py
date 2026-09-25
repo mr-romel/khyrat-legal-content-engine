@@ -344,6 +344,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         facebook_comments = 0
         linkedin_comments = 0
         linkedin_interaction_errors: list[str] = []
+        publication_errors: list[str] = []
 
         if facebook_post_id and str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED":
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
@@ -358,6 +359,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     print(f"Facebook comment engine failed: {exc}")
             except FacebookPublishError as exc:
                 error = f"Facebook: {exc}"
+                publication_errors.append(error)
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
                 notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
@@ -387,6 +389,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 )
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
+                publication_errors.append(error)
                 update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
                 notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
 
@@ -398,7 +401,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             final_status = "PUBLISHED"
         else:
             final_status = "PARTIAL_FAILED"
-        final_error = " | ".join(linkedin_interaction_errors)[:1500]
+        final_error = " | ".join(publication_errors + linkedin_interaction_errors)[:1500]
         update_row(
             service,
             config["sheet_id"],
@@ -428,13 +431,15 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 f"التعليقات: Facebook 3-7 | LinkedIn 3-7 (تم وضعها في Queue ويشغلها Engagement Worker)"
             )
         else:
-            detail = final_error or "LinkedIn publishing did not complete."
-            notify(f"🟠 Partial failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\nالموضوع: {topic}\nLinkedIn: {detail}")
+            detail = final_error or "Social publication did not complete."
+            notify(f"🟠 Publication failure — سيتم استكمال المنصة الفاشلة تلقائيًا في التشغيل القادم دون تكرار المنصة الناجحة.\nالموضوع: {topic}\nالسبب: {detail}")
+            raise RuntimeError(detail)
     except (ImageGenerationError, FacebookPublishError, LinkedInPublishError, RuntimeError) as exc:
         print(f"Pipeline failed: {exc}")
         print(traceback.format_exc())
         update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": str(exc), "وقت آخر تشغيل": current.isoformat()})
         notify(f"❌ Pipeline failed\nالموضوع: {topic}\nالسبب: {exc}")
+        raise
 
 
 def main() -> None:
