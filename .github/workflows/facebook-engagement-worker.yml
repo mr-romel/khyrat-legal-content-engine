@@ -1,8 +1,8 @@
 name: Facebook Engagement Worker
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Scheduling is owned by the external Cloudflare scheduler.
+  # Keep manual dispatch for diagnostics and emergency recovery.
   workflow_dispatch:
 
 permissions:
