@@ -12,7 +12,7 @@ from decision_engine import choose_due_row
 from gemini_runtime import generate_post as resilient_generate_post
 from monthly_recycler import recycle_month_if_needed
 from post_bank import build_previous_context, get_bank_rows
-from sheets import create_service, ensure_headers, get_values, row_to_dict
+from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_publication import send_single_publication_message, send_single_status_message
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
@@ -295,6 +295,42 @@ def _smart_failed_retry(row: dict[str, str], current) -> bool:
     return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and _smart_is_due(row, current)
 
 
+def _recover_stale_processing_rows(*, service, spreadsheet_id: str, sheet_name: str, rows: list[dict[str, str]], current) -> int:
+    """
+    Recover rows stranded in PROCESSING after a crashed/interrupted publisher run.
+    A live run should not be touched; only PROCESSING rows older than 30 minutes
+    and already past their scheduled time are returned to READY.
+    """
+    recovered = 0
+    stale_after = timedelta(minutes=30)
+    for row_number, row in enumerate(rows, start=2):
+        if str(row.get("الحالة", "")).strip().upper() != "PROCESSING":
+            continue
+        target = _smart_target_datetime(row)
+        if target is None or current < target:
+            continue
+        last_run_raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
+        try:
+            last_run = datetime.fromisoformat(last_run_raw.replace("Z", "+00:00")) if last_run_raw else None
+        except ValueError:
+            last_run = None
+        if last_run is None:
+            # Unknown processing age is safer to leave untouched than to duplicate-publish.
+            continue
+        if last_run.tzinfo is None:
+            last_run = last_run.replace(tzinfo=current.tzinfo)
+        if current - last_run < stale_after:
+            continue
+        update_row(service, spreadsheet_id, sheet_name, row_number, {
+            "الحالة": "READY",
+            "آخر خطأ": "Recovered stale PROCESSING row after interrupted publisher run.",
+        })
+        print(f"Publisher recovery: row {row_number} PROCESSING for {current - last_run}; reset to READY.")
+        row["الحالة"] = "READY"
+        recovered += 1
+    return recovered
+
+
 def _smart_main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
@@ -316,6 +352,16 @@ def _smart_main() -> None:
     except Exception as planner_exc:
         print(f"Monthly planner unavailable; preserving publishing flow: {planner_exc}")
     rows = [row_to_dict(row) for row in values[1:]]
+    recovered = _recover_stale_processing_rows(
+        service=service,
+        spreadsheet_id=config["sheet_id"],
+        sheet_name=sheet_name,
+        rows=rows,
+        current=current,
+    )
+    if recovered:
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+        rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     if not candidates:
         candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_failed_retry(r, current)]
