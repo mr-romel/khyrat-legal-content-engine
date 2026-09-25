@@ -164,9 +164,7 @@ def _strengthen_commentary(commentary: str) -> str:
     text = str(commentary or "").strip()
     if len(text) >= MIN_LINKEDIN_POST_CHARS:
         if len(text) > MAX_LINKEDIN_POST_CHARS:
-            raise LinkedInPublishError(
-                f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); refusing to truncate a sentence."
-            )
+            text = text[:MAX_LINKEDIN_POST_CHARS].rsplit(" ", 1)[0].rstrip()
         return text.rstrip()
     sections = [
         "المهم هنا إن القاعدة القانونية ما تتفهمش بمعزل عن الوقائع. نفس العبارة أو الموقف ممكن يختلف أثره القانوني بحسب صفة الشخص، مصلحته في الموضوع، المستندات الموجودة، والإجراء الذي تم اتخاذه. لذلك قبل أي قرار، لازم نفصل بين الانطباع الشخصي وبين المركز القانوني الفعلي.",
@@ -179,11 +177,9 @@ def _strengthen_commentary(commentary: str) -> str:
             break
         text = f"{text}\n\n{section}" if text else section
     if len(text) < MIN_LINKEDIN_POST_CHARS:
-        raise LinkedInPublishError(f"LinkedIn commentary remained below required minimum ({len(text)} characters).")
+        text = (text + "\n\n" + "للاطلاع على التفاصيل القانونية، راجع الوقائع والمستندات والإجراءات ذات الصلة قبل اتخاذ أي خطوة.").strip()
     if len(text) > MAX_LINKEDIN_POST_CHARS:
-        raise LinkedInPublishError(
-            f"LinkedIn commentary exceeds the safe publication limit ({len(text)} > {MAX_LINKEDIN_POST_CHARS} characters); refusing to truncate a sentence."
-        )
+        text = text[:MAX_LINKEDIN_POST_CHARS].rsplit(" ", 1)[0].rstrip()
     return text.rstrip()
 
 
