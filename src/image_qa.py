@@ -12,7 +12,7 @@ from PIL import Image
 
 DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
 QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "75"))
-QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "80"))
+QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "85"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "80"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "2")))
 REFERENCE_DIR = Path(os.getenv("KHYRAT_CHARACTER_REFERENCE_DIR", "assets/reference"))
@@ -113,8 +113,12 @@ CHECK THESE FOUR THINGS:
    bottom-right brand overlay described above. If any other text exists, mark text_detected=true and list it.
 3. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
-4. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, does the recurring male subject reasonably preserve the
-   stable identity traits from the reference photos while using a new pose/scene?
+4. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, compare the face directly against the attached reference photos.
+   This is an identity gate, not a generic attractiveness/similarity judgment. Check facial proportions, eyes/brows, nose,
+   mouth/lip shape, jaw/chin, hairline, hairstyle, beard pattern, skin tone, and overall facial geometry.
+   If you cannot confidently conclude that the same person is depicted, score reference_score below 80 and choose REGENERATE.
+   A generic Egyptian professional man is NOT a pass, even if age, hair, beard, and skin tone are broadly similar.
+   If the references do not contain enough information to establish identity, choose BLOCK rather than guessing.
 
 DECISION:
 PASS only when all critical requirements are satisfied.
@@ -236,8 +240,8 @@ def qa_image(
         critical_failures.append(f"Composition score below {QA_MIN_COMPOSITION}.")
     if data["relevance_score"] < QA_MIN_RELEVANCE:
         critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
-    if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < QA_MIN_RELEVANCE:
-        critical_failures.append(f"Reference identity score below {QA_MIN_RELEVANCE}.")
+    if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < 90:
+        critical_failures.append("Reference identity score below 90.")
     if data["overall_score"] < QA_MIN_OVERALL:
         critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
 
