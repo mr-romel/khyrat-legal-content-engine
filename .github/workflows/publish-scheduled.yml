@@ -2,9 +2,6 @@ name: Khyrat Legal Content Engine Scheduled
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/temporary-publish-trigger"
 
 permissions:
   contents: write
@@ -21,7 +18,6 @@ env:
 jobs:
   publish:
     name: Scheduled publisher
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Trigger immediate production recovery run v3' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
