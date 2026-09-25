@@ -299,11 +299,15 @@ def due_events(events, current):
         if str(event.get("action", "")).upper() not in {"COMMENT", "REACTION"}:
             continue
         due.append(event)
-    due.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-    # Exactly one new comment per worker cycle. The next comment is re-based
-    # from the actual successful publication time, so a missed cron run cannot
-    # create an hours/days catch-up backlog.
-    return due[:MAX_COMMENTS_PER_RUN]
+    # The post reaction and the first comment are both due immediately
+    # when a new bundle is discovered. Keep exactly one comment per cycle,
+    # while allowing the immediate post-like to run in the same cycle.
+    comments = [x for x in due if str(x.get("action", "")).upper() == "COMMENT"]
+    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
+    if comments:
+        comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+        due = non_comments + comments[:MAX_COMMENTS_PER_RUN]
+    return due
 
 
 def _main_impl():
