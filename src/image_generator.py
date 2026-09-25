@@ -18,7 +18,9 @@ IMAGE_ENDPOINT = (
     "@cf/black-forest-labs/flux-2-dev"
 )
 MAX_PROMPT_LENGTH = 5000
-IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "25")), 50))
+IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "30")), 50))
+IMAGE_GUIDANCE = float(os.getenv("CLOUDFLARE_IMAGE_GUIDANCE", "4.0"))
+MAX_REFERENCE_IMAGES = max(1, min(int(os.getenv("KHYRAT_MAX_REFERENCE_IMAGES", "2")), 4))
 DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
 
 # Character reference assets are supplied directly to FLUX.2 [dev] as multi-reference
@@ -331,7 +333,7 @@ def _prepare_reference_bytes(path: Path) -> bytes:
     try:
         with Image.open(path) as image:
             image = image.convert("RGB")
-            image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+            image.thumbnail((480, 480), Image.Resampling.LANCZOS)
             buffer = BytesIO()
             image.save(buffer, format="JPEG", quality=90, optimize=True)
             return buffer.getvalue()
@@ -343,11 +345,14 @@ def _cloudflare_generate(*, endpoint: str, headers: dict[str, str], prompt: str,
     data = {
         "prompt": prompt,
         "steps": str(IMAGE_STEPS),
+        "guidance": str(IMAGE_GUIDANCE),
         "width": "1024",
         "height": "1280",
     }
     files: list[tuple[str, tuple[str, bytes, str]]] = []
-    for index, ref in enumerate(reference_files[:4]):
+    # Too many identity references can make FLUX blend facial features. Use the
+    # strongest reference first and only one secondary view by default.
+    for index, ref in enumerate(reference_files[:MAX_REFERENCE_IMAGES]):
         files.append((f"input_image_{index}", (ref.name, _prepare_reference_bytes(ref), "image/jpeg")))
     try:
         return requests.post(endpoint, headers=headers, data=data, files=files, timeout=240)
@@ -403,7 +408,7 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
     if not output.exists() or output.stat().st_size == 0:
         raise ImageGenerationError("Final image file is empty.")
     print(f"Cloudflare FLUX image generated successfully: {output}")
-    print(f"Cloudflare FLUX steps: {IMAGE_STEPS}")
+    print(f"Cloudflare FLUX steps: {IMAGE_STEPS} | guidance: {IMAGE_GUIDANCE} | references: {MAX_REFERENCE_IMAGES}")
     print(f"Final image size: {output.stat().st_size} bytes")
     print(f"Page branding applied successfully: {page_name or os.getenv('KHYRAT_PAGE_NAME', DEFAULT_PAGE_NAME)}")
     return str(output)
