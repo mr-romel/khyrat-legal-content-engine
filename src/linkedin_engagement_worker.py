@@ -262,7 +262,9 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
                  "last_error": "Superseded by the 3-7 comment bundle worker."},
             )
 
-    target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+    target_count = choose_comment_count(
+        f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}"
+    )
     published_comment_count = sum(
         1
         for event in existing
