@@ -482,7 +482,7 @@ def select_due(existing, current):
     return due
 
 
-def main():
+def _main_impl():
     print("=" * 72)
     print("KHYRAT LINKEDIN ENGAGEMENT WORKER")
     print("=" * 72)
@@ -636,6 +636,17 @@ def main():
 
     return 0
 
+
+def main():
+    try:
+        return _main_impl()
+    except Exception as exc:
+        # Engagement is strictly non-blocking. A failed comment worker must
+        # never affect the publishing workflow or prevent the next retry cycle.
+        print(f"Non-blocking engagement worker error: {exc}")
+        import traceback
+        print(traceback.format_exc())
+        return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
