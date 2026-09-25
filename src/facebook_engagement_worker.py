@@ -306,7 +306,7 @@ def due_events(events, current):
     return due[:MAX_COMMENTS_PER_RUN]
 
 
-def main():
+def _main_impl():
     global CONFIG
     CONFIG = load_facebook_engagement_config()
     dry_run = os.getenv("KHYRAT_FACEBOOK_ENGAGEMENT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
@@ -384,6 +384,17 @@ def main():
 
     return 0
 
+
+def main():
+    try:
+        return _main_impl()
+    except Exception as exc:
+        # Engagement is strictly non-blocking. A failed comment worker must
+        # never affect the publishing workflow or prevent the next retry cycle.
+        print(f"Non-blocking engagement worker error: {exc}")
+        import traceback
+        print(traceback.format_exc())
+        return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
