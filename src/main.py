@@ -167,8 +167,11 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     working_image_path = GENERATED_DIR / ".tmp" / f"{safe_id}.jpg"
 
     # Image is advisory only. Never gate publication on image QA or image availability.
-    if existing_post and image_path.is_file():
-        return existing_post, existing_image_url, image_path, "CLEAR", "Existing image reused."
+    # Reuse an existing image only when its last QA result was a pass. Older
+    # images with REGENERATE/unknown QA are eligible for a quality refresh.
+    existing_qa_status = str(row.get("Image QA Status", "") or "").strip().upper()
+    if existing_post and image_path.is_file() and existing_qa_status == "ADVISORY_PASS":
+        return existing_post, existing_image_url, image_path, "CLEAR", "Existing QA-passed image reused."
 
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
     audience, audience_goal = infer_audience_persona(topic, existing_post, "LINKEDIN")
