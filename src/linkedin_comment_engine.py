@@ -113,9 +113,10 @@ def _fallback_linkedin_comments(topic: str, count: int) -> list[str]:
 
 
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
     count = count if count is not None else choose_comment_count(post_urn)
+    if not api_key:
+        print("GEMINI_API_KEY is missing; using deterministic LinkedIn comments.")
+        return _fallback_linkedin_comments(topic, count)
     if count < LINKEDIN_MIN_COMMENTS or count > LINKEDIN_MAX_COMMENTS:
         raise ValueError("LinkedIn comment count must be between 3 and 7.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
