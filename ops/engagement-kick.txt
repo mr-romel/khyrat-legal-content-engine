@@ -10,3 +10,5 @@ Facebook comment live verification: 2026-09-26T11:16:00Z
 LinkedIn comment live verification: 2026-09-26T11:22:00Z
 URN parser fix verification: 2026-09-26T11:22:00Z
 Final recovery-loop fix: 2026-09-26T11:25:00Z
+
+All-published-post engagement sweep: 2026-09-26T13:20:00Z
