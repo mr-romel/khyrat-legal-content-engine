@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: facebook-engagement-worker
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   engagement:
