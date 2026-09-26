@@ -22,7 +22,7 @@ ENGAGEMENT_HEADERS = [
     "event_id", "source_row", "post_urn", "topic", "post_text", "legal_sources",
     "action", "sequence", "scheduled_at", "status", "comment_text", "comment_urn",
     "attempts", "last_http_status", "last_error", "capability_status", "fingerprint",
-    "created_at", "updated_at", "dry_run",
+    "created_at", "updated_at", "dry_run", "platform_proof", "verified_at",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_ATTEMPTS = int(os.getenv("LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
@@ -442,6 +442,40 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
     return released
 
 
+def reconcile_legacy_successes(service, spreadsheet_id, existing, current):
+    """Re-open legacy successes that have no recorded LinkedIn API proof."""
+    released = 0
+    for row in existing:
+        status = str(row.get("status", "")).upper()
+        action = str(row.get("action", "")).upper()
+        if status not in {"PUBLISHED", "LIKED"}:
+            continue
+        http_status = str(row.get("last_http_status", "")).strip()
+        proof = str(row.get("platform_proof", "")).strip()
+        comment_urn = str(row.get("comment_urn", "")).strip()
+        if http_status.isdigit() and 200 <= int(http_status) < 300:
+            continue
+        if action == "COMMENT" and comment_urn:
+            update_event(service, spreadsheet_id, int(row["_row_number"]), {
+                "platform_proof": f"COMMENT_URN:{comment_urn}",
+                "verified_at": row.get("updated_at", "") or iso(current),
+            })
+            continue
+        if proof:
+            continue
+        update_event(service, spreadsheet_id, int(row["_row_number"]), {
+            "status": "RETRY",
+            "scheduled_at": iso(current),
+            "last_error": "Legacy success had no recorded LinkedIn API proof; reopened for real API execution.",
+            "capability_status": "RECONCILIATION_RELEASED",
+            "updated_at": iso(current),
+        })
+        released += 1
+    if released:
+        print(f"LinkedIn legacy success reconciliation reopened {released} engagement event(s).")
+    return released
+
+
 def _latest_bundle_post(existing):
     bundles = []
     for row in existing:
@@ -599,9 +633,14 @@ def _main_impl():
             "updated_at": iso(current),
         }
         if result.status in {"PUBLISHED", "LIKED"}:
+            proof = result.item_id or f"HTTP:{result.http_status or ''}"
+            if result.http_status == 409:
+                proof = "HTTP:409:IDEMPOTENT"
             changes.update({
                 "status": result.status,
                 "comment_urn": result.item_id if action == "COMMENT" else event.get("comment_urn", ""),
+                "platform_proof": proof,
+                "verified_at": iso(current),
                 "last_error": "",
             })
         elif result.http_status == 403 or result.status == "DISABLED_PERMISSION":
