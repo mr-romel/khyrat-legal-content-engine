@@ -563,6 +563,8 @@ def _main_impl():
         current,
     )
     existing = read_engagement_rows(service, CONFIG["sheet_id"])
+    reconcile_legacy_successes(service, CONFIG["sheet_id"], existing, current)
+    existing = read_engagement_rows(service, CONFIG["sheet_id"])
 
     if DRY_RUN:
         print("DRY RUN enabled: queue generation and comment text validation run, but no LinkedIn API write occurs.")
