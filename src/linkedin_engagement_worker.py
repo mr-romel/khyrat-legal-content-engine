@@ -31,6 +31,7 @@ DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or 
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
 MAX_COMMENTS_PER_POST_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "3") or "3")
+MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "10") or "10")
 
 
 def now_cairo():
@@ -498,7 +499,8 @@ def select_due(existing, current):
     for post_urn, rows in comments_by_post.items():
         rows.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(rows[0])
-    return non_comments + selected_comments
+    selected = non_comments + selected_comments
+    return selected[:MAX_DUE_EVENTS_PER_RUN]
 
 def _main_impl():
     print("=" * 72)
