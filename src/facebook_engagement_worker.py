@@ -162,6 +162,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
 
     created = 0
+    generated_posts = 0
     for published_at, source_row, row, post_id in candidates:
         existing = [x for x in events if str(x.get("post_id", "")).strip() == post_id]
         reaction_id = f"COMMENT_BUNDLE:{post_id}:REACTION"
@@ -203,6 +204,9 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         if missing == 0:
             continue
 
+        if generated_posts >= MAX_POSTS_TO_GENERATE_PER_RUN:
+            continue
+
         generated = generate_comments(
             api_key=CONFIG["gemini_api_key"],
             model=CONFIG["gemini_model"],
@@ -211,6 +215,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
             legal_sources=row.get("المصادر القانونية", ""),
             count=missing,
         )
+        generated_posts += 1
         comments = generated.get("facebook_comments", [])
         if len(comments) != missing:
             raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {missing}")
