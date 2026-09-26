@@ -370,6 +370,8 @@ def _main_impl():
     ensure_sheet(service, CONFIG["sheet_id"])
     current = now_cairo()
     events = read_events(service, CONFIG["sheet_id"])
+    reconcile_legacy_successes(service, CONFIG["sheet_id"], events, current)
+    events = read_events(service, CONFIG["sheet_id"])
 
     enqueue_latest_post(service, CONFIG["sheet_id"], CONFIG["sheet_range"], events, current, dry_run)
     events = read_events(service, CONFIG["sheet_id"])
