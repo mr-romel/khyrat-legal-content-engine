@@ -30,6 +30,7 @@ RETRY_MINUTES = int(os.getenv("LINKEDIN_ENGAGEMENT_RETRY_MINUTES", "30") or "30"
 DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or "24")
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
 MAX_COMMENTS_PER_POST_PER_RUN = 1
+MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "3") or "3")
 
 
 def now_cairo():
@@ -185,6 +186,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         print(f"Published LinkedIn posts eligible for engagement: {len(candidates)}")
 
     created = 0
+    generated_posts = 0
     for published_at, source_row, row, post_urn in candidates:
         post_events = [x for x in existing if str(x.get("post_urn", "")).strip() == post_urn]
         bundle_id = f"COMMENT_BUNDLE:{post_urn}"
@@ -236,6 +238,9 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         if missing == 0:
             continue
 
+        if generated_posts >= MAX_POSTS_TO_GENERATE_PER_RUN:
+            continue
+
         comments = generate_linkedin_comments(
             api_key=CONFIG["gemini_api_key"],
             model=CONFIG["gemini_model"],
@@ -245,6 +250,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             legal_sources=row.get("المصادر القانونية", ""),
             count=missing,
         )
+        generated_posts += 1
         offsets = comment_schedule_offsets(missing)
         existing_sequences = {
             int(x.get("sequence", "0") or "0")
