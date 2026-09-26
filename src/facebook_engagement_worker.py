@@ -150,12 +150,8 @@ def read_content(service, spreadsheet_id, sheet_range):
     return result
 
 
-def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, dry_run):
-    bundled = {
-        str(x.get("post_id", "")).strip()
-        for x in events
-        if str(x.get("event_id", "")).startswith("COMMENT_BUNDLE:")
-    }
+def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, current, dry_run):
+    """Ensure every recent published post with unfinished engagement has its own bundle."""
     candidates = []
     for source_row, row in read_content(service, spreadsheet_id, sheet_range):
         post_id = str(row.get("Facebook Post ID", "")).strip()
@@ -163,107 +159,94 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         if status != "PUBLISHED" or not post_id:
             continue
         candidates.append((_published_at(row, current), source_row, row, post_id))
-    if not candidates:
-        return 0
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
-    published_at, source_row, row, post_id = candidates[0]
-    # A prior bundle may exist even when all of its comments failed. Reconcile
-    # the queue instead of treating bundle existence as completion.
-    existing_for_post = [
-        x for x in events
-        if str(x.get("post_id", "")).strip() == post_id
-    ]
-    bundled_event = next(
-        (x for x in existing_for_post if str(x.get("event_id", "")).strip() == f"COMMENT_BUNDLE:{post_id}:REACTION"),
-        None,
-    )
 
-    target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
-    published_comment_count = sum(
-        1
-        for event in events
-        if str(event.get("post_id", "")).strip() == post_id
-        and str(event.get("action", "")).upper() == "COMMENT"
-        and str(event.get("status", "")).upper() == "PUBLISHED"
-    )
-    if published_comment_count >= target_count:
-        print(
-            f"Facebook comment target already reached for {post_id}: "
-            f"{published_comment_count}/{target_count}; no new comments queued."
-        )
-        # Still allow the post reaction to be repaired if its queue row is not successful
-        # yet. Comment completion and reaction completion are independent.
-        reaction_pending = bool(
-            bundled_event
-            and str(bundled_event.get("status", "")).upper() not in {"LIKED", "PUBLISHED"}
-        )
-        if not reaction_pending:
-            return 0
+    created = 0
+    for published_at, source_row, row, post_id in candidates:
+        existing = [x for x in events if str(x.get("post_id", "")).strip() == post_id]
+        reaction_id = f"COMMENT_BUNDLE:{post_id}:REACTION"
+        bundled_event = next((x for x in existing if str(x.get("event_id", "")).strip() == reaction_id), None)
 
-    count = max(0, target_count - published_comment_count)
-    if count == 0:
-        comments = []
-    else:
+        if not bundled_event:
+            append_event(service, spreadsheet_id, {
+                "event_id": reaction_id,
+                "source_row": str(source_row),
+                "post_id": post_id,
+                "topic": row.get("الموضوع", ""),
+                "post_text": row.get("المحتوى", ""),
+                "legal_sources": row.get("المصادر القانونية", ""),
+                "action": "REACTION",
+                "sequence": "0",
+                "scheduled_at": iso(current),
+                "status": "PENDING",
+                "comment_text": "",
+                "attempts": "0",
+                "fingerprint": fingerprint(post_id, "__LIKE_POST__"),
+                "created_at": iso(current),
+                "updated_at": iso(current),
+                "dry_run": "true" if dry_run else "false",
+            })
+            created += 1
+
+        target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+        published_count = sum(
+            1 for x in existing
+            if str(x.get("action", "")).upper() == "COMMENT"
+            and str(x.get("status", "")).upper() == "PUBLISHED"
+        )
+        queued_count = sum(
+            1 for x in existing
+            if str(x.get("action", "")).upper() == "COMMENT"
+            and str(x.get("status", "")).upper() in {"PENDING", "RETRY"}
+        )
+        missing = max(0, target_count - published_count - queued_count)
+        if missing == 0:
+            continue
+
         generated = generate_comments(
             api_key=CONFIG["gemini_api_key"],
             model=CONFIG["gemini_model"],
             topic=row.get("الموضوع", ""),
             post=row.get("المحتوى", ""),
             legal_sources=row.get("المصادر القانونية", ""),
-            count=count,
+            count=missing,
         )
         comments = generated.get("facebook_comments", [])
-    if len(comments) != count:
-        raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {count}")
+        if len(comments) != missing:
+            raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {missing}")
 
-    bundle_id = f"COMMENT_BUNDLE:{post_id}"
-    if not bundled_event:
-        append_event(service, spreadsheet_id, {
-        "event_id": f"{bundle_id}:REACTION",
-        "source_row": str(source_row),
-        "post_id": post_id,
-        "topic": row.get("الموضوع", ""),
-        "post_text": row.get("المحتوى", ""),
-        "legal_sources": row.get("المصادر القانونية", ""),
-        "action": "REACTION",
-        "sequence": "0",
-        "scheduled_at": iso(published_at),
-        "status": "PENDING",
-        "comment_text": "",
-        "attempts": "0",
-        "fingerprint": fingerprint(post_id, "__LIKE_POST__"),
-        "created_at": iso(current),
-        "updated_at": iso(current),
-        "dry_run": "true" if dry_run else "false",
-        })
-    # If discovery happens late, do not create an already-overdue backlog.
-    # Comment 1 is due now; later comments are spaced from this worker's
-    # discovery time and subsequently re-based from each real publication.
-    bundle_anchor = current
-    for sequence, message in enumerate(comments, start=1):
-        clean = normalize_comment(message)
-        scheduled = bundle_anchor + timedelta(minutes=15 * (sequence - 1))
-        append_event(service, spreadsheet_id, {
-            "event_id": f"{bundle_id}:{sequence}",
-            "source_row": str(source_row),
-            "post_id": post_id,
-            "topic": row.get("الموضوع", ""),
-            "post_text": row.get("المحتوى", ""),
-            "legal_sources": row.get("المصادر القانونية", ""),
-            "action": "COMMENT",
-            "sequence": str(sequence),
-            "scheduled_at": iso(scheduled),
-            "status": "PENDING",
-            "comment_text": clean,
-            "attempts": "0",
-            "fingerprint": fingerprint(post_id, clean),
-            "created_at": iso(current),
-            "updated_at": iso(current),
-            "dry_run": "true" if dry_run else "false",
-        })
-    print(f"Queued {count} Facebook comments for {post_id}")
-    return count
+        existing_sequences = {
+            int(x.get("sequence", "0") or "0")
+            for x in existing
+            if str(x.get("action", "")).upper() == "COMMENT"
+        }
+        next_sequence = max(existing_sequences, default=0) + 1
+        for offset, message in enumerate(comments):
+            sequence = next_sequence + offset
+            clean = normalize_comment(message)
+            scheduled = current + timedelta(minutes=15 * offset)
+            append_event(service, spreadsheet_id, {
+                "event_id": f"COMMENT_BUNDLE:{post_id}:{sequence}",
+                "source_row": str(source_row),
+                "post_id": post_id,
+                "topic": row.get("الموضوع", ""),
+                "post_text": row.get("المحتوى", ""),
+                "legal_sources": row.get("المصادر القانونية", ""),
+                "action": "COMMENT",
+                "sequence": str(sequence),
+                "scheduled_at": iso(scheduled),
+                "status": "PENDING",
+                "comment_text": clean,
+                "attempts": "0",
+                "fingerprint": fingerprint(post_id, clean),
+                "created_at": iso(current),
+                "updated_at": iso(current),
+                "dry_run": "true" if dry_run else "false",
+            })
+            created += 1
+        print(f"Queued {missing} Facebook comments for {post_id} ({published_count}/{target_count} already published)")
 
+    return created
 
 def reconcile_legacy_successes(service, spreadsheet_id, events, current):
     """Do not trust legacy Sheet success states without platform proof."""
@@ -323,23 +306,18 @@ def reconcile_legacy_successes(service, spreadsheet_id, events, current):
     return released
 
 
-def _latest_bundle_post(events):
-    bundles = []
+def _bundle_post_ids(events):
+    posts = []
+    seen = set()
     for event in events:
         event_id = str(event.get("event_id", "")).strip()
         if not event_id.startswith("COMMENT_BUNDLE:"):
             continue
         post_id = str(event.get("post_id", "")).strip()
-        if not post_id:
-            continue
-        created = parse_dt(event.get("created_at", "")) or datetime.min.replace(tzinfo=CAIRO)
-        source_row = int(event.get("source_row", "0") or "0")
-        bundles.append((created, source_row, post_id))
-    if not bundles:
-        return ""
-    bundles.sort(reverse=True)
-    return bundles[0][2]
-
+        if post_id and post_id not in seen:
+            seen.add(post_id)
+            posts.append(post_id)
+    return posts
 
 def _rebaseline_pending_comments(service, spreadsheet_id, events, post_id, anchor, interval_minutes=15):
     """Keep the remaining bundle on a real 15-minute clock after a delayed run."""
@@ -363,10 +341,10 @@ def _rebaseline_pending_comments(service, spreadsheet_id, events, post_id, ancho
 
 
 def due_events(events, current):
-    latest_post = _latest_bundle_post(events)
+    latest_posts = set(_bundle_post_ids(events))
     due = []
     for event in events:
-        if str(event.get("post_id", "")).strip() != latest_post:
+        if str(event.get("post_id", "")).strip() not in latest_posts:
             continue
         if str(event.get("status", "")).upper() not in {"PENDING", "RETRY"}:
             continue
@@ -376,16 +354,20 @@ def due_events(events, current):
         if str(event.get("action", "")).upper() not in {"COMMENT", "REACTION"}:
             continue
         due.append(event)
-    # The post reaction and the first comment are both due immediately
-    # when a new bundle is discovered. Keep exactly one comment per cycle,
-    # while allowing the immediate post-like to run in the same cycle.
-    comments = [x for x in due if str(x.get("action", "")).upper() == "COMMENT"]
-    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
-    if comments:
-        comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-        due = non_comments + comments[:MAX_COMMENTS_PER_RUN]
-    return due
 
+    # One comment per post per cycle, while allowing every due post reaction
+    # to run immediately. This prevents the newest post from starving older
+    # published posts that are still missing engagement.
+    non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
+    comments_by_post = {}
+    for event in due:
+        if str(event.get("action", "")).upper() == "COMMENT":
+            comments_by_post.setdefault(str(event.get("post_id", "")), []).append(event)
+    selected_comments = []
+    for post_id, items in comments_by_post.items():
+        items.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+        selected_comments.append(items[0])
+    return non_comments + selected_comments
 
 def _main_impl():
     global CONFIG
@@ -398,7 +380,7 @@ def _main_impl():
     reconcile_legacy_successes(service, CONFIG["sheet_id"], events, current)
     events = read_events(service, CONFIG["sheet_id"])
 
-    enqueue_latest_post(service, CONFIG["sheet_id"], CONFIG["sheet_range"], events, current, dry_run)
+    enqueue_published_posts(service, CONFIG["sheet_id"], CONFIG["sheet_range"], events, current, dry_run)
     events = read_events(service, CONFIG["sheet_id"])
     due = due_events(events, current)
     print(f"Facebook due events: {len(due)}")
