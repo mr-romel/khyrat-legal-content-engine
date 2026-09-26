@@ -415,7 +415,7 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
             released += 1
             break
         capability = str(row.get("capability_status", "")).upper()
-        if status == "RETRY" and capability != "RECOVERY_RELEASED":
+        if status == "RETRY" and capability not in {"RECOVERY_RELEASED", "RECOVERY_FINAL_RELEASED"}:
             recovery_status = "RETRY"
             recovery_note = "One-time recovery retry after LinkedIn reaction API route upgrade."
         elif status == "FAILED" and capability in {"RECOVERY_RELEASED", "RECOVERY_DIAGNOSTIC_RELEASED"}:
