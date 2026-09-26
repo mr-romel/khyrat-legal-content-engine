@@ -205,10 +205,10 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
     else:
         generated = generate_comments(
             api_key=CONFIG["gemini_api_key"],
-        model=CONFIG["gemini_model"],
-        topic=row.get("الموضوع", ""),
-        post=row.get("المحتوى", ""),
-        legal_sources=row.get("المصادر القانونية", ""),
+            model=CONFIG["gemini_model"],
+            topic=row.get("الموضوع", ""),
+            post=row.get("المحتوى", ""),
+            legal_sources=row.get("المصادر القانونية", ""),
             count=count,
         )
         comments = generated.get("facebook_comments", [])
