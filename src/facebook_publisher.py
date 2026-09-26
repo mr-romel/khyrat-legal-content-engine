@@ -148,7 +148,7 @@ def like_comment(*, comment_id: str, page_access_token: str, graph_version: str)
         return {"status": "FAILED", "error": str(exc)}
     if not response.ok:
         return {"status": "FAILED", "error": _api_error("Facebook comment like failed", response).args[0]}
-    return {"status": "LIKED", "comment_id": comment_id, "raw": response.json()}
+    return {"status": "LIKED", "comment_id": comment_id, "http_status": response.status_code, "platform_proof": f"HTTP:{response.status_code}", "raw": response.json()}
 
 
 def add_comment(*, post_id: str, page_access_token: str, graph_version: str, message: str) -> dict[str, Any]:
@@ -163,7 +163,7 @@ def add_comment(*, post_id: str, page_access_token: str, graph_version: str, mes
     if not comment_id:
         return {"status": "FAILED", "error": f"Facebook returned no Comment ID: {payload}", "published_count": 0, "liked_count": 0}
     like = like_comment(comment_id=comment_id, page_access_token=page_access_token, graph_version=graph_version)
-    return {"status": "PUBLISHED", "comment_id": comment_id, "published_count": 1, "liked_count": 1 if like.get("status") == "LIKED" else 0, "like_status": like.get("status"), "like_error": like.get("error", "")}
+    return {"status": "PUBLISHED", "comment_id": comment_id, "http_status": response.status_code, "platform_proof": f"COMMENT_ID:{comment_id}", "published_count": 1, "liked_count": 1 if like.get("status") == "LIKED" else 0, "like_status": like.get("status"), "like_error": like.get("error", "")}
 
 
 def like_post(*, post_id: str, page_access_token: str, graph_version: str) -> dict[str, Any]:
@@ -173,4 +173,4 @@ def like_post(*, post_id: str, page_access_token: str, graph_version: str) -> di
         return {"status": "FAILED", "error": str(exc)}
     if not response.ok:
         return {"status": "FAILED", "error": _api_error("Facebook like failed", response).args[0]}
-    return {"status": "LIKED", "raw": response.json()}
+    return {"status": "LIKED", "http_status": response.status_code, "platform_proof": f"HTTP:{response.status_code}", "raw": response.json()}
