@@ -453,15 +453,13 @@ def reconcile_legacy_successes(service, spreadsheet_id, existing, current):
         http_status = str(row.get("last_http_status", "")).strip()
         proof = str(row.get("platform_proof", "")).strip()
         comment_urn = str(row.get("comment_urn", "")).strip()
-        if http_status.isdigit() and 200 <= int(http_status) < 300:
+        if proof.startswith("LIVE_"):
             continue
         if action == "COMMENT" and comment_urn:
             update_event(service, spreadsheet_id, int(row["_row_number"]), {
-                "platform_proof": f"COMMENT_URN:{comment_urn}",
-                "verified_at": row.get("updated_at", "") or iso(current),
+                "platform_proof": f"LEGACY_COMMENT_URN:{comment_urn}",
+                "verified_at": "",
             })
-            continue
-        if proof:
             continue
         update_event(service, spreadsheet_id, int(row["_row_number"]), {
             "status": "RETRY",
@@ -633,9 +631,9 @@ def _main_impl():
             "updated_at": iso(current),
         }
         if result.status in {"PUBLISHED", "LIKED"}:
-            proof = result.item_id or f"HTTP:{result.http_status or ''}"
+            proof = f"LIVE_ITEM:{result.item_id}" if result.item_id else f"LIVE_HTTP:{result.http_status or ''}"
             if result.http_status == 409:
-                proof = "HTTP:409:IDEMPOTENT"
+                proof = "LIVE_HTTP:409:IDEMPOTENT"
             changes.update({
                 "status": result.status,
                 "comment_urn": result.item_id if action == "COMMENT" else event.get("comment_urn", ""),
