@@ -172,8 +172,7 @@ def generate_comments(
         print("GEMINI_API_KEY is missing; using deterministic platform-specific comments.")
         return _fallback_comments(topic=topic, post=post, count=count if count is not None else choose_comment_count(f"{topic}|{post}"))
     count = count if count is not None else choose_comment_count(f"{topic}|{post}")
-    if count < 3 or count > 7:
-        raise ValueError("Comment count must be between 3 and 7.")
+    # 3-7 is the target bundle size; incremental refill may legitimately request 1-2 remaining comments\n    if count < 1 or count > 7:\n        raise ValueError("Comment count must be between 1 and 7.")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     cache_key = (primary_model, topic.strip(), post.strip(), legal_sources.strip())
     cached = _COMMENT_CACHE.get(cache_key)
