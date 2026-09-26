@@ -239,9 +239,8 @@ def publish_text_to_linkedin(*, token: str, author_urn: str, commentary: str) ->
 
 def verify_comment(*, token: str, post_urn: str, comment_urn: str) -> LinkedInActionResult:
     """Verify a previously created LinkedIn comment when read access is available."""
-    import re
-    match = re.search(r",(\\d+)\\)$", str(comment_urn or "").strip())
-    comment_id = match.group(1) if match else ""
+    raw_comment_urn = str(comment_urn or "").strip()
+    comment_id = raw_comment_urn.rsplit(",", 1)[-1].rstrip(")") if "," in raw_comment_urn else ""
     if not comment_id:
         return LinkedInActionResult(status="UNVERIFIED", error="Invalid LinkedIn comment URN.")
     endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments/{quote(comment_id, safe='')}"
