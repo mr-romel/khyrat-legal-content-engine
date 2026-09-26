@@ -17,6 +17,7 @@ HEADERS = [
     "event_id", "source_row", "post_id", "topic", "post_text", "legal_sources",
     "action", "sequence", "scheduled_at", "status", "comment_text", "comment_id",
     "attempts", "last_error", "fingerprint", "created_at", "updated_at", "dry_run",
+    "last_http_status", "platform_proof", "verified_at",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_ATTEMPTS = int(os.getenv("FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
@@ -264,6 +265,39 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
     return count
 
 
+def reconcile_legacy_successes(service, spreadsheet_id, events, current):
+    """Do not trust legacy Sheet success states without platform proof."""
+    released = 0
+    for event in events:
+        status = str(event.get("status", "")).upper()
+        action = str(event.get("action", "")).upper()
+        if status not in {"PUBLISHED", "LIKED"}:
+            continue
+        http_status = str(event.get("last_http_status", "")).strip()
+        proof = str(event.get("platform_proof", "")).strip()
+        comment_id = str(event.get("comment_id", "")).strip()
+        if http_status.isdigit() and 200 <= int(http_status) < 300:
+            continue
+        if action == "COMMENT" and comment_id:
+            update_event(service, spreadsheet_id, int(event["_row_number"]), {
+                "platform_proof": f"COMMENT_ID:{comment_id}",
+                "verified_at": event.get("updated_at", "") or iso(current),
+            })
+            continue
+        if proof:
+            continue
+        update_event(service, spreadsheet_id, int(event["_row_number"]), {
+            "status": "RETRY",
+            "scheduled_at": iso(current),
+            "last_error": "Legacy success had no recorded platform proof; reopened for real API execution.",
+            "updated_at": iso(current),
+        })
+        released += 1
+    if released:
+        print(f"Facebook legacy success reconciliation reopened {released} engagement event(s).")
+    return released
+
+
 def _latest_bundle_post(events):
     bundles = []
     for event in events:
@@ -372,13 +406,17 @@ def _main_impl():
         changes = {
             "attempts": attempts,
             "last_error": result.get("error", ""),
+            "last_http_status": result.get("http_status", ""),
             "updated_at": iso(current),
         }
         if result.get("status") in {"PUBLISHED", "LIKED"}:
             comment_id = result.get("comment_id", "")
+            proof = result.get("platform_proof", "") or (f"COMMENT_ID:{comment_id}" if comment_id else f"HTTP:{result.get('http_status', '')}")
             changes.update({
                 "status": result.get("status"),
                 "comment_id": comment_id,
+                "platform_proof": proof,
+                "verified_at": iso(current),
                 "last_error": "",
             })
             print(f"{event['event_id']} -> PUBLISHED")
