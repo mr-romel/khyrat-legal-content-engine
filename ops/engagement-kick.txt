@@ -3,4 +3,5 @@ Created 2026-09-25
 Purpose: force one durable engagement-worker cycle after queue scheduling recovery
 Last manual recovery trigger: 2026-09-26T11:00:00Z
 Proof-reconciliation deployment trigger: 2026-09-26T11:05:00Z
-Live-reconciliation pass: 2026-09-26T11:05:00Z
+Live-reconciliation pass: 2026-09-26T11:08:00Z
+Final worker trigger after main-call fix: 2026-09-26T11:08:00Z
