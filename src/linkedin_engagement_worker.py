@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
-from linkedin_publisher import like_comment, like_post, resolve_member_urn
+from linkedin_publisher import like_comment, like_post, resolve_member_urn, verify_comment
 from sheets import create_service, get_values
 
 ENGAGEMENT_SHEET = os.getenv("LINKEDIN_ENGAGEMENT_SHEET", "LinkedIn Engagement").strip() or "LinkedIn Engagement"
@@ -456,10 +456,38 @@ def reconcile_legacy_successes(service, spreadsheet_id, existing, current):
         if proof.startswith("LIVE_"):
             continue
         if action == "COMMENT" and comment_urn:
-            update_event(service, spreadsheet_id, int(row["_row_number"]), {
-                "platform_proof": f"LEGACY_COMMENT_URN:{comment_urn}",
-                "verified_at": "",
-            })
+            verification = verify_comment(
+                token=CONFIG["linkedin_access_token"],
+                post_urn=str(row.get("post_urn", "")).strip(),
+                comment_urn=comment_urn,
+            )
+            if verification.status == "VERIFIED":
+                update_event(service, spreadsheet_id, int(row["_row_number"]), {
+                    "platform_proof": f"LIVE_COMMENT_URN:{comment_urn}",
+                    "last_http_status": verification.http_status or "",
+                    "verified_at": iso(current),
+                    "last_error": "",
+                })
+                print(f"LinkedIn comment verified: {comment_urn}")
+            elif verification.status == "NOT_FOUND":
+                update_event(service, spreadsheet_id, int(row["_row_number"]), {
+                    "status": "RETRY",
+                    "scheduled_at": iso(current),
+                    "platform_proof": "",
+                    "verified_at": "",
+                    "last_http_status": verification.http_status or "",
+                    "last_error": "Legacy LinkedIn comment no longer resolves; reopened for real publication.",
+                    "updated_at": iso(current),
+                })
+                released += 1
+            else:
+                update_event(service, spreadsheet_id, int(row["_row_number"]), {
+                    "platform_proof": f"LEGACY_COMMENT_URN:{comment_urn}",
+                    "last_http_status": verification.http_status or "",
+                    "verified_at": "",
+                    "last_error": verification.error or "",
+                })
+                print(f"LinkedIn comment verification unavailable: {comment_urn} | http={verification.http_status}")
             continue
         update_event(service, spreadsheet_id, int(row["_row_number"]), {
             "status": "RETRY",
