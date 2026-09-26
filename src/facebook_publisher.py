@@ -138,6 +138,31 @@ def publish_text(*, page_id: str, page_access_token: str, graph_version: str, me
     except requests.RequestException as exc:
         raise FacebookPublishError(f"Facebook text publish network error: {exc}") from exc
 
+def verify_comment(*, comment_id: str, page_access_token: str, graph_version: str) -> dict[str, Any]:
+    """Verify that a previously created Facebook comment still exists."""
+    comment_id = str(comment_id or "").strip()
+    if not comment_id:
+        return {"status": "NOT_FOUND", "http_status": 0, "error": "Facebook comment ID is empty."}
+    try:
+        response = requests.get(
+            _graph_url(graph_version, comment_id),
+            headers=_headers(),
+            params={"fields": "id,message", "access_token": page_access_token.strip()},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        return {"status": "NETWORK_FAILED", "http_status": 0, "error": str(exc)}
+    if response.ok:
+        payload = response.json()
+        resolved = str(payload.get("id", "")).strip()
+        if resolved == comment_id:
+            return {"status": "VERIFIED", "http_status": response.status_code, "platform_proof": f"LIVE_COMMENT_ID:{comment_id}", "raw": payload}
+        return {"status": "NOT_FOUND", "http_status": response.status_code, "error": f"Facebook returned a different comment ID: {payload}"}
+    if response.status_code == 404:
+        return {"status": "NOT_FOUND", "http_status": 404, "error": _api_error("Facebook comment verification failed", response).args[0]}
+    return {"status": "UNVERIFIED", "http_status": response.status_code, "error": _api_error("Facebook comment verification unavailable", response).args[0]}
+
+
 def like_comment(*, comment_id: str, page_access_token: str, graph_version: str) -> dict[str, Any]:
     comment_id = str(comment_id or "").strip()
     if not comment_id:
