@@ -411,7 +411,7 @@ def _main_impl():
         }
         if result.get("status") in {"PUBLISHED", "LIKED"}:
             comment_id = result.get("comment_id", "")
-            proof = result.get("platform_proof", "") or (f"COMMENT_ID:{comment_id}" if comment_id else f"HTTP:{result.get('http_status', '')}")
+            proof = result.get("platform_proof", "") or (f"LIVE_COMMENT_ID:{comment_id}" if comment_id else f"LIVE_HTTP:{result.get('http_status', '')}")
             changes.update({
                 "status": result.get("status"),
                 "comment_id": comment_id,
