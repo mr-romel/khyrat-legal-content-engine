@@ -237,6 +237,25 @@ def publish_text_to_linkedin(*, token: str, author_urn: str, commentary: str) ->
     print(f"LinkedIn text publication completed: post_urn={post_urn}")
     return {"post_urn": post_urn, "comment": {"status": "SKIPPED"}, "like": {"status": "SKIPPED"}}
 
+def verify_comment(*, token: str, post_urn: str, comment_urn: str) -> LinkedInActionResult:
+    """Verify a previously created LinkedIn comment when read access is available."""
+    import re
+    match = re.search(r",(\\d+)\\)$", str(comment_urn or "").strip())
+    comment_id = match.group(1) if match else ""
+    if not comment_id:
+        return LinkedInActionResult(status="UNVERIFIED", error="Invalid LinkedIn comment URN.")
+    endpoint = f"{LINKEDIN_REST_BASE}/socialActions/{quote(post_urn, safe='')}/comments/{quote(comment_id, safe='')}"
+    try:
+        response = requests.get(endpoint, headers=_headers(token), timeout=30)
+    except requests.RequestException as exc:
+        return LinkedInActionResult(status="NETWORK_FAILED", error=f"comment verification: {exc}")
+    if response.ok:
+        return LinkedInActionResult(status="VERIFIED", item_id=comment_urn, http_status=response.status_code)
+    if response.status_code == 404:
+        return LinkedInActionResult(status="NOT_FOUND", error=_error_summary(response), http_status=404)
+    return LinkedInActionResult(status="UNVERIFIED", error=_error_summary(response), http_status=response.status_code)
+
+
 def add_comment(*, token: str, actor_urn: str, post_urn: str, message: str) -> LinkedInActionResult:
     """
     Publish a comment as the authenticated personal member.
