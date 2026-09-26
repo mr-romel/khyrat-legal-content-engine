@@ -19,8 +19,8 @@ IMAGE_ENDPOINT = (
 )
 MAX_PROMPT_LENGTH = 5000
 IMAGE_STEPS = max(1, min(int(os.getenv("CLOUDFLARE_IMAGE_STEPS", "30")), 50))
-IMAGE_GUIDANCE = float(os.getenv("CLOUDFLARE_IMAGE_GUIDANCE", "4.0"))
-MAX_REFERENCE_IMAGES = max(1, min(int(os.getenv("KHYRAT_MAX_REFERENCE_IMAGES", "2")), 4))
+IMAGE_GUIDANCE = float(os.getenv("CLOUDFLARE_IMAGE_GUIDANCE", "5.0"))
+MAX_REFERENCE_IMAGES = max(1, min(int(os.getenv("KHYRAT_MAX_REFERENCE_IMAGES", "1")), 4))
 DEFAULT_PAGE_NAME = "اسأل محمود - مستشار قانوني للشركات"
 
 # Character reference assets are supplied directly to FLUX.2 [dev] as multi-reference
@@ -159,8 +159,8 @@ Return one compact paragraph, no bullets, no markdown.
 def _build_prompt(topic: str, image_brief: str, character_profile: str | None = None, image_mode: str = "REFERENCE_SUBJECT") -> str:
     topic = topic.strip().replace("\r", " ").replace("\n", " ")
     brief = image_brief.strip().replace("\r", " ").replace("\n\n", "\n")
-    if len(brief) > 900:
-        brief = brief[:900].rsplit(" ", 1)[0].strip()
+    if len(brief) > 650:
+        brief = brief[:650].rsplit(" ", 1)[0].strip()
     mode = image_mode.strip().upper()
     if mode == "REFERENCE_SUBJECT":
         subject_block = f"""
@@ -172,8 +172,8 @@ Create a completely new scene, pose, wardrobe, camera angle, environment, and co
 Do not copy any reference photo's background, furniture, pose, framing, or lighting.
 The recurring subject MUST be doing the exact legal action described in the visual brief.
 REFERENCE INPUTS:
-The uploaded reference photos are attached as input_image_0, input_image_1, input_image_2, and input_image_3 (whichever are present).
-Use input_image_0 as the PRIMARY facial identity reference. Use input_image_1, input_image_2, and input_image_3 only as secondary consistency references. Preserve the same facial identity and recognizable features.
+The uploaded reference photo is attached as input_image_0.
+Use input_image_0 as the PRIMARY and ONLY identity reference. Preserve the same facial identity and recognizable features. Do not blend multiple faces.
 Do not invent a generic look. Do not substitute another man. The identity should be recognizable as the same person while the scene, pose, clothing, camera, and environment are new.
 """
     else:
@@ -346,6 +346,7 @@ def _cloudflare_generate(*, endpoint: str, headers: dict[str, str], prompt: str,
         "prompt": prompt,
         "steps": str(IMAGE_STEPS),
         "guidance": str(IMAGE_GUIDANCE),
+        "seed": str(int.from_bytes(os.urandom(4), "big")),
         "width": "1024",
         "height": "1280",
     }
@@ -375,7 +376,7 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
     reference_files = sorted(
         path for path in reference_dir.iterdir()
         if path.is_file() and path.suffix.lower() in CHARACTER_REFERENCE_EXTENSIONS
-    )[:4] if reference_dir.is_dir() else []
+    )[:MAX_REFERENCE_IMAGES] if reference_dir.is_dir() else []
     if reference_files:
         reference_names = ", ".join(path.name for path in reference_files)
         print(f"Character reference assets detected: {len(reference_files)} file(s) in {reference_dir}")
