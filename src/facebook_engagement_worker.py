@@ -166,8 +166,16 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         return 0
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
     published_at, source_row, row, post_id = candidates[0]
-    if post_id in bundled:
-        return 0
+    # A prior bundle may exist even when all of its comments failed. Reconcile
+    # the queue instead of treating bundle existence as completion.
+    existing_for_post = [
+        x for x in events
+        if str(x.get("post_id", "")).strip() == post_id
+    ]
+    bundled_event = next(
+        (x for x in existing_for_post if str(x.get("event_id", "")).strip() == f"COMMENT_BUNDLE:{post_id}:REACTION"),
+        None,
+    )
 
     target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
     published_comment_count = sum(
@@ -198,7 +206,8 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {count}")
 
     bundle_id = f"COMMENT_BUNDLE:{post_id}"
-    append_event(service, spreadsheet_id, {
+    if not bundled_event:
+        append_event(service, spreadsheet_id, {
         "event_id": f"{bundle_id}:REACTION",
         "source_row": str(source_row),
         "post_id": post_id,
@@ -215,8 +224,7 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
         "created_at": iso(current),
         "updated_at": iso(current),
         "dry_run": "true" if dry_run else "false",
-    })
-
+        })
     # If discovery happens late, do not create an already-overdue backlog.
     # Comment 1 is due now; later comments are spaced from this worker's
     # discovery time and subsequently re-based from each real publication.
