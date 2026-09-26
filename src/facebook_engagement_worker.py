@@ -106,14 +106,17 @@ def append_event(service, spreadsheet_id, event):
     ).execute()
 
 
-def update_event(service, spreadsheet_id, row_number, changes):
+def update_event(service, spreadsheet_id, row_number, changes, base_event=None):
     last = col_letter(len(HEADERS))
-    current = service.spreadsheets().values().get(
-        spreadsheetId=spreadsheet_id,
-        range=f"{ENGAGEMENT_SHEET}!A{row_number}:{last}{row_number}",
-    ).execute().get("values", [[]])
-    row = list(current[0]) if current else []
-    row += [""] * (len(HEADERS) - len(row))
+    if base_event is not None:
+        row = [str(base_event.get(h, "")) for h in HEADERS]
+    else:
+        current = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"{ENGAGEMENT_SHEET}!A{row_number}:{last}{row_number}",
+        ).execute().get("values", [[]])
+        row = list(current[0]) if current else []
+        row += [""] * (len(HEADERS) - len(row))
     for key, value in changes.items():
         if key in HEADERS:
             row[HEADERS.index(key)] = str(value)
@@ -374,7 +377,10 @@ def due_events(events, current):
     for post_id, items in comments_by_post.items():
         items.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(items[0])
-    return non_comments + selected_comments
+    selected_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+    non_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+    # Comments are the primary engagement deliverable; reactions use remaining capacity.
+    return (selected_comments + non_comments)[:MAX_DUE_EVENTS_PER_RUN]
 
 def _main_impl():
     global CONFIG
@@ -445,10 +451,11 @@ def _main_impl():
                 "scheduled_at": iso(current + timedelta(minutes=RETRY_MINUTES)),
             })
             print(f"{event['event_id']} -> RETRY")
-        update_event(service, CONFIG["sheet_id"], row_number, changes)
+        event.update(changes)
+        update_event(service, CONFIG["sheet_id"], row_number, changes, base_event=event)
 
         if str(event.get("action", "")).upper() == "COMMENT" and result.get("status") == "PUBLISHED":
-            refreshed = read_events(service, CONFIG["sheet_id"])
+            refreshed = events
             _rebaseline_pending_comments(
                 service,
                 CONFIG["sheet_id"],
