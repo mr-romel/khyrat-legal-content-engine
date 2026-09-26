@@ -190,18 +190,28 @@ def enqueue_latest_post(service, spreadsheet_id, sheet_range, events, current, d
             f"Facebook comment target already reached for {post_id}: "
             f"{published_comment_count}/{target_count}; no new comments queued."
         )
-        return 0
+        # Still allow the post reaction to be repaired if its queue row is not successful
+        # yet. Comment completion and reaction completion are independent.
+        reaction_pending = bool(
+            bundled_event
+            and str(bundled_event.get("status", "")).upper() not in {"LIKED", "PUBLISHED"}
+        )
+        if not reaction_pending:
+            return 0
 
-    count = target_count - published_comment_count
-    generated = generate_comments(
-        api_key=CONFIG["gemini_api_key"],
+    count = max(0, target_count - published_comment_count)
+    if count == 0:
+        comments = []
+    else:
+        generated = generate_comments(
+            api_key=CONFIG["gemini_api_key"],
         model=CONFIG["gemini_model"],
         topic=row.get("الموضوع", ""),
         post=row.get("المحتوى", ""),
         legal_sources=row.get("المصادر القانونية", ""),
-        count=count,
-    )
-    comments = generated.get("facebook_comments", [])
+            count=count,
+        )
+        comments = generated.get("facebook_comments", [])
     if len(comments) != count:
         raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {count}")
 
