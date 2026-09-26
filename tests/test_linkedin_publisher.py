@@ -68,6 +68,6 @@ def test_personal_like_uses_legacy_member_route_first():
         )
 
     post.assert_called_once()
-    assert "/v2/socialActions/" in post.call_args.args[0]
+    assert "/rest/reactions?actor=" in post.call_args.args[0]
     assert result.status == "LIKED"
     assert result.http_status == 201
