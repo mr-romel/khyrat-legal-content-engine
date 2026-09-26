@@ -1,18 +1,1 @@
-Emergency engagement recovery trigger
-Created 2026-09-25
-Purpose: force one durable engagement-worker cycle after queue scheduling recovery
-Last manual recovery trigger: 2026-09-26T11:00:00Z
-Proof-reconciliation deployment trigger: 2026-09-26T11:05:00Z
-Live-reconciliation pass: 2026-09-26T11:08:00Z
-Final worker trigger after main-call fix: 2026-09-26T11:12:00Z
-Final LinkedIn reconciliation call fix: 2026-09-26T11:12:00Z
-Facebook comment live verification: 2026-09-26T11:16:00Z
-LinkedIn comment live verification: 2026-09-26T11:22:00Z
-URN parser fix verification: 2026-09-26T11:22:00Z
-Final recovery-loop fix: 2026-09-26T11:25:00Z
-
-All-published-post engagement sweep: 2026-09-26T13:20:00Z
-
-Final all-post sweep after LinkedIn queue fix: 2026-09-26T13:20:51.601Z
-
-Post-fix execution trigger: 2026-09-26T13:21:15.289Z
+2026-09-26T13:41:11.677Z
