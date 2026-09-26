@@ -215,7 +215,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         best_qa = None
         candidate_brief = image_brief
 
-        for image_attempt in range(1, 3):
+        for image_attempt in range(1, 4):
             candidate_path = GENERATED_DIR / ".tmp" / f"{safe_id}.attempt{image_attempt}.jpg"
             try:
                 create_legal_image(
