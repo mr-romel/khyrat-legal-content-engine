@@ -114,8 +114,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     if not api_key:
         print("GEMINI_API_KEY is missing; using deterministic LinkedIn comments.")
         return _fallback_linkedin_comments(topic, count)
-    if count < LINKEDIN_MIN_COMMENTS or count > LINKEDIN_MAX_COMMENTS:
-        raise ValueError("LinkedIn comment count must be between 3 and 7.")
+    # 3-7 is the target bundle size; incremental refill may legitimately request 1-2 remaining comments\n    if count < 1 or count > LINKEDIN_MAX_COMMENTS:\n        raise ValueError("LinkedIn comment count must be between 1 and 7.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
 أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
