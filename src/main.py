@@ -5,6 +5,7 @@ import os
 import traceback
 from difflib import SequenceMatcher
 from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
 
 from analytics import log_publication
 from comment_engine import generate_comments
@@ -25,6 +26,43 @@ from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
+
+def _create_emergency_legal_image(*, topic: str, output_path: Path, page_name: str = "") -> Path:
+    """Guaranteed local fallback: publication must continue even if AI image generation fails."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    width, height = 1024, 1280
+    image = Image.new("RGB", (width, height), (245, 242, 235))
+    draw = ImageDraw.Draw(image)
+    try:
+        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 58)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 30)
+    except Exception:
+        font_large = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+    draw.rectangle((0, 0, width, 180), fill=(28, 35, 45))
+    title = "LEGAL UPDATE"
+    draw.text((60, 58), title, fill=(255, 255, 255), font=font_large)
+    topic_text = (topic or "Legal topic").strip()
+    # Keep the emergency card readable and deterministic.
+    lines, words, current_line = [], topic_text.split(), ""
+    for word in words:
+        test = (current_line + " " + word).strip()
+        if draw.textbbox((0, 0), test, font=font_small)[2] > width - 120 and current_line:
+            lines.append(current_line); current_line = word
+        else:
+            current_line = test
+    if current_line: lines.append(current_line)
+    y = 300
+    draw.text((60, 230), "الموضوع القانوني", fill=(28, 35, 45), font=font_small)
+    for line in lines[:8]:
+        draw.text((60, y), line, fill=(20, 20, 20), font=font_small)
+        y += 58
+    draw.line((60, 790, width - 60, 790), fill=(120, 120, 120), width=3)
+    footer = page_name.strip() or "Khyrat Legal"
+    draw.text((60, 850), footer, fill=(70, 70, 70), font=font_small)
+    draw.text((60, 930), "صورة توضيحية للموضوع", fill=(70, 70, 70), font=font_small)
+    image.save(output_path, format="JPEG", quality=92, optimize=True)
+    return output_path
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
@@ -317,7 +355,17 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     try:
         post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
         if not image_path or not Path(image_path).is_file():
-            raise ImageGenerationError("Publish blocked: a valid generated image is required for both Facebook and LinkedIn.")
+            # NEVER block publication because the AI image pipeline failed.
+            # Generate a guaranteed local topic-related visual instead.
+            safe_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(row.get("ID") or row_number)).strip("_") or str(row_number)
+            emergency_path = GENERATED_DIR / f"{safe_id}.jpg"
+            image_path = _create_emergency_legal_image(
+                topic=topic,
+                output_path=emergency_path,
+                page_name=str(config.get("facebook_page_name") or config.get("linkedin_page_name") or "Khyrat Legal"),
+            )
+            image_url = github_raw_url(str(image_path))
+            print(f"AI image unavailable; emergency topic image created. Publishing continues: {image_path}")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
