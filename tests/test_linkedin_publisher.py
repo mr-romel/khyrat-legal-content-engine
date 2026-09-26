@@ -27,7 +27,7 @@ def test_personal_comment_uses_legacy_member_route_first():
         )
 
     post.assert_called_once()
-    assert "/rest/reactions?actor=" in post.call_args.args[0]
+    assert "/v2/socialActions/" in post.call_args.args[0]
     assert result.status == "PUBLISHED"
     assert result.http_status == 201
 
