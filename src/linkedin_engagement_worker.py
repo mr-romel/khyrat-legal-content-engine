@@ -109,13 +109,16 @@ def append_event(service, spreadsheet_id, event):
     ).execute()
 
 
-def update_event(service, spreadsheet_id, row_number, changes):
+def update_event(service, spreadsheet_id, row_number, changes, base_event=None):
     last = col_letter(len(ENGAGEMENT_HEADERS))
-    response = service.spreadsheets().values().get(
-        spreadsheetId=spreadsheet_id, range=f"{ENGAGEMENT_SHEET}!A{row_number}:{last}{row_number}"
-    ).execute().get("values", [])
-    row = list(response[0]) if response else []
-    row += [""] * (len(ENGAGEMENT_HEADERS) - len(row))
+    if base_event is not None:
+        row = [str(base_event.get(h, "")) for h in ENGAGEMENT_HEADERS]
+    else:
+        response = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id, range=f"{ENGAGEMENT_SHEET}!A{row_number}:{last}{row_number}"
+        ).execute().get("values", [])
+        row = list(response[0]) if response else []
+        row += [""] * (len(ENGAGEMENT_HEADERS) - len(row))
     for key, value in changes.items():
         if key in ENGAGEMENT_HEADERS:
             row[ENGAGEMENT_HEADERS.index(key)] = str(value)
@@ -499,7 +502,10 @@ def select_due(existing, current):
     for post_urn, rows in comments_by_post.items():
         rows.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(rows[0])
-    selected = non_comments + selected_comments
+    selected_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+    non_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+    # Comments are the primary engagement deliverable; reactions use remaining capacity.
+    selected = selected_comments + non_comments
     return selected[:MAX_DUE_EVENTS_PER_RUN]
 
 def _main_impl():
@@ -625,10 +631,11 @@ def _main_impl():
                 "status": "RETRY",
                 "scheduled_at": iso(current + timedelta(minutes=RETRY_MINUTES)),
             })
-        update_event(service, CONFIG["sheet_id"], row_number, changes)
+        event.update(changes)
+        update_event(service, CONFIG["sheet_id"], row_number, changes, base_event=event)
 
         if action == "COMMENT" and result.status == "PUBLISHED":
-            refreshed = read_engagement_rows(service, CONFIG["sheet_id"])
+            refreshed = existing
             _rebaseline_pending_comments(
                 service,
                 CONFIG["sheet_id"],
