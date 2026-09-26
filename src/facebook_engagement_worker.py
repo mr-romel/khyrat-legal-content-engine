@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from comment_engine import generate_comments
 from config import load_facebook_engagement_config
 from engagement_strategy import choose_comment_count, normalize_comment
-from facebook_publisher import add_comment, like_comment, like_post
+from facebook_publisher import add_comment, like_comment, like_post, verify_comment
 from sheets import create_service, get_values
 
 ENGAGEMENT_SHEET = os.getenv("FACEBOOK_ENGAGEMENT_SHEET", "Facebook Engagement").strip() or "Facebook Engagement"
@@ -276,15 +276,40 @@ def reconcile_legacy_successes(service, spreadsheet_id, events, current):
         http_status = str(event.get("last_http_status", "")).strip()
         proof = str(event.get("platform_proof", "")).strip()
         comment_id = str(event.get("comment_id", "")).strip()
-        if http_status.isdigit() and 200 <= int(http_status) < 300:
+        if proof.startswith("LIVE_"):
             continue
         if action == "COMMENT" and comment_id:
-            update_event(service, spreadsheet_id, int(event["_row_number"]), {
-                "platform_proof": f"COMMENT_ID:{comment_id}",
-                "verified_at": event.get("updated_at", "") or iso(current),
-            })
-            continue
-        if proof:
+            verification = verify_comment(
+                comment_id=comment_id,
+                page_access_token=CONFIG["facebook_page_access_token"],
+                graph_version=CONFIG["facebook_graph_version"],
+            )
+            if verification.get("status") == "VERIFIED":
+                update_event(service, spreadsheet_id, int(event["_row_number"]), {
+                    "platform_proof": verification.get("platform_proof", f"LIVE_COMMENT_ID:{comment_id}"),
+                    "last_http_status": verification.get("http_status", ""),
+                    "verified_at": iso(current),
+                    "last_error": "",
+                })
+                print(f"Facebook comment verified: {comment_id}")
+            elif verification.get("status") == "NOT_FOUND":
+                update_event(service, spreadsheet_id, int(event["_row_number"]), {
+                    "status": "RETRY",
+                    "scheduled_at": iso(current),
+                    "platform_proof": "",
+                    "verified_at": "",
+                    "last_http_status": verification.get("http_status", ""),
+                    "last_error": "Legacy Facebook comment ID no longer resolves; reopened for real publication.",
+                    "updated_at": iso(current),
+                })
+                released += 1
+            else:
+                update_event(service, spreadsheet_id, int(event["_row_number"]), {
+                    "platform_proof": f"LEGACY_COMMENT_ID:{comment_id}",
+                    "last_http_status": verification.get("http_status", ""),
+                    "verified_at": "",
+                    "last_error": verification.get("error", ""),
+                })
             continue
         update_event(service, spreadsheet_id, int(event["_row_number"]), {
             "status": "RETRY",
