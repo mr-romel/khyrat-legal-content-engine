@@ -26,6 +26,7 @@ MAX_COMMENTS_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
 MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "3") or "3")
 MAX_LEGACY_RECONCILE_PER_RUN = int(os.getenv("KHYRAT_LEGACY_RECONCILE_PER_RUN", "2") or "2")
+MAX_RECENT_POSTS = int(os.getenv("KHYRAT_ENGAGEMENT_RECENT_POSTS", "3") or "3")
 
 
 def now_cairo():
@@ -166,6 +167,8 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
             continue
         candidates.append((_published_at(row, current), source_row, row, post_id))
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
+    candidates = candidates[:MAX_RECENT_POSTS]
+    print(f"Facebook engagement scope: latest {len(candidates)} published post(s) only")
 
     created = 0
     generated_posts = 0
@@ -355,8 +358,10 @@ def _rebaseline_pending_comments(service, spreadsheet_id, events, post_id, ancho
             )
 
 
-def due_events(events, current):
-    latest_posts = set(_bundle_post_ids(events))
+def due_events(events, current, allowed_post_ids):
+    # Hard scope: only the latest N published posts are eligible. Older queue
+    # rows remain auditable but can never consume the worker's write/API quota.
+    latest_posts = set(_bundle_post_ids(events)) & set(allowed_post_ids)
     due = []
     for event in events:
         if str(event.get("post_id", "")).strip() not in latest_posts:
@@ -419,7 +424,17 @@ def _main_impl():
 
     enqueue_published_posts(service, CONFIG["sheet_id"], CONFIG["sheet_range"], events, current, dry_run)
     events = read_events(service, CONFIG["sheet_id"])
-    due = due_events(events, current)
+    content_rows = read_content(service, CONFIG["sheet_id"], CONFIG["sheet_range"])
+    recent_candidates = []
+    for source_row, row in content_rows:
+        post_id = str(row.get("Facebook Post ID", "")).strip()
+        status = str(row.get("Facebook Status", "")).strip().upper()
+        if status == "PUBLISHED" and post_id:
+            recent_candidates.append((_published_at(row, current), int(source_row), post_id))
+    recent_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    recent_post_ids = {x[2] for x in recent_candidates[:MAX_RECENT_POSTS]}
+    print(f"Facebook hard engagement scope: {len(recent_post_ids)} latest post(s)")
+    due = due_events(events, current, recent_post_ids)
     print(f"Facebook due events: {len(due)}")
     if not due:
         return 0
