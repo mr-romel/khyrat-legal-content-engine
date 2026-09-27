@@ -24,7 +24,8 @@ MAX_ATTEMPTS = int(os.getenv("FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS", "12") or "12")
 RETRY_MINUTES = int(os.getenv("FACEBOOK_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 MAX_COMMENTS_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
-MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "10") or "10")
+MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "3") or "3")
+MAX_LEGACY_RECONCILE_PER_RUN = int(os.getenv("KHYRAT_LEGACY_RECONCILE_PER_RUN", "2") or "2")
 
 
 def now_cairo():
@@ -261,11 +262,15 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
 def reconcile_legacy_successes(service, spreadsheet_id, events, current):
     """Do not trust legacy Sheet success states without platform proof."""
     released = 0
+    inspected = 0
     for event in events:
+        if inspected >= MAX_LEGACY_RECONCILE_PER_RUN:
+            break
         status = str(event.get("status", "")).upper()
         action = str(event.get("action", "")).upper()
         if status not in {"PUBLISHED", "LIKED"}:
             continue
+        inspected += 1
         http_status = str(event.get("last_http_status", "")).strip()
         proof = str(event.get("platform_proof", "")).strip()
         comment_id = str(event.get("comment_id", "")).strip()
