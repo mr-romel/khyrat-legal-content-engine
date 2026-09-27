@@ -6,7 +6,6 @@ import re
 import traceback
 from difflib import SequenceMatcher
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
 
 from analytics import log_publication
 from comment_engine import generate_comments
@@ -15,12 +14,11 @@ from content_planner import classify
 from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
-from facebook_publisher import FacebookPublishError, publish_photo
+from facebook_publisher import FacebookPublishError, publish_photo, publish_text
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
-from image_qa import ImageQAError, QA_MAX_RETRIES, qa_image, summarize_qa
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
-from linkedin_publisher import LinkedInPublishError, publish_to_linkedin, resolve_member_urn
+from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
@@ -28,42 +26,6 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
 
-def _create_emergency_legal_image(*, topic: str, output_path: Path, page_name: str = "") -> Path:
-    """Guaranteed local fallback: publication must continue even if AI image generation fails."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    width, height = 1024, 1280
-    image = Image.new("RGB", (width, height), (245, 242, 235))
-    draw = ImageDraw.Draw(image)
-    try:
-        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 58)
-        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 30)
-    except Exception:
-        font_large = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-    draw.rectangle((0, 0, width, 180), fill=(28, 35, 45))
-    title = "LEGAL UPDATE"
-    draw.text((60, 58), title, fill=(255, 255, 255), font=font_large)
-    topic_text = (topic or "Legal topic").strip()
-    # Keep the emergency card readable and deterministic.
-    lines, words, current_line = [], topic_text.split(), ""
-    for word in words:
-        test = (current_line + " " + word).strip()
-        if draw.textbbox((0, 0), test, font=font_small)[2] > width - 120 and current_line:
-            lines.append(current_line); current_line = word
-        else:
-            current_line = test
-    if current_line: lines.append(current_line)
-    y = 300
-    draw.text((60, 230), "الموضوع القانوني", fill=(28, 35, 45), font=font_small)
-    for line in lines[:8]:
-        draw.text((60, y), line, fill=(20, 20, 20), font=font_small)
-        y += 58
-    draw.line((60, 790, width - 60, 790), fill=(120, 120, 120), width=3)
-    footer = page_name.strip() or "Khyrat Legal"
-    draw.text((60, 850), footer, fill=(70, 70, 70), font=font_small)
-    draw.text((60, 930), "صورة توضيحية للموضوع", fill=(70, 70, 70), font=font_small)
-    image.save(output_path, format="JPEG", quality=92, optimize=True)
-    return output_path
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
 COMMENT_BACKFILL_LIMIT = 3
@@ -199,19 +161,16 @@ def _fallback_post(topic: str, legal_sources: str = "") -> str:
 
 
 def _generate_if_needed(*, service, config, sheet_name, row_number, row, current, topic, bank_rows):
+    """Generate content through the original direct Cloudflare image path.
+
+    Character references and Gemini image-QA loops are intentionally removed.
+    Image failure never creates a fake visual and never blocks social publication.
+    """
     existing_post = str(row.get("المحتوى", "") or "").strip()
     existing_image_url = str(row.get("رابط الصورة", "") or "").strip()
     raw_id = row.get("ID", "") or f"row-{row_number}"
     safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
-    working_image_path = GENERATED_DIR / ".tmp" / f"{safe_id}.jpg"
-
-    # Image is advisory only. Never gate publication on image QA or image availability.
-    # Reuse an existing image only when its last QA result was a pass. Older
-    # images with REGENERATE/unknown QA are eligible for a quality refresh.
-    existing_qa_status = str(row.get("Image QA Status", "") or "").strip().upper()
-    if existing_post and image_path.is_file() and existing_qa_status == "ADVISORY_PASS":
-        return existing_post, existing_image_url, image_path, "CLEAR", "Existing QA-passed image reused."
 
     previous_context = build_previous_context(bank_rows) + "\n" + build_diversity_context(topic, build_previous_context(bank_rows))
     audience, audience_goal = infer_audience_persona(topic, existing_post, "LINKEDIN")
@@ -248,94 +207,44 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
     generated_image_path = None
-    qa_summary = ""
     try:
-        best_path = None
-        best_score = -1
-        best_qa = None
-        candidate_brief = image_brief
-
-        for image_attempt in range(1, 4):
-            candidate_path = GENERATED_DIR / ".tmp" / f"{safe_id}.attempt{image_attempt}.jpg"
-            try:
-                create_legal_image(
-                    topic=topic,
-                    image_brief=candidate_brief,
-                    output_path=str(candidate_path),
-                    cloudflare_account_id=config["cloudflare_account_id"],
-                    cloudflare_api_token=config["cloudflare_api_token"],
-                    gemini_api_key=config["gemini_api_key"],
-                    image_mode="REFERENCE_SUBJECT",
-                )
-                if not candidate_path.is_file() or candidate_path.stat().st_size == 0:
-                    raise ImageGenerationError("Generated image file was empty.")
-
-                qa = None
-                try:
-                    qa = qa_image(
-                        api_key=config["gemini_api_key"],
-                        image_path=str(candidate_path),
-                        topic=topic,
-                        image_brief=candidate_brief,
-                        model=os.getenv("KHYRAT_IMAGE_QA_MODEL", config["gemini_model"]),
-                        image_mode="REFERENCE_SUBJECT",
-                    )
-                    score = int(qa.get("overall_score", 0) or 0)
-                    if best_path is None or score > best_score:
-                        best_path = candidate_path
-                        best_score = score
-                        best_qa = qa
-                    qa_summary = summarize_qa(qa)
-                    print(f"Image QA advisory attempt {image_attempt}: decision={qa.get('decision')} score={score} | {qa_summary}")
-
-                    if str(qa.get("decision", "")).upper() == "PASS":
-                        break
-
-                    regeneration_prompt = str(qa.get("regeneration_prompt", "") or "").strip()
-                    if regeneration_prompt:
-                        candidate_brief = f"{image_brief}\n\nADVISORY REGENERATION CORRECTIONS:\n{regeneration_prompt}"
-                except Exception as qa_exc:
-                    print(f"Image QA advisory attempt {image_attempt} unavailable: {qa_exc}")
-                    if best_path is None:
-                        best_path = candidate_path
-                        best_score = 0
-
-            except Exception as image_attempt_exc:
-                print(f"Image generation attempt {image_attempt} unavailable: {image_attempt_exc}")
-
-        if best_path is None:
-            raise ImageGenerationError("All image generation attempts failed.")
-
-        image_path.parent.mkdir(parents=True, exist_ok=True)
-        if best_path.resolve() != image_path.resolve():
-            best_path.replace(image_path)
+        create_legal_image(
+            topic=topic,
+            image_brief=image_brief,
+            output_path=str(image_path),
+            cloudflare_account_id=config["cloudflare_account_id"],
+            cloudflare_api_token=config["cloudflare_api_token"],
+        )
+        if not image_path.is_file() or image_path.stat().st_size == 0:
+            raise ImageGenerationError("Generated image file was empty.")
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
-
-        qa_status = "ADVISORY_PASS" if best_qa and str(best_qa.get("decision", "")).upper() == "PASS" else "ADVISORY_REGENERATE"
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "رابط الصورة": image_url,
-            "Image Mode": "REFERENCE_SUBJECT",
-            "Image QA Attempt": "ADVISORY_2X",
-            "Image QA Status": qa_status,
-            "Image QA Score": best_qa.get("overall_score", 0) if best_qa else best_score,
-            "Image QA Issues": qa_summary[:1500],
+            "Image Mode": "DIRECT_CLOUDFLARE",
+            "Image QA Attempt": "",
+            "Image QA Status": "NOT_APPLIED",
+            "Image QA Score": "",
+            "Image QA Issues": "",
             "المحتوى": post,
             "وصف الصورة": image_brief,
             "وقت آخر تشغيل": current.isoformat(),
         })
+        print(f"Direct Cloudflare image generated: {image_path}")
     except Exception as image_exc:
-        generated_image_path = image_path if image_path.is_file() else None
-        print(f"Image generation unavailable — continuing publication without image: {image_exc}")
+        print(f"Image generation unavailable — publication will continue without an image: {image_exc}")
         update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Image QA Status": "ADVISORY_IMAGE_UNAVAILABLE",
+            "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
             "Image QA Issues": str(image_exc)[:1500],
-            "Image Mode": "REFERENCE_SUBJECT",
+            "Image Mode": "DIRECT_CLOUDFLARE",
             "المحتوى": post,
             "وصف الصورة": image_brief,
             "رابط الصورة": existing_image_url,
             "وقت آخر تشغيل": current.isoformat(),
         })
+        if existing_image_url and image_path.is_file():
+            generated_image_path = image_path
+
     return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
 
 
@@ -395,13 +304,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     pillar, objective = classify(topic, row.get("المحتوى", ""))
     try:
         post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        if not image_path or not Path(image_path).is_file():
-            # A generic fallback card is not publishable editorial content.
-            # Block the social publish and let the scheduler retry after the
-            # real visual-generation pipeline recovers.
-            raise ImageGenerationError(
-                "No real generated legal image is available; social publication is blocked and will retry."
-            )
+        image_available = bool(image_path and Path(image_path).is_file())
+        if not image_available:
+            print("No generated image available; publishing text-only instead of blocking the post.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
@@ -434,7 +339,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
             try:
-                facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
+                facebook = (publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post) if image_available else publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post))
                 facebook_post_id = facebook["post_id"]
                 row["Facebook Status"] = "PUBLISHED"
                 try:
@@ -462,7 +367,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 token = config["linkedin_access_token"]
                 author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-                linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
+                linkedin = (publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="") if image_available else publish_text_to_linkedin(token=token, author_urn=author, commentary=linkedin_post))
                 linkedin_post_id = linkedin["post_urn"]
                 row["LinkedIn Status"] = "PUBLISHED"
                 comment_result = linkedin.get("comment") or {}
