@@ -493,17 +493,36 @@ def select_due(existing, current):
             continue
         due.append(row)
 
+    # Prioritize the newest published posts. Historical backlog must not
+    # consume the worker's limited per-run comment capacity before the latest post.
+    post_freshness = {}
+    for row in existing:
+        post_urn = str(row.get("post_urn", "")).strip()
+        if not post_urn:
+            continue
+        stamp = parse_dt(row.get("created_at", "")) or parse_dt(row.get("scheduled_at", ""))
+        if stamp and (post_urn not in post_freshness or stamp > post_freshness[post_urn]):
+            post_freshness[post_urn] = stamp
+
     non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
     comments_by_post = {}
     for row in due:
         if str(row.get("action", "")).upper() == "COMMENT":
             comments_by_post.setdefault(str(row.get("post_urn", "")), []).append(row)
+
     selected_comments = []
     for post_urn, rows in comments_by_post.items():
         rows.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(rows[0])
-    selected_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-    non_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+
+    selected_comments.sort(
+        key=lambda x: (post_freshness.get(str(x.get("post_urn", "")), current), int(x.get("_row_number", "0"))),
+        reverse=True,
+    )
+    non_comments.sort(
+        key=lambda x: (post_freshness.get(str(x.get("post_urn", "")), current), int(x.get("_row_number", "0"))),
+        reverse=True,
+    )
     # Comments are the primary engagement deliverable; reactions use remaining capacity.
     selected = selected_comments + non_comments
     return selected[:MAX_DUE_EVENTS_PER_RUN]
