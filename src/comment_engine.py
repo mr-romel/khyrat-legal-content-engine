@@ -135,7 +135,7 @@ def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, labe
 def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[str]]:
     subject = str(topic or "").strip() or "الموضوع المطروح"
     fb_templates = [
-        f"النقطة الأهم هنا إن {subject} مايتاخدش بمعزل عن المستندات والوقائع الفعلية",
+        f"الموضوع ده تفاصيله بتفرق من حالة للتانية، خصوصًا مع اختلاف المستندات",
         "الخطأ الشائع إننا نراجع القاعدة القانونية وننسى أثرها العملي على القرار نفسه",
         "قبل أي خطوة، ترتيب المستندات والمواعيد والالتزامات بيفرق جدًا في تحديد الموقف القانوني",
         "في الحالات دي التفاصيل الصغيرة هي اللي بتحدد هل الإجراء سليم ولا محتاج مراجعة قبل التنفيذ",
@@ -144,7 +144,7 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
         "ولو الموقف مشابه، السؤال الأهم مش بس هل الإجراء جائز، لكن إيه البدائل الأقل مخاطرة",
     ]
     li_templates = [
-        f"في {subject}، قيمة المراجعة القانونية بتظهر قبل القرار وليس بعد ظهور النزاع",
+        f"في {subject}، التفاصيل العملية ممكن تغيّر النتيجة بشكل واضح",
         "من زاوية الإدارة، تحديد المسؤولية والمواعيد والالتزامات قبل التنفيذ يقلل تكلفة التصحيح",
         "التفاصيل الواقعية والمستندات هي اللي بتحول القاعدة القانونية إلى قرار قابل للتنفيذ",
         "في الشركات، القرار السريع مش بالضرورة القرار الأقل تكلفة، خصوصًا لما يكون له أثر تعاقدي",
@@ -156,6 +156,59 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
         "facebook_comments": [normalize_comment(x) for x in fb_templates[:count]],
         "linkedin_comments": [normalize_comment(x) for x in li_templates[:count]],
     }
+
+
+
+
+AI_STYLE_PATTERNS = (
+    "النقطة الأهم هنا",
+    "من زاوية أخرى",
+    "من المهم الإشارة إلى",
+    "هذا يسلط الضوء على",
+    "لا شك أن",
+    "وهنا تكمن أهمية",
+    "بشكل عام",
+    "في هذا السياق",
+    "يُعد من الأمور المهمة",
+    "يبرز أهمية",
+)
+
+
+def _comment_is_humanish(text: str, post: str) -> bool:
+    value = normalize_comment(text or "")
+    if not value:
+        return False
+    folded = re.sub(r"\s+", " ", value).strip().casefold()
+    if any(p.casefold() in folded for p in AI_STYLE_PATTERNS):
+        return False
+    if len(value) > 420:
+        return False
+    post_words = set(re.findall(r"[\wء-ي]{4,}", (post or "").casefold()))
+    comment_words = set(re.findall(r"[\wء-ي]{4,}", value.casefold()))
+    if comment_words and post_words:
+        overlap = len(comment_words & post_words) / max(1, len(comment_words))
+        if overlap > 0.82 and len(comment_words) >= 10:
+            return False
+    return True
+
+
+def _diversify_comments(items: list[str], post: str) -> list[str]:
+    accepted: list[str] = []
+    for item in items:
+        text = normalize_comment(item)
+        if not _comment_is_humanish(text, post):
+            continue
+        words = set(re.sub(r"[^\wء-ي]+", " ", text.casefold()).split())
+        duplicate = False
+        for other in accepted:
+            other_words = set(re.sub(r"[^\wء-ي]+", " ", other.casefold()).split())
+            similarity = len(words & other_words) / max(1, len(words | other_words))
+            if similarity > 0.70:
+                duplicate = True
+                break
+        if not duplicate:
+            accepted.append(text)
+    return accepted
 
 
 def generate_comments(
@@ -202,7 +255,7 @@ Facebook: اكتب التعليقات بصوت الصفحة نفسها، بال�
 لا تستخدم: "طب لو حصل معايا..."، "أنا عندي موقف مشابه..."، "أنا عملت..." أو أي صياغة توهم أن الصفحة متابع حقيقي.
 
 CTA: استخدم CTA عاديًا من الصفحة عندما يكون مناسبًا، مثل الدعوة لإرسال رسالة أو مشاركة المنشور مع شخص قد يحتاج المعلومة. لا تخفِ الـCTA داخل شخصية متابع، ولا تجعل كل التعليقات دعوات لاتخاذ إجراء.
-اجعل التعليقات متنوعة بوضوح في الطول والوظيفة والإيقاع، ولا تكرر نفس العبارة أو نفس CTA.
+اجعل التعليقات مختلفة فعلًا في الطول والبداية والإيقاع. بعضها ممكن يكون قصيرًا جدًا وبعضها جملة أو جملتين. اكتب كما يكتب صاحب صفحة حقيقية وهو بيرد بسرعة، مش كما يكتب محرر تقرير. ممنوع إعادة صياغة عنوان المنشور أو تلخيصه. ممنوع العبارات النمطية مثل "النقطة الأهم هنا" و"من زاوية أخرى" و"من المهم الإشارة إلى" و"هذا يسلط الضوء على" و"لا شك أن". كل تعليق لازم يبدو مكتوبًا منفردًا في لحظته.
 لا تجعل كل التعليقات أسئلة، ولا تجعل كل التعليقات تطلب المشاركة.
 كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا، وألا يبدو جزءًا من قالب آلي متكرر.
 
@@ -233,6 +286,12 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
             )
     except Exception as exc:
         print(f"Comment AI output validation failed; using deterministic platform-specific comments: {exc}")
+        return _fallback_comments(topic=topic, post=post, count=count)
+
+    facebook = _diversify_comments(facebook, post)
+    linkedin = _diversify_comments(linkedin, post)
+    if len(facebook) != count or len(linkedin) != count:
+        print("Comment AI produced repetitive/AI-style comments; using natural deterministic fallback.")
         return _fallback_comments(topic=topic, post=post, count=count)
 
     result = {"facebook_comments": facebook, "linkedin_comments": linkedin}
