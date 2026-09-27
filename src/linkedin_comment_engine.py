@@ -24,7 +24,7 @@ SYSTEM_PROMPT = """
 أنشئ تعليقات يكتبها صاحب الحساب على منشوراته هو لإضافة قيمة حقيقية للنقاش.
 ممنوع الحشو، والمجاملة العامة، وإعادة صياغة المنشور، واختلاق وقائع أو مصادر أو تجارب.
 كل تعليق يجب أن يرتبط مباشرة بالمنشور ويضيف زاوية مختلفة.
-لا تجعل كل التعليقات أسئلة أو CTA. لا تنهِ أي تعليق بنقطة ولا تستخدم صياغة مصقولة بشكل مفرط أو نمطًا متكررًا
+لا تجعل كل التعليقات أسئلة أو CTA. لا تنهِ أي تعليق بنقطة ولا تستخدم صياغة مصقولة بشكل مفرط أو نمطًا متكررًا. ممنوع البدء بعنوان المنشور ثم شرطة أو نقطتين وإضافة "زاوية جديدة" أو "Checklist" أو عنوان فرعي تحليلي؛ التعليق ليس عنوانًا بديلًا للمنشور
 في كل حزمة، اجعل CTA قويًا ومباشرًا في تعليق واحد فقط عندما يكون مناسبًا للموضوع، ويكون مرتبطًا بهدف المنشور وموجهًا للفئة المستهدفة (مثل صاحب عمل، HR، مدير، مستثمر أو شخص يواجه مشكلة قانونية)، وليس CTA عامًا من نوع "ما رأيكم؟".
 التعليقات الأخرى يجب أن تضيف قيمة تحليلية مستقلة بدون دعوة لاتخاذ إجراء.
 اللغة عربية مصرية مهنية وواضحة وتناسب LinkedIn.
@@ -57,6 +57,47 @@ def _extract_json(text: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise RuntimeError("LinkedIn comment engine returned a non-object JSON response.")
     return value
+
+AI_STYLE_PATTERNS = (
+    "النقطة الأهم هنا",
+    "من زاوية أخرى",
+    "من المهم الإشارة إلى",
+    "هذا يسلط الضوء على",
+    "لا شك أن",
+    "وهنا تكمن أهمية",
+    "زاوية جديدة",
+    "checklist",
+    "قائمة مراجعة",
+)
+
+STRUCTURAL_AI_PATTERNS = (
+    r"\s*[—–-]\s*(?:زاوية|نقطة|رؤية|مقاربة|قراءة|مدخل)",
+    r"\b(?:زاوية جديدة|checklist|قائمة مراجعة)\s*[:：]",
+)
+
+def _humanish_linkedin(text: str, post: str) -> bool:
+    value = normalize_comment(text or "")
+    if not value:
+        return False
+    folded = re.sub(r"\s+", " ", value).strip().casefold()
+    if any(p.casefold() in folded for p in AI_STYLE_PATTERNS):
+        return False
+    if any(re.search(p, folded, flags=re.I) for p in STRUCTURAL_AI_PATTERNS):
+        return False
+    if len(value) > 420:
+        return False
+    post_head = re.sub(r"\s+", " ", (post or "").split("\n", 1)[0]).strip().casefold()
+    head_words = re.findall(r"[\wء-ي]{3,}", post_head)
+    comment_words = re.findall(r"[\wء-ي]{3,}", folded)
+    if len(head_words) >= 6 and len(comment_words) >= 6:
+        shared_prefix = 0
+        for a, b in zip(head_words[:10], comment_words[:10]):
+            if a != b:
+                break
+            shared_prefix += 1
+        if shared_prefix >= 6:
+            return False
+    return True
 
 def _normalize_comments(value: Any, count: int) -> list[str]:
     if not isinstance(value, list):
@@ -146,6 +187,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     try:
         data = _extract_json(getattr(response, "text", ""))
         comments = _normalize_comments(data.get("linkedin_comments"), count)
+        comments = [c for c in comments if _humanish_linkedin(c, post)]
         if len(comments) != count:
             raise RuntimeError(
                 f"LinkedIn comment engine returned {len(comments)} unique comments; expected {count}."
