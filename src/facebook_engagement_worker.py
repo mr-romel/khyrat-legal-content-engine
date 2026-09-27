@@ -20,7 +20,7 @@ HEADERS = [
     "last_http_status", "platform_proof", "verified_at",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
-MAX_ATTEMPTS = int(os.getenv("FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
+MAX_ATTEMPTS = int(os.getenv("FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS", "12") or "12")
 RETRY_MINUTES = int(os.getenv("FACEBOOK_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 MAX_COMMENTS_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
