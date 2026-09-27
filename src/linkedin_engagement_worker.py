@@ -32,7 +32,8 @@ DISCOVERY_HOURS = int(os.getenv("LINKEDIN_ENGAGEMENT_DISCOVERY_HOURS", "24") or 
 PERMISSION_RECHECK_HOURS = int(os.getenv("LINKEDIN_PERMISSION_RECHECK_HOURS", "24") or "24")
 MAX_COMMENTS_PER_POST_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
-MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "10") or "10")
+MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "3") or "3")
+MAX_LEGACY_RECONCILE_PER_RUN = int(os.getenv("KHYRAT_LEGACY_RECONCILE_PER_RUN", "2") or "2")
 
 
 def now_cairo():
@@ -300,7 +301,10 @@ def release_legacy_permission_blocks(service, spreadsheet_id, existing, current)
     member path is available.
     """
     released = 0
+    inspected = 0
     for row in existing:
+        if inspected >= MAX_LEGACY_RECONCILE_PER_RUN:
+            break
         status = str(row.get("status", "")).upper()
         if status != "BLOCKED_PERMISSION":
             continue
@@ -392,6 +396,7 @@ def reconcile_legacy_successes(service, spreadsheet_id, existing, current):
         action = str(row.get("action", "")).upper()
         if status not in {"PUBLISHED", "LIKED"}:
             continue
+        inspected += 1
         http_status = str(row.get("last_http_status", "")).strip()
         proof = str(row.get("platform_proof", "")).strip()
         comment_urn = str(row.get("comment_urn", "")).strip()
