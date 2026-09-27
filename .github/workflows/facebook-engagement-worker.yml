@@ -21,7 +21,7 @@ jobs:
   engagement:
     name: Process Facebook engagement queue
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
@@ -31,9 +31,10 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
-      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
       FACEBOOK_ENGAGEMENT_DELAY_MINUTES: "15"
       FACEBOOK_ENGAGEMENT_RETRY_MINUTES: "30"
+      FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS: "12"
       KHYRAT_FACEBOOK_ENGAGEMENT_DRY_RUN: "false"
     steps:
       - name: Checkout
