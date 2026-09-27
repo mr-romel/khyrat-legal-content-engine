@@ -49,6 +49,10 @@ MAX_PRIMARY_RETRIES = 3
 MAX_FALLBACK_RETRIES = 2
 INITIAL_BACKOFF_SECONDS = 5.0
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+# Process-level circuit breaker: once Gemini reports quota exhaustion, never
+# spend the worker run retrying the same exhausted quota. Deterministic comments
+# are the guaranteed path for the rest of that run.
+_GEMINI_QUOTA_EXHAUSTED = False
 
 
 def _extract_status_code(exc: Exception) -> int | None:
@@ -120,12 +124,18 @@ def _chat_generate(*, client, model: str, prompt: str) -> Any:
 
 
 def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, label: str) -> Any:
+    global _GEMINI_QUOTA_EXHAUSTED
+    if _GEMINI_QUOTA_EXHAUSTED:
+        raise RuntimeError("Gemini quota already exhausted in this worker run.")
     for attempt in range(1, attempts + 1):
         try:
             return _chat_generate(client=client, model=model, prompt=prompt)
         except Exception as exc:
             status = _extract_status_code(exc)
-            if status == 429 or status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
+            if status == 429:
+                _GEMINI_QUOTA_EXHAUSTED = True
+                raise
+            if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(f"Comment AI {label} temporary error ({status}); retry {attempt}/{attempts - 1} in {delay:.0f}s...")
@@ -300,8 +310,15 @@ def generate_comments(
             "linkedin_comments": list(cached["linkedin_comments"]),
         }
 
+    if _GEMINI_QUOTA_EXHAUSTED:
+        print("Gemini quota already exhausted in this worker run; using deterministic comments without another API call.")
+        return _fallback_comments(topic=topic, post=post, count=count)
+
     client = genai.Client(api_key=api_key)
     post_context = _build_post_context(client, primary_model, topic, post, legal_sources)
+    if _GEMINI_QUOTA_EXHAUSTED:
+        print("Gemini quota exhausted while building post context; using deterministic comments without another API call.")
+        return _fallback_comments(topic=topic, post=post, count=count)
     prompt = f"""
 الموضوع: {topic}
 
