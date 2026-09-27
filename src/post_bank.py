@@ -120,5 +120,6 @@ def build_previous_context(rows: list[dict[str, str]], limit: int = 12) -> str:
             continue
         angle = _compact_text(row.get("زاوية المحتوى", ""), 120)
         content = _compact_text(row.get("المحتوى", ""), 420)
-        lines.append(f"- الموضوع: {topic} | الزاوية: {angle} | النص السابق: {content}")
+        opening = _compact_text(" ".join(str(row.get("المحتوى", "")).split())[:180], 180)
+        lines.append(f"- الموضوع: {topic} | الزاوية: {angle} | الافتتاحية السابقة: {opening} | النص السابق: {content}")
     return "\n".join(lines)
