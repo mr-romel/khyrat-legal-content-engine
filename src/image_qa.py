@@ -81,12 +81,12 @@ HARD IMAGE CHECK:
 - Final dimensions: {hard['width']}x{hard['height']}
 - Target aspect ratio: 4:5 (0.8)
 - Local aspect-ratio check: {'PASS' if hard['aspect_ratio_ok'] else 'FAIL'}
-- Image mode: {image_mode}\n- Character reference images supplied for comparison: {reference_count}
+- Image mode: CONTEXT_ONLY
+- Character reference images: none
 
 REFERENCE IMAGE RULE:
-If image mode is REFERENCE_SUBJECT, the attached reference photos are the identity source for the recurring subject. Compare only stable
-identity traits when the recurring subject appears. If image mode is CONTEXT_ONLY, do not depict the recurring lawyer as the subject.\nDo not require the scene, pose, wardrobe, camera,
-background, furniture, lighting, or framing to match the references. The generated scene must be new.
+No character-reference images are supplied or required. Evaluate the generated scene from the legal topic and visual brief only.
+The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 BRAND OVERLAY RULE:
 A small bottom-right overlay reading "{ALLOWED_BRAND_TEXT}" plus the Facebook "f" badge is intentionally
@@ -103,13 +103,6 @@ CHECK THESE FIVE THINGS:
 3. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
 4. ANATOMY AND VISUAL INTEGRITY: Check for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra fingers, fused fingers, missing fingers, unnatural wrists, twisted arms, duplicated objects, or obvious generative artifacts. Treat obvious anatomy defects as a REGENERATE signal and explain them in composition_findings or issues
-5. REFERENCE CONSISTENCY: If image mode is REFERENCE_SUBJECT, compare the face directly against the attached reference photos.
-   This is an identity gate, not a generic attractiveness/similarity judgment. Check facial proportions, eyes/brows, nose,
-   mouth/lip shape, jaw/chin, hairline, hairstyle, beard pattern, skin tone, and overall facial geometry.
-   If you cannot confidently conclude that the same person is depicted, score reference_score below 80 and choose REGENERATE.
-   A generic Egyptian professional man is NOT a pass, even if age, hair, beard, and skin tone are broadly similar.
-   If the references do not contain enough information to establish identity, report the limitation as advisory; never block publication.
-
 DECISION:
 PASS only when all critical requirements are satisfied.
 REGENERATE when the image can be fixed by changing the visual prompt.
