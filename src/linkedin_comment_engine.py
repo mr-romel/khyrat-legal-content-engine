@@ -175,6 +175,9 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
     except Exception as primary_exc:
         status = _extract_status_code(primary_exc)
+        if status == 429:
+            print("LinkedIn comment AI quota exhausted (429); using deterministic comments immediately.")
+            return _fallback_linkedin_comments(topic, count)
         if status in TRANSIENT_STATUS_CODES and fallback and fallback != model.strip():
             try:
                 response = _generate(client=client, model=fallback, prompt=prompt, attempts=FALLBACK_RETRIES)
