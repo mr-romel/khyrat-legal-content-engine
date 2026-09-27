@@ -396,17 +396,12 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     try:
         post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
         if not image_path or not Path(image_path).is_file():
-            # NEVER block publication because the AI image pipeline failed.
-            # Generate a guaranteed local topic-related visual instead.
-            safe_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(row.get("ID") or row_number)).strip("_") or str(row_number)
-            emergency_path = GENERATED_DIR / f"{safe_id}.jpg"
-            image_path = _create_emergency_legal_image(
-                topic=topic,
-                output_path=emergency_path,
-                page_name=str(config.get("facebook_page_name") or config.get("linkedin_page_name") or "Khyrat Legal"),
+            # A generic fallback card is not publishable editorial content.
+            # Block the social publish and let the scheduler retry after the
+            # real visual-generation pipeline recovers.
+            raise ImageGenerationError(
+                "No real generated legal image is available; social publication is blocked and will retry."
             )
-            image_url = github_raw_url(str(image_path))
-            print(f"AI image unavailable; emergency topic image created. Publishing continues: {image_path}")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
