@@ -15,8 +15,6 @@ QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "75"))
 QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "85"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "80"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "2")))
-REFERENCE_DIR = Path(os.getenv("KHYRAT_CHARACTER_REFERENCE_DIR", "assets/reference"))
-REFERENCE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"}
 ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
 
 
@@ -41,15 +39,6 @@ def _extract_json(raw: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ImageQAError("Gemini image QA response is not an object.")
     return data
-
-
-def _reference_files() -> list[Path]:
-    if not REFERENCE_DIR.is_dir():
-        return []
-    return sorted(
-        p for p in REFERENCE_DIR.iterdir()
-        if p.is_file() and p.suffix.lower() in REFERENCE_EXTENSIONS
-    )
 
 
 def _hard_checks(image_path: Path) -> dict[str, Any]:
@@ -151,7 +140,7 @@ def qa_image(
     topic: str,
     image_brief: str,
     model: str | None = None,
-    image_mode: str = "REFERENCE_SUBJECT",
+    image_mode: str = "CONTEXT_ONLY",
 ) -> dict[str, Any]:
     if not api_key:
         raise ImageQAError("GEMINI_API_KEY is missing for image QA.")
@@ -161,25 +150,8 @@ def qa_image(
         raise ImageQAError(f"Image does not exist for QA: {path}")
 
     hard = _hard_checks(path)
-    image_mode = (image_mode or "REFERENCE_SUBJECT").strip().upper()
-    if image_mode != "REFERENCE_SUBJECT":
-        return {
-            "decision": "REGENERATE",
-            "composition_score": 0,
-            "relevance_score": 0,
-            "reference_score": 0,
-            "overall_score": 0,
-            "text_detected": False,
-            "detected_text": [],
-            "composition_findings": [],
-            "relevance_findings": [],
-            "reference_findings": ["Preferred reference-subject mode was not selected; advisory only."],
-            "issues": ["Publication is not blocked by image mode or QA."],
-            "regeneration_prompt": "",
-            "hard_checks": hard,
-            "image_mode": image_mode,
-        }
-    references = _reference_files()
+    image_mode = "CONTEXT_ONLY"
+    references = []
 
     if not hard["aspect_ratio_ok"]:
         return {
@@ -237,7 +209,7 @@ def qa_image(
     data["decision"] = decision
     data["composition_score"] = _normalize_score(data.get("composition_score"))
     data["relevance_score"] = _normalize_score(data.get("relevance_score"))
-    data["reference_score"] = _normalize_score(data.get("reference_score"), 100 if image_mode == "CONTEXT_ONLY" else 0)
+    data["reference_score"] = 100
     data["overall_score"] = _normalize_score(data.get("overall_score"))
     data["text_detected"] = bool(data.get("text_detected", False))
     for field in ("detected_text", "composition_findings", "relevance_findings", "reference_findings", "issues"):
@@ -256,8 +228,6 @@ def qa_image(
         critical_failures.append(f"Composition score below {QA_MIN_COMPOSITION}.")
     if data["relevance_score"] < QA_MIN_RELEVANCE:
         critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
-    if image_mode == "REFERENCE_SUBJECT" and data["reference_score"] < 90:
-        critical_failures.append("Reference identity score below 90 (advisory).")
     if data["overall_score"] < QA_MIN_OVERALL:
         critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
 
