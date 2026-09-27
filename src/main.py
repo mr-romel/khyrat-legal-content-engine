@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import traceback
 from difflib import SequenceMatcher
 from pathlib import Path
