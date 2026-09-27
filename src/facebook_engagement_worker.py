@@ -23,7 +23,7 @@ CAIRO = ZoneInfo("Africa/Cairo")
 MAX_ATTEMPTS = int(os.getenv("FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS", "3") or "3")
 RETRY_MINUTES = int(os.getenv("FACEBOOK_ENGAGEMENT_RETRY_MINUTES", "30") or "30")
 MAX_COMMENTS_PER_RUN = 1
-MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "3") or "3")
+MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
 MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "10") or "10")
 
 
@@ -367,14 +367,15 @@ def due_events(events, current):
 
     # One comment per post per cycle, but prioritize the newest published
     # posts. A large historical backlog must never starve the latest post.
+    def post_order(post_id: str):
+        numbers = re.findall(r"\d+", str(post_id))
+        return int(numbers[-1]) if numbers else 0
+
     post_freshness = {}
     for event in events:
         post_id = str(event.get("post_id", "")).strip()
-        if not post_id:
-            continue
-        stamp = parse_dt(event.get("created_at", "")) or parse_dt(event.get("scheduled_at", ""))
-        if stamp and (post_id not in post_freshness or stamp > post_freshness[post_id]):
-            post_freshness[post_id] = stamp
+        if post_id:
+            post_freshness[post_id] = post_order(post_id)
 
     non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
     comments_by_post = {}
