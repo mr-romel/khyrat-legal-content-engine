@@ -8,3 +8,4 @@ manual-kick-2026-09-27T12:20Z
 manual-kick-2026-09-27T12:33Z
 manual-kick-2026-09-27T12:36Z
 manual-kick-2026-09-27T20:13:29.859Z
+manual-kick-gemini-fast-fail-2026-09-27T20:18:40.125Z
