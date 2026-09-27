@@ -88,7 +88,7 @@ def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
             return client.models.generate_content(model=model, contents=SYSTEM_PROMPT + "\n\n" + prompt)
         except Exception as exc:
             status = _extract_status_code(exc)
-            if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
+            if status == 429 or status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(f"LinkedIn comment AI temporary error ({status}); retry {attempt}/{attempts - 1} in {delay:.0f}s...")
