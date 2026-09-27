@@ -331,6 +331,9 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
     try:
         response = _generate_with_retry(client=client, model=primary_model, prompt=prompt, attempts=MAX_PRIMARY_RETRIES, label=f"primary model {primary_model or 'default'}")
     except Exception as primary_exc:
+        if _extract_status_code(primary_exc) == 429:
+            print("Comment AI quota exhausted (429); using deterministic comments immediately.")
+            return _fallback_comments(topic=topic, post=post, count=count)
         if _is_transient(primary_exc) and fallback_model and fallback_model != primary_model:
             try:
                 print(f"Comment AI primary model remained unavailable; switching to fallback model {fallback_model}.")
