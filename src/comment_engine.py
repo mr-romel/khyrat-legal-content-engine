@@ -44,6 +44,7 @@ LinkedIn: التعليقات تُكتب بلسان صاحب الحساب نفس�
 
 _COMMENT_CACHE: dict[tuple[str, str, str, str], dict[str, list[str]]] = {}
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
+_CONTEXT_CACHE = {}
 MAX_PRIMARY_RETRIES = 3
 MAX_FALLBACK_RETRIES = 2
 INITIAL_BACKOFF_SECONDS = 5.0
@@ -131,6 +132,35 @@ def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, labe
             time.sleep(delay)
     raise RuntimeError("Comment AI generation failed unexpectedly.")
 
+
+def _build_post_context(client, model, topic, post, legal_sources):
+    """Build whole-post semantic context before comment generation."""
+    key = (model, topic.strip(), post.strip(), legal_sources.strip())
+    if key in _CONTEXT_CACHE:
+        return dict(_CONTEXT_CACHE[key])
+    prompt = """
+حلّل المنشور كاملًا قبل كتابة أي تعليق. لا تقتبس منه ولا تعيد صياغة جملة منه.
+الموضوع: %s
+المصادر القانونية: %s
+
+المنشور الكامل:
+%s
+
+أعد JSON فقط بالمفاتيح: main_topic, core_argument, author_angle, examples_or_cases, question_or_open_issue, practical_value, legal_context, key_terms, comment_opportunities
+اعتمد على المنشور كاملًا لا على جملة منفردة، ولا تخترع معلومات
+""" % (topic, legal_sources or "لا توجد مصادر مدخلة.", post)
+    try:
+        response = _generate_with_retry(client=client, model=model, prompt=prompt, attempts=2, label="post context")
+        data = _extract_json(getattr(response, "text", ""))
+        required = ("main_topic","core_argument","author_angle","examples_or_cases","question_or_open_issue","practical_value","legal_context","key_terms","comment_opportunities")
+        if any(k not in data for k in required):
+            raise RuntimeError("Post context is incomplete")
+        _CONTEXT_CACHE[key] = data
+        return dict(data)
+    except Exception as exc:
+        print("Post context builder unavailable; using deterministic context: %s" % exc)
+        sentences = [s.strip() for s in re.split(r"[.!؟\\n]+", post or "") if s.strip()]
+        return {"main_topic": topic, "core_argument": " ".join(sentences[:2]), "author_angle": " ".join(sentences[1:3]), "examples_or_cases": sentences[2:5], "question_or_open_issue": next((s for s in sentences if "؟" in s), "لا يوجد"), "practical_value": sentences[-1] if sentences else "", "legal_context": legal_sources or "السياق القانوني العام كما ورد في المنشور", "key_terms": re.findall(r"[ء-يA-Za-z]{4,}", post or "")[:12], "comment_opportunities": ["إضافة قيد عملي", "توضيح أثر القرار", "طرح سؤال تطبيقي"]}
 
 def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[str]]:
     subject = str(topic or "").strip() or "الموضوع المطروح"
@@ -261,6 +291,7 @@ def generate_comments(
         }
 
     client = genai.Client(api_key=api_key)
+    post_context = _build_post_context(client, primary_model, topic, post, legal_sources)
     prompt = f"""
 الموضوع: {topic}
 
@@ -270,7 +301,7 @@ def generate_comments(
 المصادر القانونية المتاحة:
 {legal_sources or 'لا توجد مصادر مدخلة.'}
 
-أنشئ بالضبط {count} تعليقات Facebook لهذا المنشور. العدد تم اختياره مسبقًا بين 3 و7 ويختلف من منشور لآخر؛ لا تغير العدد.
+سياق المنشور الكامل الذي يجب أن تبني عليه التعليقات:\n{json.dumps(post_context, ensure_ascii=False, indent=2)}\n\nأنشئ بالضبط {count} تعليقات Facebook لهذا المنشور. العدد تم اختياره مسبقًا بين 3 و7 ويختلف من منشور لآخر؛ لا تغير العدد.
 لا تقلل العدد لمجرد تقليل المجهود، ولا تزوده لمجرد الوصول إلى 20؛ المطلوب عدد يبدو طبيعيًا لهذا المنشور تحديدًا.
 
 Facebook: اكتب التعليقات بصوت الصفحة نفسها، بالمصري الطبيعي، وبأسلوب بسيط ومهني وغير متكلف.
@@ -280,9 +311,9 @@ Facebook: اكتب التعليقات بصوت الصفحة نفسها، بال�
 لا تستخدم: "طب لو حصل معايا..."، "أنا عندي موقف مشابه..."، "أنا عملت..." أو أي صياغة توهم أن الصفحة متابع حقيقي.
 
 CTA: استخدم CTA عاديًا من الصفحة عندما يكون مناسبًا، مثل الدعوة لإرسال رسالة أو مشاركة المنشور مع شخص قد يحتاج المعلومة. لا تخفِ الـCTA داخل شخصية متابع، ولا تجعل كل التعليقات دعوات لاتخاذ إجراء.
-اجعل التعليقات مختلفة فعلًا في الطول والبداية والإيقاع. بعضها ممكن يكون قصيرًا جدًا وبعضها جملة أو جملتين. اكتب كما يكتب صاحب صفحة حقيقية وهو بيرد بسرعة، مش كما يكتب محرر تقرير. ممنوع إعادة صياغة عنوان المنشور أو تلخيصه، وممنوع البدء بعنوان المنشور ثم شرطة أو نقطتين وإضافة "زاوية جديدة" أو "Checklist" أو أي عنوان فرعي تحليلي. التعليق ليس عنوانًا بديلًا للمنشور. ممنوع العبارات النمطية مثل "النقطة الأهم هنا" و"من زاوية أخرى" و"من المهم الإشارة إلى" و"هذا يسلط الضوء على" و"لا شك أن". كل تعليق لازم يبدو مكتوبًا منفردًا في لحظته.
+اجعل التعليقات مختلفة فعلًا في الطول والبداية والإيقاع. بعضها ممكن يكون قصيرًا جدًا وبعضها جملة أو جملتين. اكتب كما يكتب صاحب صفحة حقيقية وهو بيرد بسرعة، مش كما يكتب محرر تقرير. كل تعليق يجب أن يضيف قيمة مرتبطة بسياق المنشور الكامل، وليس بجملة منفردة منه. ممنوع إعادة صياغة عنوان المنشور أو تلخيصه، وممنوع البدء بعنوان المنشور ثم شرطة أو نقطتين وإضافة "زاوية جديدة" أو "Checklist" أو أي عنوان فرعي تحليلي. التعليق ليس عنوانًا بديلًا للمنشور. ممنوع العبارات النمطية مثل "النقطة الأهم هنا" و"من زاوية أخرى" و"من المهم الإشارة إلى" و"هذا يسلط الضوء على" و"لا شك أن". كل تعليق لازم يبدو مكتوبًا منفردًا في لحظته.
 لا تجعل كل التعليقات أسئلة، ولا تجعل كل التعليقات تطلب المشاركة.
-كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا، وألا يبدو جزءًا من قالب آلي متكرر.
+كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا، وألا يبدو جزءًا من قالب آلي متكرر. ممنوع نسخ أو إعادة صياغة جملة كاملة من المنشور، ووزّع وظائف التعليقات بين الإضافة المعرفية والزاوية المختلفة والسؤال التطبيقي والتطبيق العملي والتوضيح وفتح النقاش وCTA عند ملاءمته.
 
 LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Facebook، بلسان صاحب الحساب نفسه، business-oriented، متنوعة، طبيعية، ومتصلة بالمنشور. تعليق واحد فقط CTA عند ملاءمة الموضوع
 """
