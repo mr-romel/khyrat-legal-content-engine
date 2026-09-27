@@ -124,7 +124,7 @@ def _generate_with_retry(*, client, model: str, prompt: str, attempts: int, labe
             return _chat_generate(client=client, model=model, prompt=prompt)
         except Exception as exc:
             status = _extract_status_code(exc)
-            if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
+            if status == 429 or status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(f"Comment AI {label} temporary error ({status}); retry {attempt}/{attempts - 1} in {delay:.0f}s...")
