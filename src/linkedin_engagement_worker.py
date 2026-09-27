@@ -391,7 +391,10 @@ def release_one_time_reaction_retry(service, spreadsheet_id, existing, current):
 def reconcile_legacy_successes(service, spreadsheet_id, existing, current):
     """Re-open legacy successes that have no recorded LinkedIn API proof."""
     released = 0
+    inspected = 0
     for row in existing:
+        if inspected >= MAX_LEGACY_RECONCILE_PER_RUN:
+            break
         status = str(row.get("status", "")).upper()
         action = str(row.get("action", "")).upper()
         if status not in {"PUBLISHED", "LIKED"}:
