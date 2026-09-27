@@ -65,6 +65,7 @@ def _create_emergency_legal_image(*, topic: str, output_path: Path, page_name: s
     return output_path
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
+COMMENT_BACKFILL_LIMIT = 3
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -336,6 +337,45 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         })
     return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
 
+
+def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, rows: list[dict[str, str]], current) -> None:
+    """One-time-safe historical engagement: only the three most recent published posts.
+    Never scans or queues comments for older historical posts; new posts continue through process_row normally.
+    """
+    published = []
+    for row_number, row in enumerate(rows, start=2):
+        status = str(row.get("الحالة", "")).strip().upper()
+        if status != "PUBLISHED":
+            continue
+        if not (str(row.get("Facebook Post ID", "")).strip() or str(row.get("LinkedIn Post ID", "")).strip()):
+            continue
+        published.append((row_number, row))
+    latest = published[-COMMENT_BACKFILL_LIMIT:]
+    if not latest:
+        return
+    for row_number, row in latest:
+        fb_queue = str(row.get("Facebook Comment Queue", "") or "").strip()
+        li_queue = str(row.get("LinkedIn Comment Queue", "") or "").strip()
+        if fb_queue or li_queue:
+            continue
+        topic = str(row.get("الموضوع", "") or "").strip()
+        post = str(row.get("المحتوى", "") or "").strip()
+        if not topic or not post:
+            continue
+        try:
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
+                "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
+                "Facebook Comments Published": row.get("Facebook Comments Published", "") or "0",
+                "LinkedIn Comments Published": row.get("LinkedIn Comments Published", "") or "0",
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+            print(f"Comment backfill queued: row={row_number} topic={topic} count={len(editorial['linkedin_comments'])}")
+        except Exception as exc:
+            print(f"Comment backfill failed for row {row_number}: {exc}")
+
+
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
     if not topic:
@@ -528,6 +568,12 @@ def main() -> None:
         print("No rows found.")
         return
     rows = [row_to_dict(row) for row in values[1:]]
+    # Historical backfill is deliberately hard-limited to the latest 3 published posts.
+    # This runs before normal scheduling; it never processes older posts.
+    try:
+        _backfill_latest_three_comment_queues(service=service, config=config, sheet_name=sheet_name, rows=rows, current=current)
+    except Exception as exc:
+        print(f"Latest-3 comment backfill unavailable; normal publishing continues: {exc}")
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
     if not candidates:
         candidates = [(i, r) for i, r in enumerate(rows, start=2) if _failed_retry(r, current)][:1]
