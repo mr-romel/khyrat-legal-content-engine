@@ -31,7 +31,7 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
-      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite' }}
       FACEBOOK_ENGAGEMENT_DELAY_MINUTES: "15"
       FACEBOOK_ENGAGEMENT_RETRY_MINUTES: "30"
       KHYRAT_FACEBOOK_ENGAGEMENT_DRY_RUN: "false"
