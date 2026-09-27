@@ -10,3 +10,4 @@ manual-kick-2026-09-27T12:36Z
 manual-kick-2026-09-27T20:13:29.859Z
 manual-kick-gemini-fast-fail-2026-09-27T20:18:40.125Z
 manual-kick-sheets-quota-2026-09-27T20:21:06.050Z
+manual-kick-reconcile-guard-2026-09-27T20:22:51.982Z
