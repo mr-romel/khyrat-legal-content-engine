@@ -34,6 +34,7 @@ MAX_COMMENTS_PER_POST_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
 MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "3") or "3")
 MAX_LEGACY_RECONCILE_PER_RUN = int(os.getenv("KHYRAT_LEGACY_RECONCILE_PER_RUN", "2") or "2")
+MAX_RECENT_POSTS = int(os.getenv("KHYRAT_ENGAGEMENT_RECENT_POSTS", "3") or "3")
 
 
 def now_cairo():
@@ -188,7 +189,9 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         candidates.append((published_at, source_row, row, post_urn))
 
     candidates.sort(key=lambda item: (item[0], int(item[1])), reverse=True)
+    candidates = candidates[:MAX_RECENT_POSTS]
     if candidates:
+        print(f"LinkedIn engagement scope: latest {len(candidates)} published post(s) only")
         print(f"Published LinkedIn posts eligible for engagement: {len(candidates)}")
 
     created = 0
@@ -486,8 +489,10 @@ def _rebaseline_pending_comments(service, spreadsheet_id, existing, post_urn, an
             )
 
 
-def select_due(existing, current):
-    known_posts = set(_bundle_post_ids(existing))
+def select_due(existing, current, allowed_post_ids):
+    # Hard scope: only the latest N published posts are eligible. Older queue
+    # rows remain auditable but can never consume the worker's API/Sheets quota.
+    known_posts = set(_bundle_post_ids(existing)) & set(allowed_post_ids)
     due = []
     for row in existing:
         if str(row.get("post_urn", "")).strip() not in known_posts:
@@ -575,7 +580,17 @@ def _main_impl():
     print(f"Queue events created: {created}")
 
     existing = read_engagement_rows(service, CONFIG["sheet_id"])
-    due = select_due(existing, current)
+    content_rows = read_content_rows(service, CONFIG["sheet_id"], CONFIG["sheet_range"])
+    recent_candidates = []
+    for source_row, row in content_rows:
+        post_urn = str(row.get("LinkedIn Post ID", "")).strip()
+        status = str(row.get("LinkedIn Status", "")).strip().upper()
+        if status == "PUBLISHED" and post_urn:
+            recent_candidates.append((_published_at_from_row(row) or current, int(source_row), post_urn))
+    recent_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    recent_post_urns = {x[2] for x in recent_candidates[:MAX_RECENT_POSTS]}
+    print(f"LinkedIn hard engagement scope: {len(recent_post_urns)} latest post(s)")
+    due = select_due(existing, current, recent_post_urns)
     print(f"Due events: {len(due)}")
     reaction_debug = [
         (str(x.get("event_id", "")), str(x.get("status", "")), str(x.get("attempts", "")), str(x.get("scheduled_at", "")), str(x.get("last_error", ""))[:180])
