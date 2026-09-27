@@ -13,6 +13,9 @@ from engagement_strategy import normalize_comment, comment_schedule_offsets as s
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+# Once the Gemini quota is exhausted, fail fast for the remainder of the run
+# and use deterministic comments instead of burning time on retries.
+_GEMINI_QUOTA_EXHAUSTED = False
 PRIMARY_RETRIES = 3
 FALLBACK_RETRIES = 2
 INITIAL_BACKOFF_SECONDS = 5.0
@@ -124,12 +127,18 @@ def comment_schedule_offsets(count: int) -> list[int]:
 
 
 def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
+    global _GEMINI_QUOTA_EXHAUSTED
+    if _GEMINI_QUOTA_EXHAUSTED:
+        raise RuntimeError("Gemini quota already exhausted in this worker run.")
     for attempt in range(1, attempts + 1):
         try:
             return client.models.generate_content(model=model, contents=SYSTEM_PROMPT + "\n\n" + prompt)
         except Exception as exc:
             status = _extract_status_code(exc)
-            if status == 429 or status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
+            if status == 429:
+                _GEMINI_QUOTA_EXHAUSTED = True
+                raise
+            if status not in TRANSIENT_STATUS_CODES or attempt >= attempts:
                 raise
             delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(f"LinkedIn comment AI temporary error ({status}); retry {attempt}/{attempts - 1} in {delay:.0f}s...")
@@ -170,6 +179,9 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
 لا تستخدم نفس الزاوية أو الصياغة مرتين. لا تعيد صياغة نص المنشور ولا تستخدم مجاملات فارغة.
 أعد JSON بالشكل: {{"linkedin_comments":["...", "..."]}}
 """.strip()
+    if _GEMINI_QUOTA_EXHAUSTED:
+        print("Gemini quota already exhausted in this worker run; using deterministic LinkedIn comments without another API call.")
+        return _fallback_linkedin_comments(topic, count)
     client = genai.Client(api_key=api_key)
     try:
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
