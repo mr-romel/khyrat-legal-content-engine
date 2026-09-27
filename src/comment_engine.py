@@ -247,11 +247,21 @@ def _comment_is_humanish(text: str, post: str) -> bool:
     return True
 
 
+
+def _sentence_similarity(a: str, b: str) -> float:
+    aw = set(re.findall(r"[\wء-ي]{3,}", a.casefold()))
+    bw = set(re.findall(r"[\wء-ي]{3,}", b.casefold()))
+    if not aw or not bw:
+        return 0.0
+    return len(aw & bw) / max(1, min(len(aw), len(bw)))
 def _diversify_comments(items: list[str], post: str) -> list[str]:
     accepted: list[str] = []
+    post_sentences = [s.strip() for s in re.split(r"[.!؟\n]+", post or "") if len(s.strip()) >= 20]
     for item in items:
         text = normalize_comment(item)
         if not _comment_is_humanish(text, post):
+            continue
+        if any(_sentence_similarity(text, sentence) >= 0.86 for sentence in post_sentences):
             continue
         words = set(re.sub(r"[^\wء-ي]+", " ", text.casefold()).split())
         duplicate = False
