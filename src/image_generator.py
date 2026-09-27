@@ -373,10 +373,18 @@ def create_legal_image(*, topic: str, image_brief: str, output_path: str, cloudf
     if not image_brief.strip():
         raise ImageGenerationError("Image brief is empty.")
     reference_dir = Path(os.getenv("KHYRAT_CHARACTER_REFERENCE_DIR", str(CHARACTER_REFERENCE_DIR)))
-    reference_files = sorted(
+    reference_candidates = [
         path for path in reference_dir.iterdir()
         if path.is_file() and path.suffix.lower() in CHARACTER_REFERENCE_EXTENSIONS
-    )[:MAX_REFERENCE_IMAGES] if reference_dir.is_dir() else []
+    ] if reference_dir.is_dir() else []
+    # Prefer formats Pillow can reliably decode in the GitHub runner. HEIC/HEIF
+    # references remain available as a last resort, but must never win simply
+    # because their filename sorts first.
+    format_priority = {".jpg": 0, ".jpeg": 0, ".png": 1, ".webp": 2, ".heic": 9, ".heif": 9, ".avif": 9}
+    reference_files = sorted(
+        reference_candidates,
+        key=lambda path: (format_priority.get(path.suffix.lower(), 99), path.name.casefold()),
+    )[:MAX_REFERENCE_IMAGES]
     if reference_files:
         reference_names = ", ".join(path.name for path in reference_files)
         print(f"Character reference assets detected: {len(reference_files)} file(s) in {reference_dir}")
