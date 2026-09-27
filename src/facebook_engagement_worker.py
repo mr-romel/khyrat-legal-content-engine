@@ -388,12 +388,14 @@ def due_events(events, current):
         items.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(items[0])
 
+    # Among due comments, the newest scheduled event is the newest engagement
+    # opportunity. This prevents historical backlog from starving a just-published post.
     selected_comments.sort(
-        key=lambda x: (post_freshness.get(str(x.get("post_id", "")), current), int(x.get("_row_number", "0"))),
+        key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))),
         reverse=True,
     )
     non_comments.sort(
-        key=lambda x: (post_freshness.get(str(x.get("post_id", "")), current), int(x.get("_row_number", "0"))),
+        key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))),
         reverse=True,
     )
     # Comments are the primary engagement deliverable; reactions use remaining capacity.
