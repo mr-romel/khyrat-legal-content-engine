@@ -9,7 +9,6 @@ from typing import Any, Callable
 _RETRYABLE_MARKERS = (
     "503",
     "UNAVAILABLE",
-    "429",
     "RESOURCE_EXHAUSTED",
     "RATE_LIMIT",
     "DEADLINE_EXCEEDED",
@@ -28,11 +27,11 @@ def is_retryable_gemini_error(exc: BaseException) -> bool:
 def with_gemini_retry(
     func: Callable[..., Any],
     *,
-    attempts: int = 4,
-    initial_delay: float = 4.0,
-    max_delay: float = 20.0,
+    attempts: int = 6,
+    initial_delay: float = 5.0,
+    max_delay: float = 30.0,
 ) -> Callable[..., Any]:
-    """Retry only transient Gemini/service failures; never duplicate business actions."""
+    """Retry genuine transient Gemini/service failures; quota exhaustion (429) fails fast so deterministic fallbacks can run."""
     @wraps(func)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         last_error: BaseException | None = None
