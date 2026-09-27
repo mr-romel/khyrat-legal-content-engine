@@ -19,7 +19,25 @@ _RETRYABLE_MARKERS = (
 )
 
 
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    text = str(exc).upper()
+    if "RESOURCE_EXHAUSTED" in text or "QUOTA EXCEEDED" in text:
+        return True
+    for obj in (exc, getattr(exc, "response", None), getattr(exc, "resp", None)):
+        if obj is None:
+            continue
+        for name in ("status_code", "status", "code"):
+            try:
+                if int(getattr(obj, name, None)) == 429:
+                    return True
+            except (TypeError, ValueError):
+                pass
+    return False
+
+
 def is_retryable_gemini_error(exc: BaseException) -> bool:
+    if _is_quota_exhausted(exc):
+        return False
     text = str(exc).upper()
     return any(marker in text for marker in _RETRYABLE_MARKERS)
 
