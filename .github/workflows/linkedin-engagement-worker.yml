@@ -31,9 +31,10 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
-      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
       LINKEDIN_ENGAGEMENT_DELAY_MINUTES: "15"
       LINKEDIN_ENGAGEMENT_RETRY_MINUTES: "30"
+      LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS: "12"
       LINKEDIN_PERMISSION_RECHECK_HOURS: "24"
       KHYRAT_LINKEDIN_ENGAGEMENT_DRY_RUN: "false"
     steps:
