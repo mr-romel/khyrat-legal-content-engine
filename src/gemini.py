@@ -46,7 +46,8 @@ image_mode يجب أن يكون REFERENCE_SUBJECT في كل صورة قابلة 
   "image_mode": "REFERENCE_SUBJECT",
   "review_level": "CLEAR|REVIEW",
   "review_flags": [],
-  "legal_sources_used": []
+  "legal_sources_used": [],
+  "hook_pattern": "question|incident|surprise_fact|common_mistake|practical_scenario|client_problem|legal_rule|contrast|narrative|conclusion_first"
 }
 """
 
@@ -128,7 +129,7 @@ def _soft_cta_present(post: str) -> bool:
 
 
 def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
-    for field in ("post", "image_brief", "image_mode", "review_level", "review_flags", "legal_sources_used"):
+    for field in ("post", "image_brief", "image_mode", "review_level", "review_flags", "legal_sources_used", "hook_pattern"):
         if field not in data:
             raise RuntimeError(f"Gemini JSON is missing required field: {field}")
     data["image_mode"] = str(data.get("image_mode", "REFERENCE_SUBJECT")).strip().upper()
@@ -143,6 +144,10 @@ def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
     data["review_level"] = _normalize_review_level(data.get("review_level"))
     data["review_flags"] = _normalize_list(data.get("review_flags"))
     data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
+    allowed_hooks = {"question","incident","surprise_fact","common_mistake","practical_scenario","client_problem","legal_rule","contrast","narrative","conclusion_first"}
+    data["hook_pattern"] = str(data.get("hook_pattern", "")).strip().lower()
+    if data["hook_pattern"] not in allowed_hooks:
+        raise RuntimeError("Gemini returned an invalid hook_pattern.")
     data["post"] = str(data.get("post", "")).strip()
     data["image_brief"] = str(data.get("image_brief", "")).strip()
     if not data["post"]:
@@ -190,7 +195,8 @@ def generate_post(
 
 اكتب مسودة قانونية جاهزة لكي تمر على المراجع القانوني والتحرير النهائي.
 استهدف تقريبًا 180 إلى 320 كلمة، لكن لا تحشو النص فقط للوصول إلى رقم. اجعل الصياغة بشرية ومتفاوتة الإيقاع، ولا تكرر نفس البناء من منشور إلى آخر.
-ابدأ من موقف حقيقي، اشرح الفكرة، وضّح الأثر العملي، وأنهِ بـCTA طبيعية غير بيعية.
+قبل الكتابة، اختر Hook Pattern واحدًا مناسبًا فعلًا للموضوع والزاوية والهدف، ولا تستخدم نفس نمط الافتتاح المستخدم في المنشورات السابقة الواردة في السياق. الخيارات: سؤال مباشر، واقعة قانونية، معلومة مفاجئة، خطأ شائع، سيناريو عملي، مشكلة عميل، قاعدة قانونية، مفارقة/مقارنة، افتتاحية سردية، أو نتيجة/استنتاج يبدأ منه البوست. المطلوب تغيير بنية الدخول نفسها، وليس تبديل كلمات القالب فقط. لا تبدأ كل المنشورات بصيغ محفوظة مثل "لو..." أو "ناس كتير..." أو "خليني أقولك...".
+أنشئ الافتتاح من صلب الموضوع، ثم اشرح الفكرة، وضّح الأثر العملي، وأنهِ بـCTA طبيعية غير بيعية.
 إذا لم تكن معلومة دقيقة متحققة، لا تخترعها؛ احذفها أو صغها بصورة عامة وآمنة.
 أنشئ أيضًا image_brief مناسبًا للمشهد نفسه. يجب أن يكون image_mode=REFERENCE_SUBJECT؛ وإذا لم يكن ظهور الشخص المرجعي طبيعيًا ومباشرًا في المشهد القانوني، استخدم review_level=REVIEW بدلًا من CONTEXT_ONLY.
 """
