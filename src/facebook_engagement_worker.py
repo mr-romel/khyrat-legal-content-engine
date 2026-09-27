@@ -365,20 +365,36 @@ def due_events(events, current):
             continue
         due.append(event)
 
-    # One comment per post per cycle, while allowing every due post reaction
-    # to run immediately. This prevents the newest post from starving older
-    # published posts that are still missing engagement.
+    # One comment per post per cycle, but prioritize the newest published
+    # posts. A large historical backlog must never starve the latest post.
+    post_freshness = {}
+    for event in events:
+        post_id = str(event.get("post_id", "")).strip()
+        if not post_id:
+            continue
+        stamp = parse_dt(event.get("created_at", "")) or parse_dt(event.get("scheduled_at", ""))
+        if stamp and (post_id not in post_freshness or stamp > post_freshness[post_id]):
+            post_freshness[post_id] = stamp
+
     non_comments = [x for x in due if str(x.get("action", "")).upper() != "COMMENT"]
     comments_by_post = {}
     for event in due:
         if str(event.get("action", "")).upper() == "COMMENT":
             comments_by_post.setdefault(str(event.get("post_id", "")), []).append(event)
+
     selected_comments = []
     for post_id, items in comments_by_post.items():
         items.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
         selected_comments.append(items[0])
-    selected_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
-    non_comments.sort(key=lambda x: (parse_dt(x.get("scheduled_at", "")) or current, int(x.get("_row_number", "0"))))
+
+    selected_comments.sort(
+        key=lambda x: (post_freshness.get(str(x.get("post_id", "")), current), int(x.get("_row_number", "0"))),
+        reverse=True,
+    )
+    non_comments.sort(
+        key=lambda x: (post_freshness.get(str(x.get("post_id", "")), current), int(x.get("_row_number", "0"))),
+        reverse=True,
+    )
     # Comments are the primary engagement deliverable; reactions use remaining capacity.
     return (selected_comments + non_comments)[:MAX_DUE_EVENTS_PER_RUN]
 
