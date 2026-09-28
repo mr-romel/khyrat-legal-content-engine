@@ -58,15 +58,16 @@ jobs:
           echo "GitHub event: ${{ github.event_name }}"
           echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           PYTHONPATH=src python src/content_system_runtime.py
-      - name: Commit generated images
+      - name: Kick engagement workers immediately after publisher run
         if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add generated/
+          printf '%s\n' "publish-kick-$(date -u '+%Y-%m-%dT%H:%M:%S.%3NZ')" >> ops/engagement-kick.txt
+          git add generated/ ops/engagement-kick.txt
           if git diff --cached --quiet; then
-            echo "No generated image changes."
+            echo "Nothing to commit."
             exit 0
           fi
-          git commit -m "chore: add generated legal image"
+          git commit -m "chore: kick engagement workers after publish"
           git push origin HEAD:main
