@@ -113,17 +113,3 @@ jobs:
           FACEBOOK_PRIVATE_REPLY_MAX_COMMENT_AGE_HOURS: "168"
         continue-on-error: true
         run: PYTHONPATH=src python src/facebook_private_reply_worker.py
-
-      - name: Record engagement kick
-        if: ${{ !cancelled() }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          printf '%s\n' "publish-kick-$(date -u '+%Y-%m-%dT%H:%M:%S.%3NZ')" >> ops/engagement-kick.txt
-          git add generated/ ops/engagement-kick.txt
-          if git diff --cached --quiet; then
-            echo "Nothing to commit."
-            exit 0
-          fi
-          git commit -m "chore: record post-publish engagement run"
-          git push origin HEAD:main
