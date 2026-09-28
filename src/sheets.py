@@ -18,9 +18,11 @@ HEADERS = [
     "المصادر القانونية", "ملاحظات", "Image QA Status", "Image QA Score", "Image QA Issues", "Image QA Attempt", "Image Mode",
     "Facebook Comment Queue", "Facebook Comments Published", "Facebook Reaction Status",
     "LinkedIn Comment Queue", "LinkedIn Comments Published", "LinkedIn Reaction Status",
+    "Blogger Status", "Blogger Post ID", "Blogger URL", "Blogger Search Title", "Blogger Search Query",
+    "Blogger Search Candidates", "Blogger Last Error",
 ]
 
-SHEET_LAST_COLUMN = "AF"
+SHEET_LAST_COLUMN = "AM"
 
 T = TypeVar("T")
 
