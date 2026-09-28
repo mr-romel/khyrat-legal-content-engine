@@ -110,7 +110,7 @@ def _ensure_facebook_cta(post: str) -> str:
         additions.append("لو شايف إن المعلومة دي ممكن تفيد حد تعرفه، ابعتله المنشور بدل ما المعلومة توصله متأخر.")
     if not any(word in lowered for word in ("سؤالك", "استفسارك", "موقف مشابه", "التعليقات")):
         additions.append("ولو عندك موقف مشابه، اكتب سؤالك في التعليقات ونوضح لك الإطار القانوني العام للمسألة.")
-    return text + ("\n\n" + "\n".join(additions) if additions else "")
+    contact_cta = ("لو محتاج تقييم موقفك القانوني على وقائعك ومستنداتك، ما تعتمدش على المعلومة العامة وحدها.\n"\n            "واتساب مباشر: https://wa.me/201022718375\n"\n            "صفحة اسأل محمود: https://www.facebook.com/AskMahmoudNow")\n"    if "wa.me/201022718375" not in text else ""\n    extra = ("\n\n" + "\n".join(additions) if additions else "")\n    return text + extra + ("\n\n" + contact_cta if contact_cta else "")
 
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
