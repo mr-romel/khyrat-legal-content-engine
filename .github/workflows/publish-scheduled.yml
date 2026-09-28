@@ -19,7 +19,7 @@ jobs:
   publish:
     name: Scheduled publisher
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -34,7 +34,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Run publishing engine
+        id: publish
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -53,12 +55,66 @@ jobs:
           GEMINI_PRIMARY_ATTEMPTS: "2"
           GEMINI_FALLBACK_ATTEMPTS: "1"
           CLOUDFLARE_IMAGE_STEPS: "4"
-        continue-on-error: true
         run: |
           echo "GitHub event: ${{ github.event_name }}"
-          echo "External scheduler dispatch received at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "Publishing started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           PYTHONPATH=src python src/content_system_runtime.py
-      - name: Kick engagement workers immediately after publisher run
+
+      - name: Run LinkedIn engagement immediately
+        if: ${{ steps.publish.outcome == 'success' }}
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+          LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION || '202607' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+          LINKEDIN_ENGAGEMENT_DELAY_MINUTES: "15"
+          LINKEDIN_ENGAGEMENT_RETRY_MINUTES: "30"
+          LINKEDIN_ENGAGEMENT_MAX_ATTEMPTS: "12"
+          LINKEDIN_PERMISSION_RECHECK_HOURS: "24"
+          KHYRAT_LINKEDIN_ENGAGEMENT_DRY_RUN: "false"
+        continue-on-error: true
+        run: PYTHONPATH=src python src/linkedin_engagement_worker.py
+
+      - name: Run Facebook engagement immediately
+        if: ${{ steps.publish.outcome == 'success' }}
+        env:
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+          FACEBOOK_ENGAGEMENT_DELAY_MINUTES: "15"
+          FACEBOOK_ENGAGEMENT_RETRY_MINUTES: "30"
+          FACEBOOK_ENGAGEMENT_MAX_ATTEMPTS: "12"
+          KHYRAT_FACEBOOK_ENGAGEMENT_DRY_RUN: "false"
+        continue-on-error: true
+        run: PYTHONPATH=src python src/facebook_engagement_worker.py
+
+      - name: Run Facebook private replies immediately
+        if: ${{ steps.publish.outcome == 'success' }}
+        env:
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
+          FACEBOOK_PRIVATE_REPLY_RECENT_POSTS: "3"
+          FACEBOOK_PRIVATE_REPLY_MAX_COMMENTS_PER_RUN: "5"
+          FACEBOOK_PRIVATE_REPLY_MAX_COMMENT_AGE_HOURS: "168"
+        continue-on-error: true
+        run: PYTHONPATH=src python src/facebook_private_reply_worker.py
+
+      - name: Record engagement kick
         if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"
@@ -69,5 +125,5 @@ jobs:
             echo "Nothing to commit."
             exit 0
           fi
-          git commit -m "chore: kick engagement workers after publish"
+          git commit -m "chore: record post-publish engagement run"
           git push origin HEAD:main
