@@ -39,7 +39,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, search_geo, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, blogger_publisher, blogger_worker, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, search_geo, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify final image preview QA tests
@@ -122,6 +122,29 @@ jobs:
           assert all(len(daily_posting_times(*map(int, publish_date.split("-")))) == 1 for publish_date, _ in target_slots)
           print("Publishing schedule check: exactly 1 stable variable slot/day on every calendar day, 10:00-22:00 Cairo time: OK")
           PY
+      - name: Verify Blogger publishing layer
+        run: |
+          python - <<'PY'
+          from blogger_publisher import build_article_html, build_search_title
+          html = build_article_html(
+              title="هل يجوز إنهاء عقد العمل؟",
+              topic="إنهاء عقد العمل",
+              post="محتوى قانوني تجريبي.\\n\\nشرح عملي للموقف.",
+              image_url="https://example.com/image.jpg",
+              legal_sources="مصدر قانوني تجريبي",
+              related=[],
+          )
+          assert "BlogPosting" in html
+          assert "wa.me/201022718375" in html
+          assert "facebook.com/AskMahmoudNow" in html
+          assert "linkedin.com/in/mahmoud-khyrat" in html
+          assert "askmahmoudkhyrat.blogspot.com" in html
+          title, source, candidates = build_search_title("إنهاء عقد العمل")
+          assert title
+          assert isinstance(candidates, list)
+          print("Blogger SEO/GEO layer check: OK")
+          PY
+
       - name: Verify Search and GEO metadata layer
         run: |
           python - <<'PY'
