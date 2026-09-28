@@ -5,10 +5,9 @@ on:
     paths:
       - "ops/engagement-kick.txt"
       - "ops/facebook-engagement-kick.txt"
-  # Cloudflare remains the primary scheduler. GitHub schedule is a redundancy
-  # path so a missed external dispatch cannot silently stop engagement.
+  # Fallback only. GitHub scheduled workflows are best-effort.
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:
 
 permissions:
