@@ -39,7 +39,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, search_geo, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify final image preview QA tests
@@ -122,6 +122,26 @@ jobs:
           assert all(len(daily_posting_times(*map(int, publish_date.split("-")))) == 1 for publish_date, _ in target_slots)
           print("Publishing schedule check: exactly 1 stable variable slot/day on every calendar day, 10:00-22:00 Cairo time: OK")
           PY
+      - name: Verify Search and GEO metadata layer
+        run: |
+          python - <<'PY'
+          from search_geo import build_metadata, SEARCH_GEO_HEADERS
+          item = build_metadata(
+              post_id="TEST-1",
+              topic="هل يجوز فصل الموظف في مصر؟",
+              post="هل يجوز فصل الموظف في مصر؟ وما أهم الحالات التي يجب الانتباه لها؟",
+              platform="FACEBOOK",
+          )
+          assert list(item) == SEARCH_GEO_HEADERS
+          assert item["Jurisdiction"] == "مصر"
+          assert item["Search Intent"] == "QUESTION"
+          assert item["Primary Search Question"].endswith("؟")
+          assert item["SEO Title"]
+          assert item["Meta Description"]
+          assert item["GEO Summary"]
+          print("Search/GEO metadata layer check: OK")
+          PY
+
       - name: Verify Gemini runtime architecture
         run: |
           python - <<'PY'
