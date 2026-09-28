@@ -1,6 +1,11 @@
 name: Facebook Private Reply Worker
 
 on:
+  workflow_run:
+    workflows:
+      - "Facebook Engagement Worker"
+    types:
+      - completed
   push:
     paths:
       - "ops/engagement-kick.txt"
