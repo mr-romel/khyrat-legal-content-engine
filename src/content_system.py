@@ -23,6 +23,7 @@ SYSTEM_SHEETS = {
     "VisualConcepts": ["Concept ID", "Concept", "Use When", "Avoid When", "Prompt Direction", "Updated At"],
     "StrategyRecommendations": ["Recommendation ID", "Priority", "Platform", "Audience", "Pillar", "Angle", "Action", "Evidence", "Updated At"],
     "DashboardSnapshots": ["Snapshot At", "Posts", "Winners", "Top Topics", "Top Hooks", "Top CTAs", "Top Visuals", "Audience Signals", "Recommendations"],
+    "SearchGEO": ["Post ID", "Topic", "Platform", "Search Intent", "Primary Search Question", "Related Questions", "Jurisdiction", "Legal Entity", "Answer Extract", "Supporting Evidence", "Local Intent", "Page Type", "SEO Title", "Meta Description", "Slug", "GEO Summary", "Author/Provenance", "Updated At"],
 }
 
 DERIVATIVE_TYPES = [
@@ -230,6 +231,8 @@ def record_publication_intelligence(service, spreadsheet_id: str, *, source_row_
         _append(service, spreadsheet_id, "ConversionMap", [topic, service_name, intent, cta, "COMMENT_OR_MESSAGE"])
         _append(service, spreadsheet_id, "VoiceProfile", [VOICE_PROFILE["version"], VOICE_PROFILE["principles"], VOICE_PROFILE["preferred_openings"], VOICE_PROFILE["forbidden"], VOICE_PROFILE["tone"], VOICE_PROFILE["cta"], _now()])
         record_fingerprint(service, spreadsheet_id, post_id=post_id, topic=topic, post=post, angle=angle, objective=objective, platform=platform)
+        from search_geo import record_search_geo
+        record_search_geo(service, spreadsheet_id, post_id=post_id, topic=topic, post=post, platform=platform)
         ensure_visual_concepts(service, spreadsheet_id)
         print(f"Content system: lineage={root} derivatives={len(tree)} service={service_name} experiment={experiment_id}")
     except Exception as exc:
