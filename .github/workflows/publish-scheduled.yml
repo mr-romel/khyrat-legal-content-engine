@@ -70,7 +70,7 @@ jobs:
             echo "No generated assets to commit."
           else
             git commit -m "Store generated legal publishing assets"
-            git push
+            git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
       - name: Run Blogger SEO/GEO publisher
