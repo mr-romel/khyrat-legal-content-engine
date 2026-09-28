@@ -1,13 +1,15 @@
 name: Facebook Private Reply Worker
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
-  workflow_dispatch:
   push:
     paths:
+      - "ops/engagement-kick.txt"
       - "src/facebook_private_reply_worker.py"
       - ".github/workflows/facebook-private-reply-worker.yml"
+  # Fallback for comments that arrive after publication.
+  schedule:
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
