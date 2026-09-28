@@ -149,7 +149,11 @@ def build_metadata(*, post_id: str, topic: str, post: str, platform: str, legal_
 
 def record_search_geo(service, spreadsheet_id: str, *, post_id: str, topic: str, post: str, platform: str, legal_sources: str = "") -> None:
     from content_system import _append, _ensure_sheet
+    from sheets import get_values
     _ensure_sheet(service, spreadsheet_id, "SearchGEO", SEARCH_GEO_HEADERS)
+    existing = get_values(service, spreadsheet_id, "SearchGEO!A:A")
+    if any(str(row[0]).strip() == str(post_id).strip() for row in existing[1:] if row):
+        return
     data = build_metadata(
         post_id=post_id,
         topic=topic,
