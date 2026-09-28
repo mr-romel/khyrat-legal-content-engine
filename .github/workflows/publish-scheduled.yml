@@ -60,6 +60,42 @@ jobs:
           echo "Publishing started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           PYTHONPATH=src python src/content_system_runtime.py
 
+      - name: Persist generated publishing assets
+        if: ${{ steps.publish.outcome == 'success' }}
+        run: |
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/
+          if git diff --cached --quiet; then
+            echo "No generated assets to commit."
+          else
+            git commit -m "Store generated legal publishing assets"
+            git push
+          fi
+
+      - name: Run Blogger SEO/GEO publisher
+        if: ${{ steps.publish.outcome == 'success' }}
+        env:
+          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'false' }}
+          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AM' }}
+        continue-on-error: true
+        run: PYTHONPATH=src python src/blogger_worker.py
+
+      - name: Upload publishing package
+        if: ${{ always() && steps.publish.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-publishing-package
+          path: |
+            generated/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Run LinkedIn engagement immediately
         if: ${{ steps.publish.outcome == 'success' }}
         env:
