@@ -93,6 +93,7 @@ def create_legal_image(
     topic: str,
     image_brief: str,
     output_path: str,
+    post_context: str = "",
     api_key: str | None = None,
     cloudflare_account_id: str | None = None,
     cloudflare_api_token: str | None = None,
@@ -120,6 +121,10 @@ def create_legal_image(
 
     image_brief = (
         image_brief or ""
+    ).strip()
+
+    post_context = (
+        post_context or ""
     ).strip()
 
     if not account_id:
@@ -150,6 +155,19 @@ SUBJECT:
 
 VISUAL BRIEF:
 {image_brief}
+
+FULL POST CONTEXT:
+{post_context or "No post text supplied; infer the scene only from the exact topic and visual brief."}
+
+SCENE FIDELITY RULES:
+- The topic and full post context are the source of truth for WHAT is happening
+- The visual brief is the source of truth for HOW that specific situation should look
+- Depict the concrete legal situation, people, action, object, document, workplace, or setting actually described
+- If the topic describes a contract, show a contract being reviewed/signed/contested only if that is what the post says
+- If it describes employment, show the actual employment interaction or document issue described, not a generic lawyer portrait
+- If it describes a court, complaint, inheritance, lease, company decision, cheque, debt, termination, or other concrete event, make that event the unmistakable focal point
+- Do not replace a specific legal event with a generic lawyer at a desk, courthouse, scales of justice, gavel, legal books, or abstract office scene
+- Every major visual element must support the exact topic; remove decorative legal clichés
 
 CREATIVE REQUIREMENTS:
 
