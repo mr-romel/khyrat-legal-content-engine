@@ -34,7 +34,7 @@ jobs:
           pip install -r requirements.txt
       - name: Compile Python modules
         run: |
-          python -m compileall -q src
+          python -m compileall -q src scripts
           echo "Python compile check: OK"
       - name: Import application modules
         run: |
