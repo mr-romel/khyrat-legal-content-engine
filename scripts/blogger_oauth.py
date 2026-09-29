@@ -15,10 +15,9 @@ import argparse
 import json
 from pathlib import Path
 
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
-DEFAULT_REDIRECT = "http://localhost:8080/"
 DEFAULT_OUTPUT = "blogger_oauth_authorized.json"
 
 
@@ -26,15 +25,14 @@ def load_client_config(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
 
     # Google Cloud downloads Web application credentials as {"web": {...}}.
-    # Installed/Desktop downloads use {"installed": {...}}.
+    # Desktop/Installed downloads use {"installed": {...}}.
     if "web" in data:
-        return {"web": data["web"]}
+        return {"installed": data["web"]}
     if "installed" in data:
         return {"installed": data["installed"]}
 
-    # Also accept an already-normalized client object.
     if {"client_id", "client_secret", "auth_uri", "token_uri"}.issubset(data):
-        return {"web": data}
+        return {"installed": data}
 
     raise SystemExit(
         "Unsupported OAuth client JSON. Expected a Google Cloud "
@@ -69,29 +67,21 @@ def main() -> int:
         raise SystemExit(f"Client JSON not found: {client_path}")
 
     client_config = load_client_config(client_path)
-    redirect_uri = f"http://localhost:{args.port}/"
 
-    flow = Flow.from_client_config(
+    flow = InstalledAppFlow.from_client_config(
         client_config,
         scopes=[BLOGGER_SCOPE],
-        redirect_uri=redirect_uri,
-    )
-
-    authorization_url, _ = flow.authorization_url(
-        access_type="offline",
-        prompt="consent",
-        include_granted_scopes="true",
     )
 
     print("Opening Google authorization in your browser...")
-    print("If it does not open automatically, copy this URL into your browser:")
-    print(authorization_url)
+    print(
+        "If it does not open automatically, the authorization URL will be "
+        "printed by the OAuth helper."
+    )
     print()
-    print(f"Waiting for Google callback on {redirect_uri}")
+    print(f"Waiting for Google callback on http://localhost:{args.port}/")
 
-    # This local callback is only used during the one-time bootstrap.
-    # The exact localhost redirect must also be registered in the OAuth client.
-    flow.run_local_server(
+    credentials = flow.run_local_server(
         host="localhost",
         port=args.port,
         open_browser=True,
@@ -104,16 +94,13 @@ def main() -> int:
         include_granted_scopes="true",
     )
 
-    credentials = flow.credentials
     if not credentials.refresh_token:
         raise SystemExit(
             "Authorization completed but no refresh_token was returned. "
-            "Run again and keep prompt=consent; also make sure the Blogger "
-            "scope was granted."
+            "Run again with prompt=consent and make sure the Blogger scope "
+            "was granted."
         )
 
-    # Credentials.to_json() contains the access token and refresh token.
-    # Write it locally without printing the secret.
     output_path.write_text(credentials.to_json(), encoding="utf-8")
     try:
         output_path.chmod(0o600)
