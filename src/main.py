@@ -17,6 +17,7 @@ from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, publish_photo, publish_text
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
+from image_qa import ImageQAError, qa_image, summarize_qa
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -212,43 +213,95 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
     generated_image_path = None
-    try:
-        create_legal_image(
-            topic=topic,
-            image_brief=image_brief,
-            output_path=str(image_path),
-            cloudflare_account_id=config["cloudflare_account_id"],
-            cloudflare_api_token=config["cloudflare_api_token"],
-        )
-        if not image_path.is_file() or image_path.stat().st_size == 0:
-            raise ImageGenerationError("Generated image file was empty.")
-        generated_image_path = image_path
-        image_url = github_raw_url(str(image_path))
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "رابط الصورة": image_url,
-            "Image Mode": "DIRECT_CLOUDFLARE",
-            "Image QA Attempt": "",
-            "Image QA Status": "NOT_APPLIED",
-            "Image QA Score": "",
-            "Image QA Issues": "",
-            "المحتوى": post,
-            "وصف الصورة": image_brief,
-            "وقت آخر تشغيل": current.isoformat(),
-        })
-        print(f"Direct Cloudflare image generated: {image_path}")
-    except Exception as image_exc:
-        print(f"Image generation unavailable — publication will continue without an image: {image_exc}")
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
-            "Image QA Issues": str(image_exc)[:1500],
-            "Image Mode": "DIRECT_CLOUDFLARE",
-            "المحتوى": post,
-            "وصف الصورة": image_brief,
-            "رابط الصورة": existing_image_url,
-            "وقت آخر تشغيل": current.isoformat(),
-        })
-        if existing_image_url and image_path.is_file():
-            generated_image_path = image_path
+    image_qa_data = None
+    current_image_brief = image_brief
+    max_image_attempts = 2
+
+    for image_attempt in range(1, max_image_attempts + 1):
+        try:
+            create_legal_image(
+                topic=topic,
+                image_brief=current_image_brief,
+                post_context=post,
+                output_path=str(image_path),
+                cloudflare_account_id=config["cloudflare_account_id"],
+                cloudflare_api_token=config["cloudflare_api_token"],
+            )
+            if not image_path.is_file() or image_path.stat().st_size == 0:
+                raise ImageGenerationError("Generated image file was empty.")
+
+            image_qa_data = qa_image(
+                api_key=config["gemini_api_key"],
+                image_path=str(image_path),
+                topic=topic,
+                image_brief=current_image_brief,
+                model=config["gemini_model"],
+                image_mode="CONTEXT_ONLY",
+            )
+            qa_summary = summarize_qa(image_qa_data)
+            print(
+                f"Image QA attempt {image_attempt}: "
+                f"decision={image_qa_data.get('decision')} "
+                f"relevance={image_qa_data.get('relevance_score')} "
+                f"overall={image_qa_data.get('overall_score')}"
+            )
+
+            if image_qa_data.get("decision") == "PASS":
+                generated_image_path = image_path
+                image_url = github_raw_url(str(image_path))
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": image_url,
+                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
+                    "Image QA Attempt": str(image_attempt),
+                    "Image QA Status": "PASS",
+                    "Image QA Score": str(image_qa_data.get("overall_score", "")),
+                    "Image QA Issues": qa_summary,
+                    "المحتوى": post,
+                    "وصف الصورة": current_image_brief,
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+                break
+
+            regeneration_prompt = str(image_qa_data.get("regeneration_prompt", "")).strip()
+            if image_attempt < max_image_attempts and regeneration_prompt:
+                current_image_brief = (
+                    f"{image_brief}\n\nMANDATORY FIXES FROM VISUAL QA:\n{regeneration_prompt}"
+                )
+                print("Image QA requested regeneration; generating a more topic-faithful scene.")
+                continue
+
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Image QA Status": "REJECTED",
+                "Image QA Attempt": str(image_attempt),
+                "Image QA Score": str(image_qa_data.get("overall_score", "")),
+                "Image QA Issues": qa_summary or "Visual QA rejected the generated image as insufficiently relevant.",
+                "Image Mode": "DIRECT_CLOUDFLARE_QA",
+                "المحتوى": post,
+                "وصف الصورة": current_image_brief,
+                "رابط الصورة": "",
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+            print("Image rejected by visual QA; publishing text-only instead of an unrelated image.")
+            break
+
+        except (ImageGenerationError, ImageQAError) as image_exc:
+            print(f"Image generation/QA attempt {image_attempt} failed: {image_exc}")
+            if image_attempt >= max_image_attempts:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
+                    "Image QA Attempt": str(image_attempt),
+                    "Image QA Issues": str(image_exc)[:1500],
+                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
+                    "المحتوى": post,
+                    "وصف الصورة": current_image_brief,
+                    "رابط الصورة": existing_image_url,
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+                if existing_image_url and image_path.is_file():
+                    generated_image_path = image_path
+
+    if generated_image_path is None and not existing_image_url:
+        print("No QA-approved image available; publication will continue text-only.")
 
     return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
 
