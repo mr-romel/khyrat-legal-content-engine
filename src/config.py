@@ -143,4 +143,3 @@ def load_config() -> dict:
         "linkedin_access_token": linkedin_access_token,
         "linkedin_author_urn": _optional("LINKEDIN_AUTHOR_URN"),
     }
-}
