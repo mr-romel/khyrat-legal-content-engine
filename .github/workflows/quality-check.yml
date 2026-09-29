@@ -177,7 +177,7 @@ jobs:
       - name: Safe dry-run configuration smoke test
         env:
           KHYRAT_DRY_RUN: "true"
-          GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check"}'
+          GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"quality-check","client_email":"quality-check@example.com","private_key":"-----BEGIN PRIVATE KEY-----\\nquality-check\\n-----END PRIVATE KEY-----"}'
           GOOGLE_SHEET_ID: "quality-check-sheet"
           GOOGLE_SHEET_RANGE: "Content!A:Y"
           GEMINI_API_KEY: "quality-check-key"
