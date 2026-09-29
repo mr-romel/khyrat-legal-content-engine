@@ -1,0 +1,58 @@
+name: Production Integration Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/production-integration-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AM' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile production modules
+        run: |
+          python -m py_compile src/config.py src/sheets.py src/content_system_runtime.py src/run_main.py src/linkedin_engagement_worker.py src/facebook_engagement_worker.py src/facebook_private_reply_worker.py
+      - name: Verify production Google configuration
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          from config import load_config, load_engagement_config, load_facebook_engagement_config
+          from sheets import create_service, get_values
+          cfg = load_config()
+          print("CONFIG: OK")
+          service = create_service(cfg["service_account_info"])
+          values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
+          print("GOOGLE PRODUCTION ACCESS: OK")
+          print(f"SHEET ROWS READ: {len(values)}")
+          print(f"SHEET RANGE: {cfg['sheet_range']}")
+          print("SECRET CONTENT: NOT PRINTED")
+          load_engagement_config()
+          load_facebook_engagement_config()
+          print("ENGAGEMENT CONFIGS: OK")
+          PY
+      - name: Run unit tests
+        run: |
+          PYTHONPATH=src python -m pytest -q tests/test_linkedin_engagement.py tests/test_engagement_strategy.py
