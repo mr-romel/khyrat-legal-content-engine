@@ -31,8 +31,8 @@ def main() -> int:
             continue
         if str(row.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
             continue
-        if not str(row.get("Facebook Post ID", "")).strip() and not str(row.get("LinkedIn Post ID", "")).strip():
-            continue
+        # Blogger is independent from social publication. A valid published
+        # content row is enough; Facebook/LinkedIn IDs are not required.
         if not str(row.get("المحتوى", "")).strip():
             continue
         candidates.append((row_number, row))
@@ -51,6 +51,14 @@ def main() -> int:
         "Blogger Status": "PROCESSING",
         "Blogger Last Error": "",
     })
+
+    if os.getenv("BLOGGER_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}:
+        print(f"Blogger DRY RUN: row={row_number}, topic={topic}, title source ready; no post will be published.")
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Blogger Status": "DRY_RUN_READY",
+            "Blogger Last Error": "",
+        })
+        return 0
 
     try:
         result = publish_article(
