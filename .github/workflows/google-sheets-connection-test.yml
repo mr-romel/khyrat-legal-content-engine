@@ -1,0 +1,102 @@
+name: Google Sheets Connection Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/google-sheets-connection-test.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install gspread google-auth
+
+      - name: Test Google Sheets connection
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from google.oauth2.service_account import Credentials
+          import gspread
+
+          raw = os.environ.get("GOOGLE_CREDENTIALS", "")
+          url = os.environ.get("GOOGLE_SHEET_URL", "")
+
+          print("SECRET GOOGLE_CREDENTIALS:", "PRESENT" if raw else "MISSING")
+          print("SECRET GOOGLE_SHEET_URL:", "PRESENT" if url else "MISSING")
+
+          try:
+              info = json.loads(raw)
+          except Exception as e:
+              print("RESULT: INVALID JSON")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          required = ["type","project_id","private_key_id","private_key","client_email","client_id","auth_uri","token_uri"]
+          missing = [k for k in required if not info.get(k)]
+          print("JSON required fields:", "OK" if not missing else "MISSING " + ",".join(missing))
+          if missing or info.get("type") != "service_account":
+              print("RESULT: SERVICE ACCOUNT JSON IS INCOMPLETE")
+              sys.exit(1)
+
+          try:
+              scopes = [
+                  "https://www.googleapis.com/auth/spreadsheets",
+                  "https://www.googleapis.com/auth/drive",
+              ]
+              creds = Credentials.from_service_account_info(info, scopes=scopes)
+              print("STEP AUTH: OK")
+          except Exception as e:
+              print("STEP AUTH: FAILED")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          try:
+              gc = gspread.authorize(creds)
+              print("STEP GSPREAD AUTHORIZE: OK")
+          except Exception as e:
+              print("STEP GSPREAD AUTHORIZE: FAILED")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          try:
+              sh = gc.open_by_url(url)
+              print("STEP SHEET ACCESS: OK")
+              print("SHEET TITLE:", sh.title)
+          except Exception as e:
+              print("STEP SHEET ACCESS: FAILED")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          try:
+              ws = sh.sheet1
+              values = ws.get("A1:C3")
+              print("STEP READ: OK")
+              print("ROWS READ:", len(values))
+          except Exception as e:
+              print("STEP READ: FAILED")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          try:
+              ws.update("A1", [["GOOGLE_CONNECTION_TEST"]])
+              ws.update("B1", [["WRITE_OK"]])
+              print("STEP WRITE: OK")
+          except Exception as e:
+              print("STEP WRITE: FAILED")
+              print("ERROR:", type(e).__name__, str(e))
+              sys.exit(1)
+
+          print("=== GOOGLE SHEETS TEST PASSED ===")
+          PY
