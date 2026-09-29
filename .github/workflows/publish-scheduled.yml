@@ -77,23 +77,6 @@ jobs:
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
-      - name: Run Blogger SEO/GEO publisher
-        if: ${{ steps.publish.outcome == 'success' }}
-        env:
-          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'false' }}
-          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
-          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
-          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
-
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-
-          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AM' }}
-        continue-on-error: true
-        run: PYTHONPATH=src python src/blogger_worker.py
-
       - name: Upload publishing package
         if: ${{ always() && steps.publish.outcome == 'success' }}
         uses: actions/upload-artifact@v4
