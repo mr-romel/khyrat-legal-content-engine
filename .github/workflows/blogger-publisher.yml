@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 15
     env:
       BLOGGER_DRY_RUN: "false"
-      BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'false' }}
+      BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
       BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
       BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
