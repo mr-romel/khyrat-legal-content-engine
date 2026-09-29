@@ -1,0 +1,60 @@
+name: Google Sheets Connection Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip gspread google-auth
+
+      - name: Test Google Sheets
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+        run: |
+          python - <<'PY'
+          import json, os, sys, gspread
+          from google.oauth2.service_account import Credentials
+
+          raw = os.environ.get("GOOGLE_CREDENTIALS", "")
+          url = os.environ.get("GOOGLE_SHEET_URL", "")
+          if not raw or not url:
+              print("RESULT: REQUIRED SECRET MISSING")
+              sys.exit(1)
+
+          info = json.loads(raw)
+          email = info.get("client_email", "")
+          if not email or not info.get("private_key"):
+              print("RESULT: CREDENTIALS INVALID")
+              sys.exit(1)
+
+          masked = email[:3] + "***@" + email.split("@",1)[1] if "@" in email else "***"
+          print("SERVICE ACCOUNT:", masked)
+
+          scopes = [
+              "https://www.googleapis.com/auth/spreadsheets",
+              "https://www.googleapis.com/auth/drive",
+          ]
+          creds = Credentials.from_service_account_info(info, scopes=scopes)
+          print("AUTH OK")
+
+          gc = gspread.authorize(creds)
+          sh = gc.open_by_url(url)
+          print("SHEET ACCESS OK:", sh.title)
+
+          ws = sh.sheet1
+          print("READ OK:", len(ws.row_values(1)), "columns")
+
+          try:
+              test_ws = sh.worksheet("_SYSTEM_TEST")
+          except gspread.WorksheetNotFound:
+              test_ws = sh.add_worksheet(title="_SYSTEM_TEST", rows=10, cols=3)
+
+          test_ws.update("A1", [["GOOGLE_CONNECTION_TEST"]])
+          test_ws.update("A2", [["WRITE_OK"]])
+          print("WRITE OK")
+          print("=== GOOGLE SHEETS TEST PASSED ===")
+          PY
