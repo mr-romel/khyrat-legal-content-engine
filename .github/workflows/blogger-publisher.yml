@@ -1,0 +1,59 @@
+name: Blogger SEO GEO Publisher
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blogger-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish next Blogger article
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'false' }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AM' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Publish next Blogger article
+        run: PYTHONPATH=src python src/blogger_worker.py
+
+      - name: Persist Blogger artifacts
+        if: ${{ success() }}
+        run: |
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/blogger/
+          if git diff --cached --quiet; then
+            echo "No Blogger artifacts to commit."
+          else
+            git commit -m "Store generated Blogger article"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
