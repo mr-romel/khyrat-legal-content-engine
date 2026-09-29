@@ -24,17 +24,33 @@ jobs:
 
           raw = os.environ.get("GOOGLE_CREDENTIALS", "")
           url = os.environ.get("GOOGLE_SHEET_URL", "")
+
+          print("SECRET GOOGLE_CREDENTIALS:", "PRESENT" if raw else "MISSING")
+          print("SECRET GOOGLE_SHEET_URL:", "PRESENT" if url else "MISSING")
+
           if not raw or not url:
-              print("RESULT: REQUIRED SECRET MISSING")
               sys.exit(1)
 
-          info = json.loads(raw)
-          email = info.get("client_email", "")
-          if not email or not info.get("private_key"):
-              print("RESULT: CREDENTIALS INVALID")
+          try:
+              info = json.loads(raw)
+          except Exception as exc:
+              print("RESULT: GOOGLE_CREDENTIALS IS NOT VALID JSON")
+              print("JSON ERROR TYPE:", type(exc).__name__)
               sys.exit(1)
 
-          masked = email[:3] + "***@" + email.split("@",1)[1] if "@" in email else "***"
+          client_email = info.get("client_email", "")
+          private_key = info.get("private_key", "")
+          project_id = info.get("project_id", "")
+
+          print("JSON client_email:", "PRESENT" if client_email else "MISSING")
+          print("JSON private_key:", "PRESENT" if private_key else "MISSING")
+          print("JSON project_id:", "PRESENT" if project_id else "MISSING")
+
+          if not client_email or not private_key:
+              print("RESULT: SERVICE ACCOUNT JSON IS INCOMPLETE")
+              sys.exit(1)
+
+          masked = client_email[:3] + "***@" + client_email.split("@",1)[1] if "@" in client_email else "***"
           print("SERVICE ACCOUNT:", masked)
 
           scopes = [
