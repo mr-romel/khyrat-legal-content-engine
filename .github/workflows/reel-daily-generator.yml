@@ -27,8 +27,6 @@ jobs:
       GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
       GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
       GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
-      GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
-      GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Gacrux' }}
       KHYRAT_DRY_RUN: "false"
       REEL_SKIP_GEMINI: "false"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
