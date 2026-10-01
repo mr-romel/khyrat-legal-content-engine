@@ -17,7 +17,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
-MPT_REF = "v1.3.7"
+MPT_REF = "main"
 OUTPUT_ROOT = Path("generated/reels")
 
 
@@ -203,7 +203,7 @@ def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str,
         od.rectangle((80, 1715, 1000, 1728), fill=(220, 220, 220, 150))
         od.rectangle((80, 1715, 80 + int(920 * ((i + 1) / len(images))), 1728), fill=(250, 250, 250, 235))
         od.text((540, 1840), f"{i+1}/{len(images)}", font=small_font, anchor="mm", fill=(235, 235, 235, 230))
-        frames.append(canvas.alpha_composite(overlay).convert("RGB"))
+        frames.append(Image.alpha_composite(canvas, overlay).convert("RGB"))
 
     if not frames:
         raise RuntimeError("Motion Graphics scene rendering produced no frames.")
