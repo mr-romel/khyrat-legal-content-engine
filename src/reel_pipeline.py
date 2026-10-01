@@ -13,7 +13,7 @@ from google import genai
 from config import load_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import send_video
-from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images
+from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 OUTPUT_ROOT = Path("generated/reels")
@@ -156,7 +156,9 @@ def main() -> int:
             cached = cached_fallback_assets(OUTPUT_ROOT, scene_dir, limit=8)
             scenes.extend(cached)
         if len(scenes) < 4:
-            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل، ولا توجد مكتبة محلية سابقة كافية.")
+            scenes.extend(generate_legal_cards(scene_dir, topic, count=6))
+        if len(scenes) < 4:
+            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل.")
         source_file = scene_dir / "sources.json"
         sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
         attributions = []
