@@ -240,9 +240,6 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     }
 
 
-def build_local_tts_reel(*args, **kwargs) -> Path:
-    raise RuntimeError("Edge TTS fallback has been permanently disabled for Reels.")
-
 def main() -> int:
     cfg = load_reel_config()
     service = create_service(cfg["service_account_info"])
