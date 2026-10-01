@@ -195,8 +195,10 @@ def send_control_center(chat_id: str | None = None) -> None:
 
 def send_video(video_path: str, *, caption: str = "", reply_markup: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Send a generated Reel to the private Telegram review chat with action buttons."""
-    if not configured():
-        return None
+    if not _token():
+        raise TelegramError("TELEGRAM_BOT_TOKEN is missing.")
+    if not _chat_id():
+        raise TelegramError("TELEGRAM_CHAT_ID is missing.")
     from pathlib import Path
     path = Path(video_path)
     if not path.is_file():
