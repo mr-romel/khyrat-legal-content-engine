@@ -321,7 +321,7 @@ def main() -> int:
     try:
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
         output_dir.mkdir(parents=True, exist_ok=True)
-        (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
+        brief["script"] = prepare_tts_script(brief["script"])\n        (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
         (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
         (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -435,8 +435,11 @@ def main() -> int:
                         raise RuntimeError(
                             "MoneyPrinterTurbo completed without producing final-*.mp4."
                         )
+                    raw_video = output_dir / "mpt-base.mp4"
+                    shutil.copy2(task_videos[-1], raw_video)
                     output_video = output_dir / "daily-reel.mp4"
-                    shutil.copy2(task_videos[-1], output_video)
+                    add_motion_graphics_layer(raw_video, output_video)
+                    raw_video.unlink(missing_ok=True)
                     add_motion_graphics(output_video, topic, output_dir / "motion_graphics")
 
                     probe = subprocess.run(
@@ -497,4 +500,3 @@ def main() -> int:
 if __name__ == "__main__":
     raise SystemExit(main())
 
-# Production render test: verify the complete Reel path before review delivery.
