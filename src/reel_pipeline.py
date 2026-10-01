@@ -509,3 +509,5 @@ def main() -> int:
 if __name__ == "__main__":
     raise SystemExit(main())
 
+
+# Reel production verification: Gemini TTS + text-free motion graphics.
