@@ -101,7 +101,12 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     if response is None:
         print(f"Gemini unavailable for Reel; using deterministic fallback: {last_error}")
         return deterministic_brief(topic, post)
-    data = json.loads((response.text or "").strip())
+    raw_text = (response.text or "").strip()
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
+        return deterministic_brief(topic, post)
     script = egyptian_spoken_text(str(data.get("script", "")).strip())
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 6: terms = topic_visual_terms(topic)
@@ -458,5 +463,3 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 # Production render test: verify the complete Reel path before review delivery.
-
-# Reel config isolation verification.
