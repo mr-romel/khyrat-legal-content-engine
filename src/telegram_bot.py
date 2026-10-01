@@ -193,6 +193,34 @@ def send_control_center(chat_id: str | None = None) -> None:
     )
 
 
+def send_video(video_path: str, *, caption: str = "", reply_markup: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Send a generated Reel to the private Telegram review chat with action buttons."""
+    if not configured():
+        return None
+    from pathlib import Path
+    path = Path(video_path)
+    if not path.is_file():
+        raise TelegramError(f"Video file not found: {path}")
+    token = _token()
+    payload = {"chat_id": _chat_id(), "caption": caption[:1024]}
+    if reply_markup:
+        payload["reply_markup"] = __import__("json").dumps(reply_markup, ensure_ascii=False)
+    with path.open("rb") as handle:
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/sendVideo",
+            data=payload,
+            files={"video": (path.name, handle, "video/mp4")},
+            timeout=120,
+        )
+    try:
+        data = response.json()
+    except ValueError:
+        raise TelegramError(f"Telegram sendVideo returned invalid JSON: {response.text[:500]}")
+    if not response.ok or not data.get("ok"):
+        raise TelegramError(f"Telegram sendVideo failed: {data}")
+    return data.get("result")
+
+
 def _authorized(user_id: int | str | None) -> bool:
     expected = _admin_user_id()
     if not expected:
