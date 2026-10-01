@@ -1,0 +1,77 @@
+{
+  "topic": "جريمة التحرش",
+  "script": "بص، لو الموضوع ده يخصك، ما تاخدش أول خطوة لمجرد إنك متضايق أو مستعجل. في موضوع جريمة التحرش، التفاصيل الصغيرة ممكن تغيّر الموقف القانوني كله. لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أو الفعل، أو الإشارة، أو باستخدام الوسائل الإلكترونية. والمهم تكوني عارفة إن التصرف السريع والخطوات القانونية السليمة هي اللي بتضمن حقك وبتحميكي. عشان تأخدي موقف قانوني قوي، فيه خطوات عملية مهمة لازم تتبعيها: أولاً: توثيق الدليل؛ لو التحرش إلكتروني احتفظي بـ \"سكرين شوت\" للرسائل والحسابات وبأرقام التليفونات بدون تعديل. ولو في الشارع أو مكان العمل، حاولي تحددي وجود شهود أو كاميرات مراقبة قريبة. ثانياً: التوجه لأقرب قسم شرطة لتحرير محضر بالواقعة، أو التوجه لمباحث تكنولوجيا المعلومات لو التحرش الإلكتروني. ثالثاً: المتابعة القانونية وعدم السكوت، لأن اتخاذ الإجراء الرسمي هو الخطوة الوحيدة اللي بتمنع التكرار وبتحاسب المتجاوز. حقك مكفول بالقانون، والسكوت بيشجع المتجاوز. لو بتواجهي موقف مشابه ومش عارفة تبدأي الإجراءات إزاي، اسألينا وهنوضحلك الخطوات القانونية السليمة. #اسأل_محمود #حقوقك_القانونية #التحرش_جريمة #القانون_المصري عشان كده، قبل ما تبعت رسالة، تمضي ورقة، تتنازل عن حق، أو تدخل في مواجهة، اجمع كل اللي يثبت اللي حصل: الرسائل، العقود، الإيصالات، الصور، وأي بيانات أو شهود مرتبطين بالواقعة. ومتعتمدش على لقطة واحدة من القصة؛ لازم نشوف التسلسل الكامل والورق الموجود فعلًا. والخطوة الصح مش معناها إنك تعمل أي إجراء بسرعة؛ معناها إنك تختار الإجراء المناسب للوقائع اللي عندك. لو الموضوع يخصك فعلًا، راجع التفاصيل والمستندات مع محاميك، وخد قرارك على أساس قانوني واضح.",
+  "video_terms": [
+    "Egyptian street harassment victim phone evidence",
+    "woman documenting harassment on smartphone",
+    "security camera footage street evidence",
+    "police report desk Egypt legal complaint",
+    "lawyer explaining harassment case to client",
+    "digital messages evidence smartphone close up"
+  ],
+  "facebook_caption": "معلومة قانونية عملية عن جريمة التحرش. التفاصيل والمستندات بتفرق.",
+  "linkedin_caption": "معلومة قانونية عملية عن جريمة التحرش: راجع الوقائع والمستندات قبل اتخاذ أي خطوة.",
+  "emotion_map": [
+    {
+      "sentence_index": 1,
+      "delivery_emotion": "warning"
+    },
+    {
+      "sentence_index": 2,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 3,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 4,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 5,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 6,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 7,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 8,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 9,
+      "delivery_emotion": "warning"
+    },
+    {
+      "sentence_index": 10,
+      "delivery_emotion": "warning"
+    },
+    {
+      "sentence_index": 11,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 12,
+      "delivery_emotion": "warning"
+    },
+    {
+      "sentence_index": 13,
+      "delivery_emotion": "warning"
+    },
+    {
+      "sentence_index": 14,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 15,
+      "delivery_emotion": "strong_cta"
+    }
+  ],
+  "generation_mode": "deterministic_fallback"
+}
