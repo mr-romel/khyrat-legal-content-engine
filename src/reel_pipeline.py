@@ -12,6 +12,7 @@ from typing import Any
 from google import genai
 from config import load_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+from free_media import fetch_openverse_images
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 OUTPUT_ROOT = Path("generated/reels")
@@ -59,49 +60,6 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 
 
-def generate_scene_images(api_key: str, topic: str, script: str, terms: list[str], output_dir: Path) -> list[Path]:
-    """Generate concrete 9:16 scene stills with Gemini, then hand them to MPT as local materials."""
-    import requests
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
-    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    scenes = []
-    for index, term in enumerate(terms[:6], start=1):
-        prompt = (
-            "Create a photorealistic cinematic vertical 9:16 scene for a professional Egyptian legal educational reel. "
-            "The scene must explain the concrete legal situation below, not a generic lawyer, courthouse, scales or gavel image. "
-            "No readable text, no logos, no added watermark, no fantasy. "
-            "Use realistic Egyptian people, offices, documents, streets, workplaces or courtroom-like settings only when they fit the subject. "
-            "Natural documentary photography, restrained premium look, realistic skin and hands, strong composition, and clean lower space for subtitles. "
-            "SCENE KEYWORD: " + term + "\nTOPIC: " + topic + "\nSCRIPT: " + script
-        )
-        response = requests.post(
-            endpoint,
-            params={"key": api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"responseModalities": ["IMAGE"]},
-            },
-            timeout=180,
-        )
-        if not response.ok:
-            raise RuntimeError(f"Gemini image generation failed: HTTP {response.status_code} {response.text[:800]}")
-        payload = response.json()
-        parts = payload.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        image_data = next(
-            (part.get("inlineData", {}).get("data") for part in parts if part.get("inlineData", {}).get("data")),
-            None,
-        )
-        if not image_data:
-            continue
-        image_path = output_dir / ("scene_%02d.png" % index)
-        image_path.write_bytes(base64.b64decode(image_data))
-        scenes.append(image_path)
-
-    if len(scenes) < 4:
-        raise RuntimeError("Gemini image generation produced too few usable reel scenes.")
-    return scenes
 
 def main() -> int:
     cfg = load_config()
@@ -131,7 +89,9 @@ def main() -> int:
         (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
 
         scene_dir = output_dir / "scenes"
-        scenes = generate_scene_images(cfg["gemini_api_key"], topic, brief["script"], brief["video_terms"], scene_dir)
+        scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
+        if len(scenes) < 4:
+            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا (CC0/Public Domain) لهذا الريل.")
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
@@ -144,7 +104,7 @@ def main() -> int:
                 "--video-script", brief["script"],
                 "--video-terms", ", ".join(brief["video_terms"]),
                 "--video-source", "local",
-                "--video-materials", ",".join(str(p) for p in scenes),
+                "--video-materials", ",".join(str(p.resolve()) for p in scenes),
                 "--video-aspect", "9:16",
                 "--video-count", "1",
                 "--video-clip-duration", "5",
