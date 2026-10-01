@@ -84,7 +84,7 @@ function rowToDict(row) {
 async function updateSheetRow(env, rowNumber, patch) {
   const token = await googleAccessToken(env);
   const sheetName = env.GOOGLE_SHEET_NAME || "Content";
-  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:U${rowNumber}`);
+  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:AY${rowNumber}`);
   const read = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -99,7 +99,7 @@ async function updateSheetRow(env, rowNumber, patch) {
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}?valueInputOption=RAW`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:U${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
+    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:AY${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(`Google Sheets row update failed: ${JSON.stringify(data)}`);
