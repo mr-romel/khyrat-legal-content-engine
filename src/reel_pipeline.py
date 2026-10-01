@@ -458,3 +458,5 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 # Production render test: verify the complete Reel path before review delivery.
+
+# Production render verification hook.
