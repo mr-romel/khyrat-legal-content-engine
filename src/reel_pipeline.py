@@ -432,7 +432,6 @@ def main() -> int:
                 "--video-aspect", "9:16",
                 "--video-count", "1",
                 "--video-clip-duration", "9",
-                "--video-clip-speed", "1.0",
                 "--video-concat-mode", "sequential",
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
