@@ -542,3 +542,5 @@ if __name__ == "__main__":
 
 # Reel production verification: Gemini TTS + text-free motion graphics.
 
+
+# MPT compatibility render marker
