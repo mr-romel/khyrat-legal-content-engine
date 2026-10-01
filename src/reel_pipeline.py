@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from google import genai
-from config import load_config
+from config import load_reel_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
@@ -254,7 +254,7 @@ def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str,
 
 
 def main() -> int:
-    cfg = load_config()
+    cfg = load_reel_config()
     service = create_service(cfg["service_account_info"])
     sheet_name = cfg["sheet_range"].split("!", 1)[0]
     ensure_headers(service, cfg["sheet_id"], sheet_name)
