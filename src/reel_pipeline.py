@@ -46,6 +46,9 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Use punctuation, sentence length, pauses, and wording to make the intended emotion audible without inventing legal facts.\n\n"
         "TOPIC:\n" + topic + "\n\nREVIEWED POST:\n" + post
     )
+    if os.getenv("REEL_SKIP_GEMINI", "").strip().lower() in {"1", "true", "yes", "on"}:
+        print("REEL_SKIP_GEMINI=true; using deterministic Reel brief.")
+        return deterministic_brief(topic, post)
     primary = (model or "gemini-3.6-flash").strip()
     fallback = (os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash") or "").strip()
     models = [primary] + ([fallback] if fallback and fallback != primary else [])
