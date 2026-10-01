@@ -125,18 +125,28 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     text = " ".join(str(post or "").split())
-    core = egyptian_spoken_text(text[:2600])
+    # Keep the key facts from the reviewed post, but bound the spoken script so
+    # the free TTS fallback stays in the intended short-form Reel range.
+    post_sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
+    selected_words: list[str] = []
+    for sentence in post_sentences:
+        words = sentence.split()
+        if len(selected_words) + len(words) > 55:
+            break
+        selected_words.extend(words)
+    core = " ".join(selected_words)
     script = (
         f"بص، لو الموضوع ده يخصك، ما تاخدش أول خطوة لمجرد إنك متضايق أو مستعجل. "
         f"في موضوع {topic}، التفاصيل الصغيرة ممكن تغيّر الموقف القانوني كله. {core} "
-        "عشان كده، قبل ما تبعت رسالة، تمضي ورقة، تتنازل عن حق، أو تدخل في مواجهة، "
-        "اجمع كل اللي يثبت اللي حصل: الرسائل، العقود، الإيصالات، الصور، وأي بيانات أو شهود مرتبطين بالواقعة. "
+        "وعشان كده، قبل ما تبعت رسالة، تمضي ورقة، تتنازل عن حق، أو تدخل في مواجهة، "
+        "اجمع اللي يثبت اللي حصل: الرسائل، العقود، الإيصالات، الصور، وأي بيانات أو شهود. "
         "ومتعتمدش على لقطة واحدة من القصة؛ لازم نشوف التسلسل الكامل والورق الموجود فعلًا. "
-        "والخطوة الصح مش معناها إنك تعمل أي إجراء بسرعة؛ معناها إنك تختار الإجراء المناسب للوقائع اللي عندك. "
-        "لو الموضوع يخصك فعلًا، راجع التفاصيل والمستندات مع محاميك، وخد قرارك على أساس قانوني واضح."
+        "والخطوة الصح مش معناها إنك تعمل أي إجراء بسرعة؛ معناها تختار الإجراء المناسب للوقائع اللي عندك. "
+        "لو الموضوع يخصك، راجع التفاصيل والمستندات مع محاميك، وخد قرارك على أساس قانوني واضح."
     )
     script = egyptian_spoken_text(script)
-    if len(script.split()) < 170: script += " وخلي بالك: نفس الموضوع ممكن يختلف حكمه من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
+    if len(script.split()) < 145:
+        script += " وخلي بالك: نفس الموضوع ممكن يختلف من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(sentences, start=1):
@@ -144,7 +154,14 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         if any(k in sentence for k in ("ما تاخدش", "قبل ما", "خلي بالك", "مت")): emotion = "warning"
         elif any(k in sentence for k in ("اجمع", "الرسائل", "العقود", "الإيصالات")): emotion = "urgency"
         emotions.append({"sentence_index": i, "delivery_emotion": emotion})
-    return {"script": script, "video_terms": topic_visual_terms(topic), "facebook_caption": f"معلومة قانونية عملية عن {topic}. التفاصيل والمستندات بتفرق.", "linkedin_caption": f"معلومة قانونية عملية عن {topic}: راجع الوقائع والمستندات قبل اتخاذ أي خطوة.", "emotion_map": emotions, "generation_mode": "deterministic_fallback"}
+    return {
+        "script": script,
+        "video_terms": topic_visual_terms(topic),
+        "facebook_caption": f"معلومة قانونية عملية عن {topic}. التفاصيل والمستندات بتفرق.",
+        "linkedin_caption": f"معلومة قانونية عملية عن {topic}: راجع الوقائع والمستندات قبل اتخاذ أي خطوة.",
+        "emotion_map": emotions,
+        "generation_mode": "deterministic_fallback",
+    }
 
 
 def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str, work_dir: Path) -> Path:
@@ -297,6 +314,19 @@ def main() -> int:
             scenes.extend(generate_legal_cards(scene_dir, topic, count=8 - len(scenes)))
         if len(scenes) < 8:
             raise RuntimeError("لم يتم توفير 8 مشاهد مرتبطة بالموضوع لهذا الريل.")
+
+        # Normalize externally sourced WebP assets to JPEG because the current
+        # MPT local-material validator accepts JPG/PNG but not WebP.
+        normalized_scenes: list[Path] = []
+        from PIL import Image
+        for scene in scenes:
+            if scene.suffix.lower() == ".webp":
+                normalized = scene.with_suffix(".jpg")
+                Image.open(scene).convert("RGB").save(normalized, quality=94, optimize=True)
+                normalized_scenes.append(normalized)
+            else:
+                normalized_scenes.append(scene)
+        scenes = normalized_scenes
         source_file = scene_dir / "sources.json"
         sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
         attributions = []
@@ -420,7 +450,7 @@ def main() -> int:
                         ],
                         capture_output=True, text=True, check=True, timeout=30,
                     )
-                    if duration < 45 or not streams.stdout.strip():
+                    if duration < 50 or duration > 85 or not streams.stdout.strip():
                         raise RuntimeError(
                             f"Invalid Reel render: duration={duration:.1f}s "
                             f"audio={'yes' if streams.stdout.strip() else 'no'}"
