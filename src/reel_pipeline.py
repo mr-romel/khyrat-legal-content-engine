@@ -13,7 +13,7 @@ from google import genai
 from config import load_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import send_video
-from free_media import cached_fallback_assets, fetch_openverse_images
+from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 OUTPUT_ROOT = Path("generated/reels")
@@ -110,6 +110,9 @@ def main() -> int:
 
         scene_dir = output_dir / "scenes"
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
+        if len(scenes) < 4:
+            needed = max(4, 8 - len(scenes))
+            scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
         if len(scenes) < 4:
             cached = cached_fallback_assets(OUTPUT_ROOT, scene_dir, limit=8)
             scenes.extend(cached)
