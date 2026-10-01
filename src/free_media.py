@@ -95,3 +95,19 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 2
         encoding="utf-8",
     )
     return assets
+
+
+
+def cached_fallback_assets(root: Path, exclude_dir: Path, limit: int = 8) -> list[Path]:
+    """Reuse previously cleared local assets when an external catalog is temporarily unavailable."""
+    assets: list[Path] = []
+    if not root.exists():
+        return assets
+    for path in sorted(root.glob("row_*/scenes/*")):
+        if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}:
+            if path.parent.resolve() == exclude_dir.resolve():
+                continue
+            assets.append(path)
+            if len(assets) >= limit:
+                break
+    return assets
