@@ -24,9 +24,6 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
-      MPT_PEXELS_API_KEY: ""
-      MPT_LLM_PROVIDER: ollama
-      MPT_REF: main
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,9 +36,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Check Pexels credential
-        run: |
-          test -n "$MPT_PEXELS_API_KEY" || { echo "PEXELS_API_KEY is required for the MoneyPrinterTurbo stock-footage path."; exit 1; }
       - name: Generate daily reel
         run: PYTHONPATH=src python src/reel_pipeline.py
       - name: Persist reel package
