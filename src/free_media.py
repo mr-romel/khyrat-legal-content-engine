@@ -28,7 +28,7 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 2
                 params={
                     "q": term,
                     "page_size": max(8, per_term * 4),
-                    "license": "cc0,pdm",
+                    "license": "cc0,pdm,by",
                     "mature": "false",
                 },
                 headers={"User-Agent": UA, "Accept": "application/json"},
@@ -47,7 +47,7 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 2
             # Openverse aggregates openly licensed media; keep the strictest
             # no-attribution-required licenses for the automatic pipeline.
             license_code = str(item.get("license") or "").lower()
-            if license_code not in {"cc0", "pdm", "publicdomain"}:
+            if license_code not in {"cc0", "pdm", "publicdomain", "by"}:
                 continue
             seen.add(url)
             try:
