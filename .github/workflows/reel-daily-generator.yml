@@ -1,0 +1,65 @@
+name: Daily Legal Reel Generator
+
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-legal-reel
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      MPT_REF: main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install engine dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Check Pexels credential
+        run: |
+          test -n "$PEXELS_API_KEY" || { echo "PEXELS_API_KEY is required for the MoneyPrinterTurbo stock-footage path."; exit 1; }
+      - name: Generate daily reel
+        run: PYTHONPATH=src python src/reel_pipeline.py
+      - name: Persist reel package
+        if: ${{ success() }}
+        run: |
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/reels/
+          if git diff --cached --quiet; then
+            echo "No reel package changes."
+          else
+            git commit -m "Store daily legal reel package"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+      - name: Upload review package
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-daily-reel
+          path: generated/reels/
+          if-no-files-found: error
+          retention-days: 14
