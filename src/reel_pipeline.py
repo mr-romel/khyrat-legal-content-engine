@@ -18,7 +18,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
-MPT_REF = "main"
+MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
 
 
@@ -349,7 +349,8 @@ def main() -> int:
     try:
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
         output_dir.mkdir(parents=True, exist_ok=True)
-        brief["script"] = prepare_tts_script(brief["script"])\n        (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
+        brief["script"] = prepare_tts_script(brief["script"])
+        (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
         (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
         (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
