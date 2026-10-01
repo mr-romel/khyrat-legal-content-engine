@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import json
-import base64
 import urllib.request
 import os
 import re
@@ -19,7 +18,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
-MPT_REF = "main"
+MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
 
 
