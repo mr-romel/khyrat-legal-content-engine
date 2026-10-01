@@ -128,7 +128,7 @@ def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str,
     audio = work_dir / "voice.mp3"
     subprocess.run([
         "python", "-m", "edge_tts", "--voice", "ar-EG-ShakirNeural",
-        "--rate", "-4%", "--text", script, "--write-media", str(audio),
+        "--rate=-4%", "--text", script, "--write-media", str(audio),
     ], check=True, timeout=180)
     concat = work_dir / "concat.txt"
     with concat.open("w", encoding="utf-8") as fh:
