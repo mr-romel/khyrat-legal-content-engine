@@ -3,7 +3,14 @@ const HEADERS = [
   "المحتوى", "وصف الصورة", "رابط الصورة", "Facebook Status", "LinkedIn Status",
   "Facebook Post ID", "LinkedIn Post ID", "Facebook Comment Status", "Facebook Comment ID",
   "Facebook Like Status", "LinkedIn Image ID", "آخر خطأ", "وقت آخر تشغيل",
-  "المصادر القانونية", "ملاحظات",
+  "المصادر القانونية", "ملاحظات", "Image QA Status", "Image QA Score", "Image QA Issues", "Image QA Attempt", "Image Mode",
+  "Facebook Comment Queue", "Facebook Comments Published", "Facebook Reaction Status",
+  "LinkedIn Comment Queue", "LinkedIn Comments Published", "LinkedIn Reaction Status",
+  "Blogger Status", "Blogger Post ID", "Blogger URL", "Blogger Search Title", "Blogger Search Query",
+  "Blogger Search Candidates", "Blogger Last Error",
+  "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
+  "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel Last Error",
+  "Reel Published At", "Reel QA Score", "Reel QA Issues",
 ];
 
 const REVIEW_STATUSES = new Set(["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"]);
@@ -57,7 +64,7 @@ async function googleAccessToken(env) {
   return data.access_token;
 }
 
-async function sheetValues(env, range = "A:U", sheetOverride = null) {
+async function sheetValues(env, range = "A:AY", sheetOverride = null) {
   const token = await googleAccessToken(env);
   const sheetName = sheetOverride || env.GOOGLE_SHEET_NAME || "Content";
   const encoded = encodeURIComponent(`${sheetName}!${range}`);
@@ -175,17 +182,19 @@ async function statusText(env) {
 
 async function sendReviewList(env) {
   const values = await sheetValues(env);
-  const matches = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
-    .filter(({ row }) => REVIEW_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
-  if (!matches.length) return send(env, "🟢 لا توجد مراجعات معلقة حاليًا.");
+  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }));
+  const matches = rows.filter(({ row }) => REVIEW_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
+  const reels = rows.filter(({ row }) => String(row["Reel Status"] || "").trim().toUpperCase() === "REVIEW" && String(row["Reel Approval"] || "").trim().toUpperCase() !== "REJECTED");
+  if (!matches.length && !reels.length) return send(env, "🟢 لا توجد مراجعات معلقة حاليًا.");
   for (const { rowNumber, row } of matches.slice(0, 10)) {
     const status = String(row["الحالة"] || "").trim().toUpperCase();
     const reason = shortText(row["آخر خطأ"] || "مراجعة مطلوبة", 220);
-    await send(
-      env,
-      `🟡 مراجعة مطلوبة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالحالة: ${status}\nالسبب: ${reason}`,
-      inlineButtons([[{ text: "✅ موافقة", data: `approve:${rowNumber}` }, { text: "❌ رفض", data: `reject:${rowNumber}` }]]),
-    );
+    await send(env, `🟡 مراجعة منشور\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالحالة: ${status}\nالسبب: ${reason}`,
+      inlineButtons([[{ text: "✅ موافقة", data: `approve:${rowNumber}` }, { text: "❌ رفض", data: `reject:${rowNumber}` }]]));
+  }
+  for (const { rowNumber, row } of reels.slice(0, 10)) {
+    await send(env, `🎬 Reel جاهز للمراجعة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالصوت: ar-EG-ShakirNeural — رجل مصري\nالحالة: ${row["Reel Status"]}`,
+      inlineButtons([[{ text: "✅ اعتماد الريل", data: `reel_approve:${rowNumber}` }, { text: "❌ رفض الريل", data: `reel_reject:${rowNumber}` }]]));
   }
 }
 
@@ -282,6 +291,27 @@ async function handleCallback(env, callback) {
   const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1]) : null;
   if (!row) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "الصف غير موجود.", show_alert: false });
   const current = String(row["الحالة"] || "").trim().toUpperCase();
+
+  if (action === "reel_approve" || action === "reel_reject") {
+    const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();
+    if (reelStatus !== "REVIEW") {
+      return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `حالة الريل الحالية: ${reelStatus || "غير محددة"}`, show_alert: false });
+    }
+    const approval = action === "reel_approve" ? "APPROVED" : "REJECTED";
+    await updateSheetRow(env, rowNumber, {
+      "Reel Approval": approval,
+      "Reel Review": approval === "APPROVED" ? "تم اعتماد الريل من Telegram" : "تم رفض الريل من Telegram",
+      "Reel Last Error": approval === "REJECTED" ? "Rejected from Telegram Reel review." : "",
+    });
+    await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: approval === "APPROVED" ? "تم اعتماد الريل." : "تم رفض الريل.", show_alert: false });
+    return telegram(env, "editMessageText", {
+      chat_id: callback.message.chat.id,
+      message_id: callback.message.message_id,
+      text: approval === "APPROVED"
+        ? `✅ تم اعتماد الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيتم نشره تلقائيًا في تشغيل Reel Publisher القادم.`
+        : `❌ تم رفض الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}`,
+    });
+  }
 
   if (action === "approve") {
     if (!REVIEW_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
