@@ -1,8 +1,6 @@
 name: Blogger SEO GEO Publisher
 
 on:
-  schedule:
-    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
