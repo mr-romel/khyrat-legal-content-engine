@@ -1,14 +1,9 @@
 name: Publish Approved Legal Reel
 
 on:
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
-    inputs:
-      run_id:
-        description: "GitHub Actions run ID of the daily reel generation"
-        required: true
-      row_number:
-        description: "Google Sheets row number containing the reel"
-        required: true
 
 permissions:
   actions: read
@@ -19,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      ROW_NUMBER: ${{ inputs.row_number }}
-      RUN_ID: ${{ inputs.run_id }}
+      ROW_NUMBER: ""
+      RUN_ID: ""
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
@@ -47,14 +42,49 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Find first approved Reel
+        id: target
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+        run: |
+          python - <<'PY'
+          import os
+          from config import load_config
+          from sheets import create_service, get_values, row_to_dict
+          cfg=load_config()
+          svc=create_service(cfg["service_account_info"])
+          values=get_values(svc,cfg["sheet_id"],cfg["sheet_range"])
+          for n, raw in enumerate(values[1:], start=2):
+              row=row_to_dict(raw)
+              if str(row.get("Reel Status","")).strip().upper()=="REVIEW" and str(row.get("Reel Approval","")).strip().upper()=="APPROVED":
+                  run_id=str(row.get("Reel Run ID","")).strip()
+                  if run_id:
+                      with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
+                          out.write(f"row_number={n}\\nrun_id={run_id}\\n")
+                      raise SystemExit(0)
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
+              out.write("row_number=\\nrun_id=\\n")
+          PY
+
+      - name: Stop when no approved Reel is waiting
+        if: ${{ steps.target.outputs.row_number == '' }}
+        run: echo "QUEUE_EMPTY=true"
+
       - name: Download reviewed reel package
+        if: ${{ steps.target.outputs.row_number != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           mkdir -p review-package
           gh run download "$RUN_ID" -n khyrat-daily-reel -D review-package
 
       - name: Verify manual approval
+        if: ${{ steps.target.outputs.row_number != '' }}
         run: |
           python - <<'PY'
           import os
@@ -74,6 +104,7 @@ jobs:
           PY
 
       - name: Publish approved reel
+        if: ${{ steps.target.outputs.row_number != '' }}
         run: |
           python - <<'PY'
           import json, os
@@ -98,7 +129,7 @@ jobs:
           PY
 
       - name: Record publication in Google Sheets
-        if: ${{ success() }}
+        if: ${{ success() && steps.target.outputs.row_number != '' }}
         run: |
           python - <<'PY'
           import json, os
@@ -120,7 +151,7 @@ jobs:
           PY
 
       - name: Upload publication proof
-        if: ${{ always() }}
+        if: ${{ always() && steps.target.outputs.row_number != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: khyrat-reel-publication-proof
