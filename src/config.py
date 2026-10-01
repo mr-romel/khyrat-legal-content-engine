@@ -122,6 +122,17 @@ def load_blogger_config() -> dict:
     }
 
 
+def load_reel_config() -> dict:
+    """Configuration needed by the Reel generator only; publishing credentials are not required."""
+    return {
+        "service_account_info": _service_account_info(),
+        "sheet_id": _sheet_id(),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:AY"),
+        "gemini_api_key": _required("GEMINI_API_KEY"),
+        "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+    }
+
+
 def load_config() -> dict:
     service_account_info = _service_account_info()
     dry_run = _optional("KHYRAT_DRY_RUN", "false").lower() in {"1", "true", "yes", "on"}
