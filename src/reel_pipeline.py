@@ -141,6 +141,64 @@ def topic_visual_terms(topic: str) -> list[str]:
         if any(k in t for k in keys): return terms
     return [f"{topic} legal documents close up", f"{topic} lawyer consultation Egypt", f"{topic} evidence smartphone documents", f"{topic} legal notice paperwork", f"{topic} Egyptian court legal case", f"{topic} lawyer explaining case to client", "legal evidence close up documents", "Egyptian lawyer legal consultation"]
 
+
+def add_motion_graphics(video_path: Path, topic: str, work_dir: Path) -> Path:
+    """Add text-free kinetic graphics over the footage."""
+    from PIL import Image, ImageDraw
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    orb = Image.new("RGBA", (360, 360), (0, 0, 0, 0))
+    d = ImageDraw.Draw(orb)
+    d.ellipse((45, 45, 315, 315), outline=(255, 255, 255, 170), width=5)
+    d.ellipse((95, 95, 265, 265), outline=(255, 255, 255, 95), width=3)
+    d.ellipse((165, 25, 195, 55), fill=(255, 255, 255, 210))
+    d.ellipse((300, 175, 330, 205), fill=(255, 255, 255, 180))
+    orb_path = work_dir / "mg_orb.png"
+    orb.save(orb_path)
+
+    card = Image.new("RGBA", (420, 560), (0, 0, 0, 0))
+    d = ImageDraw.Draw(card)
+    d.rounded_rectangle((35, 25, 385, 535), radius=34, fill=(18, 24, 34, 235), outline=(255, 255, 255, 130), width=4)
+    d.rounded_rectangle((75, 85, 345, 125), radius=15, fill=(255, 255, 255, 35))
+    for y, w in ((175, 210), (230, 260), (285, 185), (340, 235)):
+        d.rounded_rectangle((75, y, 75 + w, y + 18), radius=9, fill=(255, 255, 255, 105))
+    d.ellipse((250, 390, 350, 490), outline=(255, 255, 255, 180), width=6)
+    d.line((270, 440, 295, 465), fill=(255, 255, 255, 220), width=8)
+    d.line((295, 465, 330, 420), fill=(255, 255, 255, 220), width=8)
+    card_path = work_dir / "mg_evidence_card.png"
+    card.save(card_path)
+
+    phone = Image.new("RGBA", (330, 620), (0, 0, 0, 0))
+    d = ImageDraw.Draw(phone)
+    d.rounded_rectangle((25, 15, 305, 605), radius=42, fill=(12, 18, 28, 245), outline=(255, 255, 255, 160), width=5)
+    d.rounded_rectangle((55, 85, 275, 530), radius=26, fill=(255, 255, 255, 20))
+    d.rounded_rectangle((75, 145, 235, 205), radius=28, fill=(255, 255, 255, 125))
+    d.rounded_rectangle((95, 235, 255, 295), radius=28, fill=(255, 255, 255, 75))
+    d.rounded_rectangle((75, 325, 215, 385), radius=28, fill=(255, 255, 255, 125))
+    d.ellipse((140, 545, 190, 595), fill=(255, 255, 255, 180))
+    phone_path = work_dir / "mg_phone.png"
+    phone.save(phone_path)
+
+    styled = work_dir / "daily-reel-motion.mp4"
+    filter_complex = (
+        "[1:v]format=rgba[orb];[2:v]format=rgba[card];[3:v]format=rgba[phone];"
+        "[0:v][orb]overlay=x='55+55*sin(0.8*t)':y='230+80*cos(0.55*t)':eval=frame[v1];"
+        "[v1][card]overlay=x='720-80*sin(0.45*t)':y='780+65*cos(0.65*t)':eval=frame:enable='gte(t,3)'[v2];"
+        "[v2][phone]overlay=x='-25+55*sin(0.38*t)':y='980+45*cos(0.72*t)':eval=frame:enable='gte(t,8)'[v3]"
+    )
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(video_path),
+        "-loop", "1", "-i", str(orb_path),
+        "-loop", "1", "-i", str(card_path),
+        "-loop", "1", "-i", str(phone_path),
+        "-filter_complex", filter_complex,
+        "-map", "[v3]", "-map", "0:a:0?",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:a", "copy", "-movflags", "+faststart", str(styled),
+    ], check=True, timeout=900)
+    shutil.copy2(styled, video_path)
+    return video_path
+
 def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
     prompt = (
@@ -380,6 +438,7 @@ def main() -> int:
                         )
                     output_video = output_dir / "daily-reel.mp4"
                     shutil.copy2(task_videos[-1], output_video)
+                    add_motion_graphics(output_video, topic, output_dir / "motion_graphics")
 
                     probe = subprocess.run(
                         [
