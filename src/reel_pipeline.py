@@ -70,7 +70,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Write for the mouth: contractions, short phrases, pauses, and direct address. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. "
-        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 165-190 Arabic words. No filler or repeated disclaimer. "
+        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 125-145 Arabic words. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -110,7 +110,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     script = egyptian_spoken_text(str(data.get("script", "")).strip())
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 6: terms = topic_visual_terms(topic)
-    if len(script.split()) < 150 or len(terms) < 6:
+    if len(script.split()) < 115 or len(terms) < 6:
         raise RuntimeError("Reel package is incomplete.")
     return {
         "script": script,
@@ -125,27 +125,26 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     text = " ".join(str(post or "").split())
-    # Keep the key facts from the reviewed post, but bound the spoken script so
-    # the free TTS fallback stays in the intended short-form Reel range.
+    # Keep a short, spoken core from the reviewed post so free TTS remains
+    # within the intended 55-75 second Reel window.
     post_sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
     selected_words: list[str] = []
     for sentence in post_sentences:
         words = sentence.split()
-        if len(selected_words) + len(words) > 55:
+        if len(selected_words) + len(words) > 30:
             break
         selected_words.extend(words)
     core = " ".join(selected_words)
     script = (
-        f"بص، لو الموضوع ده يخصك، ما تاخدش أول خطوة لمجرد إنك متضايق أو مستعجل. "
-        f"في موضوع {topic}، التفاصيل الصغيرة ممكن تغيّر الموقف القانوني كله. {core} "
-        "وعشان كده، قبل ما تبعت رسالة، تمضي ورقة، تتنازل عن حق، أو تدخل في مواجهة، "
-        "اجمع اللي يثبت اللي حصل: الرسائل، العقود، الإيصالات، الصور، وأي بيانات أو شهود. "
-        "ومتعتمدش على لقطة واحدة من القصة؛ لازم نشوف التسلسل الكامل والورق الموجود فعلًا. "
-        "والخطوة الصح مش معناها إنك تعمل أي إجراء بسرعة؛ معناها تختار الإجراء المناسب للوقائع اللي عندك. "
-        "لو الموضوع يخصك، راجع التفاصيل والمستندات مع محاميك، وخد قرارك على أساس قانوني واضح."
+        f"بص، لو الموضوع ده يخصك، ما تاخدش خطوة وإنت مستعجل. "
+        f"في موضوع {topic}، التفاصيل الصغيرة ممكن تغيّر الموقف كله. {core} "
+        "قبل ما تبعت رسالة، تمضي ورقة، أو تدخل في مواجهة، اجمع الرسائل والعقود والإيصالات والصور وأي دليل على اللي حصل. "
+        "ومتعتمدش على جزء واحد من القصة؛ التسلسل والمستندات بيفرقوا جدًا. "
+        "والخطوة الصح مش إنك تعمل أي إجراء بسرعة؛ اختار الإجراء المناسب للوقائع اللي عندك. "
+        "لو الموضوع يخصك، راجع المستندات والتفاصيل مع محاميك قبل ما تاخد قرار."
     )
     script = egyptian_spoken_text(script)
-    if len(script.split()) < 145:
+    if len(script.split()) < 115:
         script += " وخلي بالك: نفس الموضوع ممكن يختلف من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
@@ -372,7 +371,7 @@ def main() -> int:
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
                 "--voice-name", "ar-EG-ShakirNeural",
-                "--voice-rate", "0.92",
+                "--voice-rate", "0.96",
                 "--subtitle-enabled",
                 "--subtitle-position", "bottom",
                 "--subtitle-display-mode", "word_by_word",
@@ -450,7 +449,7 @@ def main() -> int:
                         ],
                         capture_output=True, text=True, check=True, timeout=30,
                     )
-                    if duration < 50 or duration > 85 or not streams.stdout.strip():
+                    if duration < 50 or duration > 80 or not streams.stdout.strip():
                         raise RuntimeError(
                             f"Invalid Reel render: duration={duration:.1f}s "
                             f"audio={'yes' if streams.stdout.strip() else 'no'}"
