@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -16,6 +17,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
+MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
 
 
@@ -309,12 +311,20 @@ def main() -> int:
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
-            subprocess.run(["git", "clone", "--depth", "1", MPT_REPO, str(mpt)], check=True, timeout=180)
+            subprocess.run(
+                ["git", "clone", "--depth", "1", "--branch", MPT_REF, MPT_REPO, str(mpt)],
+                check=True,
+                timeout=180,
+            )
+
+            # Use the native MPT CLI directly. The agent wrapper performs an
+            # unnecessary LLM-provider preflight even when a complete script and
+            # local materials are supplied; direct CLI keeps this Reel path
+            # genuinely keyless after our own Gemini/deterministic brief stage.
+            task_id = __import__("uuid").uuid4()
             command = [
-                "uv", "run", "--no-project", "--python", "3.11", "python", "docs/skill/mpt_agent.py",
-                "--subject", topic,
-                "--root", str(mpt),
-                "--",
+                "uv", "run", "python", "cli.py",
+                "--video-subject", topic,
                 "--video-script", brief["script"],
                 "--video-terms", ", ".join(brief["video_terms"]),
                 "--video-source", "local",
@@ -322,47 +332,108 @@ def main() -> int:
                 "--video-aspect", "9:16",
                 "--video-count", "1",
                 "--video-clip-duration", "9",
+                "--video-clip-speed", "1.0",
+                "--video-concat-mode", "sequential",
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
                 "--voice-name", "ar-EG-ShakirNeural",
-            "--voice-rate", "0.92",
+                "--voice-rate", "0.92",
                 "--subtitle-enabled",
                 "--subtitle-position", "bottom",
                 "--subtitle-display-mode", "word_by_word",
                 "--subtitle-animation", "pop_spring",
                 "--font-size", "54",
-                "--bgm-type", "random",
-                "--bgm-volume", "0.15",
+                "--bgm-type", "none",
+                "--bgm-volume", "0",
+                "--stop-at", "video",
+                "--task-id", str(task_id),
             ]
             env = os.environ.copy()
-            result = subprocess.run(command, cwd=mpt, env=env, text=True, capture_output=True, timeout=1800, check=False)
+            result = subprocess.run(
+                ["uv", "sync", "--frozen"],
+                cwd=mpt,
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=900,
+                check=False,
+            )
             if result.returncode != 0:
-                print("MoneyPrinterTurbo failed; switching to local card + Edge TTS video fallback.")
-                build_local_tts_reel(output_dir / "daily-reel.mp4", scenes, egyptian_spoken_text(brief["script"]), output_dir / "fallback_render")
-                result = None
-            if result is not None:
-                video_line = [line for line in result.stdout.splitlines() if line.startswith("VIDEO_FILE=")]
-                if not video_line:
-                    raise RuntimeError("MoneyPrinterTurbo returned no VIDEO_FILE.")
-                video = Path(video_line[-1].split("=", 1)[1].strip())
-                output_video = output_dir / "daily-reel.mp4"
-                shutil.copy2(video, output_video)
-                probe = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_video)],
-                    capture_output=True, text=True, check=True, timeout=30,
+                print("MoneyPrinterTurbo dependency sync failed; switching to local Edge TTS renderer.")
+                print((result.stdout or "")[-5000:])
+                print((result.stderr or "")[-5000:])
+                build_local_tts_reel(
+                    output_dir / "daily-reel.mp4",
+                    scenes,
+                    egyptian_spoken_text(brief["script"]),
+                    output_dir / "fallback_render",
                 )
-                duration = float(probe.stdout.strip() or "0")
-                streams = subprocess.run(
-                    ["ffprobe", "-v", "error", "-select_streams", "a:0",
-                     "-show_entries", "stream=codec_name",
-                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_video)],
-                    capture_output=True, text=True, check=True, timeout=30,
+            else:
+                result = subprocess.run(
+                    command,
+                    cwd=mpt,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    timeout=1800,
+                    check=False,
                 )
-                if duration < 45 or not streams.stdout.strip():
-                    raise RuntimeError(
-                        f"Invalid Reel render: duration={duration:.1f}s audio={'yes' if streams.stdout.strip() else 'no'}"
+                if result.returncode != 0:
+                    print("MoneyPrinterTurbo native CLI failed; switching to local Edge TTS renderer.")
+                    print((result.stdout or "")[-5000:])
+                    print((result.stderr or "")[-5000:])
+                    build_local_tts_reel(
+                        output_dir / "daily-reel.mp4",
+                        scenes,
+                        egyptian_spoken_text(brief["script"]),
+                        output_dir / "fallback_render",
                     )
+                else:
+                    task_videos = sorted(
+                        (mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4")
+                    )
+                    if not task_videos:
+                        raise RuntimeError(
+                            "MoneyPrinterTurbo completed without producing final-*.mp4."
+                        )
+                    output_video = output_dir / "daily-reel.mp4"
+                    shutil.copy2(task_videos[-1], output_video)
+
+                    probe = subprocess.run(
+                        [
+                            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "default=noprint_wrappers=1:nokey=1", str(output_video),
+                        ],
+                        capture_output=True, text=True, check=True, timeout=30,
+                    )
+                    duration = float(probe.stdout.strip() or "0")
+                    streams = subprocess.run(
+                        [
+                            "ffprobe", "-v", "error", "-select_streams", "a:0",
+                            "-show_entries", "stream=codec_name",
+                            "-of", "default=noprint_wrappers=1:nokey=1", str(output_video),
+                        ],
+                        capture_output=True, text=True, check=True, timeout=30,
+                    )
+                    if duration < 45 or not streams.stdout.strip():
+                        raise RuntimeError(
+                            f"Invalid Reel render: duration={duration:.1f}s "
+                            f"audio={'yes' if streams.stdout.strip() else 'no'}"
+                        )
+
+        video_path = output_dir / "daily-reel.mp4"
+        # Telegram delivery is part of the review contract: do not mark a Reel
+        # REVIEW unless the actual MP4 was successfully delivered for approval.
+        send_video(
+            str(video_path),
+            caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\n\nالصوت: رجل مصري، نبرة محامٍ واثق، مع خريطة مشاعر حسب الجمل",
+            reply_markup={
+                "inline_keyboard": [[
+                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"},
+                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"},
+                ]]
+            },
+        )
 
         update_row(service, cfg["sheet_id"], sheet_name, row_number, {
             "Reel Status": "REVIEW",
@@ -373,20 +444,6 @@ def main() -> int:
             "Reel Review": "جاهز للمراجعة اليدوية قبل أي نشر",
             "Reel Last Error": "",
         })
-        video_path = output_dir / "daily-reel.mp4"
-        try:
-            send_video(
-                str(video_path),
-                caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\n\nالصوت: رجل مصري، نبرة محامٍ واثق، مع خريطة مشاعر حسب الجمل",
-                reply_markup={
-                    "inline_keyboard": [[
-                        {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"},
-                        {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"},
-                    ]]
-                },
-            )
-        except Exception as notify_exc:
-            print(f"Telegram Reel preview unavailable: {notify_exc}")
         print("REEL_READY row=" + str(row_number) + " file=" + str(video_path))
         return 0
     except Exception as exc:
