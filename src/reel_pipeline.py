@@ -18,7 +18,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
-MPT_REF = "v1.3.7"
+MPT_REF = "main"
 OUTPUT_ROOT = Path("generated/reels")
 
 
@@ -69,6 +69,11 @@ def prepare_tts_script(text: str) -> str:
     out = re.sub(r"\s+", " ", out).strip()
     if not out:
         raise RuntimeError("TTS script is empty after sanitization.")
+    try:
+        from text2tashkeel import Diacritizer
+        out = Diacritizer("rawi-ensemble").diacritize(out)
+    except Exception as exc:
+        raise RuntimeError(f"Arabic diacritization failed: {exc}") from exc
     return out
 
 
@@ -104,7 +109,7 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         "input": [{"type": "user_input", "content": content}],
         "response_format": {"type": "audio"},
         "generation_config": {
-            "speech_config": [{"voice": os.getenv("GEMINI_TTS_VOICE", "Gacrux")}]
+            "speech_config": [{"voice": os.getenv("GEMINI_TTS_VOICE", "Orus")}]
         },
     }
     req = urllib.request.Request(
@@ -125,6 +130,10 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         output_path.write_bytes(base64.b64decode(encoded))
     except Exception as exc:
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
+    duration = float(probe.stdout.strip() or "0")
+    if duration < 45 or duration > 80:
+        raise RuntimeError(f"Gemini TTS duration outside Reel target: {duration:.1f}s")
     return output_path
 
 def topic_visual_terms(topic: str) -> list[str]:
