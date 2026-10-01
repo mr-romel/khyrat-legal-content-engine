@@ -31,19 +31,18 @@ SYSTEM_PROMPT = """
 - LinkedIn يجب أن ينتهي قبل الهاشتاجات بفكرة مكتملة، ثم يضاف إليه لاحقًا من النظام عدد محدود من الهاشتاجات العربية المرتبطة فعليًا بالموضوع
 
 image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا، واقعيًا، سينمائيًا، تحريريًا، مرتبطًا مباشرة بمضمون الموضوع والمنشور، وبدون نص أو شعار أو علامة مائية داخل الصورة.
-image_mode يجب أن يكون REFERENCE_SUBJECT في كل صورة قابلة للنشر.
-الصورة النهائية يجب أن تحقق الشرطين معًا: ظهور نفس الشخص المرجعي بشكل واضح وقابل للتعرّف، وأن يكون ظهوره جزءًا طبيعيًا من المشهد القانوني المرتبط مباشرة بالموضوع.
-إذا لم تستطع بناء مشهد يحقق الشرطين معًا، لا تستخدم CONTEXT_ONLY ولا تخمّن؛ اجعل review_level=REVIEW مع review_flags تشرح أن الصورة المرجعية تحتاج تحسينًا، لكن لا تمنع النشر.
-سيُستخدم ملف المرجع الفعلي لإعادة بناء الشخصية، وليس مجرد وصف عام لها.
-إذا كان ظهور المحامي سيبدو مصطنعًا أو غير مرتبط مباشرة بالواقعة القانونية، استخدم CONTEXT_ONLY وأنشئ مشهدًا واقعيًا للشخص/الأشخاص/المستندات/المكان المذكور في الموضوع من دون إجبار صورة المحامي على الظهور.
-ممنوع اختيار REFERENCE_SUBJECT لمجرد branding أو لمجرد وجود محامٍ في الموضوع. يجب أن يكون ظهور الشخصية مرتبطًا مباشرة بالفعل أو المشكلة القانونية المصوّرة. إذا تعذر ذلك، REVIEW فقط ولا توقف النشر.
+image_mode يجب أن يكون CONTEXT_ONLY افتراضيًا، ويُستخدم REFERENCE_SUBJECT فقط عندما تكون هناك صورة مرجعية فعلية ومتاحة ومطلوبة للمشهد.
+الأولوية هي دقة المشهد وارتباطه المباشر بالموضوع، وليس إجبار المحامي على الظهور في كل صورة.
+إذا كان ظهور المحامي طبيعيًا ومفيدًا للمشهد وكان مرجع الشخصية متاحًا، يمكن استخدام REFERENCE_SUBJECT.
+إذا لم يكن ذلك ضروريًا، استخدم CONTEXT_ONLY ولا تعتبر غياب صورة المحامي مشكلة.
+لا تجعل المرجع يغيّر الواقعة القانونية أو يحول الصورة إلى بورتريه دعائي.
 إذا كان المشهد يتضمن الشخصية المرجعية، صمّم وضعية جديدة وبيئة جديدة وزاوية كاميرا جديدة وتكوينًا جديدًا وملابس مناسبة للسياق؛ لا تقلّد وضعية أو خلفية أو أثاث أو إضاءة أو framing الصور المرجعية.
 
 أعد JSON فقط بهذا الشكل:
 {
   "post": "...",
   "image_brief": "...",
-  "image_mode": "REFERENCE_SUBJECT",
+  "image_mode": "CONTEXT_ONLY",
   "review_level": "CLEAR|REVIEW",
   "review_flags": [],
   "legal_sources_used": [],
@@ -132,15 +131,9 @@ def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
     for field in ("post", "image_brief", "image_mode", "review_level", "review_flags", "legal_sources_used", "hook_pattern"):
         if field not in data:
             raise RuntimeError(f"Gemini JSON is missing required field: {field}")
-    data["image_mode"] = str(data.get("image_mode", "REFERENCE_SUBJECT")).strip().upper()
-    if data["image_mode"] != "REFERENCE_SUBJECT":
-        data["image_mode"] = "REFERENCE_SUBJECT"
-        data["review_level"] = "REVIEW"
-        flags = data.get("review_flags", [])
-        if not isinstance(flags, list):
-            flags = [str(flags)] if flags else []
-        flags.append("A publishable image must use the uploaded reference subject and remain directly relevant to the legal story.")
-        data["review_flags"] = flags
+    data["image_mode"] = str(data.get("image_mode", "CONTEXT_ONLY")).strip().upper()
+    if data["image_mode"] not in {"CONTEXT_ONLY", "REFERENCE_SUBJECT"}:
+        data["image_mode"] = "CONTEXT_ONLY"
     data["review_level"] = _normalize_review_level(data.get("review_level"))
     data["review_flags"] = _normalize_list(data.get("review_flags"))
     data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
