@@ -46,11 +46,24 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Use punctuation, sentence length, pauses, and wording to make the intended emotion audible without inventing legal facts.\n\n"
         "TOPIC:\n" + topic + "\n\nREVIEWED POST:\n" + post
     )
-    response = client.models.generate_content(
-        model=(model or "gemini-3.6-flash").strip(),
-        contents=prompt,
-        config={"response_mime_type": "application/json", "max_output_tokens": 5000},
-    )
+    primary = (model or "gemini-3.6-flash").strip()
+    fallback = (os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash") or "").strip()
+    models = [primary] + ([fallback] if fallback and fallback != primary else [])
+    last_error = None
+    response = None
+    for selected_model in models:
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=prompt,
+                config={"response_mime_type": "application/json", "max_output_tokens": 5000},
+            )
+            break
+        except Exception as exc:
+            last_error = exc
+            print(f"Reel Gemini model failed: {selected_model}: {exc}")
+    if response is None:
+        raise RuntimeError(f"Reel script generation failed on all configured Gemini models: {last_error}")
     data = json.loads((response.text or "").strip())
     script = str(data.get("script", "")).strip()
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
