@@ -150,20 +150,59 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
 
 
 def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
-    """Add energetic, non-text kinetic design without Arabic subtitle rendering."""
+    """Professional kinetic layer: subtle moving geometry + topic-aware end card."""
+    work_dir = output_video.parent / "motion"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    endcard = work_dir / "brand_endcard.mp4"
+    font_candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+    ]
+    font_path = next((p for p in font_candidates if Path(p).exists()), None)
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (1080, 1920), (10, 16, 24))
+    d = ImageDraw.Draw(img)
+    # layered framing, subtle glow and Facebook mark
+    d.rounded_rectangle((58, 58, 1022, 1862), radius=52, outline=(230, 235, 242), width=4)
+    for inset, alpha in ((110, 50), (170, 30)):
+        d.ellipse((540-inset, 960-inset, 540+inset, 960+inset), outline=(80, 150, 255), width=5)
+    d.ellipse((440, 610, 640, 810), fill=(24, 119, 242))
+    f = ImageFont.truetype(font_path, 150) if font_path else ImageFont.load_default()
+    d.text((540, 708), "f", font=f, anchor="mm", fill="white")
+    title_font = ImageFont.truetype(font_path, 66) if font_path else ImageFont.load_default()
+    sub_font = ImageFont.truetype(font_path, 48) if font_path else ImageFont.load_default()
+    d.text((540, 930), "تابعونا صفحة اسأل محمود", font=title_font, anchor="mm", fill="white", direction="rtl", language="ar")
+    d.text((540, 1035), "مستشار قانوني للشركات", font=sub_font, anchor="mm", fill=(210, 220, 235), direction="rtl", language="ar")
+    d.rounded_rectangle((235, 1165, 845, 1250), radius=42, outline=(80, 150, 255), width=3)
+    d.text((540, 1208), "صفحة اسأل محمود", font=sub_font, anchor="mm", fill=(235, 240, 248), direction="rtl", language="ar")
+    end_png = work_dir / "brand_endcard.png"
+    img.save(end_png, quality=95)
+    subprocess.run([
+        "ffmpeg","-y","-loop","1","-i",str(end_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-t","3.2","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0007,1.03)':d=1:s=1080x1920:fps=30",
+        "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","128k","-shortest",str(endcard)
+    ], check=True, timeout=180)
+    styled = work_dir / "styled.mp4"
     vf = (
-        "drawbox=x=28:y=28:w=1024:h=1864:color=white@0.13:t=4,"
-        "drawbox=x='mod(t*190,1250)-160':y='120+150*sin(t*1.05)':w=10:h=620:color=white@0.20:t=fill,"
-        "drawbox=x='930+70*sin(t*0.82)':y='mod(t*260,2150)-220':w=16:h=360:color=white@0.15:t=fill,"
-        "drawbox=x='120+300*sin(t*0.64)':y='1740+35*sin(t*1.8)':w=300:h=7:color=white@0.34:t=fill,"
-        "drawbox=x='40+90*sin(t*0.55)':y='420+110*cos(t*0.7)':w=5:h=980:color=white@0.10:t=fill,"
-        "vignette=PI/5"
+        "drawbox=x=24:y=24:w=1032:h=1872:color=white@0.10:t=3,"
+        "drawbox=x='mod(t*145,1250)-180':y='130+180*sin(t*0.9)':w=9:h=520:color=white@0.17:t=fill,"
+        "drawbox=x='890+70*sin(t*0.72)':y='mod(t*210,2100)-180':w=14:h=320:color=white@0.12:t=fill,"
+        "drawbox=x='110+310*sin(t*0.48)':y='1760+28*sin(t*1.5)':w=300:h=6:color=white@0.28:t=fill,"
+        "eq=contrast=1.04:saturation=1.06"
     )
-    subprocess.run(
-        ["ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","20","-c:a","copy","-movflags","+faststart",str(output_video)],
-        check=True, timeout=900,
-    )
+    base = work_dir / "base_motion.mp4"
+    subprocess.run([
+        "ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)
+    ], check=True, timeout=900)
+    concat_list = work_dir / "concat.txt"
+    concat_list.write_text(f"file '{base.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
+    subprocess.run([
+        "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),
+        "-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)
+    ], check=True, timeout=900)
+    shutil.copy2(styled, output_video)
     return output_video
+
 
 
 def topic_visual_terms(topic: str) -> list[str]:
