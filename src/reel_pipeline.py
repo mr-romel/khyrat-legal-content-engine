@@ -123,30 +123,112 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
 
 
 def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str, work_dir: Path) -> Path:
-    """Final video fallback: original cards + keyless Egyptian Edge TTS + ffmpeg."""
+    """Robust local Motion Graphics fallback: Egyptian TTS + animated legal visuals."""
     work_dir.mkdir(parents=True, exist_ok=True)
     audio = work_dir / "voice.mp3"
     subprocess.run([
         "python", "-m", "edge_tts", "--voice", "ar-EG-ShakirNeural",
         "--rate=-4%", "--text", script, "--write-media", str(audio),
     ], check=True, timeout=180)
-    concat = work_dir / "concat.txt"
+
+    # Build six composed visual scenes. External photos are preferred; generated
+    # legal cards remain valid inputs. Each scene is then animated with zoom/pan,
+    # fades and a progress bar so the fallback is a real motion-graphics reel,
+    # not a slideshow of static frames.
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+    images = [p for p in scene_paths if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}][:6]
+    if not images:
+        raise RuntimeError("No image scenes available for Motion Graphics fallback.")
+
+    font_candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ]
+    font_path = next((p for p in font_candidates if Path(p).exists()), None)
+    title_font = ImageFont.truetype(font_path, 72) if font_path else ImageFont.load_default()
+    body_font = ImageFont.truetype(font_path, 48) if font_path else ImageFont.load_default()
+    small_font = ImageFont.truetype(font_path, 34) if font_path else ImageFont.load_default()
+
+    sentences = [s.strip() for s in script.replace("؟", "؟|").replace(".", ".|").split("|") if s.strip()]
+    while len(sentences) < len(images):
+        sentences.append(sentences[-1] if sentences else "معلومة قانونية مهمة")
+    sentences = sentences[:len(images)]
+
+    frames = []
+    labels = ["HOOK", "النقطة القانونية", "إجراء عملي", "تنبيه", "راجع حالتك", "CTA"]
+    for i, (src, sentence) in enumerate(zip(images, sentences)):
+        try:
+            base = Image.open(src).convert("RGB")
+        except Exception:
+            continue
+        base = ImageOps.fit(base, (1080, 1920), method=Image.Resampling.LANCZOS)
+        canvas = base.convert("RGBA")
+        overlay = Image.new("RGBA", canvas.size, (8, 12, 20, 0))
+        od = ImageDraw.Draw(overlay)
+        od.rectangle((0, 0, 1080, 1920), fill=(8, 12, 20, 85))
+        od.rectangle((45, 75, 1035, 270), fill=(8, 12, 20, 185))
+        od.rounded_rectangle((45, 75, 410, 155), radius=22, fill=(235, 235, 235, 225))
+        od.text((225, 115), labels[i % len(labels)], font=small_font, anchor="mm", fill=(10, 15, 22, 255))
+        od.text((540, 210), "خيرات للمحتوى القانوني", font=small_font, anchor="mm", fill=(245, 245, 245, 255))
+        # Bottom kinetic-text panel.
+        od.rounded_rectangle((55, 1270, 1025, 1780), radius=38, fill=(8, 12, 20, 210))
+        od.text((540, 1390), sentence[:180], font=body_font, anchor="ma", fill=(250, 250, 250, 255), align="center")
+        od.rectangle((80, 1715, 1000, 1728), fill=(220, 220, 220, 150))
+        od.rectangle((80, 1715, 80 + int(920 * ((i + 1) / len(images))), 1728), fill=(250, 250, 250, 235))
+        od.text((540, 1840), f"{i+1}/{len(images)}", font=small_font, anchor="mm", fill=(235, 235, 235, 230))
+        frames.append(canvas.alpha_composite(overlay).convert("RGB"))
+
+    if not frames:
+        raise RuntimeError("Motion Graphics scene rendering produced no frames.")
+
+    frame_paths = []
+    for i, frame in enumerate(frames, start=1):
+        path = work_dir / f"motion_scene_{i:02d}.jpg"
+        frame.save(path, quality=94, optimize=True)
+        frame_paths.append(path)
+
+    duration_probe = subprocess.run([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(audio),
+    ], capture_output=True, text=True, check=True, timeout=30)
+    audio_duration = max(8.0, float(duration_probe.stdout.strip()))
+    per_scene = audio_duration / len(frame_paths)
+
+    scene_videos = []
+    for i, frame in enumerate(frame_paths, start=1):
+        clip = work_dir / f"motion_clip_{i:02d}.mp4"
+        frames_count = max(2, int(per_scene * 30))
+        vf = (
+            f"zoompan=z='min(zoom+0.0007,1.14)':"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={frames_count}:s=1080x1920:fps=30,"
+            f"fade=t=in:st=0:d=0.45,fade=t=out:st={max(0.5, per_scene-0.45):.3f}:d=0.45"
+        )
+        subprocess.run([
+            "ffmpeg", "-y", "-loop", "1", "-i", str(frame), "-t", f"{per_scene:.3f}",
+            "-vf", vf, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+            str(clip),
+        ], check=True, timeout=180)
+        scene_videos.append(clip)
+
+    concat = work_dir / "motion_concat.txt"
     with concat.open("w", encoding="utf-8") as fh:
-        for p in scene_paths[:6]:
-            fh.write(f"file '{p.resolve()}'\n")
-            fh.write("duration 5\n")
-        if scene_paths:
-            fh.write(f"file '{scene_paths[min(5, len(scene_paths)-1)].resolve()}'\n")
-    silent = work_dir / "silent.mp4"
+        for clip in scene_videos:
+            fh.write(f"file '{clip.resolve()}'\n")
+
+    video_only = work_dir / "motion_video.mp4"
     subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
-        "-r", "30", "-pix_fmt", "yuv420p", str(silent),
+        "-c", "copy", "-movflags", "+faststart", str(video_only),
     ], check=True, timeout=180)
+
     subprocess.run([
-        "ffmpeg", "-y", "-i", str(silent), "-i", str(audio),
-        "-map", "0:v:0", "-map", "1:a:0", "-shortest",
-        "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart", str(video_path),
+        "ffmpeg", "-y", "-i", str(video_only), "-i", str(audio),
+        "-map", "0:v:0", "-map", "1:a:0", "-t", f"{audio_duration:.3f}",
+        "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart", str(video_path),
     ], check=True, timeout=180)
     return video_path
 
