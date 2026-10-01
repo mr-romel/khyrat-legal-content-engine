@@ -58,6 +58,53 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     }
 
 
+
+def generate_scene_images(api_key: str, topic: str, script: str, terms: list[str], output_dir: Path) -> list[Path]:
+    """Generate concrete 9:16 scene stills with Gemini, then hand them to MPT as local materials."""
+    client = genai.Client(api_key=api_key)
+    scenes = []
+    for index, term in enumerate(terms[:6], start=1):
+        prompt = (
+            "Create a photorealistic cinematic vertical 9:16 scene for a professional Egyptian legal educational reel. "
+            "The scene must visually explain the concrete legal situation below, not a generic lawyer/courthouse/gavel image. "
+            "No readable text, no logos, no watermark added by the prompt, no fantasy. "
+            "Use realistic Egyptian people, offices, documents, streets, workplaces or courtroom-like settings only when they fit the subject. "
+            "Natural documentary photography, restrained luxury, realistic skin and hands, strong composition, room for subtitles at the bottom. "
+            "SCENE KEYWORD: " + term + "\\nTOPIC: " + topic + "\\nSCRIPT: " + script
+        )
+        response = client.models.generate_content(
+            model=os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image"),
+            contents=prompt,
+            config={"response_modalities": ["IMAGE"]},
+        )
+        image_path = output_dir / ("scene_%02d.png" % index)
+        saved = False
+        for part in getattr(response, "parts", []) or []:
+            inline = getattr(part, "inline_data", None)
+            if inline and getattr(inline, "data", None):
+                data = inline.data
+                if isinstance(data, str):
+                    data = base64.b64decode(data)
+                image_path.write_bytes(data)
+                saved = True
+                break
+        if not saved:
+            # Compatibility with SDK responses that expose generated images differently.
+            generated = getattr(response, "images", None) or []
+            if generated:
+                data = getattr(generated[0], "data", None)
+                if isinstance(data, str):
+                    data = base64.b64decode(data)
+                if data:
+                    image_path.write_bytes(data)
+                    saved = True
+        if saved:
+            scenes.append(image_path)
+    if len(scenes) < 4:
+        raise RuntimeError("Gemini image generation produced too few usable reel scenes.")
+    return scenes
+
+
 def main() -> int:
     cfg = load_config()
     service = create_service(cfg["service_account_info"])
@@ -85,6 +132,9 @@ def main() -> int:
         (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
         (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
 
+        scene_dir = output_dir / "scenes"
+        scenes = generate_scene_images(cfg["gemini_api_key"], topic, brief["script"], brief["video_terms"], scene_dir)
+
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
             subprocess.run(["git", "clone", "--depth", "1", MPT_REPO, str(mpt)], check=True, timeout=180)
@@ -95,7 +145,8 @@ def main() -> int:
                 "--",
                 "--video-script", brief["script"],
                 "--video-terms", ", ".join(brief["video_terms"]),
-                "--video-source", "pexels",
+                "--video-source", "local",
+                "--video-materials", ",".join(str(p) for p in scenes),
                 "--video-aspect", "9:16",
                 "--video-count", "1",
                 "--video-clip-duration", "5",
@@ -110,7 +161,6 @@ def main() -> int:
                 "--bgm-volume", "0.15",
             ]
             env = os.environ.copy()
-            env["MPT_PEXELS_API_KEY"] = env.get("MPT_PEXELS_API_KEY", "")
             result = subprocess.run(command, cwd=mpt, env=env, text=True, capture_output=True, timeout=1800, check=False)
             if result.returncode != 0:
                 raise RuntimeError((result.stderr or result.stdout)[-6000:])
