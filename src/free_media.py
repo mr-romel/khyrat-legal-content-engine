@@ -176,6 +176,42 @@ def fetch_wikimedia_images(terms: list[str], output_dir: Path, target: int = 8) 
     return assets
 
 
+def generate_legal_cards(output_dir: Path, topic: str, count: int = 6) -> list[Path]:
+    """Generate original watermark-free legal visual cards locally as the final fallback."""
+    from PIL import Image, ImageDraw, ImageFont
+    output_dir.mkdir(parents=True, exist_ok=True)
+    candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    font_path = next((p for p in candidates if Path(p).exists()), None)
+    font = ImageFont.truetype(font_path, 58) if font_path else ImageFont.load_default()
+    small = ImageFont.truetype(font_path, 38) if font_path else ImageFont.load_default()
+    labels = [
+        "معلومة قانونية",
+        "افهم موقفك القانوني",
+        "راجع المستندات",
+        "التفاصيل بتفرق",
+        "خد قرارك على أساس صحيح",
+        "اسأل محاميك قبل الخطوة الأخيرة",
+    ]
+    assets = []
+    for i in range(count):
+        path = output_dir / f"generated_card_{i+1:02d}.png"
+        img = Image.new("RGB", (1080, 1920), (18, 24, 32))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle((70, 170, 1010, 1750), radius=45, outline=(220, 220, 220), width=4)
+        draw.ellipse((390, 360, 690, 660), outline=(220, 220, 220), width=8)
+        draw.line((540, 660, 540, 1080), fill=(220, 220, 220), width=8)
+        draw.line((380, 900, 700, 900), fill=(220, 220, 220), width=8)
+        draw.text((540, 1220), labels[i % len(labels)], font=font, anchor="mm", fill=(245, 245, 245), align="center")
+        draw.text((540, 1400), str(topic)[:55], font=small, anchor="mm", fill=(205, 205, 205), align="center")
+        img.save(path, quality=92)
+        assets.append(path)
+    return assets
+
+
 def cached_fallback_assets(root: Path, exclude_dir: Path, limit: int = 8) -> list[Path]:
     """Reuse previously cleared local assets when an external catalog is temporarily unavailable."""
     assets: list[Path] = []
