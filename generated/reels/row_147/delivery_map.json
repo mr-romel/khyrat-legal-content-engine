@@ -13,11 +13,11 @@
   },
   {
     "sentence_index": 4,
-    "delivery_emotion": "calm_authority"
+    "delivery_emotion": "warning"
   },
   {
     "sentence_index": 5,
-    "delivery_emotion": "calm_authority"
+    "delivery_emotion": "warning"
   },
   {
     "sentence_index": 6,
@@ -25,38 +25,10 @@
   },
   {
     "sentence_index": 7,
-    "delivery_emotion": "calm_authority"
+    "delivery_emotion": "warning"
   },
   {
     "sentence_index": 8,
-    "delivery_emotion": "calm_authority"
-  },
-  {
-    "sentence_index": 9,
     "delivery_emotion": "warning"
-  },
-  {
-    "sentence_index": 10,
-    "delivery_emotion": "warning"
-  },
-  {
-    "sentence_index": 11,
-    "delivery_emotion": "calm_authority"
-  },
-  {
-    "sentence_index": 12,
-    "delivery_emotion": "warning"
-  },
-  {
-    "sentence_index": 13,
-    "delivery_emotion": "warning"
-  },
-  {
-    "sentence_index": 14,
-    "delivery_emotion": "calm_authority"
-  },
-  {
-    "sentence_index": 15,
-    "delivery_emotion": "strong_cta"
   }
 ]
