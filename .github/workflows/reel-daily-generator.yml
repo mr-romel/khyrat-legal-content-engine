@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-legal-reel
+  group: daily-legal-reel-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
