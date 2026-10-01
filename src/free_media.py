@@ -11,7 +11,7 @@ OPENVERSE_URL = "https://api.openverse.org/v1/images/"
 UA = "Khyrat-Legal-Content-Engine/1.0 (legal-content-reel-generator)"
 
 
-def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 2) -> list[Path]:
+def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 3) -> list[Path]:
     """
     Fetch only public-domain / CC0 images from Openverse, without an API key.
     Each downloaded asset gets a local license/source record.
@@ -21,13 +21,13 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 2
     seen: set[str] = set()
     metadata: list[dict[str, Any]] = []
 
-    for term in terms[:6]:
+    for term in terms[:8]:
         try:
             response = requests.get(
                 OPENVERSE_URL,
                 params={
                     "q": term,
-                    "page_size": max(8, per_term * 4),
+                    "page_size": max(12, per_term * 5),
                     "license": "cc0,pdm,by",
                     "mature": "false",
                 },
