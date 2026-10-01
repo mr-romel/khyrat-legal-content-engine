@@ -126,7 +126,18 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         raise RuntimeError(f"Gemini TTS request failed: {exc}") from exc
     encoded = ((data.get("interaction") or {}).get("output_audio") or {}).get("data")
     if not encoded:
-        raise RuntimeError(f"Gemini TTS returned no audio: {str(data)[:1000]}")
+        # Current Interactions responses expose audio as step content. Keep the
+        # legacy field above for compatibility, but prefer the actual returned
+        # audio step when output_audio is absent.
+        for step in data.get("steps") or (data.get("interaction") or {}).get("steps") or []:
+            for item in step.get("content") or []:
+                if item.get("type") == "audio" and item.get("data"):
+                    encoded = item["data"]
+                    break
+            if encoded:
+                break
+    if not encoded:
+        raise RuntimeError(f"Gemini TTS returned no audio: {str(data)[:1500]}")
     try:
         output_path.write_bytes(base64.b64decode(encoded))
     except Exception as exc:
