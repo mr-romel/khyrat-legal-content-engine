@@ -31,15 +31,46 @@ def choose_row(rows: list[dict[str, str]]) -> tuple[int, dict[str, str]] | None:
     return candidates[-1] if candidates else None
 
 
+def egyptian_spoken_text(text: str) -> str:
+    """Normalize legal copy toward natural Egyptian spoken Arabic before TTS."""
+    replacements = [
+        ("ما يجب عليك فعله", "إنت تعمل إيه"), ("يجب عليك", "لازم"), ("يجب أن", "لازم"),
+        ("ينبغي أن", "الأفضل إنك"), ("في حالة", "لو"), ("في حال", "لو"),
+        ("هذه", "دي"), ("هذا", "ده"), ("هؤلاء", "دول"), ("ذلك", "ده"), ("تلك", "دي"),
+        ("الذي", "اللي"), ("التي", "اللي"), ("الذين", "اللي"), ("حيث إن", "لأن"),
+        ("حيث", "لأن"), ("بالتالي", "وعشان كده"), ("لذلك", "وعشان كده"), ("لكن", "بس"),
+        ("أيضًا", "كمان"), ("أيضا", "كمان"), ("إذا", "لو"), ("عندئذ", "ساعتها"),
+        ("حينئذ", "ساعتها"), ("يتعين", "لازم"), ("يمكنك", "تقدر"), ("يمكن أن", "ممكن"),
+        ("وفقًا", "حسب"), ("وفقاً", "حسب"), ("لا سيما", "خصوصًا"), ("من ثم", "وعشان كده"),
+        ("فيما يتعلق", "بالنسبة لـ"), ("يرجى", "خليك"),
+    ]
+    out = " ".join(str(text or "").split())
+    for src, dst in replacements: out = out.replace(src, dst)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+def topic_visual_terms(topic: str) -> list[str]:
+    t = (topic or "").lower()
+    groups = [
+        (("تحرش", "تحرش جنسي"), ["Egyptian street harassment victim phone evidence","woman documenting harassment on smartphone","security camera footage street evidence","police report desk Egypt legal complaint","lawyer explaining harassment case to client","digital messages evidence smartphone close up"]),
+        (("طلاق", "خلع", "نفقة", "حضانة"), ["Egyptian family law consultation divorce documents","divorce papers legal documents close up","Egyptian family lawyer meeting client","child custody legal documents family court","alimony financial documents legal consultation","lawyer explaining family court procedure"]),
+        (("إيجار", "طرد", "عقد إيجار"), ["Egypt rental apartment lease contract signing","tenant landlord lease documents close up","rental contract legal dispute lawyer","apartment keys lease agreement close up","Egyptian lawyer reviewing rental contract","eviction legal notice document close up"]),
+        (("شيك", "نصب", "احتيال", "خيانة أمانة"), ["bank cheque legal dispute close up","fraud evidence smartphone financial transaction","financial documents lawyer investigation","police complaint financial fraud paperwork","lawyer explaining fraud case documents","court evidence financial dispute"]),
+        (("عمل", "فصل", "موظف", "عمال", "مرتب"), ["employee employment contract office close up","worker reviewing employment documents","termination letter legal document close up","salary dispute paperwork lawyer consultation","Egyptian employment lawyer meeting employee","workplace rights legal consultation"]),
+    ]
+    for keys, terms in groups:
+        if any(k in t for k in keys): return terms
+    return [f"{topic} legal documents close up", f"{topic} lawyer consultation Egypt", f"{topic} evidence smartphone documents", f"{topic} legal notice paperwork", f"{topic} Egyptian court legal case", f"{topic} lawyer explaining case to client", "legal evidence close up documents", "Egyptian lawyer legal consultation"]
+
 def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
     prompt = (
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
-        "Natural professional Egyptian Arabic, spoken rhythm, no emojis, no sales pitch. "
-        "Strong concrete hook, one practical legal point, useful ending, 45-70 seconds. "
+        "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Write for the mouth: contractions, short phrases, pauses, and direct address. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. "
+        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 170-220 Arabic words. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
-        "video_terms must be English stock-footage searches in chronological order. "
+        "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
         "Choose delivery emotions that fit the legal subject and sentence function, such as calm_authority, warning, empathy, urgency, reassurance, clarification, or strong_cta. "
         "The voice must sound like a confident Egyptian male lawyer in his late 30s: natural Egyptian Arabic, clear diction, measured pace, never a newsreader or generic MSA narrator. "
@@ -69,9 +100,10 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         print(f"Gemini unavailable for Reel; using deterministic fallback: {last_error}")
         return deterministic_brief(topic, post)
     data = json.loads((response.text or "").strip())
-    script = str(data.get("script", "")).strip()
+    script = egyptian_spoken_text(str(data.get("script", "")).strip())
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
-    if len(script) < 350 or len(terms) < 4:
+    if len(terms) < 6: terms = topic_visual_terms(topic)
+    if len(script.split()) < 150 or len(terms) < 6:
         raise RuntimeError("Reel package is incomplete.")
     return {
         "script": script,
@@ -86,40 +118,26 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     text = " ".join(str(post or "").split())
-    parts = [p.strip() for p in text.replace("؟", "؟|").replace(".", ".|").split("|") if len(p.strip()) > 35]
-    selected = parts[:6]
-    body = " ".join(selected)
-    if len(body) < 350:
-        body = text[:1800]
+    core = egyptian_spoken_text(text[:2600])
     script = (
-        f"خليني أوضح لك نقطة مهمة جدًا في موضوع {topic}. "
-        f"{body} "
-        "والأهم قبل ما تاخد أي خطوة إنك تراجع التفاصيل والمستندات المرتبطة بحالتك، لأن التطبيق القانوني بيختلف حسب الوقائع. "
-        "لو الموضوع يخصك فعلًا، راجع النص القانوني والمستندات مع محاميك قبل اتخاذ قرار نهائي."
+        f"بص، لو الموضوع ده يخصك، ما تاخدش أول خطوة لمجرد إنك متضايق أو مستعجل. "
+        f"في موضوع {topic}، التفاصيل الصغيرة ممكن تغيّر الموقف القانوني كله. {core} "
+        "عشان كده، قبل ما تبعت رسالة، تمضي ورقة، تتنازل عن حق، أو تدخل في مواجهة، "
+        "اجمع كل اللي يثبت اللي حصل: الرسائل، العقود، الإيصالات، الصور، وأي بيانات أو شهود مرتبطين بالواقعة. "
+        "ومتعتمدش على لقطة واحدة من القصة؛ لازم نشوف التسلسل الكامل والورق الموجود فعلًا. "
+        "والخطوة الصح مش معناها إنك تعمل أي إجراء بسرعة؛ معناها إنك تختار الإجراء المناسب للوقائع اللي عندك. "
+        "لو الموضوع يخصك فعلًا، راجع التفاصيل والمستندات مع محاميك، وخد قرارك على أساس قانوني واضح."
     )
-    sentences = [x.strip() for x in script.replace("؟", "؟|").replace(".", ".|").split("|") if x.strip()]
+    script = egyptian_spoken_text(script)
+    if len(script.split()) < 170: script += " وخلي بالك: نفس الموضوع ممكن يختلف حكمه من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
+    sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(sentences, start=1):
-        emotion = "strong_cta" if i == len(sentences) else "calm_authority"
-        if any(k in sentence for k in ("مهم", "قبل ما", "يختلف")):
-            emotion = "warning"
+        emotion = "strong_hook" if i == 1 else ("strong_cta" if i == len(sentences) else "calm_authority")
+        if any(k in sentence for k in ("ما تاخدش", "قبل ما", "خلي بالك", "مت")): emotion = "warning"
+        elif any(k in sentence for k in ("اجمع", "الرسائل", "العقود", "الإيصالات")): emotion = "urgency"
         emotions.append({"sentence_index": i, "delivery_emotion": emotion})
-    return {
-        "script": script,
-        "video_terms": [
-            "Egyptian lawyer legal consultation",
-            "legal documents paperwork",
-            "contract signing close up",
-            "law office discussion",
-            "court legal files",
-            "business legal meeting",
-        ],
-        "facebook_caption": f"معلومة قانونية مهمة عن {topic}. راجع التفاصيل قبل ما تاخد أي خطوة.",
-        "linkedin_caption": f"Legal practical note: {topic}. Review the facts and documents before making a decision.",
-        "emotion_map": emotions,
-        "generation_mode": "deterministic_fallback",
-    }
-
+    return {"script": script, "video_terms": topic_visual_terms(topic), "facebook_caption": f"معلومة قانونية عملية عن {topic}. التفاصيل والمستندات بتفرق.", "linkedin_caption": f"معلومة قانونية عملية عن {topic}: راجع الوقائع والمستندات قبل اتخاذ أي خطوة.", "emotion_map": emotions, "generation_mode": "deterministic_fallback"}
 
 
 def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str, work_dir: Path) -> Path:
@@ -304,14 +322,15 @@ def main() -> int:
                 "--video-materials", ",".join(str(p.resolve()) for p in scenes),
                 "--video-aspect", "9:16",
                 "--video-count", "1",
-                "--video-clip-duration", "5",
+                "--video-clip-duration", "8",
+                "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
                 "--voice-name", "ar-EG-ShakirNeural",
-            "--voice-rate", "0.96",
+            "--voice-rate", "0.92",
                 "--subtitle-enabled",
                 "--subtitle-position", "bottom",
-                "--subtitle-display-mode", "sentence",
-                "--subtitle-animation", "none",
+                "--subtitle-display-mode", "word_by_word",
+                "--subtitle-animation", "pop_spring",
                 "--font-size", "54",
                 "--bgm-type", "random",
                 "--bgm-volume", "0.15",
@@ -320,7 +339,7 @@ def main() -> int:
             result = subprocess.run(command, cwd=mpt, env=env, text=True, capture_output=True, timeout=1800, check=False)
             if result.returncode != 0:
                 print("MoneyPrinterTurbo failed; switching to local card + Edge TTS video fallback.")
-                build_local_tts_reel(output_dir / "daily-reel.mp4", scenes, brief["script"], output_dir / "fallback_render")
+                build_local_tts_reel(output_dir / "daily-reel.mp4", scenes, egyptian_spoken_text(brief["script"]), output_dir / "fallback_render")
                 result = None
             if result is not None:
                 video_line = [line for line in result.stdout.splitlines() if line.startswith("VIDEO_FILE=")]
