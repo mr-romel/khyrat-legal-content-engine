@@ -91,6 +91,7 @@ def main() -> int:
             command = [
                 "python", "docs/skill/mpt_agent.py",
                 "--subject", topic,
+                "--root", str(mpt),
                 "--",
                 "--video-script", brief["script"],
                 "--video-terms", ", ".join(brief["video_terms"]),
