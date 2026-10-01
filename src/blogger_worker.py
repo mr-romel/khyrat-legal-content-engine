@@ -41,7 +41,20 @@ def main() -> int:
         print("Blogger worker: no unpublished Blogger rows.")
         return 0
 
-    row_number, row = candidates[-1]
+    # Prefer the item that was just published by the social production run.
+    # This keeps Blogger on the exact same scheduled content slot instead of
+    # accidentally taking an older unpublished row.
+    def _recent_key(item):
+        _, r = item
+        raw = str(r.get("وقت آخر تشغيل", "") or "").strip()
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0
+
+    candidates.sort(key=_recent_key, reverse=True)
+    row_number, row = candidates[0]
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
     image_url = str(row.get("رابط الصورة", "")).strip()
