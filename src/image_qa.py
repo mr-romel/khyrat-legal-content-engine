@@ -11,10 +11,13 @@ from google.genai import types
 from PIL import Image
 
 DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
-QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "75"))
-QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "85"))
-QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "80"))
-QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "2")))
+# QA is advisory. Only clearly unusable or materially unrelated images should regenerate.
+QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
+QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
+QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
+QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "40"))
+QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "45"))
+QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "1")))
 ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
 
 
@@ -104,9 +107,10 @@ CHECK THESE FIVE THINGS:
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
 4. ANATOMY AND VISUAL INTEGRITY: Check for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra fingers, fused fingers, missing fingers, unnatural wrists, twisted arms, duplicated objects, or obvious generative artifacts. Treat obvious anatomy defects as a REGENERATE signal and explain them in composition_findings or issues
 DECISION:
-PASS only when all critical requirements are satisfied.
-REGENERATE when the image can be fixed by changing the visual prompt.
-Never block publication; QA is advisory only.
+PASS when the image is usable for publication and materially related to the topic.
+REGENERATE only when the scene is clearly unrelated, unusable, badly malformed, or contains serious generated text that damages the asset.
+Do not reject a usable image merely because composition, styling, or interpretation is imperfect.
+The image is a first-class publishing asset. QA is advisory and should preserve a usable image whenever possible.
 
 Return JSON only:
 {{
@@ -215,17 +219,28 @@ def qa_image(
     data["image_mode"] = image_mode
 
     critical_failures = []
-    if data["text_detected"]:
-        critical_failures.append("Unexpected generated text detected.")
-    if data["composition_score"] < QA_MIN_COMPOSITION:
-        critical_failures.append(f"Composition score below {QA_MIN_COMPOSITION}.")
-    if data["relevance_score"] < QA_MIN_RELEVANCE:
-        critical_failures.append(f"Legal relevance score below {QA_MIN_RELEVANCE}.")
-    if data["overall_score"] < QA_MIN_OVERALL:
-        critical_failures.append(f"Overall score below {QA_MIN_OVERALL}.")
+    # Soft thresholds are warnings. Hard thresholds are the regeneration boundary.
+    if data["relevance_score"] < QA_HARD_REJECT_RELEVANCE:
+        critical_failures.append(f"Legal relevance is critically low ({data['relevance_score']}).")
+    if data["overall_score"] < QA_HARD_REJECT_OVERALL:
+        critical_failures.append(f"Overall usability is critically low ({data['overall_score']}).")
+    if data["text_detected"] and len(data.get("detected_text", [])) >= 2:
+        critical_failures.append("Multiple unexpected generated text elements detected.")
+    if any("unusable" in item.casefold() or "severely malformed" in item.casefold() for item in data.get("issues", [])):
+        critical_failures.append("Severe visual integrity defect detected.")
 
-    if critical_failures and data["decision"] == "PASS":
+    if critical_failures:
         data["decision"] = "REGENERATE"
+    else:
+        data["decision"] = "PASS"
+        soft_warnings = []
+        if data["composition_score"] < QA_MIN_COMPOSITION:
+            soft_warnings.append(f"Composition advisory below {QA_MIN_COMPOSITION}.")
+        if data["relevance_score"] < QA_MIN_RELEVANCE:
+            soft_warnings.append(f"Relevance advisory below {QA_MIN_RELEVANCE}.")
+        if data["overall_score"] < QA_MIN_OVERALL:
+            soft_warnings.append(f"Overall advisory below {QA_MIN_OVERALL}.")
+        data["issues"] = soft_warnings + data["issues"]
     data["issues"] = critical_failures + data["issues"]
     if data["decision"] == "REGENERATE" and not data["regeneration_prompt"]:
         data["regeneration_prompt"] = "Fix every listed visual defect while preserving the exact legal story and the identity reference."
