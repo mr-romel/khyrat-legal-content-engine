@@ -24,7 +24,7 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
-      MPT_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      MPT_PEXELS_API_KEY: ""
       MPT_LLM_PROVIDER: ollama
       MPT_REF: main
     steps:
