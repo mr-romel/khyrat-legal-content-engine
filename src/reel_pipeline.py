@@ -122,6 +122,35 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
 
 
 
+def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str, work_dir: Path) -> Path:
+    """Final video fallback: original cards + keyless Egyptian Edge TTS + ffmpeg."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    audio = work_dir / "voice.mp3"
+    subprocess.run([
+        "python", "-m", "edge_tts", "--voice", "ar-EG-ShakirNeural",
+        "--rate", "-4%", "--text", script, "--write-media", str(audio),
+    ], check=True, timeout=180)
+    concat = work_dir / "concat.txt"
+    with concat.open("w", encoding="utf-8") as fh:
+        for p in scene_paths[:6]:
+            fh.write(f"file '{p.resolve()}'\n")
+            fh.write("duration 5\n")
+        if scene_paths:
+            fh.write(f"file '{scene_paths[min(5, len(scene_paths)-1)].resolve()}'\n")
+    silent = work_dir / "silent.mp4"
+    subprocess.run([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+        "-r", "30", "-pix_fmt", "yuv420p", str(silent),
+    ], check=True, timeout=180)
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(silent), "-i", str(audio),
+        "-map", "0:v:0", "-map", "1:a:0", "-shortest",
+        "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart", str(video_path),
+    ], check=True, timeout=180)
+    return video_path
+
+
 def main() -> int:
     cfg = load_config()
     service = create_service(cfg["service_account_info"])
@@ -208,13 +237,16 @@ def main() -> int:
             env = os.environ.copy()
             result = subprocess.run(command, cwd=mpt, env=env, text=True, capture_output=True, timeout=1800, check=False)
             if result.returncode != 0:
-                raise RuntimeError((result.stderr or result.stdout)[-6000:])
-            video_line = [line for line in result.stdout.splitlines() if line.startswith("VIDEO_FILE=")]
-            if not video_line:
-                raise RuntimeError("MoneyPrinterTurbo returned no VIDEO_FILE.")
-            video = Path(video_line[-1].split("=", 1)[1].strip())
-            output_video = output_dir / "daily-reel.mp4"
-            shutil.copy2(video, output_video)
+                print("MoneyPrinterTurbo failed; switching to local card + Edge TTS video fallback.")
+                build_local_tts_reel(output_dir / "daily-reel.mp4", scenes, brief["script"], output_dir / "fallback_render")
+                result = None
+            if result is not None:
+                video_line = [line for line in result.stdout.splitlines() if line.startswith("VIDEO_FILE=")]
+                if not video_line:
+                    raise RuntimeError("MoneyPrinterTurbo returned no VIDEO_FILE.")
+                video = Path(video_line[-1].split("=", 1)[1].strip())
+                output_video = output_dir / "daily-reel.mp4"
+                shutil.copy2(video, output_video)
 
         update_row(service, cfg["sheet_id"], sheet_name, row_number, {
             "Reel Status": "REVIEW",
