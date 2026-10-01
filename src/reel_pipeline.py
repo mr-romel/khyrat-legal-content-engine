@@ -91,7 +91,23 @@ def main() -> int:
         scene_dir = output_dir / "scenes"
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
         if len(scenes) < 4:
-            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا (CC0/Public Domain) لهذا الريل.")
+            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل.")
+        source_file = scene_dir / "sources.json"
+        sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
+        attributions = []
+        for source in sources:
+            if str(source.get("license", "")).lower() == "by":
+                title = source.get("title") or "Openverse media"
+                creator = source.get("creator") or "unknown creator"
+                url = source.get("source_url") or source.get("media_url") or ""
+                attributions.append(f"{title} — {creator}" + (f" — {url}" if url else ""))
+        if attributions:
+            credit_text = "\n\nمصادر المواد البصرية (ترخيص Creative Commons Attribution):\n" + "\n".join(attributions)
+            brief["facebook_caption"] = (brief["facebook_caption"] or brief["script"]) + credit_text
+            brief["linkedin_caption"] = (brief["linkedin_caption"] or brief["script"]) + credit_text
+        (output_dir / "media_sources.json").write_text(
+            json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
