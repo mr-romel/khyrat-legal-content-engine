@@ -12,7 +12,7 @@ from typing import Any
 from google import genai
 from config import load_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
-from free_media import fetch_openverse_images
+from free_media import cached_fallback_assets, fetch_openverse_images
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 OUTPUT_ROOT = Path("generated/reels")
@@ -91,7 +91,10 @@ def main() -> int:
         scene_dir = output_dir / "scenes"
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
         if len(scenes) < 4:
-            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل.")
+            cached = cached_fallback_assets(OUTPUT_ROOT, scene_dir, limit=8)
+            scenes.extend(cached)
+        if len(scenes) < 4:
+            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل، ولا توجد مكتبة محلية سابقة كافية.")
         source_file = scene_dir / "sources.json"
         sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
         attributions = []
