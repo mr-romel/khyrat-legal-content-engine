@@ -18,7 +18,7 @@ from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
-MPT_REF = "v1.3.7"
+MPT_REF = "main"
 OUTPUT_ROOT = Path("generated/reels")
 
 
@@ -67,6 +67,7 @@ def prepare_tts_script(text: str) -> str:
     out = out.replace("(", " ").replace(")", " ").replace("…", "...").replace("؛", "،")
     out = re.sub(r"\.{2,}", "...", out)
     out = re.sub(r"\s+", " ", out).strip()
+    out = re.sub(r"\d+", " ", out)
     if not out:
         raise RuntimeError("TTS script is empty after sanitization.")
     try:
@@ -135,6 +136,24 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     if duration < 45 or duration > 80:
         raise RuntimeError(f"Gemini TTS duration outside Reel target: {duration:.1f}s")
     return output_path
+
+
+def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
+    """Add energetic, non-text kinetic design without Arabic subtitle rendering."""
+    vf = (
+        "drawbox=x=28:y=28:w=1024:h=1864:color=white@0.13:t=4,"
+        "drawbox=x='mod(t*190,1250)-160':y='120+150*sin(t*1.05)':w=10:h=620:color=white@0.20:t=fill,"
+        "drawbox=x='930+70*sin(t*0.82)':y='mod(t*260,2150)-220':w=16:h=360:color=white@0.15:t=fill,"
+        "drawbox=x='120+300*sin(t*0.64)':y='1740+35*sin(t*1.8)':w=300:h=7:color=white@0.34:t=fill,"
+        "drawbox=x='40+90*sin(t*0.55)':y='420+110*cos(t*0.7)':w=5:h=980:color=white@0.10:t=fill,"
+        "vignette=PI/5"
+    )
+    subprocess.run(
+        ["ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","20","-c:a","copy","-movflags","+faststart",str(output_video)],
+        check=True, timeout=900,
+    )
+    return output_video
+
 
 def topic_visual_terms(topic: str) -> list[str]:
     t = (topic or "").lower()
