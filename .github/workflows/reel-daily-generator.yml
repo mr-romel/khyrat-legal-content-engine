@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: "30 12 * * *"
   workflow_dispatch:
-  push:
-    paths:
-      - "src/reel_pipeline.py"
-      - "src/free_media.py"
-      - ".github/workflows/reel-daily-generator.yml"
 
 permissions:
   contents: write
@@ -30,8 +25,8 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
       GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
-      KHYRAT_DRY_RUN: "true"
-      REEL_SKIP_GEMINI: "true"
+      KHYRAT_DRY_RUN: "false"
+      REEL_SKIP_GEMINI: "false"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
