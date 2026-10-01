@@ -124,7 +124,17 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
         {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود"},{"@type":"ListItem","position":2,"name":title}]}
     ]
     if faq:
-        graph.append({"@type":"FAQPage","mainEntity":[{"@type":"Question","name":str(x.get("question")),"acceptedAnswer":{"@type":"Answer","text":str(x.get("answer"))}} for x in faq if isinstance(x, dict) and x.get("question") and x.get("answer")])
+        faq_entities = [
+            {
+                "@type": "Question",
+                "name": str(x.get("question")),
+                "acceptedAnswer": {"@type": "Answer", "text": str(x.get("answer"))},
+            }
+            for x in faq
+            if isinstance(x, dict) and x.get("question") and x.get("answer")
+        ]
+        if faq_entities:
+            graph.append({"@type": "FAQPage", "mainEntity": faq_entities})
     schema = html.escape(json.dumps({"@context":"https://schema.org","@graph":graph}, ensure_ascii=False))
 
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
