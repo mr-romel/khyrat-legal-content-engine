@@ -12,6 +12,7 @@ from typing import Any
 from google import genai
 from config import load_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
@@ -37,8 +38,12 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
         "Natural professional Egyptian Arabic, spoken rhythm, no emojis, no sales pitch. "
         "Strong concrete hook, one practical legal point, useful ending, 45-70 seconds. "
-        "Return JSON only with script, video_terms, facebook_caption, linkedin_caption. "
-        "video_terms must be English stock-footage searches in chronological order.\n\n"
+        "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
+        "video_terms must be English stock-footage searches in chronological order. "
+        "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
+        "Choose delivery emotions that fit the legal subject and sentence function, such as calm_authority, warning, empathy, urgency, reassurance, clarification, or strong_cta. "
+        "The voice must sound like a confident Egyptian male lawyer in his late 30s: natural Egyptian Arabic, clear diction, measured pace, never a newsreader or generic MSA narrator. "
+        "Use punctuation, sentence length, pauses, and wording to make the intended emotion audible without inventing legal facts.\n\n"
         "TOPIC:\n" + topic + "\n\nREVIEWED POST:\n" + post
     )
     response = client.models.generate_content(
@@ -56,6 +61,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "video_terms": [str(x).strip() for x in terms[:8] if str(x).strip()],
         "facebook_caption": str(data.get("facebook_caption", "")).strip(),
         "linkedin_caption": str(data.get("linkedin_caption", "")).strip(),
+        "emotion_map": data.get("emotion_map") if isinstance(data.get("emotion_map"), list) else [],
     }
 
 
@@ -87,6 +93,7 @@ def main() -> int:
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
         (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
+        (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
         scene_dir = output_dir / "scenes"
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
@@ -129,6 +136,7 @@ def main() -> int:
                 "--video-clip-duration", "5",
                 "--match-materials-to-script",
                 "--voice-name", "ar-EG-ShakirNeural",
+            "--voice-rate", "0.96",
                 "--subtitle-enabled",
                 "--subtitle-position", "bottom",
                 "--subtitle-display-mode", "sentence",
@@ -157,7 +165,21 @@ def main() -> int:
             "Reel Review": "جاهز للمراجعة اليدوية قبل أي نشر",
             "Reel Last Error": "",
         })
-        print("REEL_READY row=" + str(row_number) + " file=" + str(output_dir / "daily-reel.mp4"))
+        video_path = output_dir / "daily-reel.mp4"
+        try:
+            send_video(
+                str(video_path),
+                caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\n\nالصوت: رجل مصري، نبرة محامٍ واثق، مع خريطة مشاعر حسب الجمل",
+                reply_markup={
+                    "inline_keyboard": [[
+                        {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"},
+                        {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"},
+                    ]]
+                },
+            )
+        except Exception as notify_exc:
+            print(f"Telegram Reel preview unavailable: {notify_exc}")
+        print("REEL_READY row=" + str(row_number) + " file=" + str(video_path))
         return 0
     except Exception as exc:
         update_row(service, cfg["sheet_id"], sheet_name, row_number, {
