@@ -1,9 +1,6 @@
 name: Daily Legal Reel Generator
 
 on:
-  push:
-    paths:
-      - "src/reel_pipeline.py"
   schedule:
     - cron: "30 12 * * *"
   workflow_dispatch:
