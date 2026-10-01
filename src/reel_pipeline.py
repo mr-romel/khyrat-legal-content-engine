@@ -61,49 +61,47 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def generate_scene_images(api_key: str, topic: str, script: str, terms: list[str], output_dir: Path) -> list[Path]:
     """Generate concrete 9:16 scene stills with Gemini, then hand them to MPT as local materials."""
-    client = genai.Client(api_key=api_key)
+    import requests
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     scenes = []
     for index, term in enumerate(terms[:6], start=1):
         prompt = (
             "Create a photorealistic cinematic vertical 9:16 scene for a professional Egyptian legal educational reel. "
-            "The scene must visually explain the concrete legal situation below, not a generic lawyer/courthouse/gavel image. "
-            "No readable text, no logos, no watermark added by the prompt, no fantasy. "
+            "The scene must explain the concrete legal situation below, not a generic lawyer, courthouse, scales or gavel image. "
+            "No readable text, no logos, no added watermark, no fantasy. "
             "Use realistic Egyptian people, offices, documents, streets, workplaces or courtroom-like settings only when they fit the subject. "
-            "Natural documentary photography, restrained luxury, realistic skin and hands, strong composition, room for subtitles at the bottom. "
-            "SCENE KEYWORD: " + term + "\\nTOPIC: " + topic + "\\nSCRIPT: " + script
+            "Natural documentary photography, restrained premium look, realistic skin and hands, strong composition, and clean lower space for subtitles. "
+            "SCENE KEYWORD: " + term + "\nTOPIC: " + topic + "\nSCRIPT: " + script
         )
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image"),
-            contents=prompt,
-            config={"response_modalities": ["IMAGE"]},
+        response = requests.post(
+            endpoint,
+            params={"key": api_key},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseModalities": ["IMAGE"]},
+            },
+            timeout=180,
         )
+        if not response.ok:
+            raise RuntimeError(f"Gemini image generation failed: HTTP {response.status_code} {response.text[:800]}")
+        payload = response.json()
+        parts = payload.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        image_data = next(
+            (part.get("inlineData", {}).get("data") for part in parts if part.get("inlineData", {}).get("data")),
+            None,
+        )
+        if not image_data:
+            continue
         image_path = output_dir / ("scene_%02d.png" % index)
-        saved = False
-        for part in getattr(response, "parts", []) or []:
-            inline = getattr(part, "inline_data", None)
-            if inline and getattr(inline, "data", None):
-                data = inline.data
-                if isinstance(data, str):
-                    data = base64.b64decode(data)
-                image_path.write_bytes(data)
-                saved = True
-                break
-        if not saved:
-            # Compatibility with SDK responses that expose generated images differently.
-            generated = getattr(response, "images", None) or []
-            if generated:
-                data = getattr(generated[0], "data", None)
-                if isinstance(data, str):
-                    data = base64.b64decode(data)
-                if data:
-                    image_path.write_bytes(data)
-                    saved = True
-        if saved:
-            scenes.append(image_path)
+        image_path.write_bytes(base64.b64decode(image_data))
+        scenes.append(image_path)
+
     if len(scenes) < 4:
         raise RuntimeError("Gemini image generation produced too few usable reel scenes.")
     return scenes
-
 
 def main() -> int:
     cfg = load_config()
@@ -139,7 +137,7 @@ def main() -> int:
             mpt = Path(temp) / "MoneyPrinterTurbo"
             subprocess.run(["git", "clone", "--depth", "1", MPT_REPO, str(mpt)], check=True, timeout=180)
             command = [
-                "python", "docs/skill/mpt_agent.py",
+                "uv", "run", "--no-project", "--python", "3.11", "python", "docs/skill/mpt_agent.py",
                 "--subject", topic,
                 "--root", str(mpt),
                 "--",
