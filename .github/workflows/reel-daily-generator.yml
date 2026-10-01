@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "30 12 * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - "src/reel_pipeline.py"
+      - "src/free_media.py"
+      - ".github/workflows/reel-daily-generator.yml"
 
 permissions:
   contents: write
@@ -24,6 +29,8 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
