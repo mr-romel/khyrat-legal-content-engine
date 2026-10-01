@@ -1,0 +1,129 @@
+name: Publish Approved Legal Reel
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "GitHub Actions run ID of the daily reel generation"
+        required: true
+      row_number:
+        description: "Google Sheets row number containing the reel"
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ROW_NUMBER: ${{ inputs.row_number }}
+      RUN_ID: ${{ inputs.run_id }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+      FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+      LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION || '202610' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download reviewed reel package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p review-package
+          gh run download "$RUN_ID" -n khyrat-daily-reel -D review-package
+
+      - name: Verify manual approval
+        run: |
+          python - <<'PY'
+          import os
+          from config import load_config
+          from sheets import create_service, get_values, row_to_dict
+          cfg=load_config()
+          svc=create_service(cfg["service_account_info"])
+          sheet=cfg["sheet_range"].split("!",1)[0]
+          values=get_values(svc,cfg["sheet_id"],cfg["sheet_range"])
+          rows=[row_to_dict(r) for r in values[1:]]
+          n=int(os.environ["ROW_NUMBER"])
+          row=rows[n-2]
+          if str(row.get("Reel Status","")).strip().upper() != "REVIEW":
+              raise SystemExit("Reel is not in REVIEW state.")
+          if str(row.get("Reel Approval","")).strip().upper() != "APPROVED":
+              raise SystemExit("Set Reel Approval to APPROVED in Google Sheets before publishing.")
+          PY
+
+      - name: Publish approved reel
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from reel_publishers import publish_facebook_video, publish_linkedin_video
+          root=Path("review-package")/"generated"/"reels"/("row_"+os.environ["ROW_NUMBER"])
+          if not root.exists():
+              matches=list(Path("review-package").rglob("daily-reel.mp4"))
+              if not matches:
+                  raise SystemExit("Approved reel MP4 was not found in the downloaded artifact.")
+              video=matches[0]
+              plan_path=video.with_name("reel_plan.json")
+          else:
+              video=root/"daily-reel.mp4"
+              plan_path=root/"reel_plan.json"
+          plan=json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else {}
+          fb_caption=str(plan.get("facebook_caption","")).strip()
+          li_caption=str(plan.get("linkedin_caption","")).strip() or fb_caption
+          fb=publish_facebook_video(str(video), fb_caption)
+          li=publish_linkedin_video(str(video), li_caption)
+          Path("publish-result.json").write_text(json.dumps({"facebook":fb,"linkedin":li},ensure_ascii=False,indent=2),encoding="utf-8")
+          PY
+
+      - name: Record publication in Google Sheets
+        if: ${{ success() }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from config import load_config
+          from sheets import create_service, update_row
+          result=json.loads(open("publish-result.json",encoding="utf-8").read())
+          cfg=load_config()
+          svc=create_service(cfg["service_account_info"])
+          sheet=cfg["sheet_range"].split("!",1)[0]
+          update_row(svc,cfg["sheet_id"],sheet,int(os.environ["ROW_NUMBER"]),{
+            "Reel Status":"PUBLISHED",
+            "Reel Facebook ID":result["facebook"].get("video_id",""),
+            "Reel LinkedIn ID":result["linkedin"].get("post_id",""),
+            "Reel Approval":"APPROVED",
+            "Reel Review":"تم نشر الريلز بعد المراجعة اليدوية",
+            "Reel Last Error":"",
+            "Reel Published At":os.environ.get("GITHUB_RUN_ID",""),
+          })
+          PY
+
+      - name: Upload publication proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-reel-publication-proof
+          path: publish-result.json
+          if-no-files-found: ignore
+          retention-days: 14
