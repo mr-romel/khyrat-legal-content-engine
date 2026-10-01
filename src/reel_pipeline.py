@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+import base64
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Any
+
+from google import genai
+from config import load_config
+from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+
+MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
+OUTPUT_ROOT = Path("generated/reels")
+
+
+def choose_row(rows: list[dict[str, str]]) -> tuple[int, dict[str, str]] | None:
+    candidates = []
+    for number, row in enumerate(rows, start=2):
+        if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
+            continue
+        if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
+            continue
+        if str(row.get("المحتوى", "")).strip():
+            candidates.append((number, row))
+    return candidates[-1] if candidates else None
+
+
+def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any]:
+    client = genai.Client(api_key=api_key)
+    prompt = (
+        "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
+        "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
+        "Natural professional Egyptian Arabic, spoken rhythm, no emojis, no sales pitch. "
+        "Strong concrete hook, one practical legal point, useful ending, 45-70 seconds. "
+        "Return JSON only with script, video_terms, facebook_caption, linkedin_caption. "
+        "video_terms must be English stock-footage searches in chronological order.\n\n"
+        "TOPIC:\n" + topic + "\n\nREVIEWED POST:\n" + post
+    )
+    response = client.models.generate_content(
+        model=(model or "gemini-3.6-flash").strip(),
+        contents=prompt,
+        config={"response_mime_type": "application/json", "max_output_tokens": 5000},
+    )
+    data = json.loads((response.text or "").strip())
+    script = str(data.get("script", "")).strip()
+    terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
+    if len(script) < 350 or len(terms) < 4:
+        raise RuntimeError("Reel package is incomplete.")
+    return {
+        "script": script,
+        "video_terms": [str(x).strip() for x in terms[:8] if str(x).strip()],
+        "facebook_caption": str(data.get("facebook_caption", "")).strip(),
+        "linkedin_caption": str(data.get("linkedin_caption", "")).strip(),
+    }
+
+
+def main() -> int:
+    cfg = load_config()
+    service = create_service(cfg["service_account_info"])
+    sheet_name = cfg["sheet_range"].split("!", 1)[0]
+    ensure_headers(service, cfg["sheet_id"], sheet_name)
+    values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
+    selected = choose_row([row_to_dict(row) for row in values[1:]])
+    if not selected:
+        print("Reel generator: no eligible published content row.")
+        return 0
+
+    row_number, row = selected
+    topic = str(row.get("الموضوع", "")).strip()
+    post = str(row.get("المحتوى", "")).strip()
+    output_dir = OUTPUT_ROOT / ("row_" + str(row_number))
+    update_row(service, cfg["sheet_id"], sheet_name, row_number, {
+        "Reel Status": "GENERATING",
+        "Reel Approval": "",
+        "Reel Last Error": "",
+    })
+
+    try:
+        brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
+        (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
+            mpt = Path(temp) / "MoneyPrinterTurbo"
+            subprocess.run(["git", "clone", "--depth", "1", MPT_REPO, str(mpt)], check=True, timeout=180)
+            command = [
+                "python", "docs/skill/mpt_agent.py",
+                "--subject", topic,
+                "--",
+                "--video-script", brief["script"],
+                "--video-terms", ", ".join(brief["video_terms"]),
+                "--video-source", "pexels",
+                "--video-aspect", "9:16",
+                "--video-count", "1",
+                "--video-clip-duration", "5",
+                "--match-materials-to-script",
+                "--voice-name", "ar-EG-ShakirNeural",
+                "--subtitle-enabled",
+                "--subtitle-position", "bottom",
+                "--subtitle-display-mode", "sentence",
+                "--subtitle-animation", "none",
+                "--font-size", "54",
+                "--bgm-type", "random",
+                "--bgm-volume", "0.15",
+            ]
+            env = os.environ.copy()
+            env["MPT_PEXELS_API_KEY"] = env.get("MPT_PEXELS_API_KEY", "")
+            result = subprocess.run(command, cwd=mpt, env=env, text=True, capture_output=True, timeout=1800, check=False)
+            if result.returncode != 0:
+                raise RuntimeError((result.stderr or result.stdout)[-6000:])
+            video_line = [line for line in result.stdout.splitlines() if line.startswith("VIDEO_FILE=")]
+            if not video_line:
+                raise RuntimeError("MoneyPrinterTurbo returned no VIDEO_FILE.")
+            video = Path(video_line[-1].split("=", 1)[1].strip())
+            output_video = output_dir / "daily-reel.mp4"
+            shutil.copy2(video, output_video)
+
+        update_row(service, cfg["sheet_id"], sheet_name, row_number, {
+            "Reel Status": "REVIEW",
+            "Reel Script": brief["script"],
+            "Reel File": str(output_dir / "daily-reel.mp4"),
+            "Reel Run ID": os.getenv("GITHUB_RUN_ID", ""),
+            "Reel Approval": "",
+            "Reel Review": "جاهز للمراجعة اليدوية قبل أي نشر",
+            "Reel Last Error": "",
+        })
+        print("REEL_READY row=" + str(row_number) + " file=" + str(output_dir / "daily-reel.mp4"))
+        return 0
+    except Exception as exc:
+        update_row(service, cfg["sheet_id"], sheet_name, row_number, {
+            "Reel Status": "FAILED",
+            "Reel Last Error": str(exc)[:1500],
+        })
+        raise
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
