@@ -68,7 +68,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Write for the mouth: contractions, short phrases, pauses, and direct address. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. "
-        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 170-220 Arabic words. No filler or repeated disclaimer. "
+        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 165-190 Arabic words. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -321,7 +321,7 @@ def main() -> int:
                 "--video-materials", ",".join(str(p.resolve()) for p in scenes),
                 "--video-aspect", "9:16",
                 "--video-count", "1",
-                "--video-clip-duration", "8",
+                "--video-clip-duration", "9",
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
                 "--voice-name", "ar-EG-ShakirNeural",
