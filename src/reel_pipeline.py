@@ -546,3 +546,5 @@ if __name__ == "__main__":
 # final reel quality verification marker
 
 # Syntax verification marker.
+
+# Gemini TTS parser verification marker.
