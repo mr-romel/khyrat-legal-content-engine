@@ -63,7 +63,8 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
             last_error = exc
             print(f"Reel Gemini model failed: {selected_model}: {exc}")
     if response is None:
-        raise RuntimeError(f"Reel script generation failed on all configured Gemini models: {last_error}")
+        print(f"Gemini unavailable for Reel; using deterministic fallback: {last_error}")
+        return deterministic_brief(topic, post)
     data = json.loads((response.text or "").strip())
     script = str(data.get("script", "")).strip()
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
@@ -77,6 +78,44 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "emotion_map": data.get("emotion_map") if isinstance(data.get("emotion_map"), list) else [],
     }
 
+
+
+
+def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
+    text = " ".join(str(post or "").split())
+    parts = [p.strip() for p in text.replace("؟", "؟|").replace(".", ".|").split("|") if len(p.strip()) > 35]
+    selected = parts[:6]
+    body = " ".join(selected)
+    if len(body) < 350:
+        body = text[:1800]
+    script = (
+        f"خليني أوضح لك نقطة مهمة جدًا في موضوع {topic}. "
+        f"{body} "
+        "والأهم قبل ما تاخد أي خطوة إنك تراجع التفاصيل والمستندات المرتبطة بحالتك، لأن التطبيق القانوني بيختلف حسب الوقائع. "
+        "لو الموضوع يخصك فعلًا، راجع النص القانوني والمستندات مع محاميك قبل اتخاذ قرار نهائي."
+    )
+    sentences = [x.strip() for x in script.replace("؟", "؟|").replace(".", ".|").split("|") if x.strip()]
+    emotions = []
+    for i, sentence in enumerate(sentences, start=1):
+        emotion = "strong_cta" if i == len(sentences) else "calm_authority"
+        if any(k in sentence for k in ("مهم", "قبل ما", "يختلف")):
+            emotion = "warning"
+        emotions.append({"sentence_index": i, "delivery_emotion": emotion})
+    return {
+        "script": script,
+        "video_terms": [
+            "Egyptian lawyer legal consultation",
+            "legal documents paperwork",
+            "contract signing close up",
+            "law office discussion",
+            "court legal files",
+            "business legal meeting",
+        ],
+        "facebook_caption": f"معلومة قانونية مهمة عن {topic}. راجع التفاصيل قبل ما تاخد أي خطوة.",
+        "linkedin_caption": f"Legal practical note: {topic}. Review the facts and documents before making a decision.",
+        "emotion_map": emotions,
+        "generation_mode": "deterministic_fallback",
+    }
 
 
 
