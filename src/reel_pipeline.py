@@ -449,7 +449,7 @@ def main() -> int:
                     output_video = output_dir / "daily-reel.mp4"
                     add_motion_graphics_layer(raw_video, output_video)
                     raw_video.unlink(missing_ok=True)
-                    add_motion_graphics(output_video, topic, output_dir / "motion_graphics")
+
 
                     probe = subprocess.run(
                         [
