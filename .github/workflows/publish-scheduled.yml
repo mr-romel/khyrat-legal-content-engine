@@ -1,6 +1,8 @@
 name: Khyrat Legal Content Engine Scheduled
 
 on:
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -47,6 +49,10 @@ jobs:
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL }}
+          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
+          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
@@ -63,6 +69,24 @@ jobs:
           echo "GitHub event: ${{ github.event_name }}"
           echo "Publishing started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           PYTHONPATH=src python src/content_system_runtime.py
+
+      - name: Publish the same due item to Blogger
+        if: ${{ steps.publish.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
+          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+        run: PYTHONPATH=src python src/blogger_worker.py
 
       - name: Persist generated publishing assets
         if: ${{ steps.publish.outcome == 'success' }}
