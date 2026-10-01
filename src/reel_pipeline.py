@@ -357,6 +357,7 @@ def main() -> int:
         "Reel Last Error": "",
     })
 
+    review_video_delivered = False
     try:
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -508,7 +509,7 @@ def main() -> int:
         # REVIEW unless the actual MP4 was successfully delivered for approval.
         send_video(
             str(video_path),
-            caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\n\nالصوت: رجل مصري، نبرة محامٍ واثق، مع خريطة مشاعر حسب الجمل",
+            caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}",
             reply_markup={
                 "inline_keyboard": [[
                     {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"},
@@ -516,8 +517,9 @@ def main() -> int:
                 ]]
             },
         )
+        review_video_delivered = True
 
-        update_row(service, cfg["sheet_id"], sheet_name, row_number, {
+        review_payload = {
             "Reel Status": "REVIEW",
             "Reel Script": brief["script"],
             "Reel File": str(output_dir / "daily-reel.mp4"),
@@ -525,14 +527,41 @@ def main() -> int:
             "Reel Approval": "",
             "Reel Review": "جاهز للمراجعة اليدوية قبل أي نشر",
             "Reel Last Error": "",
-        })
-        print("REEL_READY row=" + str(row_number) + " file=" + str(video_path))
+        }
+        sheet_saved = False
+        last_sheet_error = None
+        for attempt in range(1, 6):
+            try:
+                update_row(service, cfg["sheet_id"], sheet_name, row_number, review_payload)
+                sheet_saved = True
+                break
+            except Exception as exc:
+                last_sheet_error = exc
+                print(f"Reel review Sheet update attempt {attempt}/5 failed: {exc}")
+                if attempt < 5:
+                    import time
+                    time.sleep(attempt * 3)
+        if not sheet_saved:
+            (output_dir / "review_pending.json").write_text(
+                json.dumps({"row_number": row_number, "status": "REVIEW", "sheet_error": str(last_sheet_error)}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"REEL_READY row={row_number} file={video_path} telegram=delivered sheet=retry_pending")
+            return 0
+
+        print("REEL_READY row=" + str(row_number) + " file=" + str(video_path) + " telegram=delivered sheet=review")
         return 0
     except Exception as exc:
-        update_row(service, cfg["sheet_id"], sheet_name, row_number, {
-            "Reel Status": "FAILED",
-            "Reel Last Error": str(exc)[:1500],
-        })
+        if review_video_delivered:
+            print(f"Reel video was delivered to Telegram; preserving generated package despite post-delivery failure: {exc}")
+            return 0
+        try:
+            update_row(service, cfg["sheet_id"], sheet_name, row_number, {
+                "Reel Status": "FAILED",
+                "Reel Last Error": str(exc)[:1500],
+            })
+        except Exception as sheet_exc:
+            print(f"Failed to record Reel FAILED state in Sheet: {sheet_exc}")
         raise
 
 
@@ -543,4 +572,3 @@ if __name__ == "__main__":
 # Reel production verification: Gemini TTS + text-free motion graphics.
 
 
-# MPT compatibility render marker
