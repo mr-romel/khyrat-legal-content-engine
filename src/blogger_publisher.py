@@ -134,7 +134,21 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
 def publish_article(*,topic:str,post:str,image_url:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
     svc=service(); bid=blog_id(svc,os.getenv("BLOGGER_URL",DEFAULT_BLOG_URL).strip())
     title,search_query,candidates=build_search_title(topic)
-    content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic))
+    article = None
+    try:
+        article = prepare_article(
+            api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+            model=os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+            topic=topic,
+            post=post,
+            legal_sources=legal_sources,
+        )
+        title = str(article.get("title") or title).strip()[:110]
+        search_query = title
+        candidates = list(dict.fromkeys([title, *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()]]))[:12]
+    except Exception as exc:
+        print(f"Blogger editorial layer unavailable: {exc}")
+    content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
     labs=list(dict.fromkeys([*(labels or []),"قانون مصر","اسأل محمود"]))[:10]
     body={"title":title,"content":content,"labels":labs,"readerComments":"allow","customMetaData":json.dumps({"search_query":search_query,"search_candidates":candidates,"topic":topic,"seo_title_source":"google_suggest","brand":"Ask Mahmoud"},ensure_ascii=False)}
     try: result=svc.posts().insert(blogId=bid,body=body,isDraft=False,fetchBody=True).execute()
