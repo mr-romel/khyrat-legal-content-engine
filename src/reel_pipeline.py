@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import base64
+import urllib.request
 import os
 import re
 import shutil
@@ -34,7 +36,7 @@ def choose_row(rows: list[dict[str, str]]) -> tuple[int, dict[str, str]] | None:
 
 
 def egyptian_spoken_text(text: str) -> str:
-    """Normalize legal copy toward natural Egyptian spoken Arabic before TTS."""
+    """Prepare natural, spoken Egyptian Arabic without synthesis-hostile symbols."""
     replacements = [
         ("ما يجب عليك فعله", "إنت تعمل إيه"), ("يجب عليك", "لازم"), ("يجب أن", "لازم"),
         ("ينبغي أن", "الأفضل إنك"), ("في حالة", "لو"), ("في حال", "لو"),
@@ -47,9 +49,84 @@ def egyptian_spoken_text(text: str) -> str:
         ("فيما يتعلق", "بالنسبة لـ"), ("يرجى", "خليك"),
     ]
     out = " ".join(str(text or "").split())
-    for src, dst in replacements: out = out.replace(src, dst)
-    out = re.sub(r"\s+", " ", out).strip()
+    for src, dst in replacements:
+        out = out.replace(src, dst)
+    # TTS-safe: no hashtags, URLs, brackets, slashes, percent signs, Latin handles,
+    # or stray markup that a speech model might read literally.
+    out = re.sub(r"https?://\\S+", "", out, flags=re.I)
+    out = re.sub(r"[@#%*_{}\[\]<>|\\/]+", " ", out)
+    out = re.sub(r"\b(?:API|SEO|GEO|CTA|FAQ|URL)\b", "", out, flags=re.I)
+    out = re.sub(r"\s+", " ", out).strip(" .،؛:|-")
     return out
+
+
+def prepare_tts_script(text: str) -> str:
+    """Final spoken-script gate: plain Arabic text, punctuation only, no markup."""
+    out = egyptian_spoken_text(text)
+    # Keep punctuation that helps Gemini TTS pace the narration, but remove symbols
+    # which are commonly interpreted as literal words or metadata.
+    out = out.replace("(", " ").replace(")", " ").replace("…", "...").replace("؛", "،")
+    out = re.sub(r"\.{2,}", "...", out)
+    out = re.sub(r"\s+", " ", out).strip()
+    if not out:
+        raise RuntimeError("TTS script is empty after sanitization.")
+    return out
+
+
+def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[str, Any]], output_path: Path) -> Path:
+    """Generate the Reel narration with Gemini 3.8 Flash TTS, not Edge TTS."""
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is required for Reel narration.")
+    clean = prepare_tts_script(script)
+    # Sentence-level metadata controls delivery without being spoken. The model
+    # supports Egyptian Arabic and style instructions in speech_metadata.
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", clean) if s.strip()]
+    content = []
+    for idx, sentence in enumerate(sentences, start=1):
+        emotion = "confident, natural Egyptian Arabic, clear lawyer-like diction"
+        for item in emotion_map or []:
+            if int(item.get("sentence_index", 0) or 0) == idx:
+                emotion = str(item.get("delivery_emotion") or emotion).replace("_", " ")
+                break
+        content.append({
+            "type": "text",
+            "text": sentence,
+            "annotations": [{
+                "type": "speech_metadata",
+                "style": (
+                    "Egyptian Arabic, mature male legal presenter, natural Cairo delivery; "
+                    + emotion +
+                    "; conversational, human, not a newsreader, with natural pauses"
+                ),
+            }],
+        })
+    payload = {
+        "model": os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts"),
+        "input": [{"type": "user_input", "content": content}],
+        "response_format": {"type": "audio"},
+        "generation_config": {
+            "speech_config": [{"voice": os.getenv("GEMINI_TTS_VOICE", "Gacrux")}]
+        },
+    }
+    req = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Gemini TTS request failed: {exc}") from exc
+    encoded = ((data.get("interaction") or {}).get("output_audio") or {}).get("data")
+    if not encoded:
+        raise RuntimeError(f"Gemini TTS returned no audio: {str(data)[:1000]}")
+    try:
+        output_path.write_bytes(base64.b64decode(encoded))
+    except Exception as exc:
+        raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
+    return output_path
 
 def topic_visual_terms(topic: str) -> list[str]:
     t = (topic or "").lower()
@@ -69,7 +146,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     prompt = (
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
-        "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Write for the mouth: contractions, short phrases, pauses, and direct address. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. "
+        "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
         "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 125-145 Arabic words. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
@@ -107,7 +184,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     except json.JSONDecodeError as exc:
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
-    script = egyptian_spoken_text(str(data.get("script", "")).strip())
+    script = prepare_tts_script(str(data.get("script", "")).strip())
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 6: terms = topic_visual_terms(topic)
     if len(script.split()) < 115 or len(terms) < 6:
@@ -125,8 +202,8 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     text = " ".join(str(post or "").split())
-    # Keep a short, spoken core from the reviewed post so free TTS remains
-    # within the intended 55-75 second Reel window.
+    # Keep a short, spoken core from the reviewed post. This fallback is used only
+    # when the script LLM is unavailable; narration itself still requires Gemini TTS.
     post_sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
     selected_words: list[str] = []
     for sentence in post_sentences:
@@ -143,7 +220,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         "والخطوة الصح مش إنك تعمل أي إجراء بسرعة؛ اختار الإجراء المناسب للوقائع اللي عندك. "
         "لو الموضوع يخصك، راجع المستندات والتفاصيل مع محاميك قبل ما تاخد قرار."
     )
-    script = egyptian_spoken_text(script)
+    script = prepare_tts_script(script)
     if len(script.split()) < 115:
         script += " وخلي بالك: نفس الموضوع ممكن يختلف من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
@@ -163,116 +240,8 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     }
 
 
-def build_local_tts_reel(video_path: Path, scene_paths: list[Path], script: str, work_dir: Path) -> Path:
-    """Robust local Motion Graphics fallback: Egyptian TTS + animated legal visuals."""
-    work_dir.mkdir(parents=True, exist_ok=True)
-    audio = work_dir / "voice.mp3"
-    subprocess.run([
-        "python", "-m", "edge_tts", "--voice", "ar-EG-ShakirNeural",
-        "--rate=-4%", "--text", script, "--write-media", str(audio),
-    ], check=True, timeout=180)
-
-    # Build six composed visual scenes. External photos are preferred; generated
-    # legal cards remain valid inputs. Each scene is then animated with zoom/pan,
-    # fades and a progress bar so the fallback is a real motion-graphics reel,
-    # not a slideshow of static frames.
-    from PIL import Image, ImageDraw, ImageFont, ImageOps
-
-    images = [p for p in scene_paths if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}][:6]
-    if not images:
-        raise RuntimeError("No image scenes available for Motion Graphics fallback.")
-
-    font_candidates = [
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    ]
-    font_path = next((p for p in font_candidates if Path(p).exists()), None)
-    title_font = ImageFont.truetype(font_path, 72) if font_path else ImageFont.load_default()
-    body_font = ImageFont.truetype(font_path, 48) if font_path else ImageFont.load_default()
-    small_font = ImageFont.truetype(font_path, 34) if font_path else ImageFont.load_default()
-
-    sentences = [s.strip() for s in script.replace("؟", "؟|").replace(".", ".|").split("|") if s.strip()]
-    while len(sentences) < len(images):
-        sentences.append(sentences[-1] if sentences else "معلومة قانونية مهمة")
-    sentences = sentences[:len(images)]
-
-    frames = []
-    labels = ["HOOK", "النقطة القانونية", "إجراء عملي", "تنبيه", "راجع حالتك", "CTA"]
-    for i, (src, sentence) in enumerate(zip(images, sentences)):
-        try:
-            base = Image.open(src).convert("RGB")
-        except Exception:
-            continue
-        base = ImageOps.fit(base, (1080, 1920), method=Image.Resampling.LANCZOS)
-        canvas = base.convert("RGBA")
-        overlay = Image.new("RGBA", canvas.size, (8, 12, 20, 0))
-        od = ImageDraw.Draw(overlay)
-        od.rectangle((0, 0, 1080, 1920), fill=(8, 12, 20, 85))
-        od.rectangle((45, 75, 1035, 270), fill=(8, 12, 20, 185))
-        od.rounded_rectangle((45, 75, 410, 155), radius=22, fill=(235, 235, 235, 225))
-        od.text((225, 115), labels[i % len(labels)], font=small_font, anchor="mm", fill=(10, 15, 22, 255))
-        od.text((540, 210), "خيرات للمحتوى القانوني", font=small_font, anchor="mm", fill=(245, 245, 245, 255))
-        # Bottom kinetic-text panel.
-        od.rounded_rectangle((55, 1270, 1025, 1780), radius=38, fill=(8, 12, 20, 210))
-        od.text((540, 1390), sentence[:180], font=body_font, anchor="ma", fill=(250, 250, 250, 255), align="center")
-        od.rectangle((80, 1715, 1000, 1728), fill=(220, 220, 220, 150))
-        od.rectangle((80, 1715, 80 + int(920 * ((i + 1) / len(images))), 1728), fill=(250, 250, 250, 235))
-        od.text((540, 1840), f"{i+1}/{len(images)}", font=small_font, anchor="mm", fill=(235, 235, 235, 230))
-        frames.append(Image.alpha_composite(canvas, overlay).convert("RGB"))
-
-    if not frames:
-        raise RuntimeError("Motion Graphics scene rendering produced no frames.")
-
-    frame_paths = []
-    for i, frame in enumerate(frames, start=1):
-        path = work_dir / f"motion_scene_{i:02d}.jpg"
-        frame.save(path, quality=94, optimize=True)
-        frame_paths.append(path)
-
-    duration_probe = subprocess.run([
-        "ffprobe", "-v", "error", "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1", str(audio),
-    ], capture_output=True, text=True, check=True, timeout=30)
-    audio_duration = max(8.0, float(duration_probe.stdout.strip()))
-    per_scene = audio_duration / len(frame_paths)
-
-    scene_videos = []
-    for i, frame in enumerate(frame_paths, start=1):
-        clip = work_dir / f"motion_clip_{i:02d}.mp4"
-        frames_count = max(2, int(per_scene * 30))
-        vf = (
-            f"zoompan=z='min(zoom+0.0007,1.14)':"
-            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d={frames_count}:s=1080x1920:fps=30,"
-            f"fade=t=in:st=0:d=0.45,fade=t=out:st={max(0.5, per_scene-0.45):.3f}:d=0.45"
-        )
-        subprocess.run([
-            "ffmpeg", "-y", "-loop", "1", "-i", str(frame), "-t", f"{per_scene:.3f}",
-            "-vf", vf, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
-            str(clip),
-        ], check=True, timeout=180)
-        scene_videos.append(clip)
-
-    concat = work_dir / "motion_concat.txt"
-    with concat.open("w", encoding="utf-8") as fh:
-        for clip in scene_videos:
-            fh.write(f"file '{clip.resolve()}'\n")
-
-    video_only = work_dir / "motion_video.mp4"
-    subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-c", "copy", "-movflags", "+faststart", str(video_only),
-    ], check=True, timeout=180)
-
-    subprocess.run([
-        "ffmpeg", "-y", "-i", str(video_only), "-i", str(audio),
-        "-map", "0:v:0", "-map", "1:a:0", "-t", f"{audio_duration:.3f}",
-        "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k",
-        "-movflags", "+faststart", str(video_path),
-    ], check=True, timeout=180)
-    return video_path
-
+def build_local_tts_reel(*args, **kwargs) -> Path:
+    raise RuntimeError("Edge TTS fallback has been permanently disabled for Reels.")
 
 def main() -> int:
     cfg = load_reel_config()
@@ -343,6 +312,9 @@ def main() -> int:
             json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+        tts_audio = output_dir / "voice-gemini.wav"
+        generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
+
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
             subprocess.run(
@@ -370,13 +342,8 @@ def main() -> int:
                 "--video-concat-mode", "sequential",
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
-                "--voice-name", "ar-EG-ShakirNeural",
-                "--voice-rate", "0.96",
-                "--subtitle-enabled",
-                "--subtitle-position", "bottom",
-                "--subtitle-display-mode", "word_by_word",
-                "--subtitle-animation", "pop_spring",
-                "--font-size", "54",
+                "--custom-audio-file", str(tts_audio.resolve()),
+                "--no-subtitle-enabled",
                 "--bgm-type", "none",
                 "--bgm-volume", "0",
                 "--stop-at", "video",
@@ -393,15 +360,7 @@ def main() -> int:
                 check=False,
             )
             if result.returncode != 0:
-                print("MoneyPrinterTurbo dependency sync failed; switching to local Edge TTS renderer.")
-                print((result.stdout or "")[-5000:])
-                print((result.stderr or "")[-5000:])
-                build_local_tts_reel(
-                    output_dir / "daily-reel.mp4",
-                    scenes,
-                    egyptian_spoken_text(brief["script"]),
-                    output_dir / "fallback_render",
-                )
+                raise RuntimeError("MoneyPrinterTurbo dependency sync failed: " + (result.stderr or result.stdout)[-5000:])
             else:
                 result = subprocess.run(
                     command,
@@ -413,15 +372,7 @@ def main() -> int:
                     check=False,
                 )
                 if result.returncode != 0:
-                    print("MoneyPrinterTurbo native CLI failed; switching to local Edge TTS renderer.")
-                    print((result.stdout or "")[-5000:])
-                    print((result.stderr or "")[-5000:])
-                    build_local_tts_reel(
-                        output_dir / "daily-reel.mp4",
-                        scenes,
-                        egyptian_spoken_text(brief["script"]),
-                        output_dir / "fallback_render",
-                    )
+                    raise RuntimeError("MoneyPrinterTurbo native CLI failed: " + (result.stderr or result.stdout)[-5000:])
                 else:
                     task_videos = sorted(
                         (mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4")
