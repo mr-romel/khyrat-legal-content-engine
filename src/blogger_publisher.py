@@ -8,6 +8,7 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from blogger_editor import prepare_article
 
 BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
 DEFAULT_BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
@@ -91,15 +92,44 @@ def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
     scored.sort(key=lambda z:z[0],reverse=True)
     return [x[1] for x in scored if x[0]>0][:3]
 
-def build_article_html(title: str, topic: str, post: str, image_url: str, legal_sources: str, related: list[dict[str,str]]) -> str:
-    paras="\n".join(f"<p>{html.escape(p).replace(chr(10),'<br>')}</p>" for p in re.split(r"\n\s*\n+",str(post or "").strip()) if p.strip())
-    img=f'<figure><img src="{html.escape(image_url,quote=True)}" alt="{html.escape(title,quote=True)}" loading="eager" style="width:100%;height:auto;border-radius:12px"></figure>' if image_url else ""
-    rel="".join(f'<li><a href="{html.escape(x["url"],quote=True)}">{html.escape(x["title"])}</a></li>' for x in related)
-    source=f"<section><h2>المصادر والإطار القانوني</h2><p>{html.escape(legal_sources)}</p></section>" if legal_sources else ""
-    meta={"@context":"https://schema.org","@type":"BlogPosting","headline":title,"image":[image_url] if image_url else [],"author":{"@type":"Person","name":"محمود خيرت","url":LINKEDIN_URL},"publisher":{"@type":"Person","name":"محمود خيرت"},"keywords":_tags(topic)}
-    schema=html.escape(json.dumps(meta,ensure_ascii=False))
-    related_html=f"<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>" if rel else ""
-    return f'<article><script type="application/ld+json">{schema}</script>{img}<p><strong>{html.escape(title)}</strong></p>{paras}{source}{related_html}{_footer(topic)}</article>'
+def _paragraph_html(text: str) -> str:
+    return "".join(f"<p>{html.escape(part.strip())}</p>" for part in re.split(r"\n\s*\n+", str(text or "").strip()) if part.strip())
+
+
+def build_article_html(title: str, topic: str, post: str, image_url: str, legal_sources: str, related: list[dict[str,str]], article: dict[str, Any] | None = None) -> str:
+    article = article or {}
+    meta_description = str(article.get("meta_description", "")).strip()
+    lead = str(article.get("lead", "")).strip() or post
+    sections = article.get("sections") if isinstance(article.get("sections"), list) else []
+    faq = article.get("faq") if isinstance(article.get("faq"), list) else []
+    keywords = [str(x).strip() for x in article.get("keywords", []) if str(x).strip()] if isinstance(article.get("keywords"), list) else []
+
+    img = ""
+    if image_url:
+        img = f'<figure><img src="{html.escape(image_url, quote=True)}" alt="{html.escape(title, quote=True)}" loading="eager" decoding="async" style="width:100%;height:auto;border-radius:12px"></figure>'
+
+    sections_html = "".join(
+        f'<section><h2>{html.escape(str(item.get("heading", "")))}</h2>{_paragraph_html(str(item.get("body", "")))}</section>'
+        for item in sections if isinstance(item, dict) and str(item.get("heading", "")).strip() and str(item.get("body", "")).strip()
+    )
+    faq_html = ""
+    if faq:
+        faq_html = '<section><h2>أسئلة شائعة</h2>' + "".join(
+            f'<div><h3>{html.escape(str(item.get("question", "")))}</h3>{_paragraph_html(str(item.get("answer", "")))}</div>'
+            for item in faq if isinstance(item, dict) and str(item.get("question", "")).strip() and str(item.get("answer", "")).strip()
+        ) + "</section>"
+
+    graph = [
+        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"author":{"@type":"Person","name":"محمود خيرت","url":LINKEDIN_URL},"publisher":{"@type":"Person","name":"اسأل محمود"},"keywords":keywords or _tags(topic)},
+        {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود"},{"@type":"ListItem","position":2,"name":title}]}
+    ]
+    if faq:
+        graph.append({"@type":"FAQPage","mainEntity":[{"@type":"Question","name":str(x.get("question")),"acceptedAnswer":{"@type":"Answer","text":str(x.get("answer"))}} for x in faq if isinstance(x, dict) and x.get("question") and x.get("answer")])
+    schema = html.escape(json.dumps({"@context":"https://schema.org","@graph":graph}, ensure_ascii=False))
+
+    rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
+    related_html = f'<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>' if rel else ""
+    return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{related_html}{_footer(topic)}</article>'
 
 def publish_article(*,topic:str,post:str,image_url:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
     svc=service(); bid=blog_id(svc,os.getenv("BLOGGER_URL",DEFAULT_BLOG_URL).strip())
