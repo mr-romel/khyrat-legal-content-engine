@@ -284,13 +284,12 @@ def main() -> int:
         if len(scenes) < 4:
             needed = max(4, 8 - len(scenes))
             scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
-        if len(scenes) < 4:
-            cached = cached_fallback_assets(OUTPUT_ROOT, scene_dir, limit=8)
-            scenes.extend(cached)
-        if len(scenes) < 4:
-            scenes.extend(generate_legal_cards(scene_dir, topic, count=6))
-        if len(scenes) < 4:
-            raise RuntimeError("لم يتم العثور على عدد كافٍ من المواد المرخّصة مجانًا لهذا الريل.")
+        # Never recycle unrelated cached imagery into a new legal Reel.
+        # Fill missing slots with original topic-labeled graphics instead.
+        if len(scenes) < 8:
+            scenes.extend(generate_legal_cards(scene_dir, topic, count=8 - len(scenes)))
+        if len(scenes) < 8:
+            raise RuntimeError("لم يتم توفير 8 مشاهد مرتبطة بالموضوع لهذا الريل.")
         source_file = scene_dir / "sources.json"
         sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
         attributions = []
@@ -348,6 +347,22 @@ def main() -> int:
                 video = Path(video_line[-1].split("=", 1)[1].strip())
                 output_video = output_dir / "daily-reel.mp4"
                 shutil.copy2(video, output_video)
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_video)],
+                    capture_output=True, text=True, check=True, timeout=30,
+                )
+                duration = float(probe.stdout.strip() or "0")
+                streams = subprocess.run(
+                    ["ffprobe", "-v", "error", "-select_streams", "a:0",
+                     "-show_entries", "stream=codec_name",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_video)],
+                    capture_output=True, text=True, check=True, timeout=30,
+                )
+                if duration < 45 or not streams.stdout.strip():
+                    raise RuntimeError(
+                        f"Invalid Reel render: duration={duration:.1f}s audio={'yes' if streams.stdout.strip() else 'no'}"
+                    )
 
         update_row(service, cfg["sheet_id"], sheet_name, row_number, {
             "Reel Status": "REVIEW",
