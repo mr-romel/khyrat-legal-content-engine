@@ -533,3 +533,5 @@ if __name__ == "__main__":
 # Reel production verification: Gemini TTS + text-free motion graphics.
 
 # final reel quality verification marker
+
+# Syntax verification marker.
