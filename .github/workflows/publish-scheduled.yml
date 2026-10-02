@@ -104,6 +104,15 @@ jobs:
           python -m pip install uv
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           PYTHONPATH=src python src/reel_pipeline.py
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/reels/
+          if git diff --cached --quiet; then
+            echo "No new Reel package to commit."
+          else
+            git commit -m "Store generated Reel review package"
+            git push origin HEAD:$GITHUB_REF_NAME
+          fi
 
       - name: Publish the same due item to Blogger
         if: ${{ steps.publish.outcome == 'success' }}
