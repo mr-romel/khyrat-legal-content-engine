@@ -116,7 +116,8 @@ def _ensure_facebook_cta(post: str) -> str:
         "واتساب مباشر: https://wa.me/201022718375\n"
         "صفحة اسأل محمود: https://www.facebook.com/AskMahmoudNow"
     ) if "wa.me/201022718375" not in text else ""
-    return text + extra + ("\n\n" + contact_cta if contact_cta else "")
+    addition_text = "\n\n".join(additions).strip()
+    return text + (("\n\n" + addition_text) if addition_text else "") + (("\n\n" + contact_cta) if contact_cta else "")
 
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
@@ -246,14 +247,29 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 f"overall={image_qa_data.get('overall_score')}"
             )
 
-            if image_qa_data.get("decision") == "PASS":
+            relevance = int(image_qa_data.get("relevance_score", 0) or 0)
+            overall = int(image_qa_data.get("overall_score", 0) or 0)
+            issues_text = " ".join(str(x) for x in image_qa_data.get("issues", []))
+            severe_visual = any(
+                marker in issues_text.casefold()
+                for marker in ("severely malformed", "unusable", "multiple unexpected generated text")
+            )
+            # Image is a first-class publishing asset: accept any visually usable,
+            # topic-related result. QA is allowed to request refinement, but it must
+            # not turn ordinary imperfections into a text-only post.
+            usable_image = (
+                image_qa_data.get("decision") == "PASS"
+                or (relevance >= 30 and overall >= 30 and not severe_visual)
+            )
+            if usable_image:
                 generated_image_path = image_path
                 image_url = github_raw_url(str(image_path))
+                status = "PASS" if image_qa_data.get("decision") == "PASS" else "ACCEPTED_ADVISORY"
                 update_row(service, config["sheet_id"], sheet_name, row_number, {
                     "رابط الصورة": image_url,
                     "Image Mode": "DIRECT_CLOUDFLARE_QA",
                     "Image QA Attempt": str(image_attempt),
-                    "Image QA Status": "PASS",
+                    "Image QA Status": status,
                     "Image QA Score": str(image_qa_data.get("overall_score", "")),
                     "Image QA Issues": qa_summary,
                     "المحتوى": post,
@@ -284,8 +300,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print("Image rejected by visual QA; publishing text-only instead of an unrelated image.")
             break
 
-        except (ImageGenerationError, ImageQAError) as image_exc:
-            print(f"Image generation/QA attempt {image_attempt} failed: {image_exc}")
+        except ImageGenerationError as image_exc:
+            print(f"Image generation attempt {image_attempt} failed: {image_exc}")
             if image_attempt >= max_image_attempts:
                 update_row(service, config["sheet_id"], sheet_name, row_number, {
                     "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
@@ -299,6 +315,25 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 })
                 if existing_image_url and image_path.is_file():
                     generated_image_path = image_path
+        except ImageQAError as image_exc:
+            # QA service/quota outage must not erase a successfully generated,
+            # topic-specific image. Keep the image and record that QA was unavailable.
+            print(f"Image QA unavailable; preserving generated image: {image_exc}")
+            if image_path.is_file():
+                generated_image_path = image_path
+                image_url = github_raw_url(str(image_path))
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": image_url,
+                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
+                    "Image QA Attempt": str(image_attempt),
+                    "Image QA Status": "ACCEPTED_WITHOUT_QA",
+                    "Image QA Score": "",
+                    "Image QA Issues": str(image_exc)[:1500],
+                    "المحتوى": post,
+                    "وصف الصورة": current_image_brief,
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+                break
 
     if generated_image_path is None and not existing_image_url:
         print("No QA-approved image available; publication will continue text-only.")
