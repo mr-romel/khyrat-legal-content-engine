@@ -31,7 +31,21 @@ def choose_row(rows: list[dict[str, str]]) -> tuple[int, dict[str, str]] | None:
             continue
         if str(row.get("المحتوى", "")).strip():
             candidates.append((number, row))
-    return candidates[-1] if candidates else None
+
+    def _recent_key(item):
+        _, row = item
+        raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0
+
+    # Immediately after social publication, the just-published row has the
+    # newest execution timestamp. This avoids accidentally building a Reel
+    # from an older published row merely because it happens to be last in the sheet.
+    candidates.sort(key=lambda item: (_recent_key(item), item[0]), reverse=True)
+    return candidates[0] if candidates else None
 
 
 def egyptian_spoken_text(text: str) -> str:
