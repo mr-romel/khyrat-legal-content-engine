@@ -1,7 +1,7 @@
 [
   {
     "sentence_index": 1,
-    "delivery_emotion": "warning"
+    "delivery_emotion": "strong_hook"
   },
   {
     "sentence_index": 2,
@@ -13,11 +13,11 @@
   },
   {
     "sentence_index": 4,
-    "delivery_emotion": "warning"
+    "delivery_emotion": "calm_authority"
   },
   {
     "sentence_index": 5,
-    "delivery_emotion": "warning"
+    "delivery_emotion": "calm_authority"
   },
   {
     "sentence_index": 6,
@@ -25,10 +25,6 @@
   },
   {
     "sentence_index": 7,
-    "delivery_emotion": "warning"
-  },
-  {
-    "sentence_index": 8,
     "delivery_emotion": "warning"
   }
 ]
