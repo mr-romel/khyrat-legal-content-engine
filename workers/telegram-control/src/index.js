@@ -105,6 +105,26 @@ async function updateSheetRow(env, rowNumber, patch) {
   if (!response.ok) throw new Error(`Google Sheets row update failed: ${JSON.stringify(data)}`);
 }
 
+async function editReviewMessage(env, message, text) {
+  if (!message?.chat?.id || !message?.message_id) return null;
+  // Reel previews are Telegram video messages, so they have a caption rather
+  // than message text. editMessageText fails on those with HTTP 400.
+  if (message.video || message.animation || message.document) {
+    return telegram(env, "editMessageCaption", {
+      chat_id: message.chat.id,
+      message_id: message.message_id,
+      caption: text.slice(0, 1024),
+      reply_markup: { inline_keyboard: [] },
+    });
+  }
+  return telegram(env, "editMessageText", {
+    chat_id: message.chat.id,
+    message_id: message.message_id,
+    text,
+    reply_markup: { inline_keyboard: [] },
+  });
+}
+
 async function telegram(env, method, payload) {
   const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -304,46 +324,34 @@ async function handleCallback(env, callback) {
       "Reel Last Error": approval === "REJECTED" ? "Rejected from Telegram Reel review." : "",
     });
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: approval === "APPROVED" ? "تم اعتماد الريل." : "تم رفض الريل.", show_alert: false });
-    return telegram(env, "editMessageText", {
-      chat_id: callback.message.chat.id,
-      message_id: callback.message.message_id,
-      text: approval === "APPROVED"
+    return editReviewMessage(
+      env,
+      callback.message,
+      approval === "APPROVED"
         ? `✅ تم اعتماد الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيتم نشره تلقائيًا في تشغيل Reel Publisher القادم.`
         : `❌ تم رفض الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}`,
-    });
+    );
   }
 
   if (action === "approve") {
     if (!REVIEW_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
     await updateSheetRow(env, rowNumber, { "الحالة": "APPROVED", "آخر خطأ": "" });
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تمت الموافقة.", show_alert: false });
-    return telegram(env, "editMessageText", {
-      chat_id: callback.message.chat.id,
-      message_id: callback.message.message_id,
-      text: `✅ تمت الموافقة على الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيُنشر في أقرب تشغيل للنشر.`,
-    });
+    return editReviewMessage(env, callback.message, `✅ تمت الموافقة على الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيُنشر في أقرب تشغيل للنشر.`,);
   }
 
   if (action === "reject") {
     if (!REVIEW_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
     await updateSheetRow(env, rowNumber, { "الحالة": "REJECTED", "آخر خطأ": "Rejected from Telegram review." });
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تم الرفض.", show_alert: false });
-    return telegram(env, "editMessageText", {
-      chat_id: callback.message.chat.id,
-      message_id: callback.message.message_id,
-      text: `❌ تم رفض الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}`,
-    });
+    return editReviewMessage(env, callback.message, `❌ تم رفض الصف ${rowNumber}.\n\nالموضوع: ${row["الموضوع"] || ""}`,);
   }
 
   if (action === "retry") {
     if (!FAILED_STATUSES.has(current)) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `الحالة الحالية: ${current || "غير محددة"}`, show_alert: false });
     const result = await retryRow(env, rowNumber);
     await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "تم تجهيز إعادة التشغيل.", show_alert: false });
-    return telegram(env, "editMessageText", {
-      chat_id: callback.message.chat.id,
-      message_id: callback.message.message_id,
-      text: result,
-    });
+    return editReviewMessage(env, callback.message, result,);
   }
 
   return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "إجراء غير معروف.", show_alert: false });
