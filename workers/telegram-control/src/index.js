@@ -107,21 +107,27 @@ async function updateSheetRow(env, rowNumber, patch) {
 
 async function editReviewMessage(env, message, text) {
   if (!message?.chat?.id || !message?.message_id) return null;
-  // Reel previews are Telegram video messages, so they have a caption rather
-  // than message text. editMessageText fails on those with HTTP 400.
-  if (message.video || message.animation || message.document) {
+  const chatId = message.chat.id;
+  const messageId = message.message_id;
+  const replyMarkup = { inline_keyboard: [] };
+
+  // Reel previews are media messages. Telegram stores their accompanying
+  // text as a caption, so editMessageText is invalid for them.
+  if (message.video || message.animation || message.document || message.photo) {
     return telegram(env, "editMessageCaption", {
-      chat_id: message.chat.id,
-      message_id: message.message_id,
-      caption: text.slice(0, 1024),
-      reply_markup: { inline_keyboard: [] },
+      chat_id: chatId,
+      message_id: messageId,
+      caption: String(text || "").slice(0, 1024),
+      reply_markup: replyMarkup,
     });
   }
+
+  // Normal review/control messages are text messages.
   return telegram(env, "editMessageText", {
-    chat_id: message.chat.id,
-    message_id: message.message_id,
-    text,
-    reply_markup: { inline_keyboard: [] },
+    chat_id: chatId,
+    message_id: messageId,
+    text: String(text || ""),
+    reply_markup: replyMarkup,
   });
 }
 
