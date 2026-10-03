@@ -179,11 +179,12 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     return output_path
 
 
-def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
+def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str = "") -> Path:
     """Professional kinetic layer: subtle moving geometry + topic-aware end card."""
     work_dir = output_video.parent / "motion"
     work_dir.mkdir(parents=True, exist_ok=True)
     endcard = work_dir / "brand_endcard.mp4"
+    intro = work_dir / "brand_intro.mp4"
     font_candidates = [
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
@@ -194,6 +195,25 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
     from bidi.algorithm import get_display
     def rtl_text(value: str) -> str:
         return get_display(arabic_reshaper.reshape(value))
+    # Animated intro: an actual kinetic graphic sequence, not a static slide.
+    intro_img = Image.new("RGB", (1080, 1920), (8, 13, 22))
+    intro_draw = ImageDraw.Draw(intro_img)
+    intro_title = ImageFont.truetype(font_path, 88) if font_path else ImageFont.load_default()
+    intro_sub = ImageFont.truetype(font_path, 52) if font_path else ImageFont.load_default()
+    intro_draw.text((540, 760), rtl_text("اسأل محمود"), font=intro_title, anchor="mm", fill="white")
+    intro_draw.text((540, 870), rtl_text("معلومة قانونية"), font=intro_sub, anchor="mm", fill=(210, 220, 235))
+    if topic:
+        topic_font = ImageFont.truetype(font_path, 42) if font_path else ImageFont.load_default()
+        intro_draw.text((540, 1030), rtl_text(str(topic)[:55]), font=topic_font, anchor="mm", fill=(175, 195, 220))
+    intro_png = work_dir / "brand_intro.png"
+    intro_img.save(intro_png, quality=95)
+    subprocess.run([
+        "ffmpeg","-y","-loop","1","-i",str(intro_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-t","1.8",
+        "-vf","scale=1080:1920,zoompan=z='min(zoom+0.0015,1.045)':d=1:s=1080x1920:fps=30,drawbox=x='mod(t*420,1450)-260':y='620+180*sin(t*2.2)':w=18:h=520:color=white@0.55:t=fill,drawbox=x='180+620*sin(t*1.15)':y=1130:w=420:h=8:color=white@0.45:t=fill",
+        "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","128k","-shortest",str(intro)
+    ], check=True, timeout=180)
+
     img = Image.new("RGB", (1080, 1920), (10, 16, 24))
     d = ImageDraw.Draw(img)
     # layered framing, subtle glow and Facebook mark
@@ -229,7 +249,7 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
         "ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)
     ], check=True, timeout=900)
     concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{base.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
+    concat_list.write_text(f"file '{intro.resolve()}\\nfile '{base.resolve()}\\nfile '{endcard.resolve()}\\n", encoding="utf-8")
     subprocess.run([
         "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),
         "-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)
@@ -560,7 +580,7 @@ def main() -> int:
                     raw_video = output_dir / "mpt-base.mp4"
                     shutil.copy2(task_videos[-1], raw_video)
                     output_video = output_dir / "daily-reel.mp4"
-                    add_motion_graphics_layer(raw_video, output_video)
+                    add_motion_graphics_layer(raw_video, output_video, topic)
                     raw_video.unlink(missing_ok=True)
 
 
