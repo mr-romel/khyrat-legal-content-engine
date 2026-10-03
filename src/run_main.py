@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import json
 import re
+from pathlib import Path
 
 import gemini
 import main as production_main
@@ -355,11 +357,47 @@ def _recover_stale_processing_rows(*, service, spreadsheet_id: str, sheet_name: 
     return recovered
 
 
+REEL_SOURCE_PATH = Path("generated/reel_source.json")
+
+def _write_reel_source_context(*, service, config, sheet_name: str, row_number: int) -> None:
+    """Persist the exact row successfully published by the core worker."""
+    REEL_SOURCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+        rows = [row_to_dict(row) for row in values[1:]]
+        index = row_number - 2
+        if index < 0 or index >= len(rows):
+            raise RuntimeError(f"Published row {row_number} is outside the current Sheet range.")
+        row = rows[index]
+        fb = str(row.get("Facebook Status", "") or "").strip().upper()
+        li = str(row.get("LinkedIn Status", "") or "").strip().upper()
+        if fb != "PUBLISHED" and li != "PUBLISHED":
+            REEL_SOURCE_PATH.unlink(missing_ok=True)
+            print(f"Reel source not created: row {row_number} has no successful social publication.")
+            return
+        payload = {
+            "row_number": row_number,
+            "source_id": str(row.get("ID", "") or ""),
+            "topic": str(row.get("الموضوع", "") or ""),
+            "post": str(row.get("المحتوى", "") or ""),
+            "facebook_post_id": str(row.get("Facebook Post ID", "") or ""),
+            "linkedin_post_id": str(row.get("LinkedIn Post ID", "") or ""),
+            "published_status": str(row.get("الحالة", "") or ""),
+            "created_at": now_cairo().isoformat(),
+        }
+        REEL_SOURCE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Reel source locked to published row {row_number} (ID={payload['source_id']}).")
+    except Exception as exc:
+        REEL_SOURCE_PATH.unlink(missing_ok=True)
+        print(f"Reel source context unavailable; downstream Reel will not guess another row: {exc}")
+
+
 def _smart_main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
     print("=" * 70)
     current = now_cairo()
+    REEL_SOURCE_PATH.unlink(missing_ok=True)
     print(f"Current Cairo time: {current.isoformat()}")
     config = production_main.load_config()
     service = create_service(config["service_account_info"])
@@ -398,6 +436,7 @@ def _smart_main() -> None:
     row_number, row = selected
     print(f"Decision engine: selected row {row_number} using historical topic/category/angle signals.")
     production_main.process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+    _write_reel_source_context(service=service, config=config, sheet_name=sheet_name, row_number=row_number)
 
 
 production_main._prepare_editorial_assets = _capture_editorial_assets
