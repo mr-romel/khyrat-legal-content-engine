@@ -22,30 +22,46 @@ MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
 
 
-def choose_row(rows: list[dict[str, str]]) -> tuple[int, dict[str, str]] | None:
-    candidates = []
-    for number, row in enumerate(rows, start=2):
-        if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
-            continue
-        if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
-            continue
-        if str(row.get("المحتوى", "")).strip():
-            candidates.append((number, row))
-
-    def _recent_key(item):
-        _, row = item
-        raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
+def choose_row(
+    rows: list[dict[str, str]],
+    source_context: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, str]] | None:
+    """Select only the row explicitly locked by the core publishing worker."""
+    if source_context:
         try:
-            from datetime import datetime
-            return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
-        except Exception:
-            return 0.0
+            target_number = int(source_context.get("row_number"))
+        except (TypeError, ValueError):
+            return None
+        index = target_number - 2
+        if index < 0 or index >= len(rows):
+            print(f"Reel source row {target_number} is outside the current Sheet range.")
+            return None
+        row = rows[index]
+        source_id = str(source_context.get("source_id", "") or "").strip()
+        row_id = str(row.get("ID", "") or "").strip()
+        if source_id and row_id and source_id != row_id:
+            print(f"Reel source mismatch: locked ID={source_id}, Sheet ID={row_id}. Refusing to guess another row.")
+            return None
+        fb_ok = str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED"
+        li_ok = str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED"
+        if not (fb_ok or li_ok):
+            print(f"Reel source row {target_number} has no successful social publication.")
+            return None
+        if not str(row.get("المحتوى", "")).strip():
+            print(f"Reel source row {target_number} has no post content.")
+            return None
+        if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
+            print(f"Reel source row {target_number} already has Reel Status={row.get('Reel Status')}.")
+            return None
+        locked_topic = str(source_context.get("topic", "") or "").strip()
+        if locked_topic and locked_topic != str(row.get("الموضوع", "") or "").strip():
+            print(f"Reel source topic mismatch for row {target_number}; refusing to guess another row.")
+            return None
+        print(f"Reel source locked to exact published row {target_number}.")
+        return target_number, row
 
-    # Immediately after social publication, the just-published row has the
-    # newest execution timestamp. This avoids accidentally building a Reel
-    # from an older published row merely because it happens to be last in the sheet.
-    candidates.sort(key=lambda item: (_recent_key(item), item[0]), reverse=True)
-    return candidates[0] if candidates else None
+    print("Reel generator: no locked source context; refusing to select an arbitrary published row.")
+    return None
 
 
 def egyptian_spoken_text(text: str) -> str:
@@ -399,7 +415,16 @@ def main() -> int:
     sheet_name = cfg["sheet_range"].split("!", 1)[0]
     ensure_headers(service, cfg["sheet_id"], sheet_name)
     values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
-    selected = choose_row([row_to_dict(row) for row in values[1:]])
+    source_path = Path("generated/reel_source.json")
+    if not source_path.is_file():
+        print("Reel generator: no locked source from the core publishing worker; refusing to choose another row.")
+        return 0
+    try:
+        source_context = json.loads(source_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Reel generator: invalid locked source context: {exc}")
+        return 0
+    selected = choose_row([row_to_dict(row) for row in values[1:]], source_context)
     if not selected:
         print("Reel generator: no eligible published content row.")
         return 0
