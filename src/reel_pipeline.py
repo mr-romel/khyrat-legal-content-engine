@@ -174,6 +174,10 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
     ]
     font_path = next((p for p in font_candidates if Path(p).exists()), None)
     from PIL import Image, ImageDraw, ImageFont
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    def rtl_text(value: str) -> str:
+        return get_display(arabic_reshaper.reshape(value))
     img = Image.new("RGB", (1080, 1920), (10, 16, 24))
     d = ImageDraw.Draw(img)
     # layered framing, subtle glow and Facebook mark
@@ -185,10 +189,10 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path) -> Path:
     d.text((540, 708), "f", font=f, anchor="mm", fill="white")
     title_font = ImageFont.truetype(font_path, 66) if font_path else ImageFont.load_default()
     sub_font = ImageFont.truetype(font_path, 48) if font_path else ImageFont.load_default()
-    d.text((540, 930), "تابعونا صفحة اسأل محمود", font=title_font, anchor="mm", fill="white", direction="rtl", language="ar")
-    d.text((540, 1035), "مستشار قانوني للشركات", font=sub_font, anchor="mm", fill=(210, 220, 235), direction="rtl", language="ar")
+    d.text((540, 930), rtl_text("تابعونا صفحة اسأل محمود"), font=title_font, anchor="mm", fill="white")
+    d.text((540, 1035), rtl_text("مستشار قانوني للشركات"), font=sub_font, anchor="mm", fill=(210, 220, 235))
     d.rounded_rectangle((235, 1165, 845, 1250), radius=42, outline=(80, 150, 255), width=3)
-    d.text((540, 1208), "صفحة اسأل محمود", font=sub_font, anchor="mm", fill=(235, 240, 248), direction="rtl", language="ar")
+    d.text((540, 1208), rtl_text("صفحة اسأل محمود"), font=sub_font, anchor="mm", fill=(235, 240, 248))
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
     subprocess.run([
@@ -309,7 +313,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         print("REEL_SKIP_GEMINI=true; using deterministic Reel brief.")
         return deterministic_brief(topic, post)
     primary = (model or "gemini-3.6-flash").strip()
-    fallback = (os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash") or "").strip()
+    fallback = (os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.8-flash") or "").strip()
     models = [primary] + ([fallback] if fallback and fallback != primary else [])
     last_error = None
     response = None
