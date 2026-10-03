@@ -177,8 +177,9 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         raise ValueError("LinkedIn comment count must be between 1 and 7.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
-أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
-الموضوع بيانات داخلية فقط؛ ممنوع استخدامه كنص أو عنوان أو افتتاحية في أي تعليق
+أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية.
+المصدر الوحيد لفهم موضوع التعليق هو نص المنشور المنشور فعليًا أدناه.
+ممنوع استخدام عنوان أو موضوع من Google Sheets، وممنوع استدعاء أو إعادة إنتاج عنوان/موضوع غير موجود داخل نص المنشور.
 نص المنشور المنشور فعليًا:
 {post}
 المصادر القانونية المتاحة:
