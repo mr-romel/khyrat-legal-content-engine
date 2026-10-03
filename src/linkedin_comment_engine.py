@@ -145,17 +145,22 @@ def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
             time.sleep(delay)
     raise RuntimeError("LinkedIn comment generation failed.")
 
-def _fallback_linkedin_comments(topic: str, count: int) -> list[str]:
-    subject = str(topic or "").strip() or "الموضوع المطروح"
+def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
+    """Deterministic comments must derive from the published post, never the Sheet title."""
+    post_text = re.sub(r"\s+", " ", str(post or "")).strip()
     templates = [
-        f"في {subject}، المراجعة القانونية المبكرة تساعد الإدارة على رؤية أثر القرار قبل الالتزام به",
+        "الوقائع والمستندات هي اللي بتحسم التطبيق العملي، مش القاعدة العامة وحدها",
         "من منظور إداري، تحديد المسؤوليات والمواعيد والالتزامات قبل التنفيذ يقلل تكلفة التصحيح",
-        "القاعدة القانونية وحدها لا تكفي؛ الوقائع والمستندات هي التي تحدد القرار العملي المناسب",
-        "القرار السريع ليس دائمًا الأقل تكلفة عندما يكون له أثر تعاقدي أو مالي",
-        "التمييز بين القاعدة العامة والوقائع الخاصة مهم قبل بناء قرار إداري على فهم مختصر",
-        "المراجعة القانونية هنا أداة لإدارة المخاطر وليست مجرد خطوة شكلية قبل التوقيع",
-        "عندما توجد بدائل متعددة، تقييم أثر كل بديل قانونيًا وتجاريًا يجعل القرار أكثر وضوحًا",
+        "التفصيل الصغير في المستند أو الإجراء ممكن يغيّر التقييم القانوني للموقف بالكامل",
+        "القرار السريع مش دايمًا الأقل تكلفة، خصوصًا لما يكون له أثر تعاقدي أو مالي",
+        "المهم إن القرار يتبني على الوقائع الفعلية والمستندات الموجودة، مش على وصف مختصر للمشكلة",
+        "المراجعة القانونية هنا أداة لإدارة المخاطر قبل ما المشكلة تتحول إلى نزاع أو تكلفة إضافية",
+        "لما يكون قدام الإدارة أكتر من بديل، مقارنة الأثر القانوني والتجاري لكل بديل بتخلي القرار أوضح",
     ]
+    # The published post is the only source of subject matter. The fallback
+    # never interpolates the spreadsheet topic/title.
+    if not post_text:
+        return [normalize_comment(x) for x in templates[:count]]
     return [normalize_comment(x) for x in templates[:count]]
 
 
@@ -163,13 +168,13 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     count = count if count is not None else choose_comment_count(topic, post)
     if not api_key:
         print("GEMINI_API_KEY is missing; using deterministic LinkedIn comments.")
-        return _fallback_linkedin_comments(topic, count)
+        return _fallback_linkedin_comments(post, count)
     # 3-7 is the target bundle size; incremental refill may legitimately request 1-2 remaining comments\n    if count < 1 or count > LINKEDIN_MAX_COMMENTS:\n        raise ValueError("LinkedIn comment count must be between 1 and 7.")
     fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     prompt = f"""
 أنشئ بالضبط {count} تعليقات مختلفة لهذا المنشور، مع اختلاف واضح في الطول والإيقاع والزاوية
-الموضوع: {topic}
-نص المنشور:
+الموضوع بيانات داخلية فقط؛ ممنوع استخدامه كنص أو عنوان أو افتتاحية في أي تعليق
+نص المنشور المنشور فعليًا:
 {post}
 المصادر القانونية المتاحة:
 {legal_sources or "لا توجد مصادر قانونية مدخلة."}
@@ -181,7 +186,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
 """.strip()
     if _GEMINI_QUOTA_EXHAUSTED:
         print("Gemini quota already exhausted in this worker run; using deterministic LinkedIn comments without another API call.")
-        return _fallback_linkedin_comments(topic, count)
+        return _fallback_linkedin_comments(post, count)
     client = genai.Client(api_key=api_key)
     try:
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
@@ -189,16 +194,16 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
         status = _extract_status_code(primary_exc)
         if status == 429:
             print("LinkedIn comment AI quota exhausted (429); using deterministic comments immediately.")
-            return _fallback_linkedin_comments(topic, count)
+            return _fallback_linkedin_comments(post, count)
         if status in TRANSIENT_STATUS_CODES and fallback and fallback != model.strip():
             try:
                 response = _generate(client=client, model=fallback, prompt=prompt, attempts=FALLBACK_RETRIES)
             except Exception as fallback_exc:
                 print(f"LinkedIn comment AI unavailable; using deterministic fallback: {fallback_exc}")
-                return _fallback_linkedin_comments(topic, count)
+                return _fallback_linkedin_comments(post, count)
         else:
             print(f"LinkedIn comment AI unavailable; using deterministic fallback: {primary_exc}")
-            return _fallback_linkedin_comments(topic, count)
+            return _fallback_linkedin_comments(post, count)
     try:
         data = _extract_json(getattr(response, "text", ""))
         comments = _normalize_comments(data.get("linkedin_comments"), count)
@@ -209,5 +214,5 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
             )
     except Exception as exc:
         print(f"LinkedIn comment AI output validation failed; using deterministic fallback: {exc}")
-        return _fallback_linkedin_comments(topic, count)
+        return _fallback_linkedin_comments(post, count)
     return comments
