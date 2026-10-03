@@ -7,6 +7,24 @@ from sheets import create_service, get_values, row_to_dict, update_row
 from telegram_bot import answer_callback, authorized_user, edit_message, get_updates, notify
 
 
+
+def _edit_review_message(message: dict, text: str) -> None:
+    chat_id = message.get("chat", {}).get("id")
+    message_id = message.get("message_id")
+    if not chat_id or not message_id:
+        return
+    # Video reviews use a caption, not message text.
+    if message.get("video") or message.get("animation") or message.get("document"):
+        from telegram_bot import _call
+        _call("editMessageCaption", {
+            "chat_id": str(chat_id),
+            "message_id": int(message_id),
+            "caption": text[:1024],
+            "reply_markup": {"inline_keyboard": []},
+        })
+        return
+    edit_message(str(chat_id), int(message_id), text)
+
 def main() -> None:
     service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
@@ -67,9 +85,8 @@ def main() -> None:
                 answer_callback(callback.get("id", ""), "تمت الموافقة. سينشر في أقرب تشغيل للنشر.")
                 message = callback.get("message", {})
                 if message.get("chat", {}).get("id") and message.get("message_id"):
-                    edit_message(
-                        str(message["chat"]["id"]),
-                        int(message["message_id"]),
+                    _edit_review_message(
+                        message,
                         f"✅ تمت الموافقة على الصف {row_number}.\n\nالموضوع: {row.get('الموضوع','')}\n\nسيتم نشره في أقرب تشغيل آمن للنشر.",
                     )
 
@@ -90,9 +107,8 @@ def main() -> None:
                 answer_callback(callback.get("id", ""), "تم رفض المنشور.")
                 message = callback.get("message", {})
                 if message.get("chat", {}).get("id") and message.get("message_id"):
-                    edit_message(
-                        str(message["chat"]["id"]),
-                        int(message["message_id"]),
+                    _edit_review_message(
+                        message,
                         f"❌ تم رفض الصف {row_number}.\n\nالموضوع: {row.get('الموضوع','')}",
                     )
 
