@@ -22,6 +22,34 @@ class BloggerPublishError(RuntimeError): pass
 
 def _clean(v: Any) -> str: return " ".join(str(v or "").strip().split())
 
+_EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال)?|زاوية\s*جديدة|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
+
+def _strip_editorial_metadata(text: str) -> str:
+    value = str(text or "")
+    value = _EDITORIAL_META_RE.sub("", value)
+    value = re.sub(r"\s{2,}", " ", value)
+    return value.strip()
+
+def _article_copy(article: dict[str, Any]) -> dict[str, Any]:
+    out = dict(article or {})
+    out["title"] = _strip_editorial_metadata(out.get("title", ""))
+    out["lead"] = _strip_editorial_metadata(out.get("lead", ""))
+    for key in ("meta_description", "excerpt"):
+        out[key] = _strip_editorial_metadata(out.get(key, ""))
+    sections = []
+    for item in out.get("sections", []) if isinstance(out.get("sections"), list) else []:
+        if isinstance(item, dict):
+            sections.append({"heading": _strip_editorial_metadata(item.get("heading", "")),
+                             "body": _strip_editorial_metadata(item.get("body", ""))})
+    out["sections"] = sections
+    faq = []
+    for item in out.get("faq", []) if isinstance(out.get("faq"), list) else []:
+        if isinstance(item, dict):
+            faq.append({"question": _strip_editorial_metadata(item.get("question", "")),
+                        "answer": _strip_editorial_metadata(item.get("answer", ""))})
+    out["faq"] = faq
+    return out
+
 def _safe_filename(v: str) -> str:
     return (re.sub(r"\s+", "_", re.sub(r"[^\w\-\u0600-\u06ff ]+", "", str(v or ""), flags=re.UNICODE).strip())[:90] or "legal_article")
 
@@ -142,33 +170,44 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
     return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
-    """Structured Blogger article fallback when the editorial LLM is unavailable."""
-    clean_topic = _clean(topic)
-    source_text = _clean(legal_sources)
-    body = _clean(post)
-    title = f"{clean_topic}: ماذا تعرف قبل اتخاذ أي إجراء قانوني؟"[:110]
+    """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
+    body = _strip_editorial_metadata(_clean(post))
+    source_text = _strip_editorial_metadata(_clean(legal_sources))
     sentences = [x.strip() for x in re.split(r"(?<=[؟!])\s+|(?<=[.،])\s+", body) if x.strip()]
-    evidence = " ".join(sentences[:4]).strip() or body
+    evidence = " ".join(sentences[:5]).strip() or body
+    # Do not reuse the Sheet topic/title verbatim. The title is built from the
+    # reader's legal question and the underlying content.
+    title = "ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟"
+    if "عقد" in body:
+        title = "قبل توقيع أي عقد: نقاط قانونية يجب مراجعتها"
+    elif "إنذار" in body or "إخطار" in body:
+        title = "قبل إرسال أو استلام إنذار قانوني: ما الذي يجب مراجعته؟"
+    elif "إيجار" in body:
+        title = "مشكلات الإيجار: ما الذي يجب مراجعته قبل اتخاذ إجراء؟"
+    elif "عمل" in body or "موظف" in body:
+        title = "في مسائل العمل: ما الذي يجب مراجعته قبل اتخاذ القرار؟"
+    elif "شيك" in body or "أمانة" in body:
+        title = "في الشيكات وإيصالات الأمانة: ما الذي يجب مراجعته قانونيًا؟"
     article = {
         "title": title,
-        "meta_description": f"شرح عملي ومبسط لموضوع {clean_topic} في السياق القانوني المصري، وما الذي يجب مراجعته قبل اتخاذ قرار أو إجراء",
-        "excerpt": f"دليل عملي حول {clean_topic} يركز على الفكرة الأساسية، أثرها العملي، والوقائع والمستندات التي قد تغيّر التقييم القانوني",
-        "lead": f"إذا كنت تبحث عن موقف {clean_topic}، فابدأ بالقاعدة العملية: لا يكفي اسم الموضوع وحده للحكم على الحالة، لأن النتيجة القانونية تتأثر بالوقائع والمستندات والإجراء الذي تم اتخاذه. المادة الأصلية تتناول ذلك من زاوية عملية، وهنا نعيد ترتيبها في صورة دليل يصلح للقراءة والبحث.",
+        "meta_description": "شرح قانوني عملي يوضح ما الذي يجب مراجعته في الوقائع والمستندات والإجراءات قبل اتخاذ قرار قانوني",
+        "excerpt": "دليل عملي يركز على الوقائع والمستندات والخطوات التي قد تؤثر في التقييم القانوني",
+        "lead": f"قبل اتخاذ أي خطوة قانونية، المهم ليس اسم المشكلة وحده، وإنما ما حدث فعليًا وما يثبته من مستندات ومراسلات وإجراءات. {evidence}",
         "sections": [
-            {"heading": f"ما المقصود بـ {clean_topic} في التطبيق العملي؟", "body": evidence},
-            {"heading": "ما الذي يغيّر التقييم القانوني؟", "body": f"في أي واقعة مرتبطة بهذا الموضوع، لا تنظر إلى الواقعة منفصلة عن المستندات والتسلسل الزمني وتصرفات الأطراف. {body}"},
-            {"heading": "ما المستندات والوقائع التي يجب مراجعتها؟", "body": "راجع العقود والمراسلات والإيصالات والإخطارات وأي مستند يثبت ما حدث فعليًا، مع ترتيبها زمنيًا. وجود المستند وحده لا يحسم النتيجة دائمًا؛ المهم أيضًا مضمونه وتاريخ صدوره وعلاقته بالواقعة."},
-            {"heading": "أخطاء عملية قد تضعف الموقف", "body": "من أكثر الأخطاء شيوعًا اتخاذ إجراء قبل مراجعة المستندات، أو الاعتماد على قاعدة عامة دون التأكد من انطباقها على الحالة، أو تجاهل المواعيد والإخطارات والإجراءات المطلوبة. لذلك يجب أن يسبق القرارَ المهمَّ فحصٌ للوقائع والمستندات ذات الصلة."},
-            {"heading": "كيف تتعامل مع الموضوع قبل اتخاذ القرار؟", "body": f"ابدأ بتحديد الوقائع الثابتة، ثم اجمع المستندات، ثم حدّد الإجراء المقترح وآثاره المحتملة، وبعدها راجع المسألة على ضوء القواعد القانونية المنطبقة. {('المصادر القانونية المتاحة للمحتوى: ' + source_text) if source_text else 'وإذا كانت الواقعة مرتبطة بعقد أو نزاع أو إجراء قائم، فالتفاصيل الدقيقة هي التي تحدد الخطوة المناسبة.'}"},
+            {"heading": "متى تبدأ المشكلة القانونية فعليًا؟", "body": evidence},
+            {"heading": "ما الوقائع التي تغيّر الموقف القانوني؟", "body": f"راجع التسلسل الزمني للوقائع، وصفة كل طرف، وما تم الاتفاق عليه أو إبلاغه أو تنفيذه. {body}"},
+            {"heading": "ما المستندات التي يجب مراجعتها؟", "body": "اجمع العقود والمراسلات والإيصالات والإخطارات وأي مستند يثبت الواقعة، ثم رتبها زمنيًا. دلالة المستند تعتمد على مضمونه وتاريخه وعلاقته المباشرة بالواقعة."},
+            {"heading": "ما الأخطاء التي يجب تجنبها؟", "body": "تجنب اتخاذ إجراء قبل مراجعة المستندات، أو الاعتماد على قاعدة عامة دون التأكد من انطباقها، أو تجاهل المواعيد والإخطارات والإجراءات اللازمة."},
+            {"heading": "كيف تتعامل مع الموقف قبل اتخاذ القرار؟", "body": f"ابدأ بتثبيت الوقائع، ثم حصر المستندات، ثم تحديد الإجراء المقترح وآثاره المحتملة، وبعد ذلك راجع القواعد القانونية المنطبقة. {('المصادر القانونية المتاحة للمحتوى: ' + source_text) if source_text else ''}"},
         ],
         "faq": [
-            {"question": f"هل اسم الموضوع وحده يكفي لتحديد الموقف القانوني في {clean_topic}؟", "answer": "لا، لأن التطبيق يتوقف على الوقائع والمستندات والصفة والإجراء والظروف المحيطة بالحالة"},
-            {"question": f"ما الذي يجب مراجعته أولًا في مسألة {clean_topic}؟", "answer": "ابدأ بالوقائع الثابتة والمستندات والتسلسل الزمني والإخطارات أو الإجراءات التي تمت بالفعل"},
-            {"question": "هل يمكن تطبيق قاعدة عامة على كل الحالات المتشابهة؟", "answer": "ليس بالضرورة، لأن الفروق في الوقائع والمستندات والصفة القانونية قد تغيّر النتيجة"},
+            {"question": "هل يكفي وصف المشكلة وحده لتحديد الموقف القانوني؟", "answer": "لا، لأن التقييم يعتمد على الوقائع والمستندات والصفة والإجراءات التي تمت بالفعل."},
+            {"question": "ما أول شيء يجب مراجعته قبل اتخاذ إجراء؟", "answer": "ابدأ بالوقائع الثابتة والمستندات والتسلسل الزمني وأي إخطارات أو إجراءات سابقة."},
+            {"question": "هل القاعدة القانونية العامة تنطبق على كل الحالات المتشابهة؟", "answer": "ليس بالضرورة؛ الفروق في الوقائع والمستندات والصفة القانونية قد تؤثر في النتيجة."},
         ],
-        "keywords": [clean_topic, f"{clean_topic} في القانون المصري", f"إجراءات {clean_topic}", f"حقوق والتزامات {clean_topic}"],
+        "keywords": ["قانون مصر", "حقوق قانونية", "إجراءات قانونية", "مستندات قانونية"],
     }
-    return article
+    return _article_copy(article)
 
 def publish_article(*,topic:str,post:str,image_url:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
     svc=service(); bid=blog_id(svc,os.getenv("BLOGGER_URL",DEFAULT_BLOG_URL).strip())
@@ -191,6 +230,8 @@ def publish_article(*,topic:str,post:str,image_url:str="",legal_sources:str="",l
         title = str(article.get("title") or title).strip()[:110]
         search_query = title
         candidates = list(dict.fromkeys([title, *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()]]))[:12]
+    article = _article_copy(article or {})
+    title = str(article.get("title") or title).strip()[:110]
     content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
     labs=list(dict.fromkeys([*(labels or []),"قانون مصر","اسأل محمود"]))[:10]
     body={"title":title,"content":content,"labels":labs,"readerComments":"allow","customMetaData":json.dumps({"search_query":search_query,"search_candidates":candidates,"topic":topic,"seo_title_source":"google_suggest","brand":"Ask Mahmoud"},ensure_ascii=False)}
