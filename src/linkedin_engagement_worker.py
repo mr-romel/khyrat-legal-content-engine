@@ -232,7 +232,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             })
             created += 1
 
-        target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+        target_count = choose_comment_count("", row.get("المحتوى", ""))
         published_count = sum(
             1 for x in post_events
             if str(x.get("action", "")).upper() == "COMMENT"
