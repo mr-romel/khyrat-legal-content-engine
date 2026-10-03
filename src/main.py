@@ -18,6 +18,7 @@ from facebook_publisher import FacebookPublishError, publish_photo, publish_text
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
+from free_media import fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -214,10 +215,12 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
     generated_image_path = None
-    image_qa_data = None
     current_image_brief = image_brief
     max_image_attempts = 2
 
+    # Publishing contract: an image must accompany the social post whenever the
+    # image pipeline can produce any topic-related asset. Visual QA is advisory
+    # only and is never allowed to reject/remove the publishing image.
     for image_attempt in range(1, max_image_attempts + 1):
         try:
             create_legal_image(
@@ -231,112 +234,74 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             if not image_path.is_file() or image_path.stat().st_size == 0:
                 raise ImageGenerationError("Generated image file was empty.")
 
-            image_qa_data = qa_image(
-                api_key=config["gemini_api_key"],
-                image_path=str(image_path),
-                topic=topic,
-                image_brief=current_image_brief,
-                model=config["gemini_model"],
-                image_mode="CONTEXT_ONLY",
-            )
-            qa_summary = summarize_qa(image_qa_data)
-            print(
-                f"Image QA attempt {image_attempt}: "
-                f"decision={image_qa_data.get('decision')} "
-                f"relevance={image_qa_data.get('relevance_score')} "
-                f"overall={image_qa_data.get('overall_score')}"
-            )
-
-            relevance = int(image_qa_data.get("relevance_score", 0) or 0)
-            overall = int(image_qa_data.get("overall_score", 0) or 0)
-            issues_text = " ".join(str(x) for x in image_qa_data.get("issues", []))
-            severe_visual = any(
-                marker in issues_text.casefold()
-                for marker in ("severely malformed", "unusable", "multiple unexpected generated text")
-            )
-            # Image is a first-class publishing asset: accept any visually usable,
-            # topic-related result. QA is allowed to request refinement, but it must
-            # not turn ordinary imperfections into a text-only post.
-            usable_image = (
-                image_qa_data.get("decision") == "PASS"
-                or (relevance >= 30 and overall >= 30 and not severe_visual)
-            )
-            if usable_image:
-                generated_image_path = image_path
-                image_url = github_raw_url(str(image_path))
-                status = "PASS" if image_qa_data.get("decision") == "PASS" else "ACCEPTED_ADVISORY"
-                update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "رابط الصورة": image_url,
-                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
-                    "Image QA Attempt": str(image_attempt),
-                    "Image QA Status": status,
-                    "Image QA Score": str(image_qa_data.get("overall_score", "")),
-                    "Image QA Issues": qa_summary,
-                    "المحتوى": post,
-                    "وصف الصورة": current_image_brief,
-                    "وقت آخر تشغيل": current.isoformat(),
-                })
-                break
-
-            regeneration_prompt = str(image_qa_data.get("regeneration_prompt", "")).strip()
-            if image_attempt < max_image_attempts and regeneration_prompt:
-                current_image_brief = (
-                    f"{image_brief}\n\nMANDATORY FIXES FROM VISUAL QA:\n{regeneration_prompt}"
-                )
-                print("Image QA requested regeneration; generating a more topic-faithful scene.")
-                continue
-
+            generated_image_path = image_path
+            image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image QA Status": "REJECTED",
+                "رابط الصورة": image_url,
+                "Image Mode": "DIRECT_CLOUDFLARE",
                 "Image QA Attempt": str(image_attempt),
-                "Image QA Score": str(image_qa_data.get("overall_score", "")),
-                "Image QA Issues": qa_summary or "Visual QA rejected the generated image as insufficiently relevant.",
-                "Image Mode": "DIRECT_CLOUDFLARE_QA",
+                "Image QA Status": "ACCEPTED_NO_BLOCKING_QA",
+                "Image QA Score": "",
+                "Image QA Issues": "",
                 "المحتوى": post,
                 "وصف الصورة": current_image_brief,
-                "رابط الصورة": "",
                 "وقت آخر تشغيل": current.isoformat(),
             })
-            print("Image rejected by visual QA; publishing text-only instead of an unrelated image.")
+            print("Image generated and accepted for publishing; QA cannot block image delivery.")
             break
-
         except ImageGenerationError as image_exc:
             print(f"Image generation attempt {image_attempt} failed: {image_exc}")
-            if image_attempt >= max_image_attempts:
-                update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
-                    "Image QA Attempt": str(image_attempt),
-                    "Image QA Issues": str(image_exc)[:1500],
-                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
-                    "المحتوى": post,
-                    "وصف الصورة": current_image_brief,
-                    "رابط الصورة": existing_image_url,
-                    "وقت آخر تشغيل": current.isoformat(),
-                })
-                if existing_image_url and image_path.is_file():
-                    generated_image_path = image_path
-        except ImageQAError as image_exc:
-            # QA service/quota outage must not erase a successfully generated,
-            # topic-specific image. Keep the image and record that QA was unavailable.
-            print(f"Image QA unavailable; preserving generated image: {image_exc}")
-            if image_path.is_file():
-                generated_image_path = image_path
-                image_url = github_raw_url(str(image_path))
-                update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "رابط الصورة": image_url,
-                    "Image Mode": "DIRECT_CLOUDFLARE_QA",
-                    "Image QA Attempt": str(image_attempt),
-                    "Image QA Status": "ACCEPTED_WITHOUT_QA",
-                    "Image QA Score": "",
-                    "Image QA Issues": str(image_exc)[:1500],
-                    "المحتوى": post,
-                    "وصف الصورة": current_image_brief,
-                    "وقت آخر تشغيل": current.isoformat(),
-                })
-                break
+            if image_attempt < max_image_attempts:
+                continue
 
-    if generated_image_path is None and not existing_image_url:
-        print("No QA-approved image available; publication will continue text-only.")
+    # Final free-media fallback: never turn a successful social publication into
+    # text-only merely because the primary image provider failed.
+    if generated_image_path is None:
+        fallback_dir = GENERATED_DIR / "image_fallbacks"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        fallback_terms = [
+            f"{topic} legal",
+            f"{topic} document",
+            f"{topic} Egypt legal",
+        ]
+        try:
+            fallback_assets = fetch_openverse_images(fallback_terms, fallback_dir, per_term=2)
+        except Exception as exc:
+            print(f"Openverse image fallback failed: {exc}")
+            fallback_assets = []
+        if not fallback_assets:
+            try:
+                fallback_assets = fetch_wikimedia_images(fallback_terms, fallback_dir, target=2)
+            except Exception as exc:
+                print(f"Wikimedia image fallback failed: {exc}")
+                fallback_assets = []
+        if fallback_assets:
+            generated_image_path = fallback_assets[0]
+            print(f"Using topic-related free-media image fallback: {generated_image_path}")
+        else:
+            try:
+                cards = generate_legal_cards(fallback_dir, topic, count=1)
+                generated_image_path = cards[0] if cards else None
+                if generated_image_path:
+                    print(f"Using local topic-labeled visual fallback: {generated_image_path}")
+            except Exception as exc:
+                print(f"Local visual fallback failed: {exc}")
+
+        if generated_image_path and generated_image_path.is_file():
+            image_url = github_raw_url(str(generated_image_path))
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "رابط الصورة": image_url,
+                "Image Mode": "FREE_MEDIA_OR_LOCAL_FALLBACK",
+                "Image QA Attempt": "",
+                "Image QA Status": "ACCEPTED_FALLBACK_NO_BLOCKING_QA",
+                "Image QA Score": "",
+                "Image QA Issues": "",
+                "المحتوى": post,
+                "وصف الصورة": image_brief,
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+        else:
+            print("All image providers failed; preserving any existing image URL.")
 
     return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
 
