@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import marketplace_daily
 
 
 def test_daily_cli_writes_plan(tmp_path, monkeypatch, capsys):
+    now = datetime.now(timezone.utc)
+    created = (now - timedelta(hours=1)).isoformat()
     state = {
         "services": [],
         "portfolio": [],
@@ -20,8 +22,8 @@ def test_daily_cli_writes_plan(tmp_path, monkeypatch, capsys):
             "suggested_days": 2,
             "status": "APPROVED",
             "lifecycle": "APPROVED",
-            "created_at": "2026-09-06T10:00:00+00:00",
-            "updated_at": "2026-09-06T10:00:00+00:00",
+            "created_at": created,
+            "updated_at": created,
             "offer": "أراجع العقد وأحدد المخاطر والتعديلات المقترحة.",
         }],
         "activity": [],
