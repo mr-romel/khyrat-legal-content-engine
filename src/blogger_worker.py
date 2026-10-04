@@ -4,17 +4,47 @@ import json
 import os
 from pathlib import Path
 
+import requests
+
 from blogger_publisher import BloggerPublishError, publish_article, upload_blogger_image
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
+def resolve_image_path(image_url: str, source_id: str, row_number: int) -> str:
+    """Resolve the exact published image, downloading the raw URL when needed."""
+    candidates = []
+    if source_id:
+        safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in source_id)
+        candidates.extend([
+            Path("generated") / (safe_id + ".jpg"),
+            Path("generated") / (source_id + ".jpg"),
+            Path("generated") / "image_fallbacks" / (safe_id + ".jpg"),
+        ])
+    for candidate in candidates:
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return str(candidate)
+    url = str(image_url or "").strip()
+    if not url:
+        return ""
+    try:
+        out = Path(BLOGGER_ARTIFACT_DIR) / ("row_" + str(row_number)) / "source-image.jpg"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        response = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+        response.raise_for_status()
+        out.write_bytes(response.content)
+        if out.stat().st_size > 0:
+            return str(out)
+    except Exception as exc:
+        print(f"Blogger image download failed for row {row_number}: {exc}")
+    return ""
+
 def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
     post_id = str(row.get("Blogger Post ID", "")).strip()
     source_id = str(row.get("ID", "")).strip()
-    image_path = Path("generated") / f"{source_id}.jpg" if source_id else Path("")
     old_url = str(row.get("رابط الصورة", "")).strip()
+    image_path = Path(resolve_image_path(old_url, source_id, 0)) if source_id else Path("")
     if not post_id or not image_path.is_file() or not old_url:
         return False
     try:
@@ -84,9 +114,7 @@ def main() -> int:
     post = str(row.get("المحتوى", "")).strip()
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
-    image_path = str(Path("generated") / f"{source_id}.jpg") if source_id else ""
-    if not Path(image_path).is_file():
-        image_path = ""
+    image_path = resolve_image_path(image_url, source_id, row_number)
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
