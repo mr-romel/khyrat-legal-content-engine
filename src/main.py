@@ -18,6 +18,7 @@ from facebook_publisher import FacebookPublishError, publish_photo, publish_text
 from gemini import generate_post
 from image_generator import ImageGenerationError, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
+from legal_research import research_legal_topic
 from free_media import fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
