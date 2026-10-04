@@ -274,7 +274,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         fallback_dir.mkdir(parents=True, exist_ok=True)
         # Fallback search is also derived from the actual published post,
         # not from the spreadsheet topic alone.
-        post_terms = " ".join(re.findall(r"[\\u0600-\\u06FF]{3,}", post))
+        post_terms = " ".join(re.findall(r"[\u0600-\u06FF]{3,}", post))
         fallback_terms = [
             f"{post_terms[:180]} Egypt",
             f"{post_terms[180:360]} legal document",
