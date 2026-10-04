@@ -231,7 +231,7 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     work_dir = output_video.parent / "motion"
     work_dir.mkdir(parents=True, exist_ok=True)
     from PIL import Image, ImageDraw, ImageFont
-    logo = Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "assets/brand/logo.png"))
+    logo = Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"))
     endcard = work_dir / "brand_endcard.mp4"
     img = Image.new("RGB", (1080, 1920), (8, 13, 22))
     draw = ImageDraw.Draw(img)
@@ -609,7 +609,7 @@ def main() -> int:
                     except Exception as slogan_gemini_exc:
                         print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
                         generate_local_egyptian_tts_audio(slogan_text, slogan_audio, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}])
-                    add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "assets/brand/logo.png"), slogan_audio)
+                    add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio)
                     raw_video.unlink(missing_ok=True)
 
 
