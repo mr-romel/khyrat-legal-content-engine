@@ -199,3 +199,59 @@ def like_post(*, post_id: str, page_access_token: str, graph_version: str) -> di
     if not response.ok:
         return {"status": "FAILED", "error": _api_error("Facebook like failed", response).args[0]}
     return {"status": "LIKED", "http_status": response.status_code, "platform_proof": f"HTTP:{response.status_code}", "raw": response.json()}
+
+
+def reply_to_comment(*, comment_id: str, page_access_token: str, graph_version: str, message: str) -> dict[str, Any]:
+    """Publish a public threaded reply directly under a Page comment."""
+    comment_id = str(comment_id or "").strip()
+    token = str(page_access_token or "").strip()
+    text = str(message or "").strip()
+    if not comment_id:
+        return {"status": "FAILED", "http_status": 0, "error": "Facebook comment ID is empty."}
+    if not token:
+        return {"status": "FAILED", "http_status": 0, "error": "Facebook Page access token is empty."}
+    if not text:
+        return {"status": "FAILED", "http_status": 0, "error": "Facebook public reply message is empty."}
+    try:
+        response = requests.post(
+            _graph_url(graph_version, comment_id, "comments"),
+            headers=_headers(),
+            data={"access_token": token, "message": text},
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        return {"status": "NETWORK_FAILED", "http_status": 0, "error": str(exc)}
+    if not response.ok:
+        return {
+            "status": "FAILED",
+            "http_status": response.status_code,
+            "error": _api_error("Facebook public comment reply failed", response).args[0],
+        }
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    reply_id = str(payload.get("id", "")).strip()
+    if not reply_id:
+        return {
+            "status": "FAILED",
+            "http_status": response.status_code,
+            "error": f"Facebook returned no reply Comment ID: {payload}",
+        }
+    verification = verify_comment(comment_id=reply_id, page_access_token=token, graph_version=graph_version)
+    if verification.get("status") == "VERIFIED":
+        return {
+            "status": "REPLIED",
+            "reply_id": reply_id,
+            "http_status": response.status_code,
+            "platform_proof": f"LIVE_COMMENT_REPLY_ID:{reply_id}",
+            "raw": payload,
+        }
+    return {
+        "status": "REPLIED_UNVERIFIED",
+        "reply_id": reply_id,
+        "http_status": response.status_code,
+        "platform_proof": f"COMMENT_REPLY_ID:{reply_id}",
+        "verification_error": verification.get("error", ""),
+        "raw": payload,
+    }
