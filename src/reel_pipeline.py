@@ -108,6 +108,33 @@ def prepare_tts_script(text: str) -> str:
     return out
 
 
+def generate_local_egyptian_tts_audio(script: str, output_path: Path) -> Path:
+    """Fully local/free Egyptian-Arabic TTS fallback; no API key and no Edge TTS."""
+    try:
+        from voicetut_tts import VoiceTutTTS
+    except Exception as exc:
+        raise RuntimeError("VoiceTut-TTS fallback is not installed.") from exc
+    clean = prepare_tts_script(script)
+    speaker = os.getenv("LOCAL_TTS_SPEAKER", "Zaki").strip() or "Zaki"
+    steps = int(os.getenv("LOCAL_TTS_STEPS", "24") or 24)
+    speed = float(os.getenv("LOCAL_TTS_SPEED", "0.98") or 0.98)
+    tts = VoiceTutTTS.from_pretrained(
+        os.getenv("LOCAL_TTS_MODEL", "mohammedaly22/VoiceTut-TTS"),
+        device="cpu",
+        dtype="float32",
+    )
+    tts.synthesize_long(clean, str(output_path), speaker=speaker, num_step=steps, speed=speed, gap_ms=140)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip() or "0")
+    if duration < 45 or duration > 90:
+        raise RuntimeError(f"Local Egyptian TTS duration outside Reel target: {duration:.1f}s")
+    print(f"Local Egyptian TTS fallback succeeded: speaker={speaker} duration={duration:.1f}s")
+    return output_path
+
 def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[str, Any]], output_path: Path) -> Path:
     """Generate the Reel narration with Gemini 3.8 Flash TTS, not Edge TTS."""
     if not api_key:
@@ -510,7 +537,13 @@ def main() -> int:
         )
 
         tts_audio = output_dir / "voice-gemini.wav"
-        generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
+        try:
+            generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
+            print("Reel TTS: Gemini primary succeeded.")
+        except Exception as gemini_tts_exc:
+            print(f"Reel TTS: Gemini unavailable; switching to fully local Egyptian TTS fallback: {gemini_tts_exc}")
+            tts_audio = output_dir / "voice-egyptian-local.wav"
+            generate_local_egyptian_tts_audio(brief["script"], tts_audio)
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
