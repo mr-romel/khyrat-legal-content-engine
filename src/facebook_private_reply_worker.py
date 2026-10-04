@@ -9,18 +9,22 @@ from zoneinfo import ZoneInfo
 import requests
 
 from config import load_facebook_engagement_config
+from facebook_publisher import like_comment, reply_to_comment
 from sheets import create_service, get_values
 
-SHEET_NAME = os.getenv("FACEBOOK_PRIVATE_REPLY_SHEET", "Facebook Private Replies").strip() or "Facebook Private Replies"
+# This worker intentionally handles PUBLIC threaded replies only.
+# It never sends private messages.
+SHEET_NAME = os.getenv("FACEBOOK_COMMENT_REPLY_SHEET", "Facebook Comment Replies").strip() or "Facebook Comment Replies"
 HEADERS = [
     "event_id", "post_id", "comment_id", "commenter_id", "commenter_name",
-    "post_topic", "comment_text", "message", "status", "http_status",
+    "post_topic", "comment_text", "like_status", "like_http_status",
+    "reply_status", "reply_id", "reply_text", "reply_http_status",
     "last_error", "created_at", "updated_at", "platform_proof",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
-MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_PRIVATE_REPLY_RECENT_POSTS", "3") or "3")
-MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_PRIVATE_REPLY_MAX_COMMENTS_PER_RUN", "5") or "5")
-MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_PRIVATE_REPLY_MAX_COMMENT_AGE_HOURS", "168") or "168")
+MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "3") or "3")
+MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "5") or "5")
+MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "168") or "168")
 GRAPH_VERSION = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
 
 
@@ -47,9 +51,18 @@ def graph_url(object_id, edge=""):
 
 def api_error(response):
     try:
-        return str(response.json())
+        payload = response.json()
+        error = payload.get("error", payload) if isinstance(payload, dict) else payload
+        if isinstance(error, dict):
+            return (
+                f"message={error.get('message', '')}; "
+                f"code={error.get('code', '')}; "
+                f"subcode={error.get('error_subcode', '')}; "
+                f"fbtrace_id={error.get('fbtrace_id', '')}"
+            )
+        return str(error)
     except ValueError:
-        return response.text[:1000]
+        return response.text[:1500]
 
 
 def ensure_sheet(service, spreadsheet_id):
@@ -145,7 +158,9 @@ def recent_posts(service, spreadsheet_id, sheet_range):
 def list_comments(post_id, token):
     params = {
         "access_token": token,
-        "fields": "id,message,from,created_time,can_reply_privately,private_reply_conversation",
+        "fields": "id,message,from,created_time,can_comment,user_likes,parent",
+        "filter": "toplevel",
+        "order": "reverse_chronological",
         "limit": "50",
     }
     try:
@@ -158,46 +173,33 @@ def list_comments(post_id, token):
     return payload.get("data", []) or [], response.status_code, ""
 
 
-def build_message(topic, post_text):
-    topic = str(topic or "").strip()
-    text = str(post_text or "").strip()
-    low = f"{topic} {text}".lower()
-    if any(k in low for k in ["عمل", "عمال", "موظف", "فصل", "مرتب", "إجاز"]):
-        context = "بننشر باستمرار محتوى مبسط عن قانون العمل وحقوق العامل وصاحب العمل"
-    elif any(k in low for k in ["إيجار", "إيجارات", "مالك", "مستأجر"]):
-        context = "بننشر باستمرار محتوى مبسط عن الإيجارات والمشكلات القانونية العملية"
-    elif any(k in low for k in ["شركة", "شركات", "عقد", "عقود"]):
-        context = "بننشر باستمرار محتوى عملي عن الشركات والعقود وحماية الحقوق"
+def build_public_reply(comment_text, post_topic, index):
+    # Keep the public reply short and human. The request is deliberately limited
+    # to thanks + follow + share; it does not pretend to provide legal advice.
+    text = str(comment_text or "").strip()
+    topic = str(post_topic or "").strip()
+    topic_hint = ""
+    if any(k in f"{topic} {text}" for k in ("عمل", "عامل", "موظف", "فصل", "مرتب", "إجاز")):
+        topic_hint = "محتوى قانون العمل"
+    elif any(k in f"{topic} {text}" for k in ("شركة", "شركات", "عقد", "عقود")):
+        topic_hint = "المحتوى القانوني للشركات والعقود"
+    elif any(k in f"{topic} {text}" for k in ("إيجار", "إيجارات", "مالك", "مستأجر")):
+        topic_hint = "محتوى الإيجارات والمواقف العملية"
     else:
-        context = "بننشر باستمرار محتوى قانوني مبسط عن الحقوق والإجراءات والمواقف العملية"
-    return f"أهلًا بك، وشكرًا على تفاعلك. {context}. لو عندك موقف مشابه وعايز تعرف تتصرف إزاي، ابعتلنا تفاصيله من خلال صفحة اسأل محمود: https://www.facebook.com/AskMahmoudNow — ونساعدك تفهم الإطار القانوني والخطوة المناسبة بشكل عملي. تابع الصفحة كمان علشان توصلك المنشورات الجديدة."
+        topic_hint = "المحتوى القانوني المبسط"
+
+    templates = [
+        f"شكرًا جدًا على تعليقك. سعيد إن {topic_hint} أفادك. تابع صفحة اسأل محمود علشان توصلك المنشورات الجديدة، ولو شايف البوست مفيد شاركه مع حد ممكن يستفيد.",
+        f"شكرًا على تفاعلك. تابع اسأل محمود للمزيد من {topic_hint}، ولو المعلومة مهمة بالنسبة لك شارك البوست مع غيرك علشان الفائدة توصل لأكبر عدد.",
+        f"كل الشكر على تعليقك. تابع الصفحة علشان توصلك المعلومة القانونية الجديدة أولًا بأول، ولو البوست مفيد شاركه مع شخص ممكن يحتاجه.",
+        f"شكرًا لتفاعلك معنا. تابع صفحة اسأل محمود واستمر في متابعتنا للمحتوى القانوني العملي، ومشاركتك للبوست بتساعد المعلومة توصل لناس أكتر.",
+        f"شكرًا على تعليقك. تابع الصفحة علشان تشوف الجديد من اسأل محمود، ولو شايف المحتوى مفيد شاركه مع أصحابك أو زملائك.",
+    ]
+    return templates[index % len(templates)]
 
 
-def send_private_reply(comment_id, token, message):
-    try:
-        response = requests.post(
-            graph_url(comment_id, "private_replies"),
-            data={"access_token": token, "message": message},
-            timeout=45,
-        )
-    except requests.RequestException as exc:
-        return {"status": "NETWORK_FAILED", "http_status": 0, "error": str(exc)}
-    if response.ok:
-        try:
-            payload = response.json()
-        except ValueError:
-            payload = {}
-        return {
-            "status": "SENT",
-            "http_status": response.status_code,
-            "proof": f"LIVE_PRIVATE_REPLY:{comment_id}",
-            "raw": payload,
-        }
-    return {
-        "status": "FAILED",
-        "http_status": response.status_code,
-        "error": api_error(response),
-    }
+def _event_id(comment_id):
+    return "COMMENT_REPLY:" + hashlib.sha256(comment_id.encode("utf-8")).hexdigest()[:24]
 
 
 def main():
@@ -211,29 +213,33 @@ def main():
 
     ensure_sheet(service, sheet_id)
     existing = read_rows(service, sheet_id)
-    sent_ids = {
+    completed_ids = {
         str(x.get("comment_id", "")).strip()
         for x in existing
-        if str(x.get("status", "")).upper() == "SENT"
+        if str(x.get("comment_id", "")).strip()
+        and str(x.get("reply_status", "")).upper() in {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED"}
     }
 
     posts = recent_posts(service, sheet_id, sheet_range)
-    print(f"Facebook private-reply scope: latest {len(posts)} post(s)")
+    print(f"Facebook public comment reply scope: latest {len(posts)} post(s)")
     if not posts:
         return 0
 
     processed = 0
-    for published_at, source_row, post_id, post_row in posts:
+    for _published_at_value, source_row, post_id, post_row in posts:
         comments, http_status, error = list_comments(post_id, token)
         if error:
             print(f"Comment discovery failed for {post_id}: http={http_status} error={error}")
             continue
 
+        print(f"Facebook comment discovery: post={post_id} comments={len(comments)}")
+
         for comment in comments:
             if processed >= MAX_COMMENTS_PER_RUN:
                 break
+
             comment_id = str(comment.get("id", "")).strip()
-            if not comment_id or comment_id in sent_ids:
+            if not comment_id or comment_id in completed_ids:
                 continue
 
             created_text = str(comment.get("created_time", "")).strip()
@@ -249,46 +255,77 @@ def main():
             commenter_id = str(author.get("id", "")).strip() if isinstance(author, dict) else ""
             commenter_name = str(author.get("name", "")).strip() if isinstance(author, dict) else ""
 
-            # Never DM the Page's own comments.
+            # Never act on the Page's own public comments.
             if commenter_id and commenter_id == page_id:
                 continue
 
-            can_reply = comment.get("can_reply_privately")
-            if can_reply is not True:
-                print(f"Private reply not eligible: {comment_id} | can_reply_privately={can_reply}")
+            # If Meta explicitly says this comment cannot be replied to, do not
+            # waste a write call. Missing can_comment is treated as unknown and
+            # the reply is attempted so older field responses remain compatible.
+            can_comment = comment.get("can_comment")
+            if can_comment is False:
+                print(f"Public reply not eligible: {comment_id} | can_comment=False")
                 continue
 
-            message = build_message(post_row.get("الموضوع", ""), post_row.get("المحتوى", ""))
-            result = send_private_reply(comment_id, token, message)
-            event_id = "PRIVATE_REPLY:" + hashlib.sha256(comment_id.encode()).hexdigest()[:24]
+            like_result = {"status": "SKIPPED_ALREADY_LIKED", "http_status": ""}
+            if comment.get("user_likes") is not True:
+                like_result = like_comment(
+                    comment_id=comment_id,
+                    page_access_token=token,
+                    graph_version=GRAPH_VERSION,
+                )
+
+            reply_text = build_public_reply(
+                comment.get("message", ""),
+                post_row.get("الموضوع", ""),
+                processed,
+            )
+            reply_result = reply_to_comment(
+                comment_id=comment_id,
+                page_access_token=token,
+                graph_version=GRAPH_VERSION,
+                message=reply_text,
+            )
+
+            errors = []
+            if like_result.get("status") not in {"LIKED", "SKIPPED_ALREADY_LIKED"}:
+                errors.append(f"LIKE: {like_result.get('error', '')}")
+            if reply_result.get("status") not in {"REPLIED", "REPLIED_UNVERIFIED"}:
+                errors.append(f"REPLY: {reply_result.get('error', '')}")
 
             event = {
-                "event_id": event_id,
+                "event_id": _event_id(comment_id),
                 "post_id": post_id,
                 "comment_id": comment_id,
                 "commenter_id": commenter_id,
                 "commenter_name": commenter_name,
                 "post_topic": post_row.get("الموضوع", ""),
                 "comment_text": str(comment.get("message", "")),
-                "message": message,
-                "status": result["status"],
-                "http_status": result.get("http_status", ""),
-                "last_error": result.get("error", ""),
+                "like_status": like_result.get("status", ""),
+                "like_http_status": like_result.get("http_status", ""),
+                "reply_status": reply_result.get("status", ""),
+                "reply_id": reply_result.get("reply_id", ""),
+                "reply_text": reply_text,
+                "reply_http_status": reply_result.get("http_status", ""),
+                "last_error": " | ".join(errors),
                 "created_at": iso(current),
                 "updated_at": iso(current),
-                "platform_proof": result.get("proof", ""),
+                "platform_proof": reply_result.get("platform_proof", "") or like_result.get("platform_proof", ""),
             }
             append_row(service, sheet_id, event)
+            completed_ids.add(comment_id)
             processed += 1
 
             print(
-                f"{event_id} -> {result['status']} | comment={comment_id} | "
-                f"http={result.get('http_status', '')}"
+                f"{event['event_id']} -> like={event['like_status']} reply={event['reply_status']} "
+                f"| comment={comment_id} | like_http={event['like_http_status']} "
+                f"reply_http={event['reply_http_status']} | error={event['last_error']}"
             )
 
         if processed >= MAX_COMMENTS_PER_RUN:
             break
 
+    print(f"Facebook public comment reply worker processed={processed}")
     return 0
 
 
