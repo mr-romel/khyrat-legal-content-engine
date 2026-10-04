@@ -1,11 +1,6 @@
-name: Facebook Private Reply Worker
+name: Facebook Comment Reply Worker
 
 on:
-  workflow_run:
-    workflows:
-      - "Facebook Engagement Worker"
-    types:
-      - completed
   push:
     paths:
       - "ops/engagement-kick.txt"
@@ -13,18 +8,18 @@ on:
       - ".github/workflows/facebook-private-reply-worker.yml"
   # Fallback for comments that arrive after publication.
   schedule:
-    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: facebook-private-reply-worker
+  group: facebook-comment-reply-worker
   cancel-in-progress: true
 
 jobs:
-  private-reply:
+  comment-reply:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -50,5 +45,5 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run Facebook private reply worker
+      - name: Run Facebook public comment reply worker
         run: PYTHONPATH=src python src/facebook_private_reply_worker.py
