@@ -263,9 +263,7 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     subprocess.run(["ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)],check=True,timeout=900)
     styled = work_dir / "styled.mp4"
     concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{base.resolve()}'
-file '{endcard.resolve()}'
-",encoding="utf-8")
+    concat_list.write_text(f"file '{base.resolve()}\\nfile '{endcard.resolve()}\\n'", encoding="utf-8")
     subprocess.run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)],check=True,timeout=900)
     shutil.copy2(styled, output_video)
     return output_video
