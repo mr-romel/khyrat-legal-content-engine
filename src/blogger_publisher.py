@@ -69,6 +69,61 @@ def _credentials() -> Credentials:
 def service():
     return build("blogger", "v3", credentials=_credentials(), cache_discovery=False)
 
+def upload_blogger_image(image_path: str) -> str:
+    """Upload an image to Blogger's own photo storage and return a direct URL."""
+    path = Path(image_path)
+    if not path.is_file() or path.stat().st_size == 0:
+        raise BloggerPublishError(f"Blogger image file is missing: {path}")
+    creds = _credentials()
+    token = creds.token
+    size = path.stat().st_size
+    filename = path.name
+    mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    url = "https://docs.google.com/upload/blogger/photos/resumable"
+    params = {"authuser": "0", "opi": "98421741"}
+    payload = {"protocolVersion": "0.8", "createSessionRequest": {"fields": [
+        {"external": {"name": "file", "filename": filename, "put": {}, "size": size}},
+        {"inlined": {"name": "title", "content": filename, "contentType": "text/plain"}},
+        {"inlined": {"name": "onepick_version", "content": "v2", "contentType": "text/plain"}},
+        {"inlined": {"name": "onepick_host_id", "content": "10", "contentType": "text/plain"}},
+        {"inlined": {"name": "onepick_host_usecase", "content": "RichEditor", "contentType": "text/plain"}},
+        {"inlined": {"name": "album_mode", "content": "permanent", "contentType": "text/plain"}},
+        {"inlined": {"name": "silo_id", "content": "3", "contentType": "text/plain"}},
+    ]}}
+    session = requests.Session()
+    last_error = None
+    for attempt in range(1, 6):
+        try:
+            headers = {"x-client-pctx": "CgcSBWjtl_cu", "x-goog-upload-command": "start",
+                       "x-goog-upload-header-content-length": str(size),
+                       "x-goog-upload-header-content-type": mime, "x-goog-upload-protocol": "resumable",
+                       "authorization": f"Bearer {token}", "content-type": "application/x-www-form-urlencoded"}
+            start = session.post(url, data=json.dumps(payload), headers=headers, params=params, timeout=60)
+            if start.status_code in {401, 403} and creds.refresh_token:
+                creds.refresh(Request()); token = creds.token; continue
+            start.raise_for_status()
+            upload_url = start.headers.get("x-goog-upload-url")
+            if not upload_url:
+                raise RuntimeError(f"Blogger did not return upload URL: {start.text[:1000]}")
+            upload_headers = {"accept": "*/*", "content-type": mime, "origin": "https://docs.google.com",
+                              "referer": "https://docs.google.com/", "user-agent": "Mozilla/5.0",
+                              "x-client-pctx": "CgcSBWjtl_cu", "x-goog-upload-command": "upload, finalize",
+                              "x-goog-upload-offset": "0"}
+            done = session.post(upload_url, headers=upload_headers, data=path.read_bytes(), timeout=180)
+            done.raise_for_status()
+            info = done.json()["sessionStatus"]["additionalInfo"]["uploader_service.GoogleRupioAdditionalInfo"]
+            image_url = info["completionInfo"]["customerSpecificInfo"]["url"]
+            parts = image_url.rstrip("/").split("/")
+            if len(parts) < 2:
+                raise RuntimeError(f"Unexpected Blogger image URL: {image_url}")
+            return "/".join(parts[:-1]) + "/s0/" + parts[-1]
+        except Exception as exc:
+            last_error = exc
+            if attempt < 5:
+                import time
+                time.sleep(attempt)
+    raise BloggerPublishError(f"Blogger image upload failed after retries: {last_error}")
+
 def blog_id(svc, blog_url: str) -> str:
     explicit = os.getenv("BLOGGER_BLOG_ID", "").strip()
     if explicit: return explicit
@@ -209,8 +264,11 @@ def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, An
     }
     return _article_copy(article)
 
-def publish_article(*,topic:str,post:str,image_url:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
+def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
     svc=service(); bid=blog_id(svc,os.getenv("BLOGGER_URL",DEFAULT_BLOG_URL).strip())
+    if image_path:
+        image_url = upload_blogger_image(image_path)
+        print(f"Blogger image uploaded to native storage: {image_url}")
     title,search_query,candidates=build_search_title(topic)
     article = None
     try:
