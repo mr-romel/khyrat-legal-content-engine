@@ -74,12 +74,12 @@ def research_legal_topic(topic, existing=""):
     if not topic:return _clean(existing)
     queries=[
         f'site:cc.gov.eg/principle "{topic}"',
-        f'site:cc.gov.eg/principle {topic} "الطعن رقم" 2026',
+        f'site:cc.gov.eg/principle {topic} "الطعن رقم" {CURRENT_YEAR}',
         f'site:cc.gov.eg/principle {topic} "الطعن رقم" {CURRENT_YEAR - 1}',
         f'site:esc.gov.eg "{topic}" "الطعن رقم"',
         f'site:esc.gov.eg "{topic}" "المحكمة الإدارية العليا"',
-        f'site:cc.gov.eg "أحدث التشريعات" {topic} 2026',
-        f'site:manshurat.org {topic} قانون 2026',
+        f'site:cc.gov.eg "أحدث التشريعات" {topic} {CURRENT_YEAR}',
+        f'site:manshurat.org {topic} قانون {CURRENT_YEAR}',
         f'site:manshurat.org {topic} قانون {CURRENT_YEAR - 1}',
     ]
     cand=[]; seen=set()
