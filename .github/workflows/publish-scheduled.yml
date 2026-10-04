@@ -275,7 +275,7 @@ jobs:
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
           FACEBOOK_COMMENT_REPLY_RECENT_POSTS: "3"
           FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN: "5"
-          FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS: "168"
+          FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS: "720"
         run: PYTHONPATH=src python src/facebook_private_reply_worker.py
 
   package:
