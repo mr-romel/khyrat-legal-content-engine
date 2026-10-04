@@ -26,11 +26,17 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Cache Egyptian TTS model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: voicetut-egyptian-tts-v1
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install uv
+          pip install voicetut-tts "git+https://github.com/k2-fsa/OmniVoice.git"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
       - name: Generate Reel and send Telegram review
