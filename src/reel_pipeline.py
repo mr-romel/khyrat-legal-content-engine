@@ -123,7 +123,7 @@ def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_ma
         device="cpu",
         dtype="float32",
     )
-    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\\s+", clean) if s.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", clean) if s.strip()]
     import numpy as np
     import soundfile as sf
     chunks = []
@@ -134,8 +134,14 @@ def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_ma
             if int(item.get("sentence_index", 0) or 0) == idx:
                 emotion = str(item.get("delivery_emotion") or emotion).replace("_", " ")
                 break
-        instruct = f"Egyptian Arabic, mature male legal presenter. {emotion}. Natural pauses and conversational human delivery; not a newsreader."
-        chunk = tts.synthesize(sentence, speaker=speaker, instruct=instruct, num_step=steps, speed=speed)
+        delivery_speed = speed
+        if any(k in emotion.lower() for k in ("urgent", "urgency", "warning", "tension")):
+            delivery_speed = min(1.05, speed * 1.05)
+        elif any(k in emotion.lower() for k in ("empathy", "empathetic", "reassurance", "calm")):
+            delivery_speed = max(0.92, speed * 0.94)
+        elif any(k in emotion.lower() for k in ("cta", "memorable", "strong")):
+            delivery_speed = max(0.94, speed * 0.97)
+        chunk = tts.synthesize(sentence, speaker=speaker, num_step=steps, speed=delivery_speed)
         chunks.extend([chunk.astype(np.float32), gap])
     sf.write(str(output_path), np.concatenate(chunks), tts.sampling_rate)
     probe = subprocess.run(
