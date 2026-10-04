@@ -12,6 +12,7 @@ SEARCH_HEADERS = ["Captured At","Query","Page","Clicks","Impressions","CTR","Pos
 KEYWORD_HEADERS = ["Keyword","Page","Clicks","Impressions","CTR","Position","Intent","Keyword Type","Coverage","Opportunity Score","Action","Related Questions","Last Seen"]
 OPPORTUNITY_HEADERS = ["Opportunity ID","Keyword","Page","Type","Score","Reason","Recommended Action","Status","Created At"]
 REFRESH_HEADERS = ["Page","Keyword","Position","Impressions","CTR","Reason","Recommended Action","Status","Updated At"]
+MONETIZATION_HEADERS = ["Keyword","Service","Intent","CTA Rule","Conversion Action","Status"]
 
 def _service():
     creds = Credentials.from_service_account_info(_service_account_info(), scopes=[SEARCH_CONSOLE_SCOPE])
@@ -101,9 +102,32 @@ def build_refresh_queue(rows: list[dict[str,Any]]) -> list[list[str]]:
                 "أضف الإجابة المباشرة + FAQ + روابط داخلية + راجع العنوان","OPEN",date.today().isoformat()])
     return output[:250]
 
+def _monetization_rows(rows: list[dict[str,Any]]) -> list[list[str]]:
+    rules=(("عقد","مراجعة وصياغة العقود","HIGH_INTENT"),
+           ("شركة","خدمات الشركات","BUSINESS_INTENT"),
+           ("شريك","خدمات الشركات","BUSINESS_INTENT"),
+           ("موظف","استشارة قانون العمل","HIGH_INTENT"),
+           ("عامل","استشارة قانون العمل","HIGH_INTENT"),
+           ("فصل","استشارة قانون العمل","HIGH_INTENT"),
+           ("شيك","استشارة مدنية وتجارية","LEGAL_PROBLEM"),
+           ("إيصال","استشارة مدنية وتجارية","LEGAL_PROBLEM"),
+           ("دين","استشارة مدنية وتجارية","LEGAL_PROBLEM"))
+    out=[]; seen=set()
+    for r in rows:
+        q=r["query"]
+        for term,service,intent in rules:
+            if term in q:
+                key=(q,service)
+                if key not in seen:
+                    out.append([q,service,intent,"محتوى مفيد أولًا؛ CTA خفيف بعد الإجابة",
+                                "زيارة صفحة الخدمة أو طلب تقييم أولي","OPEN"]); seen.add(key)
+                break
+    return out
+
 def write_snapshot(rows: list[dict[str,Any]], service, spreadsheet_id: str) -> None:
     for name,headers in (("SearchConsole",SEARCH_HEADERS),("KeywordMap",KEYWORD_HEADERS),
-                         ("ContentOpportunities",OPPORTUNITY_HEADERS),("ContentRefreshQueue",REFRESH_HEADERS)):
+                         ("ContentOpportunities",OPPORTUNITY_HEADERS),("ContentRefreshQueue",REFRESH_HEADERS),
+                         ("MonetizationMap",MONETIZATION_HEADERS)):
         _ensure_sheet(service,spreadsheet_id,name,headers)
     stamp=date.today().isoformat()
     existing=get_values(service,spreadsheet_id,"SearchConsole!A:J")
@@ -116,11 +140,12 @@ def write_snapshot(rows: list[dict[str,Any]], service, spreadsheet_id: str) -> N
                 f'{r["opportunity"]:.2f}',"GOOGLE_SEARCH_CONSOLE"])
     for r in build_keyword_rows(rows): _append(service,spreadsheet_id,"KeywordMap",r)
     for r in build_opportunities(rows): _append(service,spreadsheet_id,"ContentOpportunities",r)
-    for r in build_refresh_queue(rows): _append(service,spreadsheet_id,"ContentRefreshQueue",r)
+    for r in build_refresh_queue(rows): _append(service,spreadsheetid,"ContentRefreshQueue",r)
+    for r in _monetization_rows(rows): _append(service,spreadsheet_id,"MonetizationMap",r)
 
 def run(days: int=28) -> dict[str,int]:
     from sheets import create_service
     rows=query_search_console(days=days)
     sheet_service=create_service(_service_account_info())
     write_snapshot(rows,sheet_service,_sheet_id())
-    return {"rows":len(rows),"opportunities":len(build_opportunities(rows)),"refresh_items":len(build_refresh_queue(rows))}
+    return {"rows":len(rows),"opportunities":len(build_opportunities(rows)),"refresh_items":len(build_refresh_queue(rows)),"monetization":len(_monetization_rows(rows))}
