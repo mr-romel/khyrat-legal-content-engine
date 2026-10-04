@@ -4,11 +4,32 @@ import json
 import os
 from pathlib import Path
 
-from blogger_publisher import BloggerPublishError, publish_article
+from blogger_publisher import BloggerPublishError, publish_article, upload_blogger_image
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
+
+def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
+    post_id = str(row.get("Blogger Post ID", "")).strip()
+    source_id = str(row.get("ID", "")).strip()
+    image_path = Path("generated") / f"{source_id}.jpg" if source_id else Path("")
+    old_url = str(row.get("رابط الصورة", "")).strip()
+    if not post_id or not image_path.is_file() or not old_url:
+        return False
+    try:
+        current = svc.posts().get(blogId=bid, postId=post_id).execute()
+        content = str(current.get("content", "") or "")
+        if old_url not in content:
+            return False
+        hosted = upload_blogger_image(str(image_path))
+        repaired = content.replace(old_url, hosted, 1)
+        svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired}).execute()
+        print(f"Blogger image repaired for post {post_id}: {hosted}")
+        return True
+    except Exception as exc:
+        print(f"Blogger image repair unavailable for {post_id}: {exc}")
+        return False
 
 def main() -> int:
     config = load_blogger_config()
@@ -25,6 +46,10 @@ def main() -> int:
         return 0
 
     rows = [row_to_dict(row) for row in values[1:]]
+    bid = blog_id(service, config["blog_url"])
+    for existing in rows:
+        if str(existing.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
+            repair_published_image(service, bid, existing)
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
