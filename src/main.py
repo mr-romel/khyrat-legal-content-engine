@@ -195,20 +195,32 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     if duplicate_score >= 0.88:
         previous_context += f"\nIMPORTANT: avoid repeating this recent topic verbatim: {duplicate_topic}"
 
+    # Research current law and verified judicial principles before generating any platform copy.
+    sheet_legal_sources = str(row.get("المصادر القانونية", "") or "").strip()
+    try:
+        legal_sources = research_legal_topic(topic, sheet_legal_sources)
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "المصادر القانونية": legal_sources[:12000],
+        })
+        print("Legal research: refreshed current legislation + verified court sources before content generation.")
+    except Exception as research_exc:
+        legal_sources = sheet_legal_sources
+        print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
+
     try:
         result = generate_post(
             api_key=config["gemini_api_key"],
             model=config["gemini_model"],
             topic=topic,
-            legal_sources=row.get("المصادر القانونية", ""),
+            legal_sources=legal_sources,
             previous_context=previous_context,
         )
-        post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, row.get("المصادر القانونية", ""))
+        post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, legal_sources)
         image_brief = str(result.get("image_brief", "") or "").strip() or f"Direct legal scene illustrating: {topic}."
         review_level = str(result.get("review_level", "CLEAR") or "CLEAR").upper()
         review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     except Exception as exc:
-        post = existing_post or _fallback_post(topic, row.get("المصادر القانونية", ""))
+        post = existing_post or _fallback_post(topic, legal_sources)
         image_brief = f"Direct legal scene illustrating: {topic}."
         review_level = "ADVISORY"
         review_text = f"Content generation unavailable; fallback text used: {exc}"
