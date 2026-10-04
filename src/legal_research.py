@@ -60,6 +60,17 @@ def _case(t):
 def _date(t):
     m=re.search(r"(?:جلسة|بتاريخ|تاريخ الجلسة)\s*([٠-٩0-9]{1,2}[./-][٠-٩0-9]{1,2}[./-][٠-٩0-9]{2,4})",t)
     return m.group(1) if m else ""
+def _effective(t):
+    patterns = [
+        r"(?:يعمل به|تاريخ العمل به|بدء العمل به)\s*(?:من|اعتبارًا من|اعتبارا من)?\s*([^،.;]{4,80})",
+        r"(?:صدر|صدرت)\s+[^.]{0,80}\s+(?:في|بتاريخ)\s*([٠-٩0-9]{1,2}[./-][٠-٩0-9]{1,2}[./-][٠-٩0-9]{2,4})",
+    ]
+    for pattern in patterns:
+        m=re.search(pattern,t,re.I)
+        if m:
+            return _clean(m.group(1))
+    return ""
+
 def _quote(t,topic,max_words=24):
     terms=[x for x in re.findall(r"[\u0600-\u06ff]{4,}",topic) if x not in {"قانون","مصر","الموضوع"}]
     ss=[s.strip() for s in re.split(r"(?<=[.!؟])\s+",t) if 8<=len(s.split())<=80]
@@ -94,9 +105,9 @@ def research_legal_topic(topic, existing=""):
         d=_domain(x["url"]); court="محكمة النقض" if d in COURT else ("المحكمة الإدارية العليا" if d in ADMIN else "")
         case=_case(body)
         if case and court:
-            records.append(("judgment_or_principle",court,case,_date(body),x["title"],_quote(body,topic),x["url"]))
+            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"]))
         elif d in LAWS:
-            records.append(("current_legislation_source","تشريع","",_date(body),x["title"],"",x["url"]))
+            records.append(("current_legislation_source","تشريع","",_date(body),_effective(body),x["title"],"",x["url"]))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
         f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
@@ -112,7 +123,7 @@ def research_legal_topic(topic, existing=""):
         ""
     ]
     if not records: lines.append("No sufficiently verified topic-specific court/legislation source was retrieved automatically.")
-    for i,(typ,court,case,date,title,quote,url) in enumerate(records[:6],1):
-        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"URL: {url}",""]
+    for i,(typ,court,case,date,effective,title,quote,url) in enumerate(records[:6],1):
+        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"URL: {url}",""]
     if existing: lines += ["EXISTING SHEET LEGAL SOURCES:",_clean(existing)[:8000]]
     return "\n".join(lines)
