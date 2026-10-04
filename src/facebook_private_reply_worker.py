@@ -24,7 +24,7 @@ HEADERS = [
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "3") or "3")
 MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "5") or "5")
-MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "168") or "168")
+MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "720") or "720")
 GRAPH_VERSION = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
 
 
@@ -158,7 +158,7 @@ def recent_posts(service, spreadsheet_id, sheet_range):
 def list_comments(post_id, token):
     params = {
         "access_token": token,
-        "fields": "id,message,from,created_time,can_comment,user_likes,parent",
+        "fields": "id,message,from,created_time,can_comment,user_likes,parent,comment_count",
         "filter": "toplevel",
         "order": "reverse_chronological",
         "limit": "50",
@@ -226,6 +226,10 @@ def main():
         return 0
 
     processed = 0
+    skipped_age = 0
+    skipped_not_replyable = 0
+    skipped_page = 0
+    skipped_completed = 0
     for _published_at_value, source_row, post_id, post_row in posts:
         comments, http_status, error = list_comments(post_id, token)
         if error:
@@ -239,7 +243,10 @@ def main():
                 break
 
             comment_id = str(comment.get("id", "")).strip()
-            if not comment_id or comment_id in completed_ids:
+            if not comment_id:
+                continue
+            if comment_id in completed_ids:
+                skipped_completed += 1
                 continue
 
             created_text = str(comment.get("created_time", "")).strip()
@@ -249,6 +256,7 @@ def main():
                 created = current
 
             if current - created > timedelta(hours=MAX_COMMENT_AGE_HOURS):
+                skipped_age += 1
                 continue
 
             author = comment.get("from") or {}
@@ -257,6 +265,7 @@ def main():
 
             # Never act on the Page's own public comments.
             if commenter_id and commenter_id == page_id:
+                skipped_page += 1
                 continue
 
             # If Meta explicitly says this comment cannot be replied to, do not
@@ -264,6 +273,7 @@ def main():
             # the reply is attempted so older field responses remain compatible.
             can_comment = comment.get("can_comment")
             if can_comment is False:
+                skipped_not_replyable += 1
                 print(f"Public reply not eligible: {comment_id} | can_comment=False")
                 continue
 
@@ -325,7 +335,10 @@ def main():
         if processed >= MAX_COMMENTS_PER_RUN:
             break
 
-    print(f"Facebook public comment reply worker processed={processed}")
+    print(\n        f"Facebook public comment reply worker processed={processed} | "
+        f"completed={skipped_completed} | age={skipped_age} | "
+        f"page={skipped_page} | not_replyable={skipped_not_replyable}"
+    )
     return 0
 
 
