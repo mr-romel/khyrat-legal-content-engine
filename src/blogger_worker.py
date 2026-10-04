@@ -50,10 +50,16 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
     try:
         current = svc.posts().get(blogId=bid, postId=post_id).execute()
         content = str(current.get("content", "") or "")
-        if old_url not in content:
-            return False
         hosted = upload_blogger_image(str(image_path))
-        repaired = content.replace(old_url, hosted, 1)
+        if hosted in content:
+            return True
+        figure = f'<figure><img src="{hosted}" alt="صورة توضيحية للمقال" loading="eager" style="width:100%;height:auto;border-radius:12px"></figure>'
+        if old_url and old_url in content:
+            repaired = content.replace(old_url, hosted, 1)
+        elif "<article" in content:
+            repaired = content.replace("<article", figure + "<article", 1)
+        else:
+            repaired = figure + content
         svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired}).execute()
         print(f"Blogger image repaired for post {post_id}: {hosted}")
         return True
