@@ -1,11 +1,12 @@
 from __future__ import annotations
 import html as html_lib, re
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, unquote, urlparse
 import requests
 
 TIMEOUT=15
-CURRENT_YEAR=2026
+CURRENT_YEAR=datetime.now(timezone.utc).year
 MAX_RESULTS=8
 MAX_SOURCE_CHARS=18000
 COURT=("cc.gov.eg","www.cc.gov.eg")
@@ -74,12 +75,12 @@ def research_legal_topic(topic, existing=""):
     queries=[
         f'site:cc.gov.eg/principle "{topic}"',
         f'site:cc.gov.eg/principle {topic} "الطعن رقم" 2026',
-        f'site:cc.gov.eg/principle {topic} "الطعن رقم" 2025',
+        f'site:cc.gov.eg/principle {topic} "الطعن رقم" {CURRENT_YEAR - 1}',
         f'site:esc.gov.eg "{topic}" "الطعن رقم"',
         f'site:esc.gov.eg "{topic}" "المحكمة الإدارية العليا"',
         f'site:cc.gov.eg "أحدث التشريعات" {topic} 2026',
         f'site:manshurat.org {topic} قانون 2026',
-        f'site:manshurat.org {topic} قانون 2025',
+        f'site:manshurat.org {topic} قانون {CURRENT_YEAR - 1}',
     ]
     cand=[]; seen=set()
     for q in queries:
@@ -98,7 +99,7 @@ def research_legal_topic(topic, existing=""):
             records.append(("current_legislation_source","تشريع","",_date(body),x["title"],"",x["url"]))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
-        f"Research date: {CURRENT_YEAR}-10-04",
+        f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
         f"Topic: {topic}",
         "",
         "WRITER RULES:",
