@@ -131,18 +131,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src python src/reel_pipeline.py
 
-      - name: Persist Reel review package
+      - name: Upload Reel review artifact
         if: ${{ always() }}
-        run: |
-          git config user.name "Khyrat Legal Content Engine"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add generated/reels/
-          if git diff --cached --quiet; then
-            echo "No new Reel package to commit."
-          else
-            git commit -m "Store generated Reel review package"
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-daily-reel
+          path: generated/reels/
+          if-no-files-found: ignore
+          retention-days: 14
 
   blogger:
     name: 3. Blogger Publisher
@@ -252,7 +248,7 @@ jobs:
         run: PYTHONPATH=src python src/facebook_engagement_worker.py
 
   facebook_replies:
-    name: 6. Facebook Private Replies
+    name: 6. Facebook Comment Replies
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
     continue-on-error: true
@@ -267,7 +263,7 @@ jobs:
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run Facebook private replies independently
+      - name: Run Facebook public comment replies independently
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
@@ -277,9 +273,9 @@ jobs:
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AF' }}
-          FACEBOOK_PRIVATE_REPLY_RECENT_POSTS: "3"
-          FACEBOOK_PRIVATE_REPLY_MAX_COMMENTS_PER_RUN: "5"
-          FACEBOOK_PRIVATE_REPLY_MAX_COMMENT_AGE_HOURS: "168"
+          FACEBOOK_COMMENT_REPLY_RECENT_POSTS: "3"
+          FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN: "5"
+          FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS: "168"
         run: PYTHONPATH=src python src/facebook_private_reply_worker.py
 
   package:
