@@ -16,7 +16,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, publish_photo, publish_text
 from gemini import generate_post
-from image_generator import ImageGenerationError, create_legal_image
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic
 from free_media import fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
@@ -247,6 +247,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             if not image_path.is_file() or image_path.stat().st_size == 0:
                 raise ImageGenerationError("Generated image file was empty.")
 
+            brand_published_image(str(image_path))
             generated_image_path = image_path
             image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -294,7 +295,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 fallback_assets = []
         if fallback_assets:
             generated_image_path = fallback_assets[0]
-            print(f"Using topic-related free-media image fallback: {generated_image_path}")
+            brand_published_image(str(generated_image_path))
+            print(f"Using post-related free-media image fallback with mandatory branding: {generated_image_path}")
         else:
             try:
                 cards = generate_legal_cards(fallback_dir, topic, count=1)
