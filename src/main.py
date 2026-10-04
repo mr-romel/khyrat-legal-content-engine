@@ -315,7 +315,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         else:
             print("All image providers failed; preserving any existing image URL.")
 
-    return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text
+    return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text, legal_sources
 
 
 def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, rows: list[dict[str, str]], current) -> None:
@@ -343,7 +343,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
         if not topic or not post:
             continue
         try:
-            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
                 "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
@@ -364,8 +364,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     original_status = str(row.get("الحالة", "")).strip().upper()
     if DRY_RUN:
         bank_rows = get_bank_rows(service, config["sheet_id"])
-        post, _, image_path, level, reason = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
-        editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+        post, _, image_path, level, reason, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
+        editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
         print(f"DRY RUN: Facebook comments={len(editorial['facebook_comments'])}/20 | LinkedIn comments={len(editorial['linkedin_comments'])}/5 | image={image_path}")
         return
 
@@ -373,7 +373,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     bank_rows = get_bank_rows(service, config["sheet_id"])
     pillar, objective = classify(topic, row.get("المحتوى", ""))
     try:
-        post, image_url, image_path, review_level, review_text = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
+        post, image_url, image_path, review_level, review_text, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
             print("No generated image available; publishing text-only instead of blocking the post.")
