@@ -58,6 +58,10 @@ def main() -> int:
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
     image_url = str(row.get("رابط الصورة", "")).strip()
+    source_id = str(row.get("ID", "")).strip()
+    image_path = str(Path("generated") / f"{source_id}.jpg") if source_id else ""
+    if not Path(image_path).is_file():
+        image_path = ""
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -78,6 +82,7 @@ def main() -> int:
             topic=topic,
             post=post,
             image_url=image_url,
+            image_path=image_path,
             legal_sources=legal_sources,
             output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
         )
