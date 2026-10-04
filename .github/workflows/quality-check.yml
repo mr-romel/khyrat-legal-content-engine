@@ -39,7 +39,7 @@ jobs:
       - name: Import application modules
         run: |
           python - <<'PY'
-          import analytics, blogger_publisher, blogger_worker, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, search_geo, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
+          import analytics, blogger_publisher, blogger_worker, comment_engine, config, content_planner, linkedin_engagement, linkedin_engagement_worker, facebook_engagement_worker, facebook_private_reply_worker, engagement_strategy, content_system, content_intelligence_engine, content_system_runtime, daily_schedule, facebook_publisher, gemini, gemini_chat, gemini_runtime, image_generator, image_qa, linkedin_publisher, main, monthly_recycler, optimizer, performance, post_bank, production_monitor, safe_dry_run, sheets, search_geo, telegram_bot, token_manager, topic_bank, topic_bank_500, topic_bank_expanded, utils
           print("Application module import check: OK")
           PY
       - name: Verify final image preview QA tests
