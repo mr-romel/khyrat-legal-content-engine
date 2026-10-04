@@ -16,7 +16,7 @@ def test_comment_count_is_always_between_3_and_7_and_stable():
 
 
 def test_comment_count_can_vary_by_post():
-    counts = {choose_comment_count(f"urn:li:share:{i}") for i in range(1, 500)}
+    counts = {choose_comment_count("", f"published post {i}") for i in range(1, 500)}
     assert counts == set(range(3, 8))
 
 
