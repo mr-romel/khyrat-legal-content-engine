@@ -35,7 +35,7 @@ def _search(q):
     except Exception as e:
         print(f"Legal research search unavailable: {q!r} :: {e}"); return []
     out=[]; seen=set()
-    pat=re.compile(r'<a[^>]+class=["\\']result__a["\\'][^>]+href=["\\']([^"\\']+)["\\'][^>]*>(.*?)</a>',re.I|re.S)
+    pat=re.compile(r"<a[^>]+class=['\"]result__a['\"][^>]+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",re.I|re.S)
     for m in pat.finditer(r.text):
         u=_unwrap(html_lib.unescape(m.group(1))); t=_clean(re.sub(r"<[^>]+>"," ",html_lib.unescape(m.group(2))))
         if not u.startswith("http") or not t or u in seen: continue
