@@ -217,12 +217,12 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             previous_context=previous_context,
         )
         post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, legal_sources)
-        image_brief = str(result.get("image_brief", "") or "").strip() or f"Direct legal scene illustrating: {topic}."
+        image_brief = str(result.get("image_brief", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1200]}"
         review_level = str(result.get("review_level", "CLEAR") or "CLEAR").upper()
         review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     except Exception as exc:
         post = existing_post or _fallback_post(topic, legal_sources)
-        image_brief = f"Direct legal scene illustrating: {topic}."
+        image_brief = f"Concrete scene extracted from the published post: {post[:1200]}"
         review_level = "ADVISORY"
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
@@ -272,11 +272,15 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     if generated_image_path is None:
         fallback_dir = GENERATED_DIR / "image_fallbacks"
         fallback_dir.mkdir(parents=True, exist_ok=True)
+        # Fallback search is also derived from the actual published post,
+        # not from the spreadsheet topic alone.
+        post_terms = " ".join(re.findall(r"[\\u0600-\\u06FF]{3,}", post))
         fallback_terms = [
-            f"{topic} legal",
-            f"{topic} document",
-            f"{topic} Egypt legal",
+            f"{post_terms[:180]} Egypt",
+            f"{post_terms[180:360]} legal document",
+            f"{post_terms[360:540]} Egyptian workplace",
         ]
+        fallback_terms = [term.strip() for term in fallback_terms if term.strip()]
         try:
             fallback_assets = fetch_openverse_images(fallback_terms, fallback_dir, per_term=2)
         except Exception as exc:
