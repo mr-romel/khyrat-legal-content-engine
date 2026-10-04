@@ -147,63 +147,54 @@ def create_legal_image(
             "Image brief is empty."
         )
 
+    # The published post is the visual source of truth. The spreadsheet topic is
+    # metadata only and must never override the concrete situation described in
+    # the actual post.
     prompt = f"""
-Create a premium editorial image for an Egyptian legal education page.
+Create a premium editorial photograph that visually explains the ACTUAL LEGAL SITUATION described in the published Egyptian Arabic post below.
 
-SUBJECT:
-{topic}
+PUBLISHED POST — PRIMARY VISUAL SOURCE:
+{post_context or "No post supplied."}
 
-VISUAL BRIEF:
+EXTRACTED VISUAL BRIEF:
 {image_brief}
 
-FULL POST CONTEXT:
-{post_context or "No post text supplied; infer the scene only from the exact topic and visual brief."}
+METADATA ONLY — DO NOT VISUALIZE THIS AS A GENERIC SUBJECT:
+{topic}
 
-SCENE FIDELITY RULES:
-- The topic and full post context are the source of truth for WHAT is happening
-- The visual brief is the source of truth for HOW that specific situation should look
-- Depict the concrete legal situation, people, action, object, document, workplace, or setting actually described
-- If the topic describes a contract, show a contract being reviewed/signed/contested only if that is what the post says
-- If it describes employment, show the actual employment interaction or document issue described, not a generic lawyer portrait
-- If it describes a court, complaint, inheritance, lease, company decision, cheque, debt, termination, or other concrete event, make that event the unmistakable focal point
-- Do not replace a specific legal event with a generic lawyer at a desk, courthouse, scales of justice, gavel, legal books, or abstract office scene
-- Every major visual element must support the exact topic; remove decorative legal clichés
+SCENE EXTRACTION RULES:
+- Read the published post first and extract ONE concrete, visually representable moment, action, object, document, interaction, workplace situation, family situation, property situation, financial transaction, or procedural event explicitly described in it
+- The published post has priority over the metadata topic and over any generic legal imagery
+- Build the image around that exact moment from the post, not around the broad legal category
+- If the post describes a person receiving, signing, refusing, sending, reviewing, keeping, handing over, terminating, disputing, paying, demanding, or discussing a specific thing, show that exact action and thing
+- If the post describes a document, contract, cheque, receipt, notice, employment paper, lease, complaint, evidence, phone message, payment, or other concrete item, make that item central to the composition
+- If the post describes a dispute between people, show the actual relationship and interaction described, with realistic body language
+- If the post describes a company or workplace decision, show the actual decision context rather than a generic lawyer portrait
+- Do NOT invent a different incident merely because it is more visually attractive
+- Do NOT replace the post's concrete situation with a courthouse, gavel, scales of justice, law books, a lawyer at a desk, or an abstract legal background unless the post itself is specifically about that scene
+- The image must be understandable as an illustration of THIS POST even if the viewer never sees the topic field or any caption
+- Do not put legal text, explanations, labels, or invented facts into the image
+- Prefer a realistic Egyptian setting when the post supports it
 
 CREATIVE REQUIREMENTS:
-
-- Real visual storytelling.
-- Photorealistic and cinematic.
-- Egyptian context where relevant.
-- Show the actual human/legal situation.
-- One clear focal subject.
-- Strong composition.
-- Natural human expressions and body language.
-- Realistic documents and objects.
-- Professional editorial photography aesthetic.
-- Serious, credible and sophisticated.
-- Optimized for a professional Facebook legal page.
-- Portrait composition, 4:5.
+- Photorealistic cinematic editorial photography
+- One unmistakable focal situation
+- Natural Egyptian people, clothing, interiors, streets, offices, homes, or workplaces where relevant
+- Realistic documents and objects, but all written content must be unreadable/non-textual
+- Strong composition and clear action
+- Serious, credible, sophisticated professional photography
+- Portrait composition, 4:5
 
 ABSOLUTELY DO NOT:
-- add text
-- add Arabic letters
-- add English letters
-- add headlines
-- add captions
-- add legal explanations
-- add logos
-- add watermarks
-- create a poster
-- create an infographic
-- create a presentation
-- create a quote card
-- create a social media template
-- create a collage
+- add text, letters, Arabic writing, English writing, numbers, headlines, captions, subtitles
+- add logos or watermarks
+- create a poster, infographic, presentation, quote card, social template, collage, UI, or screenshot
 - create a generic lawyer-at-a-desk scene
-- use generic justice scales unless specifically relevant
+- create generic justice scales or courthouse imagery unless the post explicitly describes them
+- create an unrelated stock-photo concept
+- invent a legal event that does not appear in the post
 
-The image must communicate the problem visually without requiring
-any text or explanation.
+The final image must be a direct visual translation of the published post's concrete situation.
 """.strip()
 
     negative_prompt = """
