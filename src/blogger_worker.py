@@ -46,7 +46,7 @@ def main() -> int:
         return 0
 
     rows = [row_to_dict(row) for row in values[1:]]
-    bid = blog_id(service, config["blog_url"])
+    bid = blog_id(service, config["blogger_url"])
     for existing in rows:
         if str(existing.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
             repair_published_image(service, bid, existing)
