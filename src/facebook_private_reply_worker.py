@@ -335,7 +335,8 @@ def main():
         if processed >= MAX_COMMENTS_PER_RUN:
             break
 
-    print(\n        f"Facebook public comment reply worker processed={processed} | "
+    print(
+        f"Facebook public comment reply worker processed={processed} | "
         f"completed={skipped_completed} | age={skipped_age} | "
         f"page={skipped_page} | not_replyable={skipped_not_replyable}"
     )
