@@ -140,7 +140,7 @@ def write_snapshot(rows: list[dict[str,Any]], service, spreadsheet_id: str) -> N
                 f'{r["opportunity"]:.2f}',"GOOGLE_SEARCH_CONSOLE"])
     for r in build_keyword_rows(rows): _append(service,spreadsheet_id,"KeywordMap",r)
     for r in build_opportunities(rows): _append(service,spreadsheet_id,"ContentOpportunities",r)
-    for r in build_refresh_queue(rows): _append(service,spreadsheetid,"ContentRefreshQueue",r)
+    for r in build_refresh_queue(rows): _append(service,spreadsheet_id,"ContentRefreshQueue",r)
     for r in _monetization_rows(rows): _append(service,spreadsheet_id,"MonetizationMap",r)
 
 def run(days: int=28) -> dict[str,int]:
