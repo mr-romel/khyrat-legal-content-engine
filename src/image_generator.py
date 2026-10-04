@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from PIL import Image, ImageDraw, ImageFont
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 
 CLOUDFLARE_IMAGE_MODEL = (
@@ -86,6 +89,66 @@ def _extract_image_bytes(
     raise ImageGenerationError(
         "Cloudflare response did not contain image data."
     )
+
+
+def _rtl_text(text: str) -> str:
+    return get_display(arabic_reshaper.reshape(str(text or "")))
+
+
+def brand_published_image(image_path: str) -> str:
+    """Apply the mandatory Ask Mahmoud brand mark to every published image."""
+    path = Path(image_path)
+    if not path.is_file() or path.stat().st_size == 0:
+        raise ImageGenerationError("Cannot brand a missing image.")
+
+    try:
+        image = Image.open(path).convert("RGB")
+        width, height = image.size
+        draw = ImageDraw.Draw(image, "RGBA")
+
+        bold_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
+        bold = ImageFont.truetype(bold_path, max(28, int(width * 0.038)))
+
+        strip_h = max(92, int(height * 0.115))
+        y0 = height - strip_h
+        draw.rectangle((0, y0, width, height), fill=(8, 16, 30, 215))
+
+        radius = max(22, int(strip_h * 0.27))
+        cx = max(radius + 18, int(width * 0.075))
+        cy = y0 + strip_h // 2
+        fb_blue = (24, 119, 242, 255)
+        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=fb_blue)
+
+        f_font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            max(26, int(radius * 1.35)),
+        )
+        f_bbox = draw.textbbox((0, 0), "f", font=f_font)
+        fw, fh = f_bbox[2] - f_bbox[0], f_bbox[3] - f_bbox[1]
+        draw.text(
+            (cx - fw / 2, cy - fh / 2 - max(2, int(radius * 0.10))),
+            "f", font=f_font, fill=(255, 255, 255, 255)
+        )
+
+        brand = _rtl_text("اسأل محمود - مستشار قانوني للشركات")
+        bbox = draw.textbbox((0, 0), brand, font=bold)
+        tw = bbox[2] - bbox[0]
+        if cx + radius + 18 + tw > width - 18:
+            bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
+            bbox = draw.textbbox((0, 0), brand, font=bold)
+            tw = bbox[2] - bbox[0]
+
+        draw.text(
+            (width - 18 - tw, cy - (bbox[3] - bbox[1]) / 2),
+            brand, font=bold, fill=(255, 255, 255, 255)
+        )
+
+        image.save(path, quality=94, optimize=True)
+        return str(path)
+    except Exception as exc:
+        raise ImageGenerationError(
+            f"Failed to apply mandatory image branding: {exc}"
+        ) from exc
 
 
 def create_legal_image(
