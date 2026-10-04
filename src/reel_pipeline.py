@@ -108,7 +108,7 @@ def prepare_tts_script(text: str) -> str:
     return out
 
 
-def generate_local_egyptian_tts_audio(script: str, output_path: Path) -> Path:
+def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
     """Fully local/free Egyptian-Arabic TTS fallback; no API key and no Edge TTS."""
     try:
         from voicetut_tts import VoiceTutTTS
@@ -123,7 +123,21 @@ def generate_local_egyptian_tts_audio(script: str, output_path: Path) -> Path:
         device="cpu",
         dtype="float32",
     )
-    tts.synthesize_long(clean, str(output_path), speaker=speaker, num_step=steps, speed=speed, gap_ms=140)
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\\s+", clean) if s.strip()]
+    import numpy as np
+    import soundfile as sf
+    chunks = []
+    gap = np.zeros(int(tts.sampling_rate * 0.12), dtype=np.float32)
+    for idx, sentence in enumerate(sentences, start=1):
+        emotion = "confident, natural Egyptian Arabic, mature male lawyer, clear diction"
+        for item in emotion_map or []:
+            if int(item.get("sentence_index", 0) or 0) == idx:
+                emotion = str(item.get("delivery_emotion") or emotion).replace("_", " ")
+                break
+        instruct = f"Egyptian Arabic, mature male legal presenter. {emotion}. Natural pauses and conversational human delivery; not a newsreader."
+        chunk = tts.synthesize(sentence, speaker=speaker, instruct=instruct, num_step=steps, speed=speed)
+        chunks.extend([chunk.astype(np.float32), gap])
+    sf.write(str(output_path), np.concatenate(chunks), tts.sampling_rate)
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
@@ -206,84 +220,55 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     return output_path
 
 
-def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str = "") -> Path:
-    """Professional kinetic layer: subtle moving geometry + topic-aware end card."""
+def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str = "", logo_path: str = "", slogan_audio: Path | None = None) -> Path:
+    """Use purposeful camera motion on real scenes; no generic floating graphics or editorial titles."""
     work_dir = output_video.parent / "motion"
     work_dir.mkdir(parents=True, exist_ok=True)
-    endcard = work_dir / "brand_endcard.mp4"
-    intro = work_dir / "brand_intro.mp4"
-    font_candidates = [
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-    ]
-    font_path = next((p for p in font_candidates if Path(p).exists()), None)
     from PIL import Image, ImageDraw, ImageFont
+    logo = Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "assets/brand/logo.png"))
+    endcard = work_dir / "brand_endcard.mp4"
+    img = Image.new("RGB", (1080, 1920), (8, 13, 22))
+    draw = ImageDraw.Draw(img)
+    if logo.is_file():
+        try:
+            mark = Image.open(logo).convert("RGBA")
+            mark.thumbnail((760, 760), Image.Resampling.LANCZOS)
+            img.paste(mark, ((1080-mark.width)//2, 390), mark)
+        except Exception as exc:
+            print(f"Brand logo could not be loaded: {exc}")
+    font_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
+    font = ImageFont.truetype(font_path, 62) if Path(font_path).exists() else ImageFont.load_default()
+    small = ImageFont.truetype(font_path, 43) if Path(font_path).exists() else ImageFont.load_default()
     import arabic_reshaper
     from bidi.algorithm import get_display
-    def rtl_text(value: str) -> str:
-        return get_display(arabic_reshaper.reshape(value))
-    # Animated intro: an actual kinetic graphic sequence, not a static slide.
-    intro_img = Image.new("RGB", (1080, 1920), (8, 13, 22))
-    intro_draw = ImageDraw.Draw(intro_img)
-    intro_title = ImageFont.truetype(font_path, 88) if font_path else ImageFont.load_default()
-    intro_sub = ImageFont.truetype(font_path, 52) if font_path else ImageFont.load_default()
-    intro_draw.text((540, 760), rtl_text("اسأل محمود"), font=intro_title, anchor="mm", fill="white")
-    intro_draw.text((540, 870), rtl_text("معلومة قانونية"), font=intro_sub, anchor="mm", fill=(210, 220, 235))
-    if topic:
-        topic_font = ImageFont.truetype(font_path, 42) if font_path else ImageFont.load_default()
-        intro_draw.text((540, 1030), rtl_text(str(topic)[:55]), font=topic_font, anchor="mm", fill=(175, 195, 220))
-    intro_png = work_dir / "brand_intro.png"
-    intro_img.save(intro_png, quality=95)
-    subprocess.run([
-        "ffmpeg","-y","-loop","1","-i",str(intro_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
-        "-t","1.8",
-        "-vf","scale=1080:1920,zoompan=z='min(zoom+0.0015,1.045)':d=1:s=1080x1920:fps=30,drawbox=x='mod(t*420,1450)-260':y='620+180*sin(t*2.2)':w=18:h=520:color=white@0.55:t=fill,drawbox=x='180+620*sin(t*1.15)':y=1130:w=420:h=8:color=white@0.45:t=fill",
-        "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","128k","-shortest",str(intro)
-    ], check=True, timeout=180)
-
-    img = Image.new("RGB", (1080, 1920), (10, 16, 24))
-    d = ImageDraw.Draw(img)
-    # layered framing, subtle glow and Facebook mark
-    d.rounded_rectangle((58, 58, 1022, 1862), radius=52, outline=(230, 235, 242), width=4)
-    for inset, alpha in ((110, 50), (170, 30)):
-        d.ellipse((540-inset, 960-inset, 540+inset, 960+inset), outline=(80, 150, 255), width=5)
-    d.ellipse((440, 610, 640, 810), fill=(24, 119, 242))
-    f = ImageFont.truetype(font_path, 150) if font_path else ImageFont.load_default()
-    d.text((540, 708), "f", font=f, anchor="mm", fill="white")
-    title_font = ImageFont.truetype(font_path, 66) if font_path else ImageFont.load_default()
-    sub_font = ImageFont.truetype(font_path, 48) if font_path else ImageFont.load_default()
-    d.text((540, 930), rtl_text("تابعونا صفحة اسأل محمود"), font=title_font, anchor="mm", fill="white")
-    d.text((540, 1035), rtl_text("مستشار قانوني للشركات"), font=sub_font, anchor="mm", fill=(210, 220, 235))
-    d.rounded_rectangle((235, 1165, 845, 1250), radius=42, outline=(80, 150, 255), width=3)
-    d.text((540, 1208), rtl_text("صفحة اسأل محمود"), font=sub_font, anchor="mm", fill=(235, 240, 248))
+    rtl = lambda value: get_display(arabic_reshaper.reshape(value))
+    draw.text((540, 1220), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font, anchor="mm", fill="white")
+    draw.text((540, 1340), rtl("وفي النهاية خليك دايما فاكر ... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
+    draw.ellipse((455, 1430, 625, 1600), fill=(24,119,242))
+    fbfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 125)
+    draw.text((540, 1515), "f", font=fbfont, anchor="mm", fill="white")
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
-    subprocess.run([
-        "ffmpeg","-y","-loop","1","-i",str(end_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
-        "-t","3.2","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0007,1.03)':d=1:s=1080x1920:fps=30",
-        "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","128k","-shortest",str(endcard)
-    ], check=True, timeout=180)
-    styled = work_dir / "styled.mp4"
-    vf = (
-        "drawbox=x=24:y=24:w=1032:h=1872:color=white@0.10:t=3,"
-        "drawbox=x='mod(t*145,1250)-180':y='130+180*sin(t*0.9)':w=9:h=520:color=white@0.17:t=fill,"
-        "drawbox=x='890+70*sin(t*0.72)':y='mod(t*210,2100)-180':w=14:h=320:color=white@0.12:t=fill,"
-        "drawbox=x='110+310*sin(t*0.48)':y='1760+28*sin(t*1.5)':w=300:h=6:color=white@0.28:t=fill,"
-        "eq=contrast=1.04:saturation=1.06"
-    )
+    if slogan_audio and slogan_audio.is_file():
+        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-i",str(slogan_audio),"-t","3.0",
+            "-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
+            "-af","apad=pad_dur=3,atrim=duration=3","-map","0:v:0","-map","1:a:0",
+            "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
+    else:
+        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t","3.0","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
+            "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
     base = work_dir / "base_motion.mp4"
-    subprocess.run([
-        "ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)
-    ], check=True, timeout=900)
+    vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.03:saturation=1.04"
+    subprocess.run(["ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)],check=True,timeout=900)
+    styled = work_dir / "styled.mp4"
     concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{intro.resolve()}'\nfile '{base.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
-    subprocess.run([
-        "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),
-        "-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)
-    ], check=True, timeout=900)
+    concat_list.write_text(f"file '{base.resolve()}'
+file '{endcard.resolve()}'
+",encoding="utf-8")
+    subprocess.run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)],check=True,timeout=900)
     shutil.copy2(styled, output_video)
     return output_video
-
 
 
 def topic_visual_terms(topic: str) -> list[str]:
@@ -543,7 +528,7 @@ def main() -> int:
         except Exception as gemini_tts_exc:
             print(f"Reel TTS: Gemini unavailable; switching to fully local Egyptian TTS fallback: {gemini_tts_exc}")
             tts_audio = output_dir / "voice-egyptian-local.wav"
-            generate_local_egyptian_tts_audio(brief["script"], tts_audio)
+            generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
@@ -613,7 +598,14 @@ def main() -> int:
                     raw_video = output_dir / "mpt-base.mp4"
                     shutil.copy2(task_videos[-1], raw_video)
                     output_video = output_dir / "daily-reel.mp4"
-                    add_motion_graphics_layer(raw_video, output_video, topic)
+                    slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+                    slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
+                    try:
+                        generate_gemini_tts_audio(cfg["gemini_api_key"], slogan_text, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio)
+                    except Exception as slogan_gemini_exc:
+                        print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
+                        generate_local_egyptian_tts_audio(slogan_text, slogan_audio, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}])
+                    add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "assets/brand/logo.png"), slogan_audio)
                     raw_video.unlink(missing_ok=True)
 
 
