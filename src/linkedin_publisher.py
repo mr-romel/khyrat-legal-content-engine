@@ -209,6 +209,23 @@ def create_post(*, token: str, author_urn: str, commentary: str, image_urn: str)
 
 
 
+
+def delete_post(*, token: str, post_urn: str) -> dict[str, Any]:
+    """Delete a previously published member post during an explicit image-repair operation."""
+    token = str(token or "").strip()
+    post_urn = str(post_urn or "").strip()
+    if not token or not post_urn:
+        raise LinkedInPublishError("LinkedIn delete requires an access token and post URN.")
+    endpoint = f"{LINKEDIN_REST_BASE}/posts/{quote(post_urn, safe='')}"
+    try:
+        response = requests.delete(endpoint, headers=_headers(token), timeout=60)
+    except requests.RequestException as exc:
+        raise LinkedInPublishError(f"LinkedIn post deletion network error: {exc}") from exc
+    if not response.ok:
+        _raise_required_error("LinkedIn post deletion", response)
+    return {"post_urn": post_urn, "deleted": True, "http_status": response.status_code}
+
+
 def publish_text_to_linkedin(*, token: str, author_urn: str, commentary: str) -> dict[str, Any]:
     """Publish a text-only LinkedIn post when image generation is unavailable."""
     token = (token or "").strip()
