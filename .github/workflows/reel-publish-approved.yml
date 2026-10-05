@@ -52,12 +52,18 @@ jobs:
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
         run: |
           python - <<'PY'
-          import os
-          from config import load_config
+          import json, os
           from sheets import create_service, get_values, row_to_dict
-          cfg=load_config()
-          svc=create_service(cfg["service_account_info"])
-          values=get_values(svc,cfg["sheet_id"],cfg["sheet_range"])
+          credentials_raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
+          if not credentials_raw:
+              raise SystemExit("Google service-account credentials are missing.")
+          service_account_info = json.loads(credentials_raw)
+          sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:AY").strip()
+          if not sheet_id:
+              raise SystemExit("GOOGLE_SHEET_ID is missing.")
+          svc=create_service(service_account_info)
+          values=get_values(svc,sheet_id,sheet_range)
           for n, raw in enumerate(values[1:], start=2):
               row=row_to_dict(raw)
               if str(row.get("Reel Status","")).strip().upper()=="REVIEW" and str(row.get("Reel Approval","")).strip().upper()=="APPROVED":
