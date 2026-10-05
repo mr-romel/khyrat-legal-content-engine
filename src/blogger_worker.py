@@ -160,6 +160,9 @@ def main() -> int:
             "Blogger Search Title": result["title"],
             "Blogger Search Query": result["search_query"],
             "Blogger Search Candidates": result["search_candidates"],
+            "Blogger Meta Description": result.get("meta_description", ""),
+            "Blogger SEO Status": "PENDING",
+            "Blogger SEO Error": "",
             "Blogger Last Error": "",
         })
         print(f"Blogger published: {result['title']} -> {result['post_url']}")
