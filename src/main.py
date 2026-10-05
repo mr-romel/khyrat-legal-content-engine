@@ -19,7 +19,6 @@ from gemini import generate_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic
-from free_media import fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
 from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -229,12 +228,25 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
 
     generated_image_path = None
     current_image_brief = image_brief
-    max_image_attempts = 2
 
-    # Publishing contract: an image must accompany the social post whenever the
-    # image pipeline can produce any topic-related asset. Visual QA is advisory
-    # only and is never allowed to reject/remove the publishing image.
-    for image_attempt in range(1, max_image_attempts + 1):
+    # Image lifecycle contract:
+    # 1) A successful generated image is immutable for the row and is reused on retries.
+    # 2) A fallback/card image is never considered reusable.
+    # 3) A new image is generated at most ONCE for a row execution.
+    # 4) If generation fails, publication is blocked rather than attaching a fake topic card
+    #    or publishing text-only content.
+    existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
+    reusable_existing = (
+        bool(existing_image_url)
+        and "FALLBACK" not in existing_image_mode
+        and image_path.is_file()
+        and image_path.stat().st_size > 0
+    )
+
+    if reusable_existing:
+        generated_image_path = image_path
+        print(f"Image reuse: preserving existing generated asset {image_path}; no regeneration.")
+    else:
         try:
             create_legal_image(
                 topic=topic,
@@ -253,76 +265,32 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
                 "Image Mode": "DIRECT_CLOUDFLARE",
-                "Image QA Attempt": str(image_attempt),
-                "Image QA Status": "ACCEPTED_NO_BLOCKING_QA",
+                "Image QA Attempt": "1",
+                "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
                 "Image QA Score": "",
                 "Image QA Issues": "",
                 "المحتوى": post,
                 "وصف الصورة": current_image_brief,
                 "وقت آخر تشغيل": current.isoformat(),
             })
-            print("Image generated and accepted for publishing; QA cannot block image delivery.")
-            break
+            print("Image generated exactly once and locked for this row.")
         except ImageGenerationError as image_exc:
-            print(f"Image generation attempt {image_attempt} failed: {image_exc}")
-            if image_attempt < max_image_attempts:
-                continue
-
-    # Final free-media fallback: never turn a successful social publication into
-    # text-only merely because the primary image provider failed.
-    if generated_image_path is None:
-        fallback_dir = GENERATED_DIR / "image_fallbacks"
-        fallback_dir.mkdir(parents=True, exist_ok=True)
-        # Fallback search is also derived from the actual published post,
-        # not from the spreadsheet topic alone.
-        post_terms = " ".join(re.findall(r"[\u0600-\u06FF]{3,}", post))
-        fallback_terms = [
-            f"{post_terms[:180]} Egypt",
-            f"{post_terms[180:360]} legal document",
-            f"{post_terms[360:540]} Egyptian workplace",
-        ]
-        fallback_terms = [term.strip() for term in fallback_terms if term.strip()]
-        try:
-            fallback_assets = fetch_openverse_images(fallback_terms, fallback_dir, per_term=2)
-        except Exception as exc:
-            print(f"Openverse image fallback failed: {exc}")
-            fallback_assets = []
-        if not fallback_assets:
-            try:
-                fallback_assets = fetch_wikimedia_images(fallback_terms, fallback_dir, target=2)
-            except Exception as exc:
-                print(f"Wikimedia image fallback failed: {exc}")
-                fallback_assets = []
-        if fallback_assets:
-            generated_image_path = fallback_assets[0]
-            brand_published_image(str(generated_image_path))
-            print(f"Using post-related free-media image fallback with mandatory branding: {generated_image_path}")
-        else:
-            try:
-                cards = generate_legal_cards(fallback_dir, topic, count=1)
-                generated_image_path = cards[0] if cards else None
-                if generated_image_path:
-                    print(f"Using local topic-labeled visual fallback: {generated_image_path}")
-            except Exception as exc:
-                print(f"Local visual fallback failed: {exc}")
-
-        if generated_image_path and generated_image_path.is_file():
-            image_url = github_raw_url(str(generated_image_path))
+            print(f"Image generation failed; no fallback/card will be attached: {image_exc}")
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "رابط الصورة": image_url,
-                "Image Mode": "FREE_MEDIA_OR_LOCAL_FALLBACK",
-                "Image QA Attempt": "",
-                "Image QA Status": "ACCEPTED_FALLBACK_NO_BLOCKING_QA",
-                "Image QA Score": "",
-                "Image QA Issues": "",
-                "المحتوى": post,
-                "وصف الصورة": image_brief,
+                "Image QA Attempt": "1",
+                "Image QA Status": "IMAGE_GENERATION_FAILED",
+                "Image QA Issues": str(image_exc)[:1500],
+                "Image Mode": "IMAGE_REQUIRED",
                 "وقت آخر تشغيل": current.isoformat(),
             })
-        else:
-            print("All image providers failed; preserving any existing image URL.")
 
-    return post, (github_raw_url(str(generated_image_path)) if generated_image_path else existing_image_url), generated_image_path, review_level, review_text, legal_sources
+    image_url = (
+        existing_image_url
+        if reusable_existing
+        else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
+    )
+
+    return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
 
 def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, rows: list[dict[str, str]], current) -> None:
@@ -383,7 +351,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         post, image_url, image_path, review_level, review_text, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
-            print("No generated image available; publishing text-only instead of blocking the post.")
+            raise RuntimeError("No valid generated image is available. Publication is blocked to prevent text-only or fallback-card publishing.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
