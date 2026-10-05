@@ -121,7 +121,10 @@ def main() -> int:
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
     if "FALLBACK" in image_mode or image_mode == "IMAGE_REQUIRED":
-        raise BloggerPublishError("Blogger refuses fallback/card images; waiting for a single valid generated image.")
+        message = "Blogger refuses fallback/card images; waiting for the core publisher to create one valid generated image."
+        update_row(service, config["sheet_id"], sheet_name, row_number, {"Blogger Status": "FAILED", "Blogger Last Error": message})
+        print(message)
+        return 0
     image_path = resolve_image_path(image_url, source_id, row_number)
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
