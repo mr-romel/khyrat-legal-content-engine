@@ -269,6 +269,7 @@ split screen, generic lawyer desk,
 generic scales of justice, cartoon,
 cheap stock photo, distorted face,
 extra fingers, malformed hands, duplicate people,
+ancient Egypt, pharaoh, ancient costume, historical reenactment, fantasy,
 blurry subject, low detail, oversaturated
 """.strip()
 
@@ -276,17 +277,25 @@ blurry subject, low detail, oversaturated
         account_id=account_id,
     )
 
-    # 4:5 portrait.
-    width = 768
-    height = 960
+    # 4:5 portrait. Keep enough diffusion steps for a coherent real-world scene.
+    width = 1024
+    height = 1280
+    try:
+        num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "25")), 30))
+    except ValueError:
+        num_steps = 25
+    try:
+        guidance = float(os.environ.get("CLOUDFLARE_IMAGE_GUIDANCE", "6.0"))
+    except ValueError:
+        guidance = 6.0
 
     request_body = {
         "prompt": prompt,
         "negative_prompt": negative_prompt,
         "width": width,
         "height": height,
-        "num_steps": 8,
-        "guidance": 7.5,
+        "num_steps": num_steps,
+        "guidance": guidance,
     }
 
     headers = {
