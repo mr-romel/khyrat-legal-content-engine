@@ -20,7 +20,6 @@ def resolve_image_path(image_url: str, source_id: str, row_number: int) -> str:
         candidates.extend([
             Path("generated") / (safe_id + ".jpg"),
             Path("generated") / (source_id + ".jpg"),
-            Path("generated") / "image_fallbacks" / (safe_id + ".jpg"),
         ])
     for candidate in candidates:
         if candidate.is_file() and candidate.stat().st_size > 0:
@@ -118,8 +117,11 @@ def main() -> int:
     row_number, row = candidates[0]
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
+    image_mode = str(row.get("Image Mode", "") or "").strip().upper()
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
+    if "FALLBACK" in image_mode or image_mode == "IMAGE_REQUIRED":
+        raise BloggerPublishError("Blogger refuses fallback/card images; waiting for a single valid generated image.")
     image_path = resolve_image_path(image_url, source_id, row_number)
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
