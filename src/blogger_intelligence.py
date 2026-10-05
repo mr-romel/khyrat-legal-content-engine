@@ -25,7 +25,7 @@ def monetization_map(query:str)->tuple[str,str]:
     return "استشارة قانونية عامة","EDUCATIONAL"
 
 def load_posts(svc,bid:str)->list[dict[str,str]]:
-    data=svc.posts().list(blogId=bid,status="live",fetchBodies=False,maxResults=500,orderBy="PUBLISHED").execute()
+    data=svc.posts().list(blogId=bid,status="LIVE",fetchBodies=False,maxResults=500,orderBy="PUBLISHED").execute()
     return [{"id":str(x.get("id","")),"title":str(x.get("title","")).strip(),"url":str(x.get("url","")).strip()}
             for x in data.get("items",[]) or [] if str(x.get("id","")).strip() and str(x.get("title","")).strip()]
 
