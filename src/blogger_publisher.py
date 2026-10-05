@@ -166,7 +166,7 @@ def _footer(topic: str) -> str:
     return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>للتواصل المباشر:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a></p><p>المعلومة للتوعية العامة؛ تقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
 
 def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
-    try: data=svc.posts().list(blogId=bid,status="live",fetchBodies=False,maxResults=25,orderBy="PUBLISHED").execute()
+    try: data=svc.posts().list(blogId=bid,status="LIVE",fetchBodies=False,maxResults=25,orderBy="PUBLISHED").execute()
     except Exception as exc: print(f"Related-post lookup unavailable: {exc}"); return []
     core=set(re.findall(r"[\u0600-\u06ff\w]+",_clean(topic).lower())); scored=[]
     for x in data.get("items",[]) or []:
