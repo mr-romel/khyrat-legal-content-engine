@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from blogger_publisher import BloggerPublishError, publish_article, upload_blogger_image
+from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 
