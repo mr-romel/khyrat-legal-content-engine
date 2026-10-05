@@ -67,7 +67,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_PRIMARY_ATTEMPTS: "2"
           GEMINI_FALLBACK_ATTEMPTS: "1"
-          CLOUDFLARE_IMAGE_STEPS: "4"
+          CLOUDFLARE_IMAGE_STEPS: "25"
+          CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
         run: PYTHONPATH=src python src/content_system_runtime.py
 
       - name: Persist generated publishing assets
