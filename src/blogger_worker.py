@@ -82,11 +82,15 @@ def main() -> int:
 
     rows = [row_to_dict(row) for row in values[1:]]
     bid = blog_id(service, config["blogger_url"])
+    # Never re-upload/re-generate an already published image on every run.
+    # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
-        if str(existing.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
-            mode = str(existing.get("Image Mode", "") or "").strip().upper()
-            if mode == "DIRECT_CLOUDFLARE":
-                repair_published_image(service, bid, existing)
+        if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
+            continue
+        mode = str(existing.get("Image Mode", "") or "").strip().upper()
+        qa = str(existing.get("Image QA Status", "") or "").strip().upper()
+        if "FALLBACK" in mode or "FALLBACK" in qa:
+            repair_published_image(service, bid, existing)
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
