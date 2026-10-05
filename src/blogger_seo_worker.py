@@ -220,6 +220,8 @@ def main() -> int:
         return 0
 
     resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
+    max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "5")))
+    candidates = candidates[:max_posts]
     success = 0
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
