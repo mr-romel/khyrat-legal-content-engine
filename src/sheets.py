@@ -146,6 +146,67 @@ def append_row(service, spreadsheet_id: str, sheet_name: str, values: dict[str, 
     return int(digits) if digits else -1
 
 
+
+def _column_letter(column_number: int) -> str:
+    """Convert a 1-based column number to an A1 column label."""
+    label = ""
+    while column_number:
+        column_number, remainder = divmod(column_number - 1, 26)
+        label = chr(65 + remainder) + label
+    return label
+
+
+def _ensure_sheet(service, spreadsheet_id: str, sheet_name: str, headers: list[str]) -> None:
+    """Create a generic analysis tab when missing and ensure its header row."""
+    sheet_id, resolved_title = _find_sheet_id(service, spreadsheet_id, sheet_name)
+
+    if sheet_id is None:
+        _execute_with_retry(
+            lambda: service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]},
+            ),
+            f"creating sheet tab '{sheet_name}'",
+        )
+        resolved_title = sheet_name
+
+    last_column = _column_letter(max(1, len(headers)))
+    existing = get_values(
+        service,
+        spreadsheet_id,
+        f"{resolved_title}!A1:{last_column}1",
+    )
+    if existing and existing[0][:len(headers)] == headers:
+        return
+
+    _execute_with_retry(
+        lambda: service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=f"{resolved_title}!A1:{last_column}1",
+            valueInputOption="RAW",
+            body={"values": [headers]},
+        ),
+        f"writing headers in {resolved_title}",
+    )
+
+
+def _append(service, spreadsheet_id: str, sheet_name: str, values: list[Any]) -> int:
+    """Append a generic positional row to an analysis tab."""
+    last_column = _column_letter(max(1, len(values)))
+    response = _execute_with_retry(
+        lambda: service.spreadsheets().values().append(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A:{last_column}",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [values]},
+        ),
+        f"appending row to {sheet_name}",
+    )
+    updated_range = response.get("updates", {}).get("updatedRange", "")
+    digits = "".join(ch for ch in updated_range if ch.isdigit())
+    return int(digits) if digits else -1
+
 def _find_sheet_id(service, spreadsheet_id: str, sheet_name: str):
     metadata = _execute_with_retry(
         lambda: service.spreadsheets().get(
