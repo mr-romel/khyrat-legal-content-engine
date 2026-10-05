@@ -229,13 +229,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     generated_image_path = None
     current_image_brief = image_brief
 
-    # Image lifecycle contract:
-    # 1) A successful generated image is immutable for the row and is reused on retries.
-    # 2) A fallback/card image is never considered reusable.
-    # 3) A new image is generated at most ONCE for a row execution.
-    # 4) If generation fails, publication is blocked rather than attaching a fake topic card
-    #    or publishing text-only content.
+    # FINAL PROJECT RULE:
+    # Publishing is NEVER blocked by image generation.
+    # There is NO image fallback/card/media-search path.
+    # The image is generated from the complete post, exactly once for this row.
+    # If generation fails, publish the post without an image.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
+    image_attempted = str(row.get("Image Generation Attempt", "") or "").strip() == "1"
     reusable_existing = (
         bool(existing_image_url)
         and "FALLBACK" not in existing_image_mode
@@ -246,7 +246,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     if reusable_existing:
         generated_image_path = image_path
         print(f"Image reuse: preserving existing generated asset {image_path}; no regeneration.")
-    else:
+    elif not image_attempted:
         try:
             create_legal_image(
                 topic=topic,
@@ -265,6 +265,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
                 "Image Mode": "DIRECT_CLOUDFLARE",
+                "Image Generation Attempt": "1",
                 "Image QA Attempt": "1",
                 "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
                 "Image QA Score": "",
@@ -273,16 +274,21 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "وصف الصورة": current_image_brief,
                 "وقت آخر تشغيل": current.isoformat(),
             })
-            print("Image generated exactly once and locked for this row.")
+            print("Image generated exactly once from the complete published post and locked for this row.")
         except ImageGenerationError as image_exc:
-            print(f"Image generation failed; no fallback/card will be attached: {image_exc}")
+            print(f"Image generation failed once; publishing continues without an image: {image_exc}")
             update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Image Generation Attempt": "1",
                 "Image QA Attempt": "1",
-                "Image QA Status": "IMAGE_GENERATION_FAILED",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_PUBLISH_ANYWAY",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "IMAGE_REQUIRED",
+                "Image Mode": "NONE",
+                "رابط الصورة": "",
+                "وصف الصورة": current_image_brief,
                 "وقت آخر تشغيل": current.isoformat(),
             })
+    else:
+        print("Image generation was already attempted for this row; no regeneration. Publishing continues without image.")
 
     image_url = (
         existing_image_url
@@ -466,14 +472,17 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     print(f"Processing row {row_number}: {topic}")
     original_status = str(row.get("الحالة", "")).strip().upper()
     if not DRY_RUN and original_status == "PUBLISHED" and _is_bad_published_image(row):
-        _repair_published_bad_image(
-            service=service,
-            config=config,
-            sheet_name=sheet_name,
-            row_number=row_number,
-            row=row,
-            current=current,
-        )
+        try:
+            _repair_published_bad_image(
+                service=service,
+                config=config,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                row=row,
+                current=current,
+            )
+        except Exception as repair_exc:
+            print(f"Image repair failed; existing publication remains untouched and the pipeline continues: {repair_exc}")
         return
 
     if DRY_RUN:
@@ -490,7 +499,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         post, image_url, image_path, review_level, review_text, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
-            raise RuntimeError("No valid generated image is available. Publication is blocked to prevent text-only or fallback-card publishing.")
+            print("No generated image is available; publication continues as text-only. Image generation never blocks publishing.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
@@ -670,9 +679,8 @@ def main() -> None:
         try:
             process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
         except Exception as exc:
-            print(f"Image repair failed: {exc}")
+            print(f"Image repair failed; normal publishing selection continues: {exc}")
             print(traceback.format_exc())
-        return
 
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
     if not candidates:
