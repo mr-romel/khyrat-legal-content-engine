@@ -235,7 +235,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     # The image is generated from the complete post, exactly once for this row.
     # If generation fails, publish the post without an image.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
-    image_attempted = str(row.get("Image Generation Attempt", "") or "").strip() == "1"
+    image_attempted = str(row.get("Image QA Attempt", "") or "").strip() == "1"
     reusable_existing = (
         "FALLBACK" not in existing_image_mode
         and image_path.is_file()
@@ -264,7 +264,6 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
                 "Image Mode": "DIRECT_CLOUDFLARE",
-                "Image Generation Attempt": "1",
                 "Image QA Attempt": "1",
                 "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
                 "Image QA Score": "",
@@ -340,7 +339,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
 def _is_bad_published_image(row: dict[str, str]) -> bool:
     mode = str(row.get("Image Mode", "") or "").strip().upper()
     qa = str(row.get("Image QA Status", "") or "").strip().upper()
-    repair_attempted = str(row.get("Image Repair Attempt", "") or "").strip() == "1"
+    repair_attempted = qa.startswith("IMAGE_REPAIR_") or qa == "REPAIRED_SINGLE_GENERATION"
     if repair_attempted:
         return False
     return "FALLBACK" in mode or "FALLBACK" in qa or mode in {"IMAGE_REQUIRED", "NONE"}
@@ -369,7 +368,6 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
 
     print(f"IMAGE REPAIR: generating exactly one replacement image for row {row_number}.")
     update_row(service, config["sheet_id"], sheet_name, row_number, {
-        "Image Repair Attempt": "1",
         "Image QA Attempt": "1",
         "Image QA Status": "IMAGE_REPAIR_IN_PROGRESS",
         "وقت آخر تشغيل": current.isoformat(),
@@ -388,7 +386,6 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         brand_published_image(str(image_path))
     except ImageGenerationError as exc:
         update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Image Repair Attempt": "1",
             "Image QA Attempt": "1",
             "Image QA Status": "IMAGE_REPAIR_GENERATION_FAILED",
             "Image QA Issues": str(exc)[:1500],
@@ -438,7 +435,6 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         "الحالة": "PUBLISHED",
         "رابط الصورة": image_url,
         "Image Mode": "DIRECT_CLOUDFLARE",
-        "Image Repair Attempt": "1",
         "Image QA Attempt": "1",
         "Image QA Status": "REPAIRED_SINGLE_GENERATION",
         "Image QA Score": "",
