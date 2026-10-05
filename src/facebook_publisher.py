@@ -114,6 +114,27 @@ def publish_photo(*, page_id: str, page_access_token: str, graph_version: str, i
 
 
 
+
+def delete_post(*, post_id: str, page_access_token: str, graph_version: str) -> dict[str, Any]:
+    """Delete a previously published Page post during an explicit image-repair operation."""
+    post_id = str(post_id or "").strip()
+    token = str(page_access_token or "").strip()
+    if not post_id or not token:
+        raise FacebookPublishError("Facebook delete requires a post ID and Page access token.")
+    try:
+        response = requests.delete(
+            _graph_url(graph_version, post_id),
+            headers=_headers(),
+            params={"access_token": token},
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        raise FacebookPublishError(f"Facebook post deletion network error: {exc}") from exc
+    if not response.ok:
+        raise _api_error("Facebook post deletion failed", response)
+    return {"post_id": post_id, "deleted": True, "http_status": response.status_code}
+
+
 def publish_text(*, page_id: str, page_access_token: str, graph_version: str, message: str) -> dict[str, Any]:
     """Publish a text-only Facebook post when image generation is unavailable."""
     page_id = page_id.strip()
