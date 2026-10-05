@@ -208,6 +208,7 @@ jobs:
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
+          BLOGGER_SEO_MAX_POSTS: "5"
         run: PYTHONPATH=src python src/blogger_seo_worker.py
   linkedin_engagement:
     name: 4. LinkedIn Engagement
