@@ -11,6 +11,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from config import load_blogger_config
+from blogger_publisher import blog_id
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 
 BLOGGER_EDIT_URL = "https://www.blogger.com/blog/post/edit/{blog_id}/{post_id}?hl=ar"
@@ -218,13 +219,14 @@ def main() -> int:
         print("Blogger SEO worker: no pending posts.")
         return 0
 
+    resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
     success = 0
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(storage_state=storage, locale="ar-EG")
         page = context.new_page()
         for row_number, row in candidates:
-            if process_row(page, config["blogger_blog_id"] or "", row_number, row, service, config["sheet_id"], sheet_name):
+            if process_row(page, resolved_blog_id, row_number, row, service, config["sheet_id"], sheet_name):
                 success += 1
         browser.close()
 
