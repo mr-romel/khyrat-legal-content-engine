@@ -157,6 +157,17 @@ def build_search_title(topic: str) -> tuple[str,str,list[str]]:
         return unique[0], unique[0], unique[:12]
     return (topic.rstrip("؟?.!،:")+"؟ أهم التفاصيل القانونية")[:110], "", []
 
+def _seo_title(value: str, fallback: str = "معلومة قانونية مهمة") -> str:
+    """Keep Blogger post titles concise for search snippets without cutting a word in half."""
+    text = _clean(value) or _clean(fallback)
+    if len(text) <= 60:
+        return text
+    cut = text[:60]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0].strip()
+    return cut.rstrip("؟?.!،:؛-") or text[:60].strip()
+
+
 def _tags(topic: str) -> list[str]:
     toks=[x for x in re.findall(r"[\u0600-\u06ff\w]+",_clean(topic)) if len(x)>2]
     return list(dict.fromkeys(["#قانون_مصر","#اسأل_محمود"]+["#"+x for x in toks[:4]]))[:6]
@@ -166,14 +177,33 @@ def _footer(topic: str) -> str:
     return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>للتواصل المباشر:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a></p><p>المعلومة للتوعية العامة؛ تقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
 
 def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
-    try: data=svc.posts().list(blogId=bid,status="LIVE",fetchBodies=False,maxResults=25,orderBy="PUBLISHED").execute()
-    except Exception as exc: print(f"Related-post lookup unavailable: {exc}"); return []
-    core=set(re.findall(r"[\u0600-\u06ff\w]+",_clean(topic).lower())); scored=[]
-    for x in data.get("items",[]) or []:
-        title=_clean(x.get("title")); url=_clean(x.get("url"))
-        if title and url: scored.append((len(core & set(re.findall(r"[\u0600-\u06ff\w]+",title.lower()))),{"title":title,"url":url}))
-    scored.sort(key=lambda z:z[0],reverse=True)
-    return [x[1] for x in scored if x[0]>0][:3]
+    """Find a few genuinely related published posts for internal linking."""
+    terms = [x for x in re.findall(r"[\u0600-\u06ff\w]+", _clean(topic)) if len(x) > 3][:5]
+    seen: set[str] = set()
+    found: list[dict[str,str]] = []
+    for term in terms:
+        try:
+            data = svc.posts().search(
+                blogId=bid,
+                q=term,
+                orderBy="PUBLISHED",
+                fetchBodies=False,
+            ).execute()
+        except Exception as exc:
+            print(f"Related-post search unavailable for {term!r}: {exc}")
+            continue
+        for item in data.get("items", []) or []:
+            title = _clean(item.get("title"))
+            url = _clean(item.get("url"))
+            if not title or not url or url in seen:
+                continue
+            seen.add(url)
+            found.append({"title": title, "url": url})
+            if len(found) >= 4:
+                return found
+    return found
+
+
 
 def _paragraph_html(text: str) -> str:
     return "".join(f"<p>{html.escape(part.strip())}</p>" for part in re.split(r"\n\s*\n+", str(text or "").strip()) if part.strip())
@@ -189,7 +219,8 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
 
     img = ""
     if image_url:
-        img = f'<figure><img src="{html.escape(image_url, quote=True)}" alt="{html.escape(title, quote=True)}" loading="eager" decoding="async" style="width:100%;height:auto;border-radius:12px"></figure>'
+        alt_text = _clean(title)[:140]
+        img = f'<figure><img src="{html.escape(image_url, quote=True)}" alt="{html.escape(alt_text, quote=True)}" title="{html.escape(alt_text, quote=True)}" loading="eager" decoding="async" style="width:100%;height:auto;border-radius:12px"></figure>'
 
     sections_html = "".join(
         f'<section><h2>{html.escape(str(item.get("heading", "")))}</h2>{_paragraph_html(str(item.get("body", "")))}</section>'
@@ -279,7 +310,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
             post=post,
             legal_sources=legal_sources,
         )
-        title = str(article.get("title") or title).strip()[:110]
+        title = _seo_title(str(article.get("title") or title), fallback=title)
         search_query = title
         candidates = list(dict.fromkeys([title, *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()]]))[:12]
     except Exception as exc:
@@ -291,8 +322,9 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     article = _article_copy(article or {})
     title = str(article.get("title") or title).strip()[:110]
     content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
-    labs=list(dict.fromkeys([*(labels or []),"قانون مصر","اسأل محمود"]))[:10]
-    body={"title":title,"content":content,"labels":labs,"readerComments":"allow","customMetaData":json.dumps({"search_query":search_query,"search_candidates":candidates,"topic":topic,"seo_title_source":"google_suggest","brand":"Ask Mahmoud"},ensure_ascii=False)}
+    keyword_labels = [str(x).strip() for x in (article.get("keywords", []) if isinstance(article.get("keywords"), list) else []) if str(x).strip()]
+    labs=list(dict.fromkeys([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels]))[:10]
+    body={"title":title,"content":content,"labels":labs,"readerComments":"allow"}
     try: result=svc.posts().insert(blogId=bid,body=body,isDraft=False,fetchBody=True).execute()
     except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
     pid=_clean(result.get("id")); url=_clean(result.get("url"))
