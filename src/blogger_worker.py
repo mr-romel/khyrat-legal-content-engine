@@ -84,7 +84,9 @@ def main() -> int:
     bid = blog_id(service, config["blogger_url"])
     for existing in rows:
         if str(existing.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
-            repair_published_image(service, bid, existing)
+            mode = str(existing.get("Image Mode", "") or "").strip().upper()
+            if mode == "DIRECT_CLOUDFLARE":
+                repair_published_image(service, bid, existing)
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
@@ -117,15 +119,12 @@ def main() -> int:
     row_number, row = candidates[0]
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
-    image_mode = str(row.get("Image Mode", "") or "").strip().upper()
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
-    if "FALLBACK" in image_mode or image_mode == "IMAGE_REQUIRED":
-        message = "Blogger refuses fallback/card images; waiting for the core publisher to create one valid generated image."
-        update_row(service, config["sheet_id"], sheet_name, row_number, {"Blogger Status": "FAILED", "Blogger Last Error": message})
-        print(message)
-        return 0
     image_path = resolve_image_path(image_url, source_id, row_number)
+    if not image_path:
+        print("Blogger: no generated image is available; publishing the article without an image.")
+
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
