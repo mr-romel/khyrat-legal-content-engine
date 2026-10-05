@@ -14,13 +14,13 @@ from content_planner import classify
 from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
-from facebook_publisher import FacebookPublishError, publish_photo, publish_text
+from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo, publish_text
 from gemini import generate_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic
 from social_content import append_hashtags, sanitize_social_copy, split_hashtags
-from linkedin_publisher import LinkedInPublishError, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
+from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
@@ -331,12 +331,151 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
             print(f"Comment backfill failed for row {row_number}: {exc}")
 
 
+
+def _is_bad_published_image(row: dict[str, str]) -> bool:
+    mode = str(row.get("Image Mode", "") or "").strip().upper()
+    qa = str(row.get("Image QA Status", "") or "").strip().upper()
+    return "FALLBACK" in mode or "FALLBACK" in qa or mode == "IMAGE_REQUIRED"
+
+
+def _repair_published_bad_image(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
+    """
+    Repair a post that was already published with a fallback/card image.
+
+    The repair is deliberately narrow:
+    - keep the exact published post text;
+    - generate exactly one replacement image from that post;
+    - delete the old social posts only after the new image exists;
+    - publish the same text once with the replacement image;
+    - clear the fallback marker so this path cannot repeat.
+    """
+    topic = str(row.get("الموضوع", "") or "").strip()
+    post = str(row.get("المحتوى", "") or "").strip()
+    if not topic or not post:
+        raise RuntimeError("Image repair requires an existing topic and published post.")
+
+    raw_id = str(row.get("ID", "") or f"row-{row_number}")
+    safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
+    image_path = GENERATED_DIR / f"{safe_id}.jpg"
+    image_brief = str(row.get("وصف الصورة", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1400]}"
+
+    print(f"IMAGE REPAIR: generating exactly one replacement image for row {row_number}.")
+    try:
+        create_legal_image(
+            topic=topic,
+            image_brief=image_brief,
+            post_context=post,
+            output_path=str(image_path),
+            cloudflare_account_id=config["cloudflare_account_id"],
+            cloudflare_api_token=config["cloudflare_api_token"],
+        )
+        if not image_path.is_file() or image_path.stat().st_size == 0:
+            raise ImageGenerationError("Replacement image file was empty.")
+        brand_published_image(str(image_path))
+    except ImageGenerationError as exc:
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Image QA Attempt": "1",
+            "Image QA Status": "IMAGE_REPAIR_GENERATION_FAILED",
+            "Image QA Issues": str(exc)[:1500],
+            "Image Mode": "IMAGE_REPAIR_FAILED",
+            "وقت آخر تشغيل": current.isoformat(),
+        })
+        raise
+
+    image_url = github_raw_url(str(image_path))
+    facebook_old = str(row.get("Facebook Post ID", "") or "").strip()
+    linkedin_old = str(row.get("LinkedIn Post ID", "") or "").strip()
+
+    # Do not create duplicates. Remove the known bad posts before publishing
+    # the repaired versions, and only after the replacement image is ready.
+    if facebook_old:
+        delete_facebook_post(
+            post_id=facebook_old,
+            page_access_token=config["facebook_page_access_token"],
+            graph_version=config["facebook_graph_version"],
+        )
+    if linkedin_old:
+        delete_linkedin_post(
+            token=config["linkedin_access_token"],
+            post_urn=linkedin_old,
+        )
+
+    facebook_post = append_hashtags(sanitize_social_copy(post), topic)
+    linkedin_post = append_hashtags(sanitize_social_copy(post), topic)
+    fb = publish_photo(
+        page_id=config["facebook_page_id"],
+        page_access_token=config["facebook_page_access_token"],
+        graph_version=config["facebook_graph_version"],
+        image_path=image_path,
+        caption=facebook_post,
+    )
+    token = config["linkedin_access_token"]
+    author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
+    li = publish_to_linkedin(
+        token=token,
+        author_urn=author,
+        image_path=image_path,
+        commentary=linkedin_post,
+        first_comment="",
+    )
+
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "الحالة": "PUBLISHED",
+        "رابط الصورة": image_url,
+        "Image Mode": "DIRECT_CLOUDFLARE",
+        "Image QA Attempt": "1",
+        "Image QA Status": "REPAIRED_SINGLE_GENERATION",
+        "Image QA Score": "",
+        "Image QA Issues": "",
+        "Facebook Status": "PUBLISHED",
+        "Facebook Post ID": fb["post_id"],
+        "Facebook Comment Status": "QUEUED",
+        "Facebook Reaction Status": "QUEUED",
+        "LinkedIn Status": "PUBLISHED",
+        "LinkedIn Post ID": li["post_urn"],
+        "LinkedIn Comment Status": "QUEUED",
+        "LinkedIn Reaction Status": "QUEUED",
+        "آخر خطأ": "",
+        "وقت آخر تشغيل": current.isoformat(),
+    })
+    print(f"IMAGE REPAIR COMPLETE: row={row_number} | Facebook={fb['post_id']} | LinkedIn={li['post_urn']}")
+    try:
+        add_published_post(
+            service,
+            config["sheet_id"],
+            source_row_id=row.get("ID", ""),
+            topic=topic,
+            content=facebook_post,
+            publish_date=current.date().isoformat(),
+            facebook_post_id=fb["post_id"],
+            linkedin_post_id=li["post_urn"],
+            image_url=image_url,
+            legal_sources=row.get("المصادر القانونية", ""),
+            angle=row.get("ملاحظات", ""),
+            objective="IMAGE_REPAIR",
+            review_level="CLEAR",
+        )
+    except Exception as exc:
+        print(f"Image repair PostBank logging failed: {exc}")
+
+
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
     if not topic:
         raise RuntimeError(f"Row {row_number} has no topic.")
     print(f"Processing row {row_number}: {topic}")
     original_status = str(row.get("الحالة", "")).strip().upper()
+    if not DRY_RUN and original_status == "PUBLISHED" and _is_bad_published_image(row):
+        _repair_published_bad_image(
+            service=service,
+            config=config,
+            sheet_name=sheet_name,
+            row_number=row_number,
+            row=row,
+            current=current,
+        )
+        return
+
     if DRY_RUN:
         bank_rows = get_bank_rows(service, config["sheet_id"])
         post, _, image_path, level, reason, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
@@ -520,6 +659,21 @@ def main() -> None:
         _backfill_latest_three_comment_queues(service=service, config=config, sheet_name=sheet_name, rows=rows, current=current)
     except Exception as exc:
         print(f"Latest-3 comment backfill unavailable; normal publishing continues: {exc}")
+    repair_candidates = [
+        (i, r) for i, r in enumerate(rows, start=2)
+        if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+        and _is_bad_published_image(r)
+    ]
+    if repair_candidates:
+        row_number, row = repair_candidates[0]
+        print(f"Found published row requiring image repair: row={row_number}")
+        try:
+            process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+        except Exception as exc:
+            print(f"Image repair failed: {exc}")
+            print(traceback.format_exc())
+        return
+
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
     if not candidates:
         candidates = [(i, r) for i, r in enumerate(rows, start=2) if _failed_retry(r, current)][:1]
