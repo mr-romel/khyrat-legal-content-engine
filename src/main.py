@@ -276,7 +276,6 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         except ImageGenerationError as image_exc:
             print(f"Image generation failed once; publishing continues without an image: {image_exc}")
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image Generation Attempt": "1",
                 "Image QA Attempt": "1",
                 "Image QA Status": "IMAGE_GENERATION_FAILED_PUBLISH_ANYWAY",
                 "Image QA Issues": str(image_exc)[:1500],
