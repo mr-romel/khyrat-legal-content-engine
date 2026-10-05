@@ -332,5 +332,5 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     target=Path(output_dir); target.mkdir(parents=True,exist_ok=True); base=_safe_filename(title)
     (target/f"{base}.html").write_text(content,encoding="utf-8")
     (target/f"{base}.txt").write_text(f"{title}\n\n{re.sub(r'<[^>]+>','',content)}\n",encoding="utf-8")
-    (target/f"{base}.json").write_text(json.dumps({"title":title,"search_query":search_query,"post_url":url,"post_id":pid,"topic":topic,"image_url":image_url,"labels":labs},ensure_ascii=False,indent=2),encoding="utf-8")
+    (target/f"{base}.json").write_text(json.dumps({"title":title,"search_query":search_query,"meta_description":str(article.get("meta_description", "")).strip()[:180],"post_url":url,"post_id":pid,"topic":topic,"image_url":image_url,"labels":labs},ensure_ascii=False,indent=2),encoding="utf-8")
     return {"blog_id":bid,"post_id":pid,"post_url":url,"title":title,"search_query":search_query,"search_candidates":json.dumps(candidates,ensure_ascii=False),"meta_description":str(article.get("meta_description", "")).strip()[:180]}
