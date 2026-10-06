@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article
+from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article, service as blogger_service
 from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
@@ -116,6 +116,7 @@ def main() -> int:
         return 0
 
     service = create_service(config["service_account_info"])
+    blogger_api = blogger_service()
     sheet_name = config["sheet_range"].split("!", 1)[0]
     ensure_headers(service, config["sheet_id"], sheet_name)
     values = get_values(service, config["sheet_id"], config["sheet_range"])
@@ -133,7 +134,7 @@ def main() -> int:
         bid = blog_id(service, config["blogger_url"])
     else:
         bid = str(config.get("blogger_blog_id", "") or "").strip() or blog_id(service, config["blogger_url"])
-    cleanup_misdated_automation_posts(service, bid, rows, today_cairo)
+    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
