@@ -68,6 +68,47 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
         print(f"Blogger image repair unavailable for {post_id}: {exc}")
         return False
 
+def _norm_text(value: str) -> str:
+    import re
+    text = re.sub(r"<[^>]+>", " ", str(value or ""))
+    return " ".join(text.split()).casefold()
+
+def cleanup_misdated_automation_posts(svc, bid: str, rows: list[dict[str, str]], today) -> int:
+    older_snippets = []
+    for row in rows:
+        if parse_date(row.get("تاريخ النشر", "")) == today:
+            continue
+        body = _norm_text(row.get("المحتوى", ""))
+        if len(body) >= 120:
+            older_snippets.append(body[:180])
+    if not older_snippets:
+        return 0
+    deleted = 0
+    token = None
+    while True:
+        kwargs = {"blogId": bid, "maxResults": 500, "fetchBodies": True}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.posts().list(**kwargs).execute()
+        for item in data.get("items", []) or []:
+            if not str(item.get("published", "")).startswith(today.isoformat()):
+                continue
+            body = _norm_text(item.get("content", ""))
+            if not any(snippet in body for snippet in older_snippets):
+                continue
+            pid = str(item.get("id", "")).strip()
+            if not pid:
+                continue
+            try:
+                svc.posts().delete(blogId=bid, postId=pid).execute()
+                deleted += 1
+                print("Blogger cleanup: deleted misdated automation post " + pid)
+            except Exception as exc:
+                print("Blogger cleanup: could not delete misdated post " + pid + ": " + str(exc))
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    return deleted
 def main() -> int:
     config = load_blogger_config()
     if not config["enabled"]:
@@ -83,10 +124,16 @@ def main() -> int:
         return 0
 
     rows = [row_to_dict(row) for row in values[1:]]
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today_cairo = datetime.now(ZoneInfo("Africa/Cairo")).date()
     use_ui = bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
         bid = blog_id(service, config["blogger_url"])
+    else:
+        bid = str(config.get("blogger_blog_id", "") or "").strip() or blog_id(service, config["blogger_url"])
+    cleanup_misdated_automation_posts(service, bid, rows, today_cairo)
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
@@ -129,9 +176,11 @@ def main() -> int:
         item for item in candidates
         if parse_date(item[1].get("تاريخ النشر", "")) == __import__("datetime").date.today()
     ]
-    if today_candidates:
-        candidates = today_candidates
-        print(f"Blogger: prioritizing today's scheduled rows ({today}).")
+    if not today_candidates:
+        print(f"Blogger worker: no published Sheet row for today ({today}); refusing to publish an older row.")
+        return 0
+    candidates = today_candidates
+    print(f"Blogger: publishing only today's scheduled row(s) ({today}).")
     candidates.sort(key=_recent_key, reverse=True)
     row_number, row = candidates[0]
     topic = str(row.get("الموضوع", "")).strip()
@@ -140,7 +189,12 @@ def main() -> int:
     source_id = str(row.get("ID", "")).strip()
     image_path = resolve_image_path(image_url, source_id, row_number)
     if not image_path:
-        print("Blogger: no generated image is available; publishing the article without an image.")
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Blogger Status": "FAILED",
+            "Blogger Last Error": "No row-owned generated image is available; Blogger publication blocked.",
+        })
+        print("Blogger: no row-owned generated image is available; refusing text-only publication.")
+        return 0
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
