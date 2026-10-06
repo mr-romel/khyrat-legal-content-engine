@@ -205,7 +205,40 @@ def main() -> int:
         })
         print(f"Blogger published: {result['title']} -> {result['post_url']}")
         return 0
-    except (BloggerPublishError, BloggerUIPublishError) as exc:
+    except BloggerUIPublishError as ui_exc:
+        print(f"Blogger UI publication failed; falling back to Blogger REST API: {ui_exc}")
+        try:
+            result = publish_article(
+                topic=topic,
+                post=post,
+                image_url=image_url,
+                image_path=image_path,
+                legal_sources=legal_sources,
+                output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
+            )
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Blogger Status": "PUBLISHED",
+                "Blogger Post ID": result["post_id"],
+                "Blogger URL": result["post_url"],
+                "Blogger Search Title": result["title"],
+                "Blogger Search Query": result["search_query"],
+                "Blogger Search Candidates": result["search_candidates"],
+                "Blogger Meta Description": result.get("meta_description", ""),
+                "Blogger SEO Status": "PENDING",
+                "Blogger SEO Error": "",
+                "Blogger Last Error": "",
+            })
+            print(f"Blogger REST fallback published: {result['title']} -> {result['post_url']}")
+            return 0
+        except BloggerPublishError as api_exc:
+            error = f"UI: {ui_exc} | REST: {api_exc}"[:1500]
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Blogger Status": "FAILED",
+                "Blogger Last Error": error,
+            })
+            print(f"Blogger publication failed after UI + REST fallback: {error}")
+            return 0
+    except BloggerPublishError as exc:
         error = str(exc)[:1500]
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Blogger Status": "FAILED",
