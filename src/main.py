@@ -341,7 +341,10 @@ def _is_bad_published_image(row: dict[str, str]) -> bool:
     repair_attempted = qa.startswith("IMAGE_REPAIR_") or qa == "REPAIRED_SINGLE_GENERATION"
     if repair_attempted:
         return False
-    return "FALLBACK" in mode or "FALLBACK" in qa or mode in {"IMAGE_REQUIRED", "NONE"}
+    source_id = str(row.get("ID", "") or "").strip()
+    image_url = str(row.get("رابط الصورة", "") or "").strip()
+    stale_source = bool(source_id and image_url and source_id not in image_url)
+    return "FALLBACK" in mode or "FALLBACK" in qa or mode in {"IMAGE_REQUIRED", "NONE"} or stale_source
 
 
 def _repair_published_bad_image(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
