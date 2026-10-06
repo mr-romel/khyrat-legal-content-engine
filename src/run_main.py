@@ -456,7 +456,22 @@ def _smart_main() -> None:
             target = current.replace(year=target_date.year, month=target_date.month, day=target_date.day, hour=target_time.hour, minute=target_time.minute, second=0, microsecond=0)
             nearest.append((abs((current - target).total_seconds()), row_number, target_date.isoformat(), target_time.strftime("%H:%M"), status, candidate_row.get("ID", "")))
         nearest.sort(key=lambda x: x[0])
+        today_rows = []
+        for row_number, candidate_row in enumerate(rows, start=2):
+            if parse_date(candidate_row.get("تاريخ النشر", "")) == current.date():
+                today_rows.append({
+                    "row": row_number,
+                    "id": candidate_row.get("ID", ""),
+                    "status": candidate_row.get("الحالة", ""),
+                    "time": candidate_row.get("ساعة النشر", ""),
+                    "fb": candidate_row.get("Facebook Status", ""),
+                    "li": candidate_row.get("LinkedIn Status", ""),
+                    "blogger": candidate_row.get("Blogger Status", ""),
+                    "reel": candidate_row.get("Reel Status", ""),
+                    "last_run": candidate_row.get("وقت آخر تشغيل", ""),
+                })
         print("Nearest READY slots: " + repr(nearest[:5]))
+        print("Today's rows: " + repr(today_rows))
         print("No due rows found.")
         return
     history = get_bank_rows(service, config["sheet_id"])
