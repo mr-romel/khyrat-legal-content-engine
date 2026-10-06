@@ -10,6 +10,7 @@ from blogger_publisher import BloggerPublishError, blog_id, publish_article, upl
 from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
+from utils import parse_date
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
@@ -126,7 +127,7 @@ def main() -> int:
     today = __import__("datetime").date.today().isoformat()
     today_candidates = [
         item for item in candidates
-        if str(item[1].get("تاريخ النشر", "")).strip() == today
+        if parse_date(item[1].get("تاريخ النشر", "")) == __import__("datetime").date.today()
     ]
     if today_candidates:
         candidates = today_candidates
