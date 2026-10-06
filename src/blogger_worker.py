@@ -75,12 +75,19 @@ def _norm_text(value: str) -> str:
 
 def cleanup_misdated_automation_posts(svc, bid: str, rows: list[dict[str, str]], today) -> int:
     older_snippets = []
+    older_titles = set()
     for row in rows:
         if parse_date(row.get("تاريخ النشر", "")) == today:
             continue
         body = _norm_text(row.get("المحتوى", ""))
         if len(body) >= 120:
             older_snippets.append(body[:180])
+        try:
+            fallback_title = str(_fallback_article(str(row.get("الموضوع", "")), str(row.get("المحتوى", "")), str(row.get("المصادر القانونية", ""))).get("title", "")).strip().casefold()
+            if fallback_title:
+                older_titles.add(fallback_title)
+        except Exception:
+            pass
     if not older_snippets:
         return 0
     deleted = 0
@@ -94,7 +101,10 @@ def cleanup_misdated_automation_posts(svc, bid: str, rows: list[dict[str, str]],
             if not str(item.get("published", "")).startswith(today.isoformat()):
                 continue
             body = _norm_text(item.get("content", ""))
-            if not any(snippet in body for snippet in older_snippets):
+            item_title = _norm_text(item.get("title", ""))
+            title_match = item_title in older_titles
+            body_match = any(snippet in body for snippet in older_snippets)
+            if not title_match and not body_match:
                 continue
             pid = str(item.get("id", "")).strip()
             if not pid:
