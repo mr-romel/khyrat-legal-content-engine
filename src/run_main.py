@@ -444,6 +444,19 @@ def _smart_main() -> None:
             print(f"FORCE_DUE enabled: selected today's scheduled row {forced[0][0]} for immediate recovery execution.")
     if not candidates:
         _due_diagnostics(rows, current)
+        nearest = []
+        for row_number, candidate_row in enumerate(rows, start=2):
+            status = str(candidate_row.get("الحالة", "")).strip().upper()
+            if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
+                continue
+            target_date = parse_date(candidate_row.get("تاريخ النشر", ""))
+            target_time = parse_time(candidate_row.get("ساعة النشر", ""))
+            if target_date is None or target_time is None:
+                continue
+            target = current.replace(year=target_date.year, month=target_date.month, day=target_date.day, hour=target_time.hour, minute=target_time.minute, second=0, microsecond=0)
+            nearest.append((abs((current - target).total_seconds()), row_number, target_date.isoformat(), target_time.strftime("%H:%M"), status, candidate_row.get("ID", "")))
+        nearest.sort(key=lambda x: x[0])
+        print("Nearest READY slots: " + repr(nearest[:5]))
         print("No due rows found.")
         return
     history = get_bank_rows(service, config["sheet_id"])
