@@ -230,10 +230,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     current_image_brief = image_brief
 
     # FINAL PROJECT RULE:
-    # Publishing is NEVER blocked by image generation.
-    # There is NO image fallback/card/media-search path.
-    # The image is generated from the complete post, exactly once for this row.
-    # If generation fails, publish the post without an image.
+    # Every social publication MUST carry a real editorial image generated from
+    # the complete published post. A stale row asset or text-only publication is
+    # never acceptable. Image generation therefore gates social publication.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
     image_attempted = str(row.get("Image QA Attempt", "") or "").strip() == "1"
     reusable_existing = (
@@ -274,10 +273,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             })
             print("Image generated exactly once from the complete published post and locked for this row.")
         except ImageGenerationError as image_exc:
-            print(f"Image generation failed once; publishing continues without an image: {image_exc}")
+            print(f"Image generation failed: social publication is blocked until a real image exists: {image_exc}")
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Image QA Attempt": "1",
-                "Image QA Status": "IMAGE_GENERATION_FAILED_PUBLISH_ANYWAY",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_BLOCKED",
                 "Image QA Issues": str(image_exc)[:1500],
                 "Image Mode": "NONE",
                 "رابط الصورة": "",
@@ -285,10 +284,41 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "وقت آخر تشغيل": current.isoformat(),
             })
     else:
-        print("Image generation was already attempted for this row; no regeneration. Publishing continues without image.")
+        if not image_path.is_file() or image_path.stat().st_size == 0:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Image QA Attempt": "",
+                "Image QA Status": "RETRY_REQUIRED",
+                "Image Mode": "",
+                "رابط الصورة": "",
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+            try:
+                create_legal_image(
+                    topic=topic,
+                    image_brief=current_image_brief,
+                    post_context=post,
+                    output_path=str(image_path),
+                    cloudflare_account_id=config["cloudflare_account_id"],
+                    cloudflare_api_token=config["cloudflare_api_token"],
+                )
+                brand_published_image(str(image_path))
+                generated_image_path = image_path
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": github_raw_url(str(image_path)),
+                    "Image Mode": "DIRECT_CLOUDFLARE",
+                    "Image QA Attempt": "1",
+                    "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
+                    "Image QA Issues": "",
+                    "وصف الصورة": current_image_brief,
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+            except ImageGenerationError as retry_exc:
+                raise RuntimeError("لا يمكن نشر المنشور بدون صورة مرتبطة بالموضوع: " + str(retry_exc)) from retry_exc
+        else:
+            generated_image_path = image_path
+        print("Image asset ready for publication: " + str(image_path))
 
-    image_url = (
-        existing_image_url
+    image_url = (        existing_image_url
         if reusable_existing
         else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
     )
