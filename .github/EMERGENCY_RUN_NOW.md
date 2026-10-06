@@ -8,3 +8,5 @@ Blogger UI secret is now passed directly to the publisher job.
 Force-due import fixed; rerun production now.
 
 Recovery: asset push race fixed and Reel same-day fallback enabled.
+
+Final Blogger selector and Reel date recovery fix.
