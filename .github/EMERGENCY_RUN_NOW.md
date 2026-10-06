@@ -36,3 +36,5 @@ Remove known misdated Blogger legacy title once.
 Log nearest READY slots when the daily row is not due.
 
 Log today's row state for final scheduler diagnosis.
+
+Final Reel recovery validates actual file existence before skipping regeneration.
