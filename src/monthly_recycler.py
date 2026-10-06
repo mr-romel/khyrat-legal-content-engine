@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from daily_schedule import daily_posting_times
 from post_bank import get_bank_rows
@@ -104,6 +105,17 @@ def _replace_remaining_current_month_slots(service, spreadsheet_id, sheet_name, 
             break
         brief = ordered[index]
         historical_used.add(normalize_topic(brief["topic"]))
+        raw_id = str(row.get("ID", "") or f"row-{row_number}")
+        safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
+        stale_asset = Path("generated") / f"{safe_id}.jpg"
+        stale_asset.unlink(missing_ok=True)
+        if stale_asset.exists():
+            print(f"Monthly recycler: could not remove stale image asset {stale_asset}")
+        for stale_dir in (Path("generated") / "blogger" / f"row_{row_number}", Path("generated") / "reels" / f"row_{row_number}"):
+            if stale_dir.exists():
+                import shutil
+                shutil.rmtree(stale_dir, ignore_errors=True)
+        print(f"Monthly recycler: cleared stale generated assets for recycled row {row_number}.")
         update_row(service, spreadsheet_id, sheet_name, row_number, {
             "الموضوع": f"{brief['topic'].strip()} — زاوية جديدة: {brief['angle'].strip()}",
             "المصادر القانونية": brief["legal_sources"].strip(),
