@@ -64,11 +64,33 @@ def _fill_title(page, title: str) -> None:
         'input[name="title"]',
     ])
     if not loc:
-        # Blogger's editor DOM changes its aria-labels periodically. Fall back
-        # to the first large visible text input, excluding search/login fields.
+        # Blogger's editor DOM changes its aria-labels periodically. Prefer a
+        # small visible contenteditable textbox (title) over the large article
+        # editor, then fall back to a text input.
+        editable = page.locator('[contenteditable="true"]')
+        for index in range(editable.count()):
+            candidate = editable.nth(index)
+            try:
+                if not candidate.is_visible(timeout=500):
+                    continue
+                box = candidate.bounding_box()
+                role = (candidate.get_attribute("role") or "").lower()
+                name = " ".join([
+                    candidate.get_attribute("aria-label") or "",
+                    candidate.get_attribute("data-placeholder") or "",
+                    candidate.get_attribute("class") or "",
+                ]).lower()
+                if box and box["width"] >= 300 and box["height"] <= 120 and (
+                    role in {"textbox", ""} or "title" in name
+                ):
+                    loc = candidate
+                    break
+            except Exception:
+                continue
+
+    if not loc:
         candidates = page.locator('input[type="text"], input:not([type]), textarea')
-        count = candidates.count()
-        for index in range(count):
+        for index in range(candidates.count()):
             candidate = candidates.nth(index)
             try:
                 if not candidate.is_visible(timeout=500):
@@ -78,6 +100,7 @@ def _fill_title(page, title: str) -> None:
                     candidate.get_attribute("aria-label") or "",
                     candidate.get_attribute("placeholder") or "",
                     candidate.get_attribute("name") or "",
+                    candidate.get_attribute("class") or "",
                 ]).lower()
                 if kind in {"search", "email", "password"} or any(x in name for x in ("search", "email", "password")):
                     continue
@@ -87,9 +110,34 @@ def _fill_title(page, title: str) -> None:
                     break
             except Exception:
                 continue
+
     if not loc:
         raise BloggerUIPublishError("Blogger UI title field was not found.")
-    loc.fill(title)
+
+    try:
+        loc.fill(title, timeout=5000)
+    except Exception:
+        try:
+            loc.evaluate(
+                """(el, value) => {
+                    if (el.isContentEditable) {
+                        el.textContent = value;
+                    } else {
+                        const setter = Object.getOwnPropertyDescriptor(
+                            HTMLInputElement.prototype, "value"
+                        )?.set;
+                        if (setter) setter.call(el, value);
+                        else el.value = value;
+                    }
+                    el.dispatchEvent(new InputEvent("input", {
+                        bubbles: true, inputType: "insertText", data: value
+                    }));
+                    el.dispatchEvent(new Event("change", {bubbles: true}));
+                }""",
+                title,
+            )
+        except Exception as exc:
+            raise BloggerUIPublishError(f"Blogger UI title field could not be populated: {exc}") from exc
 
 
 def _set_editor_html(page, content: str) -> None:
