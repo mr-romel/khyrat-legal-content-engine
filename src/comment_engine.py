@@ -178,7 +178,8 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
     The fallback must still react to the actual post instead of emitting generic
     legal platitudes.
     """
-    subject = " ".join(str(post or "").split())[:220] or "الموضوع المطروح"
+    sentences = [x.strip() for x in re.split(r"[.!؟\n]+", str(post or "")) if len(x.strip()) >= 20]
+    subject = (sentences[1] if len(sentences) > 1 else (sentences[0] if sentences else "الموضوع المطروح"))[:220]
     sentences = [
         re.sub(r"\\s+", " ", s).strip(" -—–")
         for s in re.split(r"[.!؟\n]+", str(post or ""))
