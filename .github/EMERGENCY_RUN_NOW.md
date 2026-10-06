@@ -38,3 +38,6 @@ Log nearest READY slots when the daily row is not due.
 Log today's row state for final scheduler diagnosis.
 
 Final Reel recovery validates actual file existence before skipping regeneration.
+
+
+- Reel recovery race/stale-file fix: 2026-10-06T20:24:42.688Z
