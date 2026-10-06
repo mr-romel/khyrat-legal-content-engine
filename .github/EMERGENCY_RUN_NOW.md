@@ -16,3 +16,5 @@ Recovery now treats stale Reel status without a Reel file as eligible.
 Blogger REST fallback is now enabled after UI failure.
 
 Final Reel recovery uses today's scheduled ID prefix.
+
+Repair stale R006 image and reset recycled-row downstream state.
