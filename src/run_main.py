@@ -34,7 +34,9 @@ def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_con
         "Prefer roughly 350-600 Arabic words for the LinkedIn version when the subject supports it. "
         "Do not pad the post with generic advice, repeated conclusions, or a sales pitch. "
         "Use a soft, context-driven CTA only when it naturally leads to discussion or a professional inquiry. "
-        "The final LinkedIn post should have enough substance that a company decision-maker can learn something and see why legal review matters."
+        "The final LinkedIn post should have enough substance that a company decision-maker can learn something and see why legal review matters. "
+        "Write to companies, management teams, legal departments, HR, compliance and operations; never address an individual reader as أنت/إنت/عندك. "
+        "Do not use one-to-one consumer advice framing. Prefer الشركات/الإدارة/الجهة/المسؤول داخل الشركة and describe decisions at organizational level."
     )
     combined_context = f"{previous_context}\n\n{style_context}{linkedin_context}".strip()
     return resilient_generate_post(api_key=api_key, model=model, topic=topic, legal_sources=legal_sources, previous_context=combined_context, **kwargs)
@@ -102,7 +104,7 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
     minimum_words = 350
     target_words = 450
     current_words = _linkedin_word_count(text)
-    if current_words >= minimum_words and not _linkedin_needs_completion(text):
+    if current_words >= minimum_words and not _linkedin_needs_completion(text) and not re.search(r"\\b(?:أنت|إنت|انت|عندك|عندكم)\\b|\\bلو\\s+(?:أنت|إنت|انت|عندك|عندكم)", text):
         return text
 
     expansion_context = (
@@ -116,7 +118,7 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
         "the decision points before acting, a realistic example or scenario where appropriate, and a concise conclusion. "
         "The post MUST end with a complete thought and a natural sentence ending. Never end with '...', '…', a comma, a colon, or a dangling conjunction such as 'و'. "
         "Do not use ellipses anywhere in the post. Keep a professional Egyptian lawyer voice. Do not turn it into a sales pitch, generic motivational post, or list of empty tips. "
-        "Do not mention that you are expanding or repairing a draft. Return only the finished LinkedIn post."
+        "Do not mention that you are expanding or repairing a draft. The post is B2B/company-facing: never address a private individual directly and never use أنت/إنت/عندك. Use organizational language such as الشركة، الإدارة، الإدارة القانونية، الموارد البشرية، الامتثال، المسؤول المختص. Return only the finished LinkedIn post."
     )
     try:
         expanded = _diverse_generate_post(
