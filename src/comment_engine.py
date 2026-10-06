@@ -150,7 +150,7 @@ def _build_post_context(client, model, topic, post, legal_sources):
         return dict(_CONTEXT_CACHE[key])
     prompt = """
 حلّل المنشور كاملًا قبل كتابة أي تعليق. لا تقتبس منه ولا تعيد صياغة جملة منه.
-الموضوع: %s
+الموضوع الداخلي فقط للمرجع، وممنوع استخدام عنوان الشيت أو زاوية جديدة أو Checklist في التعليق: %s
 المصادر القانونية: %s
 
 المنشور الكامل:
@@ -178,7 +178,7 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
     The fallback must still react to the actual post instead of emitting generic
     legal platitudes.
     """
-    subject = str(topic or "").strip() or "الموضوع المطروح"
+    subject = " ".join(str(post or "").split())[:220] or "الموضوع المطروح"
     sentences = [
         re.sub(r"\\s+", " ", s).strip(" -—–")
         for s in re.split(r"[.!؟\n]+", str(post or ""))
@@ -188,7 +188,7 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
     anchor = anchors[0] if anchors else subject
     anchor_short = anchor[:170].rstrip(" ،,")
     source_words = [
-        w for w in re.findall(r"[ء-يA-Za-z]{4,}", f"{subject} {post}")
+        w for w in re.findall(r"[ء-يA-Za-z]{4,}", str(post or ""))
         if w.casefold() not in {"اللي", "التي", "الذي", "ممكن", "لازم", "عشان", "علشان", "الموضوع", "القانون", "القانوني"}
     ]
     unique_words = list(dict.fromkeys(source_words))[:8]
