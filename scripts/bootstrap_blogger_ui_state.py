@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import base64
+import re
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 OUTPUT = Path("generated/blogger/browser-state.json")
+BLOGGER_POSTS_URL = "https://www.blogger.com/blog/posts"
+BLOGGER_POSTS_PATTERN = re.compile(r"^https://www\\.blogger\\.com/blog/posts(?:/[^/?#]+)?(?:[/?#].*)?$")
 
 
 def _page_info(page) -> tuple[str, str]:
@@ -18,6 +21,37 @@ def _page_info(page) -> tuple[str, str]:
     except Exception:
         title = "<unavailable>"
     return url, title
+
+
+def _is_blogger_posts_url(url: str) -> bool:
+    return bool(BLOGGER_POSTS_PATTERN.match(str(url or "")))
+
+
+def _goto_blogger_posts(page) -> None:
+    try:
+        page.goto(BLOGGER_POSTS_URL, wait_until="commit", timeout=60000)
+    except Exception as exc:
+        url, _ = _page_info(page)
+        if not _is_blogger_posts_url(url):
+            raise
+        print(f"Blogger dashboard navigation continued after redirect: {exc!r}")
+
+    try:
+        page.wait_for_url(BLOGGER_POSTS_PATTERN, wait_until="domcontentloaded", timeout=30000)
+    except PlaywrightTimeoutError:
+        url, _ = _page_info(page)
+        if not _is_blogger_posts_url(url):
+            raise
+        print(f"Blogger dashboard reached without a second URL event; using current URL: {url}")
+
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=15000)
+    except PlaywrightTimeoutError:
+        pass
+
+    url, _ = _page_info(page)
+    if not _is_blogger_posts_url(url):
+        raise RuntimeError(f"Blogger dashboard navigation ended at unexpected URL: {url}")
 
 
 def main() -> int:
@@ -52,11 +86,7 @@ def main() -> int:
             )
             input("Complete Google/Blogger login in Chrome, then press Enter here...")
 
-            page.goto(
-                "https://www.blogger.com/blog/posts",
-                wait_until="domcontentloaded",
-                timeout=60000,
-            )
+            _goto_blogger_posts(page)
             input("Confirm that the Blogger dashboard is visible, then press Enter here...")
 
             OUTPUT.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +99,6 @@ def main() -> int:
             print(encoded)
             print("\nDo not commit or paste the decoded storage state into the repository.")
 
-            # Close Chrome only after the storage state has been written successfully.
             browser.close()
             browser = None
             return 0
@@ -84,14 +113,9 @@ def main() -> int:
             print("===================================")
             print("\nChrome is being left open so the failure can be inspected.")
             print("Press Ctrl+C when you are finished inspecting Chrome.")
-            # Keep the process alive so Playwright does not tear down the browser
-            # immediately after an exception. No browser.close() is attempted here.
             while True:
                 input()
     finally:
-        # On the normal success path browser is already closed. On launch failure
-        # there is no browser. On an exception, this block deliberately does not
-        # close Chrome.
         if browser is None:
             playwright.stop()
 
