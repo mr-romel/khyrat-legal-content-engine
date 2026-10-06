@@ -78,6 +78,7 @@ jobs:
 
       - name: Persist generated publishing assets
         if: ${{ success() }}
+        continue-on-error: true
         run: |
           git config user.name "Khyrat Legal Content Engine"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -86,7 +87,17 @@ jobs:
             echo "No generated assets to commit."
           else
             git commit -m "Store generated legal publishing assets"
-            git push origin HEAD:${GITHUB_REF_NAME}
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
+            for attempt in 1 2 3; do
+              if git push origin HEAD:${GITHUB_REF_NAME}; then
+                echo "Generated assets pushed successfully."
+                break
+              fi
+              echo "Generated asset push retry ${attempt}/3 after remote movement."
+              git fetch origin "${GITHUB_REF_NAME}"
+              git rebase "origin/${GITHUB_REF_NAME}"
+            done
           fi
 
   reel:
