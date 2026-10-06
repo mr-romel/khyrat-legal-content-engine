@@ -6,3 +6,5 @@ Recovery mode code deployed; execute the controlled run now.
 Blogger UI secret is now passed directly to the publisher job.
 
 Force-due import fixed; rerun production now.
+
+Recovery: asset push race fixed and Reel same-day fallback enabled.
