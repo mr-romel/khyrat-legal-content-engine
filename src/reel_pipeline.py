@@ -475,7 +475,13 @@ def main() -> int:
                 or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
             ):
                 continue
-            if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
+            reel_status = str(row.get("Reel Status", "")).strip().upper()
+            reel_file = str(row.get("Reel File", "")).strip()
+            if reel_status == "PUBLISHED":
+                continue
+            if reel_status == "GENERATING" and reel_file:
+                continue
+            if reel_status in {"REVIEW", "APPROVED"} and reel_file:
                 continue
             recovered.append((row_number, row))
         if recovered:
