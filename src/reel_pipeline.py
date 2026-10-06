@@ -51,9 +51,16 @@ def choose_row(
         if not str(row.get("المحتوى", "")).strip():
             print(f"Reel source row {target_number} has no post content.")
             return None
-        if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
-            print(f"Reel source row {target_number} already has Reel Status={row.get('Reel Status')}.")
+        reel_status = str(row.get("Reel Status", "")).strip().upper()
+        reel_file = str(row.get("Reel File", "")).strip()
+        if reel_status == "PUBLISHED":
+            print(f"Reel source row {target_number} already has Reel Status=PUBLISHED.")
             return None
+        if reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
+            # Reuse is allowed only when the stored file belongs to this row.
+            if str(source_id or "").strip() in reel_file:
+                print(f"Reel source row {target_number} already has a valid Reel file.")
+                return None
         locked_topic = str(source_context.get("topic", "") or "").strip()
         if locked_topic and locked_topic != str(row.get("الموضوع", "") or "").strip():
             print(f"Reel source topic mismatch for row {target_number}; refusing to guess another row.")
