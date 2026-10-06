@@ -9,16 +9,29 @@ OUTPUT = Path("generated/blogger/browser-state.json")
 
 
 def main() -> int:
-    print("Opening Blogger. Sign in with the Google account that owns the target Blogger blog.")
-    print("After the Blogger dashboard is fully loaded, press Enter here.")
+    print("Opening installed Google Chrome. Sign in with the Google account that owns the target Blogger blog.")
+    print("If Chrome is already open, close all Chrome windows before continuing.")
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
+        try:
+            browser = playwright.chromium.launch(
+                channel="chrome",
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+        except Exception as exc:
+            print("\nCould not start installed Chrome.")
+            print("Make sure Google Chrome is installed, then run:")
+            print("python -m playwright install chrome")
+            print(f"\nDetails: {exc}")
+            return 1
+
         context = browser.new_context(locale="ar-EG")
         page = context.new_page()
         page.goto("https://www.blogger.com/", wait_until="domcontentloaded", timeout=60000)
-        input("Complete Google/Blogger login in the browser, then press Enter...")
+        input("Complete Google/Blogger login in Chrome, then press Enter here...")
         page.goto("https://www.blogger.com/blog/posts", wait_until="domcontentloaded", timeout=60000)
-        input("Confirm that the Blogger dashboard is visible, then press Enter...")
+        input("Confirm that the Blogger dashboard is visible, then press Enter here...")
+
         OUTPUT.parent.mkdir(parents=True, exist_ok=True)
         context.storage_state(path=str(OUTPUT))
         browser.close()
