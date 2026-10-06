@@ -75,7 +75,7 @@ def _norm_text(value: str) -> str:
 
 def cleanup_misdated_automation_posts(svc, bid: str, rows: list[dict[str, str]], today) -> int:
     older_snippets = []
-    older_titles = set()
+    older_titles = {"في مسائل العمل: ما الذي يجب مراجعته قبل اتخاذ القرار؟".casefold()}
     for row in rows:
         if parse_date(row.get("تاريخ النشر", "")) == today:
             continue
