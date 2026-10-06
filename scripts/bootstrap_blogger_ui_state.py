@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 
 OUTPUT = Path("generated/blogger/browser-state.json")
 BLOGGER_POSTS_URL = "https://www.blogger.com/blog/posts"
-BLOGGER_POSTS_PATTERN = re.compile(r"^https://www\.blogger\\.com/blog/posts(?:/[^/?#]+)?(?:[/?#].*)?$")
+BLOGGER_POSTS_PREFIX = "https://www.blogger.com/blog/posts"
 
 
 def _page_info(page) -> tuple[str, str]:
@@ -24,7 +24,8 @@ def _page_info(page) -> tuple[str, str]:
 
 
 def _is_blogger_posts_url(url: str) -> bool:
-    return bool(BLOGGER_POSTS_PATTERN.match(str(url or "")))
+    value = str(url or "")
+    return value == BLOGGER_POSTS_PREFIX or value.startswith(BLOGGER_POSTS_PREFIX + "/")
 
 
 def _goto_blogger_posts(page) -> None:
@@ -37,7 +38,7 @@ def _goto_blogger_posts(page) -> None:
         print(f"Blogger dashboard navigation continued after redirect: {exc!r}")
 
     try:
-        page.wait_for_url(BLOGGER_POSTS_PATTERN, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_url(lambda url: _is_blogger_posts_url(url), wait_until="domcontentloaded", timeout=30000)
     except PlaywrightTimeoutError:
         url, _ = _page_info(page)
         if not _is_blogger_posts_url(url):
