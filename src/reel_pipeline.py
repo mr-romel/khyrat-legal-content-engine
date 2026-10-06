@@ -497,8 +497,11 @@ def main() -> int:
                     or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
                 ):
                     continue
-                if str(row.get("Reel File", "")).strip():
-                    continue
+                reel_file = str(row.get("Reel File", "")).strip()
+                if reel_file:
+                    source_id = str(row.get("ID", "")).strip()
+                    if source_id and source_id in reel_file:
+                        continue
                 recovered.append((row_number, row))
         if recovered:
             row_number, row = recovered[-1]
