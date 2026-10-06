@@ -11,3 +11,5 @@ text2tashkeel>=0.1.0
 
 arabic-reshaper>=3.0.0
 python-bidi>=0.4.2
+
+playwright>=1.55,<2
