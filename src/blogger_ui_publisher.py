@@ -64,6 +64,30 @@ def _fill_title(page, title: str) -> None:
         'input[name="title"]',
     ])
     if not loc:
+        # Blogger's editor DOM changes its aria-labels periodically. Fall back
+        # to the first large visible text input, excluding search/login fields.
+        candidates = page.locator('input[type="text"], input:not([type]), textarea')
+        count = candidates.count()
+        for index in range(count):
+            candidate = candidates.nth(index)
+            try:
+                if not candidate.is_visible(timeout=500):
+                    continue
+                kind = (candidate.get_attribute("type") or "").lower()
+                name = " ".join([
+                    candidate.get_attribute("aria-label") or "",
+                    candidate.get_attribute("placeholder") or "",
+                    candidate.get_attribute("name") or "",
+                ]).lower()
+                if kind in {"search", "email", "password"} or any(x in name for x in ("search", "email", "password")):
+                    continue
+                box = candidate.bounding_box()
+                if box and box["width"] >= 300:
+                    loc = candidate
+                    break
+            except Exception:
+                continue
+    if not loc:
         raise BloggerUIPublishError("Blogger UI title field was not found.")
     loc.fill(title)
 
