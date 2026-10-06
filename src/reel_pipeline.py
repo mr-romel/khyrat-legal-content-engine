@@ -484,6 +484,22 @@ def main() -> int:
             if reel_status in {"REVIEW", "APPROVED"} and reel_file:
                 continue
             recovered.append((row_number, row))
+        if not recovered:
+            today_prefix = today.replace("-", "")
+            for row_number, row in enumerate(rows, start=2):
+                source_id = str(row.get("ID", "")).strip()
+                if not source_id.startswith(today_prefix + "-"):
+                    continue
+                if not str(row.get("المحتوى", "")).strip():
+                    continue
+                if not (
+                    str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED"
+                    or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
+                ):
+                    continue
+                if str(row.get("Reel File", "")).strip():
+                    continue
+                recovered.append((row_number, row))
         if recovered:
             row_number, row = recovered[-1]
             source_context = {
