@@ -123,6 +123,14 @@ def main() -> int:
         except Exception:
             return 0.0
 
+    today = __import__("datetime").date.today().isoformat()
+    today_candidates = [
+        item for item in candidates
+        if str(item[1].get("تاريخ النشر", "")).strip() == today
+    ]
+    if today_candidates:
+        candidates = today_candidates
+        print(f"Blogger: prioritizing today's scheduled rows ({today}).")
     candidates.sort(key=_recent_key, reverse=True)
     row_number, row = candidates[0]
     topic = str(row.get("الموضوع", "")).strip()
