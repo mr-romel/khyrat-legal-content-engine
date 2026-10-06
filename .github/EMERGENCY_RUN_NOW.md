@@ -18,3 +18,5 @@ Blogger REST fallback is now enabled after UI failure.
 Final Reel recovery uses today's scheduled ID prefix.
 
 Repair stale R006 image and reset recycled-row downstream state.
+
+Final date parsing fixes for Blogger and stale Reel recovery.
