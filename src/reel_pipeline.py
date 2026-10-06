@@ -461,6 +461,7 @@ def main() -> int:
     sheet_name = cfg["sheet_range"].split("!", 1)[0]
     ensure_headers(service, cfg["sheet_id"], sheet_name)
     values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
+    print("Reel Sheet source: range=" + str(cfg["sheet_range"]) + " rows_loaded=" + str(max(0, len(values) - 1)) + " headers_width=" + str(len(values[0]) if values else 0))
     source_path = Path("generated/reel_source.json")
     source_context = None
     if source_path.is_file():
@@ -471,8 +472,11 @@ def main() -> int:
             source_context = None
 
     if source_context is None and os.getenv("REEL_RECOVERY", "").strip().lower() in {"1", "true", "yes", "on"}:
-        today = now_cairo().date().isoformat()
+        now = now_cairo()
+        today = now.date().isoformat()
         rows = [row_to_dict(row) for row in values[1:]]
+        today_id_matches = [(idx + 2, str(row.get("ID", "")).strip()) for idx, row in enumerate(rows) if str(row.get("ID", "")).strip().startswith(today.replace("-", "") + "-")]
+        print("Reel recovery source check: cairo_now=" + now.isoformat() + " today_id_matches=" + str(today_id_matches[-10:]))
         recovered = []
         for row_number, row in enumerate(rows, start=2):
             if parse_date(row.get("تاريخ النشر", "")) != now_cairo().date():
