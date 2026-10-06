@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import html, json, os, re
+import html, json, os, re, hashlib
 from pathlib import Path
 from typing import Any
 
@@ -322,8 +322,61 @@ def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, An
     }
     return _article_copy(article)
 
+def _canonical_blog_content(value: str) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip().casefold()
+    return text
+
+
+def cleanup_duplicate_blogger_posts(svc, bid: str) -> int:
+    """Delete exact duplicate automation posts, keeping the newest copy."""
+    all_items = []
+    token = None
+    while True:
+        kwargs = {"blogId": bid, "maxResults": 500, "fetchBodies": True, "fetchImages": True}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.posts().list(**kwargs).execute()
+        all_items.extend(data.get("items", []) or [])
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    groups = {}
+    for item in all_items:
+        title = _canonical_blog_content(item.get("title", ""))
+        body = _canonical_blog_content(item.get("content", ""))
+        if not title and not body:
+            continue
+        key = hashlib.sha256((title + "\n" + body).encode("utf-8")).hexdigest()
+        groups.setdefault(key, []).append(item)
+    deleted = 0
+    for items in groups.values():
+        if len(items) < 2:
+            continue
+        items.sort(key=lambda x: str(x.get("published", "")), reverse=True)
+        keep = items[0]
+        for duplicate in items[1:]:
+            pid = _clean(duplicate.get("id"))
+            if not pid or pid == _clean(keep.get("id")):
+                continue
+            try:
+                svc.posts().delete(blogId=bid, postId=pid).execute()
+                deleted += 1
+                print(f"Blogger duplicate cleanup: deleted post {pid}; kept {_clean(keep.get("id"))}")
+            except Exception as exc:
+                print(f"Blogger duplicate cleanup: could not delete {pid}: {exc}")
+    if deleted:
+        print(f"Blogger duplicate cleanup removed {deleted} exact duplicate post(s).")
+    else:
+        print("Blogger duplicate cleanup: no exact duplicate posts found.")
+    return deleted
+
 def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",legal_sources:str="",labels:list[str]|None=None,output_dir:str="generated/blogger") -> dict[str,str]:
     svc=service(); bid=blog_id(svc,os.getenv("BLOGGER_URL",DEFAULT_BLOG_URL).strip())
+    cleanup_duplicate_blogger_posts(svc, bid)
     if image_path:
         image_url = upload_blogger_image(image_path)
         print(f"Blogger image uploaded to native storage: {image_url}")
