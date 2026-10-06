@@ -43,3 +43,6 @@ Final Reel recovery validates actual file existence before skipping regeneration
 - Reel recovery race/stale-file fix: 2026-10-06T20:24:42.688Z
 
 - verification trigger
+
+
+Reel full-sheet-range fix verification 2026-10-07
