@@ -119,6 +119,7 @@ def load_blogger_config() -> dict:
         "blogger_oauth_json": _optional("BLOGGER_OAUTH_JSON"),
         "blogger_blog_id": _optional("BLOGGER_BLOG_ID"),
         "blogger_url": _optional("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/"),
+        "blogger_ui_storage_state_b64": _optional("BLOGGER_UI_STORAGE_STATE_B64"),
     }
 
 
