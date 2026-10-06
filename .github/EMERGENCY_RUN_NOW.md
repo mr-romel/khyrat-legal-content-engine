@@ -26,3 +26,5 @@ Social comment source isolation, mandatory post-specific images, Blogger duplica
 Blogger misdated-post cleanup and today-only publication guard.
 
 Fix Blogger API service resource used by cleanup.
+
+Final comment/review guardrails applied.
