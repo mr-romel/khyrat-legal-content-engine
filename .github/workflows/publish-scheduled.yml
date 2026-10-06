@@ -1,6 +1,8 @@
 name: Khyrat Legal Content Engine Scheduled
 
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -22,6 +24,7 @@ env:
 
 jobs:
   publish:
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
