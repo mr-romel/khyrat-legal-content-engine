@@ -128,7 +128,7 @@ def load_reel_config() -> dict:
     return {
         "service_account_info": _service_account_info(),
         "sheet_id": _sheet_id(),
-        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:AY"),
+        "sheet_range": _optional("REEL_GOOGLE_SHEET_RANGE", "Content!A:BC"),
         "gemini_api_key": _required("GEMINI_API_KEY"),
         "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
     }
