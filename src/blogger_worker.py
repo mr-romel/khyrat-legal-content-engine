@@ -6,7 +6,8 @@ from pathlib import Path
 
 import requests
 
-from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image
+from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article
+from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 
@@ -81,7 +82,10 @@ def main() -> int:
         return 0
 
     rows = [row_to_dict(row) for row in values[1:]]
-    bid = blog_id(service, config["blogger_url"])
+    use_ui = bool(config.get("blogger_ui_storage_state_b64"))
+    bid = str(config.get("blogger_blog_id", "") or "").strip()
+    if not use_ui:
+        bid = blog_id(service, config["blogger_url"])
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
@@ -145,14 +149,48 @@ def main() -> int:
         return 0
 
     try:
-        result = publish_article(
-            topic=topic,
-            post=post,
-            image_url=image_url,
-            image_path=image_path,
-            legal_sources=legal_sources,
-            output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
-        )
+        if use_ui:
+            try:
+                article = prepare_article(
+                    api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+                    model=os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+                    topic=topic,
+                    post=post,
+                    legal_sources=legal_sources,
+                )
+            except Exception as exc:
+                print(f"Blogger UI editorial layer unavailable; using structured fallback: {exc}")
+                article = _fallback_article(topic, post, legal_sources)
+            article = _article_copy(article or {})
+            title = str(article.get("title") or topic).strip()[:110]
+            content = build_article_html(title, topic, post, image_url, legal_sources, [], article=article)
+            labels = list(dict.fromkeys([
+                "قانون مصر",
+                "اسأل محمود",
+                *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()],
+            ]))[:10]
+            result = publish_article_ui(
+                title=title,
+                content_html=content,
+                labels=labels,
+                blog_id=bid,
+                blog_url=config["blogger_url"],
+            )
+            result["search_query"] = title
+            result["search_candidates"] = json.dumps([title, *labels], ensure_ascii=False)
+            result["meta_description"] = str(article.get("meta_description", "")).strip()[:180]
+            target = Path(f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}")
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "article.html").write_text(content, encoding="utf-8")
+        else:
+            result = publish_article(
+                topic=topic,
+                post=post,
+                image_url=image_url,
+                image_path=image_path,
+                legal_sources=legal_sources,
+                output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
+            )
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Blogger Status": "PUBLISHED",
             "Blogger Post ID": result["post_id"],
@@ -167,7 +205,7 @@ def main() -> int:
         })
         print(f"Blogger published: {result['title']} -> {result['post_url']}")
         return 0
-    except BloggerPublishError as exc:
+    except (BloggerPublishError, BloggerUIPublishError) as exc:
         error = str(exc)[:1500]
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Blogger Status": "FAILED",
