@@ -30,3 +30,5 @@ Fix Blogger API service resource used by cleanup.
 Final comment/review guardrails applied.
 
 Final misdated Blogger cleanup title matching.
+
+Remove known misdated Blogger legacy title once.
