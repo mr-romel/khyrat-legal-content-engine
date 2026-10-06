@@ -435,6 +435,8 @@ def _smart_main() -> None:
             publish_date = parse_date(row.get("تاريخ النشر", ""))
             if publish_date == current.date() and status in {"READY", "FAILED", "PARTIAL_FAILED"} and str(row.get("المحتوى", "")).strip() == "":
                 forced.append((row_number, row))
+            elif publish_date == current.date() and status == "PUBLISHED" and production_main._is_bad_published_image(row):
+                forced.append((row_number, row))
         if forced:
             candidates = forced
             print(f"FORCE_DUE enabled: selected today's scheduled row {forced[0][0]} for immediate recovery execution.")
