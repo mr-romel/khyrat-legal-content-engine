@@ -126,11 +126,38 @@ def upload_blogger_image(image_path: str) -> str:
 
 def blog_id(svc, blog_url: str) -> str:
     explicit = os.getenv("BLOGGER_BLOG_ID", "").strip()
-    if explicit: return explicit
-    try: data = svc.blogs().getByUrl(url=blog_url or DEFAULT_BLOG_URL).execute()
-    except Exception as exc: raise BloggerPublishError(f"Could not resolve Blogger blog ID: {exc}") from exc
+    if explicit:
+        return explicit
+
+    # The generated googleapiclient client may not expose the Blogger blogs
+    # resource in some runner environments. Resolve the ID through the v3 REST
+    # endpoint directly with the same authorized OAuth token.
+    creds = _credentials()
+    url = "https://www.googleapis.com/blogger/v3/blogs/byurl"
+    params = {"url": blog_url or DEFAULT_BLOG_URL}
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            headers={"Authorization": f"Bearer {creds.token}"},
+            timeout=30,
+        )
+        if response.status_code == 401 and creds.refresh_token:
+            creds.refresh(Request())
+            response = requests.get(
+                url,
+                params=params,
+                headers={"Authorization": f"Bearer {creds.token}"},
+                timeout=30,
+            )
+        response.raise_for_status()
+        data = response.json()
+    except Exception as exc:
+        raise BloggerPublishError(f"Could not resolve Blogger blog ID: {exc}") from exc
+
     value = str(data.get("id", "")).strip()
-    if not value: raise BloggerPublishError("Blogger returned no blog ID.")
+    if not value:
+        raise BloggerPublishError("Blogger REST API returned no blog ID.")
     return value
 
 def _suggest(q: str) -> list[str]:
