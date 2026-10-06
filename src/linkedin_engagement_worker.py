@@ -254,7 +254,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             api_key=CONFIG["gemini_api_key"],
             model=CONFIG["gemini_model"],
             post_urn=post_urn,
-            topic=row.get("الموضوع", ""),
+            topic="",
             post=row.get("المحتوى", ""),
             legal_sources=row.get("المصادر القانونية", ""),
             count=missing,
