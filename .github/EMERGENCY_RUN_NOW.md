@@ -32,3 +32,5 @@ Final comment/review guardrails applied.
 Final misdated Blogger cleanup title matching.
 
 Remove known misdated Blogger legacy title once.
+
+Log nearest READY slots when the daily row is not due.
