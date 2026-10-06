@@ -14,3 +14,5 @@ Final Blogger selector and Reel date recovery fix.
 Recovery now treats stale Reel status without a Reel file as eligible.
 
 Blogger REST fallback is now enabled after UI failure.
+
+Final Reel recovery uses today's scheduled ID prefix.
