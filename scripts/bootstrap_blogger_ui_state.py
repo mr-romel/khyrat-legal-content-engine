@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
@@ -38,15 +37,7 @@ def _goto_blogger_posts(page) -> None:
         print(f"Blogger dashboard navigation continued after redirect: {exc!r}")
 
     try:
-        page.wait_for_url(lambda url: _is_blogger_posts_url(url), wait_until="domcontentloaded", timeout=30000)
-    except PlaywrightTimeoutError:
-        url, _ = _page_info(page)
-        if not _is_blogger_posts_url(url):
-            raise
-        print(f"Blogger dashboard reached without a second URL event; using current URL: {url}")
-
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=15000)
+        page.wait_for_load_state("domcontentloaded", timeout=30000)
     except PlaywrightTimeoutError:
         pass
 
