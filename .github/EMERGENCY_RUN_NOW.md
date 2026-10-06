@@ -22,3 +22,5 @@ Repair stale R006 image and reset recycled-row downstream state.
 Final date parsing fixes for Blogger and stale Reel recovery.
 
 Social comment source isolation, mandatory post-specific images, Blogger duplicate cleanup, B2B LinkedIn, and Reel Telegram recovery fixes.
+
+Blogger misdated-post cleanup and today-only publication guard.
