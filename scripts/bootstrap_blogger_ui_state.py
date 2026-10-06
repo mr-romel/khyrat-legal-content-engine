@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 
 OUTPUT = Path("generated/blogger/browser-state.json")
 BLOGGER_POSTS_URL = "https://www.blogger.com/blog/posts"
-BLOGGER_POSTS_PATTERN = re.compile(r"^https://www\\.blogger\\.com/blog/posts(?:/[^/?#]+)?(?:[/?#].*)?$")
+BLOGGER_POSTS_PATTERN = re.compile(r"^https://www\.blogger\\.com/blog/posts(?:/[^/?#]+)?(?:[/?#].*)?$")
 
 
 def _page_info(page) -> tuple[str, str]:
