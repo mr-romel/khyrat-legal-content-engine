@@ -507,7 +507,7 @@ def main() -> int:
                 reel_file = str(row.get("Reel File", "")).strip()
                 if reel_file:
                     source_id = str(row.get("ID", "")).strip()
-                    if source_id and source_id in reel_file:
+                    if source_id and source_id in reel_file and Path(reel_file).is_file():
                         continue
                 recovered.append((row_number, row))
         if recovered:
