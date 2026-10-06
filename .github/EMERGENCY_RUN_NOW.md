@@ -46,3 +46,4 @@ Final Reel recovery validates actual file existence before skipping regeneration
 
 
 Reel full-sheet-range fix verification 2026-10-07
+
