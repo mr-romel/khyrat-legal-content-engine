@@ -380,7 +380,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     if image_path:
         image_url = upload_blogger_image(image_path)
         print(f"Blogger image uploaded to native storage: {image_url}")
-    title,search_query,candidates=build_search_title(topic)
+    title,search_query,candidates=build_search_title(post)
     article = None
     try:
         article = prepare_article(
