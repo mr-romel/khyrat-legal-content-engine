@@ -93,6 +93,10 @@ def main() -> int:
 
             browser.close()
             browser = None
+            print("\n===== BLOGGER BOOTSTRAP COMPLETE =====")
+            print("Browser state was saved successfully.")
+            print("The CMD window will stay open so you can review the result.")
+            input("Press Enter to close this window...")
             return 0
 
         except Exception as exc:
@@ -109,6 +113,12 @@ def main() -> int:
                 input()
     finally:
         if browser is None:
+            playwright.stop()
+        else:
+            try:
+                browser.close()
+            except Exception:
+                pass
             playwright.stop()
 
 
