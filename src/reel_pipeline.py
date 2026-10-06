@@ -57,10 +57,12 @@ def choose_row(
             print(f"Reel source row {target_number} already has Reel Status=PUBLISHED.")
             return None
         if reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
-            # Reuse is allowed only when the stored file belongs to this row.
-            if str(source_id or "").strip() in reel_file:
+            # Reuse only when the stored file belongs to this row AND actually exists.
+            if str(source_id or "").strip() in reel_file and Path(reel_file).is_file():
                 print(f"Reel source row {target_number} already has a valid Reel file.")
                 return None
+            if str(source_id or "").strip() in reel_file and not Path(reel_file).is_file():
+                print(f"Reel source row {target_number} has a stale/missing Reel file; regenerating.")
         locked_topic = str(source_context.get("topic", "") or "").strip()
         if locked_topic and locked_topic != str(row.get("الموضوع", "") or "").strip():
             print(f"Reel source topic mismatch for row {target_number}; refusing to guess another row.")
@@ -492,24 +494,33 @@ def main() -> int:
                 continue
             recovered.append((row_number, row))
         if not recovered:
+            # Recovery fallback is keyed by the immutable daily row ID, not by the
+            # date parser. This survives date-format drift and Core/Reel race conditions.
             today_prefix = today.replace("-", "")
+            diagnostics = []
             for row_number, row in enumerate(rows, start=2):
                 source_id = str(row.get("ID", "")).strip()
-                if not source_id.startswith(today_prefix + "-"):
-                    continue
-                if not str(row.get("المحتوى", "")).strip():
-                    continue
-                if not (
-                    str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED"
-                    or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
-                ):
-                    continue
+                fb_status = str(row.get("Facebook Status", "")).strip().upper()
+                li_status = str(row.get("LinkedIn Status", "")).strip().upper()
+                content_ok = bool(str(row.get("المحتوى", "")).strip())
+                daily_id = source_id.startswith(today_prefix + "-")
+                reel_status = str(row.get("Reel Status", "")).strip().upper()
                 reel_file = str(row.get("Reel File", "")).strip()
-                if reel_file:
-                    source_id = str(row.get("ID", "")).strip()
-                    if source_id and source_id in reel_file and Path(reel_file).is_file():
-                        continue
+                existing_file = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
+                diagnostics.append(
+                    f"row={row_number} id={source_id} daily_id={daily_id} fb={fb_status} li={li_status} "
+                    f"content={content_ok} reel={reel_status} file_exists={existing_file}"
+                )
+                if not daily_id or not content_ok or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
+                    continue
+                if reel_status == "PUBLISHED":
+                    continue
+                if existing_file:
+                    continue
                 recovered.append((row_number, row))
+            if not recovered:
+                print("Reel recovery diagnostics: " + " | ".join(diagnostics[-12:]))
+
         if recovered:
             row_number, row = recovered[-1]
             source_context = {
