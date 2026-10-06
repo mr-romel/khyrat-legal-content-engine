@@ -219,7 +219,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         generated = generate_comments(
             api_key=CONFIG["gemini_api_key"],
             model=CONFIG["gemini_model"],
-            topic=row.get("الموضوع", ""),
+            topic="",
             post=row.get("المحتوى", ""),
             legal_sources=row.get("المصادر القانونية", ""),
             count=missing,
