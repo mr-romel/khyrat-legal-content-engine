@@ -16,6 +16,7 @@ from config import load_reel_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
+from utils import now_cairo
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
@@ -452,13 +453,47 @@ def main() -> int:
     ensure_headers(service, cfg["sheet_id"], sheet_name)
     values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
     source_path = Path("generated/reel_source.json")
-    if not source_path.is_file():
+    source_context = None
+    if source_path.is_file():
+        try:
+            source_context = json.loads(source_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"Reel generator: invalid locked source context: {exc}")
+            source_context = None
+
+    if source_context is None and os.getenv("REEL_RECOVERY", "").strip().lower() in {"1", "true", "yes", "on"}:
+        today = now_cairo().date().isoformat()
+        rows = [row_to_dict(row) for row in values[1:]]
+        recovered = []
+        for row_number, row in enumerate(rows, start=2):
+            if str(row.get("تاريخ النشر", "")).strip() != today:
+                continue
+            if not str(row.get("المحتوى", "")).strip():
+                continue
+            if not (
+                str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED"
+                or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
+            ):
+                continue
+            if str(row.get("Reel Status", "")).strip().upper() in {"GENERATING", "REVIEW", "APPROVED", "PUBLISHED"}:
+                continue
+            recovered.append((row_number, row))
+        if recovered:
+            row_number, row = recovered[-1]
+            source_context = {
+                "row_number": row_number,
+                "source_id": str(row.get("ID", "")).strip(),
+                "topic": str(row.get("الموضوع", "")).strip(),
+            }
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_path.write_text(json.dumps(source_context, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"Reel recovery: rebuilt lock for today's published row {row_number}.")
+        else:
+            print("Reel recovery: no eligible published row for today.")
+            return 0
+
+    if source_context is None:
         print("Reel generator: no locked source from the core publishing worker; refusing to choose another row.")
-        return 0
-    try:
-        source_context = json.loads(source_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print(f"Reel generator: invalid locked source context: {exc}")
         return 0
     selected = choose_row([row_to_dict(row) for row in values[1:]], source_context)
     if not selected:
