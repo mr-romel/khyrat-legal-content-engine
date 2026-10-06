@@ -425,6 +425,17 @@ def _smart_main() -> None:
         values = get_values(service, config["sheet_id"], config["sheet_range"])
         rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
+    if not candidates and force_due:
+        forced = []
+        for row_number, row in enumerate(rows, start=2):
+            status = str(row.get("الحالة", "")).strip().upper()
+            publish_date = parse_date(row.get("تاريخ النشر", ""))
+            if publish_date == current.date() and status in {"READY", "FAILED", "PARTIAL_FAILED"} and str(row.get("المحتوى", "")).strip() == "":
+                forced.append((row_number, row))
+        if forced:
+            candidates = forced
+            print(f"FORCE_DUE enabled: selected today's scheduled row {forced[0][0]} for immediate recovery execution.")
     if not candidates:
         _due_diagnostics(rows, current)
         print("No due rows found.")
