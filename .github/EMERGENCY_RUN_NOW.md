@@ -10,3 +10,5 @@ Force-due import fixed; rerun production now.
 Recovery: asset push race fixed and Reel same-day fallback enabled.
 
 Final Blogger selector and Reel date recovery fix.
+
+Recovery now treats stale Reel status without a Reel file as eligible.
