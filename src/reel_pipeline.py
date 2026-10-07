@@ -634,7 +634,9 @@ def main() -> int:
 
     review_video_delivered = False
     try:
+        print(f"REEL_STAGE start row={row_number} topic={topic!r}")
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
+        print("REEL_STAGE brief=ok")
         output_dir.mkdir(parents=True, exist_ok=True)
         brief["script"] = prepare_tts_script(brief["script"])
         (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
@@ -642,7 +644,9 @@ def main() -> int:
         (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
         scene_dir = output_dir / "scenes"
+        print("REEL_STAGE media=fetch_openverse")
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
+        print(f"REEL_STAGE openverse_count={len(scenes)}")
         if len(scenes) < 4:
             needed = max(4, 8 - len(scenes))
             scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
@@ -682,12 +686,13 @@ def main() -> int:
             json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+        print("REEL_STAGE tts=start")
         tts_audio = output_dir / "voice-gemini.wav"
         try:
             generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
-            print("Reel TTS: Gemini primary succeeded.")
+            print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
-            print(f"Reel TTS: Gemini unavailable; switching to fully local Egyptian TTS fallback: {gemini_tts_exc}")
+            print(f"REEL_STAGE tts=local_fallback reason={gemini_tts_exc}")
             tts_audio = output_dir / "voice-egyptian-local.wav"
             generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
 
