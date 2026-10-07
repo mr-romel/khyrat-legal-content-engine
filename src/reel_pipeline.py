@@ -1011,6 +1011,15 @@ def main() -> int:
         current_reel_review = str(row.get("Reel Review", "") or "").strip()
         existing_reel_status = str(row.get("Reel Status", "") or "").strip().upper()
         existing_reel_file = str(row.get("Reel File", "") or "").strip()
+
+        # Delivery lock: after a successful Telegram send, the Sheet is the
+        # durable source of truth. Never send a second review copy for the same row.
+        if current_reel_review.startswith("TELEGRAM_DELIVERED"):
+            print(f"Reel row {row_number} already has TELEGRAM_DELIVERED; refusing duplicate send.")
+            review_video_delivered = True
+        elif current_reel_review.startswith("TELEGRAM_SENDING"):
+            print(f"Reel row {row_number} is already TELEGRAM_SENDING; refusing duplicate send.")
+            review_video_delivered = False
         if existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
             print(f"Reel row {row_number} is already in {existing_reel_status} with a Reel File; refusing duplicate Telegram delivery.")
             review_video_delivered = True
