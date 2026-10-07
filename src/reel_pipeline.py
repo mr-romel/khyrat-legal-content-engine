@@ -959,12 +959,11 @@ def main() -> int:
                 if result.returncode == 0:
                     task_videos = sorted((mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4"))
                     if task_videos:
-                        candidate = task_videos[-1]
-                        candidate_duration = _media_duration(candidate)
-                        print(f"REEL_STAGE mpt_candidate_duration={candidate_duration:.1f}s")
-                        if 45.0 <= candidate_duration <= 75.0:
-                            raw_video = output_dir / "mpt-base.mp4"
-                            shutil.copy2(candidate, raw_video)
+                        raw_video = output_dir / "mpt-base.mp4"
+                        shutil.copy2(task_videos[-1], raw_video)
+                        mpt_duration = _media_duration(raw_video)
+                        print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
+                        if 45.0 <= mpt_duration <= 80.0:
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
                             slogan_ready = False
@@ -972,23 +971,25 @@ def main() -> int:
                                 clean_slogan = prepare_tts_script(slogan_text)
                                 generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                                 slogan_ready = slogan_audio.is_file()
-                                print(f"Reel slogan: Gemini ready={slogan_ready}")
                             except Exception as slogan_gemini_exc:
-                                print(f"Reel slogan: Gemini unavailable; using Egyptian Neural TTS: {slogan_gemini_exc}")
+                                print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
                                 try:
                                     generate_local_short_neural_tts(clean_slogan if 'clean_slogan' in locals() else slogan_text, slogan_audio)
                                     slogan_ready = slogan_audio.is_file()
                                 except Exception as slogan_local_exc:
-                                    print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
+                                    print(f"Reel slogan disabled: {slogan_local_exc}")
                             try:
                                 add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio if slogan_ready else None)
-                                print("REEL_STAGE branding=ok")
                             except Exception as branding_exc:
                                 print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
                                 shutil.copy2(raw_video, output_video)
                             raw_video.unlink(missing_ok=True)
-                            mpt_ok = output_video.is_file() and 45.0 <= _media_duration(output_video) <= 75.0
-                            if not mpt_ok:
+                            mpt_ok = output_video.is_file() and 45.0 <= _media_duration(output_video) <= 80.0
+                        else:
+                            print(f"REEL_STAGE mpt_rejected_duration={mpt_duration:.1f}s")
+                            raw_video.unlink(missing_ok=True)
+                            mpt_ok = False
+                if not mpt_ok:
                                 output_video.unlink(missing_ok=True)
                                 print("REEL_STAGE mpt_rejected_after_branding")
                         else:
