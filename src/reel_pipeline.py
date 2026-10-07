@@ -797,29 +797,21 @@ def main() -> int:
 
         print("REEL_STAGE tts=start")
         tts_audio = output_dir / "voice-gemini.wav"
-        # Never use espeak as a production voice. Gemini is primary; if its
-        # quota is exhausted, use the existing Google service account with Cloud
-        # Text-to-Speech. If both are unavailable, do not send a bad Reel.
         try:
             generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
             print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
             print(f"REEL_STAGE tts=gemini_unavailable reason={gemini_tts_exc}")
-            tts_audio = output_dir / "voice-google-cloud.wav"
+            # Production fallback: local Arabic TTS is deterministic, available
+            # on the runner, and does not consume Gemini quota.
+            tts_audio = output_dir / "voice-egyptian-local.wav"
             try:
-                generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
-                print("REEL_STAGE tts=google_cloud_ok")
-            except Exception as cloud_tts_exc:
-                print(f"REEL_STAGE tts=google_cloud_unavailable reason={cloud_tts_exc}")
-                tts_audio = output_dir / "voice-egyptian-neural.mp3"
-                try:
-                    generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
-                    print("REEL_STAGE tts=edge_egyptian_neural_ok")
-                except Exception as edge_tts_exc:
-                    raise RuntimeError(
-                        "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
-                        f"Gemini={gemini_tts_exc}; Google Cloud TTS={cloud_tts_exc}; Edge Neural={edge_tts_exc}"
-                    ) from edge_tts_exc
+                generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
+                print("REEL_STAGE tts=local_ok")
+            except Exception as local_tts_exc:
+                raise RuntimeError(
+                    f"No usable Arabic TTS for Reel. Gemini={gemini_tts_exc}; local={local_tts_exc}"
+                ) from local_tts_exc
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
