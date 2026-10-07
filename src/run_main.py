@@ -482,7 +482,7 @@ def _smart_main() -> None:
         image_repairs = [
             (i, r) for i, r in enumerate(rows, start=2)
             if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
-            and _row_is_today(r, current.date())
+            and parse_date(r.get("تاريخ النشر", "")) == current.date()
             and production_main._is_bad_published_image(r)
             and (str(r.get("Facebook Post ID", "")).strip() or str(r.get("LinkedIn Post ID", "")).strip())
         ]
