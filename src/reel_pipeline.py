@@ -463,6 +463,7 @@ def main() -> int:
     ensure_headers(service, cfg["sheet_id"], sheet_name)
     values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
     print("Reel Sheet source: range=" + str(cfg["sheet_range"]) + " rows_loaded=" + str(max(0, len(values) - 1)) + " headers_width=" + str(len(values[0]) if values else 0))
+    rows = [row_to_dict(row) for row in values[1:]]
     source_path = Path("generated/reel_source.json")
     source_context = None
     if source_path.is_file():
@@ -579,7 +580,7 @@ def main() -> int:
     if source_context is None:
         print("Reel generator: no locked source from the core publishing worker; refusing to choose another row.")
         return 0
-    selected = choose_row([row_to_dict(row) for row in values[1:]], source_context)
+    selected = choose_row(rows, source_context)
     if not selected:
         print("Reel generator: no eligible published content row.")
         return 0
