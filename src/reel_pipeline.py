@@ -113,20 +113,12 @@ def _clean_tts_text(text: str) -> str:
 
 
 def prepare_tts_script(text: str) -> str:
-    """Gemini narration script: optional diacritics for models that benefit from them."""
-    out = _clean_tts_text(text)
-    try:
-        from text2tashkeel import Diacritizer
-        out = Diacritizer("rawi-ensemble").diacritize(out)
-    except Exception as exc:
-        print(f"TTS diacritization unavailable; using clean Arabic: {exc}")
-    return out
+    """Clean spoken Egyptian Arabic; do not inject machine-generated diacritics."""
+    return _clean_tts_text(text)
 
 
 def prepare_neural_tts_script(text: str) -> str:
-    """Production neural-TTS script: clean Egyptian Arabic without machine-added diacritics."""
     return _clean_tts_text(text)
-
 
 def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
     """Natural Egyptian Arabic Microsoft Neural voice fallback."""
