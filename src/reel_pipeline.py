@@ -502,15 +502,33 @@ def main() -> int:
                 continue
             recovered.append((row_number, row))
         if not recovered:
-            # Recovery fallback is keyed by the immutable daily row ID, with date parsing
-            # only as a secondary compatibility check. This survives Sheet date-format drift.
+            # Google Sheets can briefly expose the pre-publication state to a downstream job.
+            # Re-read once before refusing the exact current-day row; never fall back to older rows.
+            import time
+            time.sleep(5)
+            values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
+            rows = [row_to_dict(row) for row in values[1:]]
+            print("Reel recovery retry: re-read Sheet after 5s.")
+            for row_number, row in enumerate(rows, start=2):
+                source_id = str(row.get("ID", "")).strip()
+                if not source_id.startswith(today_prefix):
+                    continue
+                fb_status = str(row.get("Facebook Status", "")).strip().upper()
+                li_status = str(row.get("LinkedIn Status", "")).strip().upper()
+                content_ok = bool(str(row.get("المحتوى", "")).strip())
+                reel_status = str(row.get("Reel Status", "")).strip().upper()
+                reel_file = str(row.get("Reel File", "")).strip()
+                print(f"Reel recovery retry row={row_number} id={source_id} fb={fb_status} li={li_status} content={content_ok} reel={reel_status} file={bool(reel_file)}")
+                if content_ok and (fb_status == "PUBLISHED" or li_status == "PUBLISHED") and reel_status != "PUBLISHED":
+                    if not (reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file):
+                        recovered.append((row_number, row))
             diagnostics = []
             for row_number, row in enumerate(rows, start=2):
                 source_id = str(row.get("ID", "")).strip()
                 fb_status = str(row.get("Facebook Status", "")).strip().upper()
                 li_status = str(row.get("LinkedIn Status", "")).strip().upper()
                 content_ok = bool(str(row.get("المحتوى", "")).strip())
-                daily_id = source_id.startswith(today_prefix + "-")
+                daily_id = source_id.startswith(today_prefix)
                 reel_status = str(row.get("Reel Status", "")).strip().upper()
                 reel_file = str(row.get("Reel File", "")).strip()
                 existing_file = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
