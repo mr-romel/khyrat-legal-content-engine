@@ -637,56 +637,26 @@ def build_fast_fallback_reel(
     if audio_duration < 45 or audio_duration > 90:
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s")
     target_duration = min(75.0, max(50.0, audio_duration))
-    selected = scenes[:8]
-    per_scene = target_duration / len(selected)
-    clips_dir = output_video.parent / "fast_clips"
-    clips_dir.mkdir(parents=True, exist_ok=True)
-    clip_paths: list[Path] = []
-
-    for idx, scene in enumerate(selected, start=1):
-        clip = clips_dir / f"scene_{idx:02d}.mp4"
-        vf = (
-            "scale=1080:1920:force_original_aspect_ratio=increase,"
-            "crop=1080:1920,format=yuv420p,"
-            "zoompan=z='min(zoom+0.0008,1.03)':d=1:s=1080x1920:fps=30"
-        )
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1", "-i", str(scene),
-            "-t", f"{per_scene:.3f}",
-            "-vf", vf,
-            "-an",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            str(clip),
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
-        if result.returncode != 0 or not clip.is_file():
-            raise RuntimeError("Fast Reel scene render failed: " + (result.stderr or result.stdout)[-3000:])
-        clip_paths.append(clip)
-
-    concat_file = clips_dir / "concat.txt"
-    concat_file.write_text(
-        "\n".join(f"file '{p.resolve()}'" for p in clip_paths) + "\n",
-        encoding="utf-8",
+    # Robust fallback: render the first topic-matched scene for the full
+    # narration duration. This avoids concat timestamp drift that previously
+    # produced ~7-second videos even when the narration was ~60 seconds.
+    scene = scenes[0]
+    vf = (
+        "scale=1080:1920:force_original_aspect_ratio=increase,"
+        "crop=1080:1920,format=yuv420p,"
+        "zoompan=z='min(zoom+0.0008,1.03)':d=1:s=1080x1920:fps=30"
     )
-    silent_video = clips_dir / "silent.mp4"
     result = subprocess.run(
-        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
-         "-c", "copy", "-movflags", "+faststart", str(silent_video)],
-        capture_output=True, text=True, timeout=240, check=False,
-    )
-    if result.returncode != 0 or not silent_video.is_file():
-        raise RuntimeError("Fast Reel concat failed: " + (result.stderr or result.stdout)[-3000:])
-
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio_path),
+        ["ffmpeg", "-y", "-loop", "1", "-i", str(scene), "-i", str(audio_path),
          "-map", "0:v:0", "-map", "1:a:0",
-         "-t", f"{target_duration:.3f}",
-         "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+         "-t", f"{target_duration:.3f}", "-vf", vf,
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
          "-shortest", "-movflags", "+faststart", str(output_video)],
         capture_output=True, text=True, timeout=240, check=False,
     )
+    if result.returncode != 0 or not output_video.is_file():
+        raise RuntimeError("Fast Reel fallback render failed: " + (result.stderr or result.stdout)[-3000:])
     if result.returncode != 0 or not output_video.is_file():
         raise RuntimeError("Fast Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
 
@@ -912,11 +882,8 @@ def main() -> int:
             try:
                 generate_edge_egyptian_tts_audio(brief["script"], tts_audio)
                 print("REEL_STAGE tts=edge_egyptian_ok")
-        fit_reel_narration_duration(tts_audio, target_seconds=62.0)
-        print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
             except Exception as edge_tts_exc:
                 print(f"REEL_STAGE tts=edge_unavailable reason={edge_tts_exc}")
-                raise RuntimeError("Gemini TTS failed and Edge Egyptian Neural TTS is unavailable; refusing Telegram delivery.")
                 tts_audio = output_dir / "voice-google-cloud.wav"
                 try:
                     generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
@@ -926,6 +893,9 @@ def main() -> int:
                         "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
                         f"Gemini={gemini_tts_exc}; Edge Egyptian={edge_tts_exc}; Google Cloud={cloud_tts_exc}"
                     ) from cloud_tts_exc
+
+        fit_reel_narration_duration(tts_audio, target_seconds=62.0)
+        print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
