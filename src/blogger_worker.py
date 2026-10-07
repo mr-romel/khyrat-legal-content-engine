@@ -73,6 +73,78 @@ def _norm_text(value: str) -> str:
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
     return " ".join(text.split()).casefold()
 
+def dedupe_blogger_topics(svc, bid: str, rows: list[dict[str, str]]) -> int:
+    """Delete duplicate Blogger posts for the same generated article, keeping the oldest copy."""
+    import re
+    def key(value: str) -> str:
+        text = re.sub(r"<[^>]+>", " ", str(value or ""))
+        text = re.sub(r"\\s+", " ", text).strip().casefold()
+        return text
+
+    canonical_titles = set()
+    canonical_bodies = set()
+    for row in rows:
+        topic = str(row.get("الموضوع", "")).strip()
+        post = str(row.get("المحتوى", "")).strip()
+        if not topic or not post:
+            continue
+        try:
+            article = _fallback_article(topic, post, str(row.get("المصادر القانونية", ""))) or {}
+            title = key(article.get("title", ""))
+            if title:
+                canonical_titles.add(title)
+        except Exception:
+            pass
+        body = key(post)
+        if len(body) >= 180:
+            canonical_bodies.add(body[:240])
+
+    posts = []
+    token = None
+    while True:
+        kwargs = {"blogId": bid, "maxResults": 500, "fetchBodies": True}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.posts().list(**kwargs).execute()
+        posts.extend(data.get("items", []) or [])
+        token = data.get("nextPageToken")
+        if not token:
+            break
+
+    groups: dict[str, list[dict]] = {}
+    for item in posts:
+        title = key(item.get("title", ""))
+        body = key(item.get("content", ""))
+        match_key = ""
+        if title and title in canonical_titles:
+            match_key = "title:" + title
+        else:
+            for snippet in canonical_bodies:
+                if snippet and snippet in body:
+                    match_key = "body:" + snippet
+                    break
+        if match_key:
+            groups.setdefault(match_key, []).append(item)
+
+    deleted = 0
+    for group_key, items in groups.items():
+        if len(items) < 2:
+            continue
+        items.sort(key=lambda x: str(x.get("published", "") or x.get("updated", "")))
+        keep = items[0]
+        print(f"Blogger dedupe: keeping post {keep.get('id')} for {group_key}; duplicates={len(items)-1}")
+        for item in items[1:]:
+            pid = str(item.get("id", "")).strip()
+            if not pid:
+                continue
+            try:
+                svc.posts().delete(blogId=bid, postId=pid).execute()
+                deleted += 1
+                print(f"Blogger dedupe: deleted duplicate post {pid}")
+            except Exception as exc:
+                print(f"Blogger dedupe: could not delete duplicate {pid}: {exc}")
+    return deleted
+
 def cleanup_misdated_automation_posts(svc, bid: str, rows: list[dict[str, str]], today) -> int:
     older_snippets = []
     older_titles = {"في مسائل العمل: ما الذي يجب مراجعته قبل اتخاذ القرار؟".casefold()}
@@ -144,7 +216,7 @@ def main() -> int:
         bid = blog_id(service, config["blogger_url"])
     else:
         bid = str(config.get("blogger_blog_id", "") or "").strip() or blog_id(service, config["blogger_url"])
-    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
+    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)\n    deduped = dedupe_blogger_topics(blogger_api, bid, rows)\n    print(f"Blogger dedupe: removed {deduped} duplicate posts.")
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
