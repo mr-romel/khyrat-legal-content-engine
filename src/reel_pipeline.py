@@ -208,6 +208,16 @@ def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path
     shutil.move(str(normalized), str(path))
     print(f"Egyptian Neural TTS normalized: {duration:.1f}s -> {final_duration:.1f}s")
     return path
+def generate_local_short_neural_tts(script: str, output_path: Path) -> Path:
+    clean = prepare_tts_script(script)
+    edge = shutil.which("edge-tts")
+    if not edge:
+        raise RuntimeError("edge-tts is not installed.")
+    subprocess.run([edge, "--voice", os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"), "--rate", os.getenv("REEL_EDGE_TTS_RATE", "+10%"), "--text", clean, "--write-media", str(output_path)], check=True, timeout=120, capture_output=True, text=True)
+    duration = _media_duration(output_path)
+    if duration < 1.0 or duration > 10.0:
+        raise RuntimeError(f"Short neural TTS duration invalid: {duration:.1f}s")
+    return output_path
 def generate_gemini_tts_audio_unbounded(
     api_key: str,
     script: str,
@@ -889,12 +899,10 @@ def main() -> int:
                         except Exception as slogan_gemini_exc:
                             print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
                             try:
-                                generate_local_egyptian_tts_audio_unbounded(
-                                    clean_slogan if 'clean_slogan' in locals() else slogan_text,
-                                    slogan_audio,
-                                    min_seconds=1.0,
-                                    max_seconds=10.0,
-                                )
+                                generate_local_short_neural_tts(
+                                clean_slogan if 'clean_slogan' in locals() else slogan_text,
+                                slogan_audio,
+                            )
                                 slogan_ready = slogan_audio.is_file()
                             except Exception as slogan_local_exc:
                                 print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
