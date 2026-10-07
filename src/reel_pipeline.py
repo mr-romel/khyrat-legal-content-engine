@@ -54,10 +54,11 @@ def choose_row(
             return None
         reel_status = str(row.get("Reel Status", "")).strip().upper()
         reel_file = str(row.get("Reel File", "")).strip()
-        if reel_status == "PUBLISHED":
+        force_regenerate = os.getenv("REEL_FORCE_REGENERATE", "").strip().lower() in {"1", "true", "yes", "on"}
+        if reel_status == "PUBLISHED" and not force_regenerate:
             print(f"Reel source row {target_number} already has Reel Status=PUBLISHED.")
             return None
-        if reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
+        if not force_regenerate and reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
             # Reuse only when the stored file belongs to this row AND actually exists.
             if str(source_id or "").strip() in reel_file and Path(reel_file).is_file():
                 print(f"Reel source row {target_number} already has a valid Reel file.")
@@ -1019,19 +1020,20 @@ def main() -> int:
         current_reel_review = str(row.get("Reel Review", "") or "").strip()
         existing_reel_status = str(row.get("Reel Status", "") or "").strip().upper()
         existing_reel_file = str(row.get("Reel File", "") or "").strip()
+        force_regenerate = os.getenv("REEL_FORCE_REGENERATE", "").strip().lower() in {"1", "true", "yes", "on"}
 
         # Delivery lock: after a successful Telegram send, the Sheet is the
         # durable source of truth. Never send a second review copy for the same row.
-        if current_reel_review.startswith("TELEGRAM_DELIVERED"):
+        if not force_regenerate and current_reel_review.startswith("TELEGRAM_DELIVERED"):
             print(f"Reel row {row_number} already has TELEGRAM_DELIVERED; refusing duplicate send.")
             review_video_delivered = True
-        elif current_reel_review.startswith("TELEGRAM_SENDING"):
+        elif not force_regenerate and current_reel_review.startswith("TELEGRAM_SENDING"):
             print(f"Reel row {row_number} is already TELEGRAM_SENDING; refusing duplicate send.")
             review_video_delivered = False
-        if existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
+        if not force_regenerate and existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
             print(f"Reel row {row_number} is already in {existing_reel_status} with a Reel File; refusing duplicate Telegram delivery.")
             review_video_delivered = True
-        elif current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED"):
+        elif not force_regenerate and (current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED")):
             print(f"Reel Telegram delivery already locked for row {row_number}; refusing duplicate send.")
             review_video_delivered = current_reel_review.startswith("TELEGRAM_DELIVERED")
         else:
