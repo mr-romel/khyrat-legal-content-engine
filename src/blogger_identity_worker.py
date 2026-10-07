@@ -459,6 +459,68 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
         print(f"Blogger layout screenshot failed: {exc}")
     print("Blogger Pages navigation configured and layout save attempted.")
 
+def _verify_layout_state(page, bid: str, expected_title: str) -> None:
+    """Verify Blogger configuration from the authenticated editor, not public headless traffic."""
+    page.goto(f"https://www.blogger.com/blog/layout/{bid}?hl=ar", wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1800)
+
+    # Verify Header gadget current values.
+    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\\(رأس الصفحة\\).*Ask-Mahmoud|Ask-Mahmoud|رأس الصفحة"):
+        if not _click_layout_edit_fallback(page, "header"):
+            raise RuntimeError("Blogger layout verification could not open Header gadget.")
+    page.wait_for_timeout(700)
+    dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
+    root = page
+    for i in range(min(dialogs.count(), 10)):
+        d=dialogs.nth(i)
+        try:
+            if d.is_visible():
+                root=d
+                break
+        except Exception:
+            pass
+    controls=root.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    vals=controls.evaluate_all("els => els.map(e => e.value || e.innerText || '')")
+    print("Blogger layout Header verification values:", json.dumps(vals[:6], ensure_ascii=False))
+    if not any(expected_title in str(v) for v in vals):
+        raise RuntimeError("Blogger Header title was not persisted in the authenticated editor.")
+    _click_first(root, (r"إلغاء", r"Cancel", r"إغلاق", r"Close"), role="button")
+
+    # Verify Page List selections by opening its editor and checking the native state.
+    page.wait_for_timeout(600)
+    if not _open_gadget_editor_by_text(page, r"Pages gadget|^مقالات$"):
+        if not _click_layout_edit_fallback(page, "pages"):
+            raise RuntimeError("Blogger layout verification could not open Pages gadget.")
+    page.wait_for_timeout(700)
+    dialogs=page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
+    root=page
+    for i in range(min(dialogs.count(), 10)):
+        d=dialogs.nth(i)
+        try:
+            if d.is_visible():
+                root=d
+                break
+        except Exception:
+            pass
+    states=root.locator('input[type="checkbox"]').evaluate_all(
+        """els => els.map(e => {
+            let p=e, text='';
+            for(let n=0;n<8 && p;n++,p=p.parentElement){
+                const t=(p.innerText||'').trim().replace(/\\s+/g,' ');
+                if(t.length>0){ text=t; if(t.length<600) break; }
+            }
+            return {checked:e.checked,text};
+        })"""
+    )
+    print("Blogger layout PageList verification:", json.dumps(states[:80], ensure_ascii=False))
+    missing=[]
+    for title in PAGE_TITLES:
+        if not any(title in str(x.get("text","")) and x.get("checked") for x in states):
+            missing.append(title)
+    _click_first(root, (r"إلغاء", r"Cancel", r"إغلاق", r"Close"), role="button")
+    if missing:
+        raise RuntimeError("Blogger Page List selections missing: " + ", ".join(missing))
+    print("Blogger authenticated layout verification passed.")
 
 def _verify_public(page, expected_title: str, expected_description: str) -> None:
     response = page.goto(BLOG_URL, wait_until="domcontentloaded", timeout=60000)
@@ -472,6 +534,10 @@ def _verify_public(page, expected_title: str, expected_description: str) -> None
     print(f"Blogger public title: {actual_title!r}")
     print(f"Blogger public description: {actual_description!r}")
     print(f"Blogger public page navigation visible: {all(t in body for t in PAGE_TITLES[:2])}")
+    status = response.status if response else None
+    if status == 429 or "google.com/sorry" in page.url:
+        print("Blogger public verification skipped: Google returned anti-bot HTTP 429.")
+        return
     if expected_title not in actual_title:
         raise RuntimeError(f"Homepage title verification failed: {actual_title!r}")
     if actual_description and actual_description != expected_description:
@@ -508,6 +574,7 @@ def main() -> int:
             if not _update_page_header_from_layout(page, title, description):
                 print("Blogger Page Header gadget was not updated; continuing with navigation setup.")
             _ensure_pages_gadget_on_layout(page, bid)
+            _verify_layout_state(page, bid, title)
             _verify_public(page, title, description)
         finally:
             browser.close()
