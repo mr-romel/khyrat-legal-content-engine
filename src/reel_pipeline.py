@@ -811,6 +811,11 @@ def main() -> int:
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
     output_dir = OUTPUT_ROOT / ("row_" + str(row_number))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    # Never trust an MP4 left by a previous run; it may be a partial 7-second
+    # artifact. Every run must produce and QA its own final file.
+    stale_output = output_dir / "daily-reel.mp4"
+    stale_output.unlink(missing_ok=True)
     update_row(service, cfg["sheet_id"], sheet_name, row_number, {
         "Reel Status": "GENERATING",
         "Reel Approval": "",
@@ -956,8 +961,13 @@ def main() -> int:
                         (mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4")
                     )
                     if task_videos:
-                        raw_video = output_dir / "mpt-base.mp4"
-                        shutil.copy2(task_videos[-1], raw_video)
+                        candidate = task_videos[-1]
+                        candidate_duration = _media_duration(candidate)
+                        if candidate_duration < 45.0 or candidate_duration > 75.0:
+                            print(f"MoneyPrinterTurbo produced invalid duration={candidate_duration:.1f}s; rejecting candidate.")
+                        else:
+                            raw_video = output_dir / "mpt-base.mp4"
+                            shutil.copy2(candidate, raw_video)
                         mpt_duration = _probe_video_duration(raw_video)
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
                         if mpt_duration < 45 or mpt_duration > 80:
@@ -1008,7 +1018,9 @@ def main() -> int:
                                 print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
                                 shutil.copy2(raw_video, output_video)
                             raw_video.unlink(missing_ok=True)
-                            mpt_ok = output_video.is_file()
+                            mpt_ok = output_video.is_file() and 45.0 <= _media_duration(output_video) <= 75.0
+                        if not mpt_ok:
+                            output_video.unlink(missing_ok=True)
                 if not mpt_ok:
                     print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
             except Exception as mpt_exc:
@@ -1027,7 +1039,12 @@ def main() -> int:
         if not audio_probe.stdout.strip():
             raise RuntimeError("Reel delivery blocked: final MP4 has no audio stream.")
         current_reel_review = str(row.get("Reel Review", "") or "").strip()
-        if current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED"):
+        existing_reel_status = str(row.get("Reel Status", "") or "").strip().upper()
+        existing_reel_file = str(row.get("Reel File", "") or "").strip()
+        if existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
+            print(f"Reel row {row_number} is already in {existing_reel_status} with a Reel File; refusing duplicate Telegram delivery.")
+            review_video_delivered = True
+        elif current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED"):
             print(f"Reel Telegram delivery already locked for row {row_number}; refusing duplicate send.")
             review_video_delivered = current_reel_review.startswith("TELEGRAM_DELIVERED")
         else:
