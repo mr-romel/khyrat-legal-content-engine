@@ -67,6 +67,23 @@ def _click_first(page, patterns: tuple[str, ...], *, role: str | None = None) ->
     return False
 
 
+def _click_current_setting_value(page, current_value: str) -> bool:
+    current_value = _clean(current_value)
+    if not current_value:
+        return False
+    loc = page.get_by_text(re.compile(rf"^{re.escape(current_value)}$", re.I))
+    for i in range(min(loc.count(), 10)):
+        candidate = loc.nth(i)
+        try:
+            if candidate.is_visible() and candidate.is_enabled():
+                candidate.click()
+                page.wait_for_timeout(700)
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def _fill_settings_fields(page, title: str, description: str) -> bool:
     # Blogger's current UI has changed labels/structure more than once.
     # Prefer semantic labels, then fall back to visible form controls.
@@ -75,6 +92,26 @@ def _fill_settings_fields(page, title: str, description: str) -> bool:
 
     title_field = None
     desc_field = None
+
+    # Current Blogger settings render the values as clickable text; the
+    # editable input appears only after clicking the current value.
+    try:
+        current_title = _clean(page.locator("body").inner_text()).split("العنوان", 1)[1].split("الوصف", 1)[0]
+        current_title = _clean(current_title)
+        if current_title:
+            _click_current_setting_value(page, current_title)
+    except Exception:
+        pass
+
+    try:
+        current_desc = _clean(page.locator("body").inner_text()).split("الوصف", 1)[1].split("لغة المدونة", 1)[0]
+        current_desc = _clean(current_desc)
+        if current_desc:
+            _click_current_setting_value(page, current_desc)
+    except Exception:
+        pass
+
+    page.wait_for_timeout(500)
 
     for label in title_patterns:
         for getter in (
