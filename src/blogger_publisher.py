@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html, json, os, re, hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -260,9 +261,11 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
             for item in faq if isinstance(item, dict) and str(item.get("question", "")).strip() and str(item.get("answer", "")).strip()
         ) + "</section>"
 
+    now_iso = datetime.now(timezone.utc).isoformat()
+    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/about-us.html"
     graph = [
-        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"author":{"@type":"Person","name":"محمود خيرت","url":LINKEDIN_URL},"publisher":{"@type":"Person","name":"اسأل محمود"},"keywords":keywords or _tags(topic)},
-        {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود"},{"@type":"ListItem","position":2,"name":title}]}
+        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"datePublished":now_iso,"dateModified":now_iso,"author":{"@type":"Person","name":"محمود خيرت","url":author_url,"sameAs":[LINKEDIN_URL,FACEBOOK_URL]},"publisher":{"@type":"Person","name":"محمود خيرت","url":author_url},"keywords":keywords or _tags(topic)},
+        {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود","item":DEFAULT_BLOG_URL},{"@type":"ListItem","position":2,"name":title}]}
     ]
     if faq:
         faq_entities = [
@@ -276,11 +279,16 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
         ]
         if faq_entities:
             graph.append({"@type": "FAQPage", "mainEntity": faq_entities})
-    schema = html.escape(json.dumps({"@context":"https://schema.org","@graph":graph}, ensure_ascii=False))
+    # JSON-LD is inside a script element; HTML-escaping the JSON can break parsers.
+    schema = json.dumps({"@context":"https://schema.org","@graph":graph}, ensure_ascii=False).replace("</script>", "<\\/script>")
 
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
     related_html = f'<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>' if rel else ""
-    return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{related_html}{_footer(topic)}</article>'
+    byline = f'<p class="article-byline">بقلم <a href="{html.escape(author_url, quote=True)}">محمود خيرت</a> — مستشار قانوني للشركات</p>'
+    sources_html = ''
+    if legal_sources and _clean(legal_sources):
+        sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(_clean(legal_sources))}</section>'
+    return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
     """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
