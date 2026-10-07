@@ -100,23 +100,31 @@ def egyptian_spoken_text(text: str) -> str:
     return out
 
 
-def prepare_tts_script(text: str) -> str:
-    """Final spoken-script gate: plain Arabic text, punctuation only, no markup."""
+def _clean_tts_text(text: str) -> str:
     out = egyptian_spoken_text(text)
-    # Keep punctuation that helps Gemini TTS pace the narration, but remove symbols
-    # which are commonly interpreted as literal words or metadata.
     out = out.replace("(", " ").replace(")", " ").replace("…", "...").replace("؛", "،")
     out = re.sub(r"\.{2,}", "...", out)
     out = re.sub(r"\s+", " ", out).strip()
     out = re.sub(r"\d+", " ", out)
     if not out:
         raise RuntimeError("TTS script is empty after sanitization.")
+    return out
+
+
+def prepare_tts_script(text: str) -> str:
+    """Gemini narration script: optional diacritics for models that benefit from them."""
+    out = _clean_tts_text(text)
     try:
         from text2tashkeel import Diacritizer
         out = Diacritizer("rawi-ensemble").diacritize(out)
     except Exception as exc:
-        raise RuntimeError(f"Arabic diacritization failed: {exc}") from exc
+        print(f"TTS diacritization unavailable; using clean Arabic: {exc}")
     return out
+
+
+def prepare_neural_tts_script(text: str) -> str:
+    """Production neural-TTS script: clean Egyptian Arabic without machine-added diacritics."""
+    return _clean_tts_text(text)
 
 
 def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
@@ -124,7 +132,7 @@ def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
     import asyncio
     import edge_tts
 
-    clean = prepare_tts_script(script)
+    clean = prepare_neural_tts_script(script)
     voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
     rate = os.getenv("EDGE_TTS_RATE", "-5%")
     pitch = os.getenv("EDGE_TTS_PITCH", "+0Hz")
@@ -199,7 +207,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
 
 def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
     """Egyptian Arabic neural fallback; never use robotic espeak for production Reels."""
-    clean = prepare_tts_script(script)
+    clean = prepare_neural_tts_script(script)
     voice = os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
     rate = os.getenv("REEL_EDGE_TTS_RATE", "+10%")
     edge = shutil.which("edge-tts")
@@ -237,7 +245,7 @@ def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path
     print(f"Egyptian Neural TTS normalized: {duration:.1f}s -> {final_duration:.1f}s")
     return path
 def generate_local_short_neural_tts(script: str, output_path: Path) -> Path:
-    clean = prepare_tts_script(script)
+    clean = prepare_neural_tts_script(script)
     edge = shutil.which("edge-tts")
     if not edge:
         raise RuntimeError("edge-tts is not installed.")
