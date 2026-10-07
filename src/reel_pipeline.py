@@ -475,11 +475,15 @@ def main() -> int:
         now = now_cairo()
         today = now.date().isoformat()
         rows = [row_to_dict(row) for row in values[1:]]
-        today_id_matches = [(idx + 2, str(row.get("ID", "")).strip()) for idx, row in enumerate(rows) if str(row.get("ID", "")).strip().startswith(today.replace("-", "") + "-")]
-        print("Reel recovery source check: cairo_now=" + now.isoformat() + " today_id_matches=" + str(today_id_matches[-10:]))
+        today_prefix = today.replace("-", "") + "-"
+        today_id_matches = [(idx + 2, str(row.get("ID", "")).strip()) for idx, row in enumerate(rows) if str(row.get("ID", "")).strip().startswith(today_prefix)]
+        print("Reel recovery source check: cairo_now=" + now.isoformat() + " today_id_matches=" + str(today_id_matches))
         recovered = []
         for row_number, row in enumerate(rows, start=2):
-            if parse_date(row.get("تاريخ النشر", "")) != now_cairo().date():
+            source_id = str(row.get("ID", "")).strip()
+            is_today_by_id = source_id.startswith(today_prefix)
+            is_today_by_date = parse_date(row.get("تاريخ النشر", "")) == now_cairo().date()
+            if not (is_today_by_id or is_today_by_date):
                 continue
             if not str(row.get("المحتوى", "")).strip():
                 continue
@@ -498,9 +502,8 @@ def main() -> int:
                 continue
             recovered.append((row_number, row))
         if not recovered:
-            # Recovery fallback is keyed by the immutable daily row ID, not by the
-            # date parser. This survives date-format drift and Core/Reel race conditions.
-            today_prefix = today.replace("-", "")
+            # Recovery fallback is keyed by the immutable daily row ID, with date parsing
+            # only as a secondary compatibility check. This survives Sheet date-format drift.
             diagnostics = []
             for row_number, row in enumerate(rows, start=2):
                 source_id = str(row.get("ID", "")).strip()
@@ -515,7 +518,7 @@ def main() -> int:
                     f"row={row_number} id={source_id} daily_id={daily_id} fb={fb_status} li={li_status} "
                     f"content={content_ok} reel={reel_status} file_exists={existing_file}"
                 )
-                if not daily_id or not content_ok or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
+                if not (daily_id or parse_date(row.get("تاريخ النشر", "")) == now_cairo().date()) or not content_ok or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
                     continue
                 if reel_status == "PUBLISHED":
                     continue
