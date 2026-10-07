@@ -120,50 +120,31 @@ def prepare_tts_script(text: str) -> str:
 
 
 def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
-    """Fully local/free Egyptian-Arabic TTS fallback; no API key and no Edge TTS."""
-    try:
-        from voicetut_tts import VoiceTutTTS
-    except Exception as exc:
-        raise RuntimeError("VoiceTut-TTS fallback is not installed.") from exc
+    """Lightweight local Arabic fallback. Gemini remains the primary voice."""
     clean = prepare_tts_script(script)
-    speaker = os.getenv("LOCAL_TTS_SPEAKER", "Zaki").strip() or "Zaki"
-    steps = int(os.getenv("LOCAL_TTS_STEPS", "24") or 24)
-    speed = float(os.getenv("LOCAL_TTS_SPEED", "0.98") or 0.98)
-    tts = VoiceTutTTS.from_pretrained(
-        os.getenv("LOCAL_TTS_MODEL", "mohammedaly22/VoiceTut-TTS"),
-        device="cpu",
-        dtype="float32",
-    )
-    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", clean) if s.strip()]
-    import numpy as np
-    import soundfile as sf
-    chunks = []
-    gap = np.zeros(int(tts.sampling_rate * 0.12), dtype=np.float32)
-    for idx, sentence in enumerate(sentences, start=1):
-        emotion = "confident, natural Egyptian Arabic, mature male lawyer, clear diction"
-        for item in emotion_map or []:
-            if int(item.get("sentence_index", 0) or 0) == idx:
-                emotion = str(item.get("delivery_emotion") or emotion).replace("_", " ")
-                break
-        delivery_speed = speed
-        if any(k in emotion.lower() for k in ("urgent", "urgency", "warning", "tension")):
-            delivery_speed = min(1.05, speed * 1.05)
-        elif any(k in emotion.lower() for k in ("empathy", "empathetic", "reassurance", "calm")):
-            delivery_speed = max(0.92, speed * 0.94)
-        elif any(k in emotion.lower() for k in ("cta", "memorable", "strong")):
-            delivery_speed = max(0.94, speed * 0.97)
-        chunk = tts.synthesize(sentence, speaker=speaker, num_step=steps, speed=delivery_speed)
-        chunks.extend([chunk.astype(np.float32), gap])
-    sf.write(str(output_path), np.concatenate(chunks), tts.sampling_rate)
+    # Keep the fallback dependency-free: espeak-ng is installed by the Reel job.
+    # This is only a resilience path when Gemini TTS is unavailable.
+    try:
+        subprocess.run(
+            ["espeak-ng", "-v", "ar", "-s", "145", "-p", "45", "-w", str(output_path), clean],
+            check=True,
+            timeout=120,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Arabic local TTS fallback failed: {exc}") from exc
+    if not output_path.is_file():
+        raise RuntimeError("Arabic local TTS fallback produced no audio file.")
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 90:
-        raise RuntimeError(f"Local Egyptian TTS duration outside Reel target: {duration:.1f}s")
-    print(f"Local Egyptian TTS fallback succeeded: speaker={speaker} duration={duration:.1f}s")
+    if duration < 20:
+        raise RuntimeError(f"Local Arabic TTS fallback produced too little audio: {duration:.1f}s")
+    print(f"Local Arabic TTS fallback succeeded: duration={duration:.1f}s")
     return output_path
 
 def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[str, Any]], output_path: Path) -> Path:
