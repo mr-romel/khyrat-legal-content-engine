@@ -920,6 +920,8 @@ def main() -> int:
             try:
                 generate_edge_egyptian_tts_audio(brief["script"], tts_audio)
                 print("REEL_STAGE tts=edge_egyptian_ok")
+        fit_reel_narration_duration(tts_audio, target_seconds=62.0)
+        print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
             except Exception as edge_tts_exc:
                 print(f"REEL_STAGE tts=edge_unavailable reason={edge_tts_exc}")
                 raise RuntimeError("Gemini TTS failed and Edge Egyptian Neural TTS is unavailable; refusing Telegram delivery.")
@@ -1036,7 +1038,7 @@ def main() -> int:
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
         final_duration = _media_duration(video_path)
-        if final_duration < 45.0 or final_duration > 75.0:
+        if final_duration < 55.0 or final_duration > 65.0:
             raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 45–75s.")
         audio_probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(video_path)], capture_output=True, text=True, check=False, timeout=30)
         if not audio_probe.stdout.strip():
@@ -1097,7 +1099,7 @@ def main() -> int:
             print(f"REEL_READY row={row_number} file={video_path} telegram=delivered sheet=retry_pending")
             return 0
 
-        print("REEL_READY row=" + str(row_number) + " file=" + str(video_path) + " telegram=delivered sheet=review")
+        print("REEL_READY row=" + str(row_number) + " file=" + str(video_path) + f" duration={final_duration:.1f}s telegram=delivered sheet=review")
         return 0
     except Exception as exc:
         if review_video_delivered:
