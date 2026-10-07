@@ -522,9 +522,9 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     client = genai.Client(api_key=api_key)
     prompt = (
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
-        "Use ONLY the supplied reviewed post and topic. Never invent legal facts. "
+        "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Open with a truthful high-tension hook, then 3-5 escalating beats, one concrete practical action, and a strong ending. Target 55-75 seconds and 125-145 Arabic words. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. Target 55-75 seconds and 125-145 Arabic words. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -579,90 +579,107 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     text = " ".join(str(post or "").split())
-    # Keep a short, spoken core from the reviewed post. This fallback is used only
-    # when the script LLM is unavailable; narration itself still requires Gemini TTS.
     post_sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
-    selected_words: list[str] = []
-    for sentence in post_sentences:
-        words = sentence.split()
-        if len(selected_words) + len(words) > 30:
-            break
-        selected_words.extend(words)
-    core = " ".join(selected_words)
+    if not post_sentences:
+        raise RuntimeError("Cannot build Reel script without reviewed post content.")
+
+    # The Sheet topic/title is editorial metadata only. The spoken script is
+    # deliberately built from the reviewed post and never announces the title.
+    selected = post_sentences[:5]
+    core = " ".join(selected)
     script = (
-        f"بص، لو الموضوع ده يخصك، ما تاخدش خطوة وإنت مستعجل. "
-        f"في موضوع {topic}، التفاصيل الصغيرة ممكن تغيّر الموقف كله. {core} "
-        "قبل ما تبعت رسالة، تمضي ورقة، أو تدخل في مواجهة، اجمع الرسائل والعقود والإيصالات والصور وأي دليل على اللي حصل. "
-        "ومتعتمدش على جزء واحد من القصة؛ التسلسل والمستندات بيفرقوا جدًا. "
-        "والخطوة الصح مش إنك تعمل أي إجراء بسرعة؛ اختار الإجراء المناسب للوقائع اللي عندك. "
-        "لو الموضوع يخصك، راجع المستندات والتفاصيل مع محاميك قبل ما تاخد قرار."
+        "خليني أحكيلك الموقف من أوله، لأن التفصيلة اللي شكلها بسيطة ممكن تقلب القرار كله. "
+        f"{core} "
+        "هنا السؤال المهم مش مين صوته أعلى، لكن إيه اللي حصل فعلًا وإيه اللي يثبت ده. "
+        "عشان كده قبل أي رسالة أو توقيع أو مواجهة، رتّب الوقائع واجمع المستندات والرسائل والإيصالات والصور المرتبطة بالموضوع. "
+        "وبعدها راجع الإجراء المناسب للوقائع نفسها، لأن خطوة واحدة غلط ممكن تغيّر موقف قانوني كامل. "
+        "الخلاصة: ما تستعجلش القرار، ثبّت اللي حصل الأول، وبعدها اختار الإجراء على أساس المستندات والتفاصيل."
     )
     script = prepare_tts_script(script)
     if len(script.split()) < 115:
-        script += " وخلي بالك: نفس الموضوع ممكن يختلف من واقعة للتانية حسب المستندات والتفاصيل وإيه اللي تقدر تثبته."
+        script += " وخلي بالك، نفس القاعدة ممكن تختلف نتيجتها من واقعة للتانية حسب التفاصيل وإيه اللي تقدر تثبته."
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(sentences, start=1):
-        emotion = "strong_hook" if i == 1 else ("strong_cta" if i == len(sentences) else "calm_authority")
-        if any(k in sentence for k in ("ما تاخدش", "قبل ما", "خلي بالك", "مت")): emotion = "warning"
-        elif any(k in sentence for k in ("اجمع", "الرسائل", "العقود", "الإيصالات")): emotion = "urgency"
+        if i == 1:
+            emotion = "strong_hook"
+        elif i == len(sentences):
+            emotion = "strong_cta"
+        elif any(k in sentence for k in ("السؤال", "المهم", "لكن")):
+            emotion = "clarification"
+        elif any(k in sentence for k in ("قبل", "ما تستعجل", "غلط")):
+            emotion = "warning"
+        elif any(k in sentence for k in ("اجمع", "المستندات", "الرسائل")):
+            emotion = "urgency"
+        else:
+            emotion = "calm_authority"
         emotions.append({"sentence_index": i, "delivery_emotion": emotion})
     return {
         "script": script,
         "video_terms": topic_visual_terms(topic),
-        "facebook_caption": f"معلومة قانونية عملية عن {topic}. التفاصيل والمستندات بتفرق.",
-        "linkedin_caption": f"معلومة قانونية عملية عن {topic}: راجع الوقائع والمستندات قبل اتخاذ أي خطوة.",
+        "facebook_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات المرتبطة بالموضوع.",
+        "linkedin_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات قبل اتخاذ القرار.",
         "emotion_map": emotions,
         "generation_mode": "deterministic_fallback",
     }
-
 
 def build_fast_fallback_reel(
     scenes: list[Path],
     audio_path: Path,
     output_video: Path,
-    duration_seconds: int = 56,
+    duration_seconds: int = 60,
 ) -> None:
-    """Deterministic slideshow fallback whose video duration follows the narration."""
-    if len(scenes) < 4:
-        raise RuntimeError("Fast Reel fallback requires at least 4 scenes.")
+    """Multi-scene animated fallback; never render one static card for the whole Reel."""
+    if len(scenes) < 6:
+        raise RuntimeError("Fast Reel fallback requires at least 6 topic-matched scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
-
-    audio_probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
-        capture_output=True, text=True, check=True, timeout=30,
-    )
-    audio_duration = float(audio_probe.stdout.strip() or "0")
-    if audio_duration < 45 or audio_duration > 90:
+    audio_duration = _media_duration(audio_path)
+    if not 45.0 <= audio_duration <= 90.0:
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s")
-    target_duration = min(75.0, max(50.0, audio_duration))
-    # Robust fallback: render the first topic-matched scene for the full
-    # narration duration. This avoids concat timestamp drift that previously
-    # produced ~7-second videos even when the narration was ~60 seconds.
-    scene = scenes[0]
-    vf = (
-        "scale=1080:1920:force_original_aspect_ratio=increase,"
-        "crop=1080:1920,format=yuv420p,"
-        "zoompan=z='min(zoom+0.0008,1.03)':d=1:s=1080x1920:fps=30"
-    )
+
+    base_duration = min(62.0, max(52.0, audio_duration - 2.0))
+    count = min(8, len(scenes))
+    per_scene = base_duration / count
+    inputs = []
+    filters = []
+    for i, scene in enumerate(scenes[:count]):
+        inputs += ["-loop", "1", "-t", f"{per_scene:.3f}", "-i", str(scene)]
+        # Purposeful camera movement + an animated visual accent. No Sheet title,
+        # no static title card, and no generic legal text is burned into the Reel.
+        filters.append(
+            f"[{i}:v]scale=1160:2060:force_original_aspect_ratio=increase,"
+            f"crop=1080:1920,"
+            f"zoompan=z='min(zoom+0.0012,1.035)':x='iw/2-(iw/zoom/2)+18*sin(on/17)':"
+            f"y='ih/2-(ih/zoom/2)+16*cos(on/21)':d=1:s=1080x1920:fps=30,"
+            f"eq=contrast=1.04:saturation=1.05,"
+            f"drawbox=x='mod(t*170,1280)-160':y='mod(t*38,1900)':w=5:h=220:color=white@0.20:t=fill,"
+            f"format=yuv420p[v{i}]"
+        )
+    concat_inputs = "".join(f"[v{i}]" for i in range(count))
+    filters.append(f"{concat_inputs}concat=n={count}:v=1:a=0[vout]")
+    cmd = ["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(filters),
+           "-map", "[vout]", "-t", f"{base_duration:.3f}",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+           "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+           str(output_video)]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=False)
+    if result.returncode != 0 or not output_video.is_file():
+        raise RuntimeError("Animated Reel fallback render failed: " + (result.stderr or result.stdout)[-4000:])
+
+    # Mux narration after the visual sequence. The branding stage will append
+    # the spoken "خليك فاكر دايما ... اسأل محمود" end-card.
+    narrated = output_video.with_name("animated-base-with-audio.mp4")
     result = subprocess.run(
-        ["ffmpeg", "-y", "-loop", "1", "-i", str(scene), "-i", str(audio_path),
-         "-map", "0:v:0", "-map", "1:a:0",
-         "-t", f"{target_duration:.3f}", "-vf", vf,
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
-         "-shortest", "-movflags", "+faststart", str(output_video)],
+        ["ffmpeg", "-y", "-i", str(output_video), "-i", str(audio_path),
+         "-map", "0:v:0", "-map", "1:a:0", "-t", f"{base_duration:.3f}",
+         "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
+         str(narrated)],
         capture_output=True, text=True, timeout=240, check=False,
     )
-    if result.returncode != 0 or not output_video.is_file():
-        raise RuntimeError("Fast Reel fallback render failed: " + (result.stderr or result.stdout)[-3000:])
-    if result.returncode != 0 or not output_video.is_file():
-        raise RuntimeError("Fast Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
-
-    print(f"Fast Reel fallback created: {output_video} duration_target={target_duration:.1f}s audio={audio_duration:.1f}s")
-
-
+    if result.returncode != 0 or not narrated.is_file():
+        raise RuntimeError("Animated Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
+    shutil.move(str(narrated), str(output_video))
+    print(f"Animated multi-scene fallback created: scenes={count} duration={base_duration:.1f}s")
 def _probe_video_duration(video_path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -962,7 +979,7 @@ def main() -> int:
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
                         if 45.0 <= mpt_duration <= 80.0:
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                            slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
+                            slogan_text = "خليك فاكر دايما .... اسأل محمود"
                             slogan_ready = False
                             try:
                                 clean_slogan = prepare_tts_script(slogan_text)
