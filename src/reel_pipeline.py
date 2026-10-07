@@ -14,6 +14,7 @@ from typing import Any
 from google import genai
 from config import load_reel_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+from post_bank import get_bank_rows
 from telegram_bot import send_video
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from utils import now_cairo, parse_date
@@ -486,7 +487,22 @@ def main() -> int:
             if not (is_today_by_id or is_today_by_date):
                 continue
             if not str(row.get("المحتوى", "")).strip():
-                continue
+                # Recover only by the immutable source ID; never borrow another row's text.
+                source_id = str(row.get("ID", "")).strip()
+                if source_id:
+                    try:
+                        bank_rows = get_bank_rows(service, cfg["sheet_id"])
+                        matches = [b for b in bank_rows if str(b.get("Source Row ID", "") or b.get("ID", "")).strip() == source_id]
+                        if matches:
+                            recovered_post = str(matches[-1].get("المحتوى", "") or matches[-1].get("Content", "") or "").strip()
+                            if recovered_post:
+                                row["المحتوى"] = recovered_post
+                                update_row(service, cfg["sheet_id"], sheet_name, row_number, {"المحتوى": recovered_post})
+                                print(f"Reel recovery: restored missing Sheet content from PostBank for row {row_number}.")
+                    except Exception as exc:
+                        print(f"Reel recovery: PostBank content restore unavailable for row {row_number}: {exc}")
+                if not str(row.get("المحتوى", "")).strip():
+                    continue
             if not (
                 str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED"
                 or str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
