@@ -1011,7 +1011,28 @@ def main() -> int:
                 print(f"MoneyPrinterTurbo bounded run failed; using fast FFmpeg fallback: {mpt_exc}")
 
             if not mpt_ok:
-                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=56)
+                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=60)
+                # Apply the same branded motion layer and spoken slogan to the fallback.
+                slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+                slogan_text = "خليك فاكر دايما .... اسأل محمود"
+                slogan_ready = False
+                try:
+                    clean_slogan = prepare_tts_script(slogan_text)
+                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
+                    slogan_ready = slogan_audio.is_file()
+                except Exception as slogan_exc:
+                    print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
+                    try:
+                        generate_local_short_neural_tts(clean_slogan if "clean_slogan" in locals() else slogan_text, slogan_audio)
+                        slogan_ready = slogan_audio.is_file()
+                    except Exception as local_slogan_exc:
+                        print(f"Reel fallback slogan unavailable: {local_slogan_exc}")
+                branded = output_dir / "branded-fallback.mp4"
+                try:
+                    add_motion_graphics_layer(output_video, branded, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio if slogan_ready else None)
+                    shutil.move(str(branded), str(output_video))
+                except Exception as branding_exc:
+                    print(f"REEL_STAGE fallback_branding_failed={branding_exc}")
 
         video_path = output_dir / "daily-reel.mp4"
         if not video_path.is_file():
