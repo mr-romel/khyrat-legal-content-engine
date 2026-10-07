@@ -256,10 +256,14 @@ def main() -> int:
         except Exception:
             return 0.0
 
-    today = __import__("datetime").date.today().isoformat()
+    today = today_cairo.isoformat()
+    today_prefix = today.replace("-", "") + "-"
     today_candidates = [
         item for item in candidates
-        if parse_date(item[1].get("تاريخ النشر", "")) == __import__("datetime").date.today()
+        if (
+            str(item[1].get("ID", "")).strip().startswith(today_prefix)
+            or parse_date(item[1].get("تاريخ النشر", "")) == today_cairo
+        )
     ]
     if not today_candidates:
         print(f"Blogger worker: no published Sheet row for today ({today}); refusing to publish an older row.")
