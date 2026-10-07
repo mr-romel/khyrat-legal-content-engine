@@ -76,7 +76,16 @@ jobs:
           KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_RUN_NOW' && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
-      - name: Lock Reel source context for downstream worker\n        if: ${{ success() }}\n        uses: actions/upload-artifact@v4\n        with:\n          name: reel-source-context\n          path: generated/reel_source.json\n          if-no-files-found: ignore\n          retention-days: 2\n\n      - name: Persist generated publishing assets
+      - name: Lock Reel source context for downstream worker
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-source-context
+          path: generated/reel_source.json
+          if-no-files-found: ignore
+          retention-days: 2
+
+      - name: Persist generated publishing assets
         if: ${{ success() }}
         continue-on-error: true
         run: |
