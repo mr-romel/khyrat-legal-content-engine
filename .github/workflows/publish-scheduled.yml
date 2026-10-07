@@ -3,6 +3,8 @@ name: Khyrat Legal Content Engine Scheduled
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/EMERGENCY_RUN_NOW.md"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
