@@ -291,57 +291,56 @@ def _configure_pages_gadget(page) -> bool:
 
 
 def _update_page_header_from_layout(page, title: str, description: str) -> bool:
-    # Blogger themes expose the Page Header as a Layout gadget. The edit
-    # dialog is more stable than the Basic Settings selectors across themes.
-    edits = page.get_by_role("button", name=re.compile(r"تعديل|Edit", re.I))
-    for i in range(min(edits.count(), 40)):
-        candidate = edits.nth(i)
+    # Target the actual Header gadget shown in Blogger Layout instead of
+    # trying every Edit button on the page.
+    if not _open_gadget_editor_by_text(page, r"\(رأس الصفحة\).*Ask-Mahmoud|Ask-Mahmoud"):
+        print("Blogger Header gadget editor could not be opened.")
+        return False
+
+    page.wait_for_timeout(800)
+    dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
+    roots = [page]
+    for i in range(min(dialogs.count(), 10)):
+        d = dialogs.nth(i)
         try:
-            if not candidate.is_visible():
-                continue
-            candidate.click()
-            page.wait_for_timeout(700)
+            if d.is_visible():
+                roots.insert(0, d)
+                break
         except Exception:
-            continue
+            pass
 
-        dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog')
-        for d_i in range(min(dialogs.count(), 8)):
-            dialog = dialogs.nth(d_i)
-            try:
-                if not dialog.is_visible():
-                    continue
-                text_blob = _clean(dialog.inner_text())
-                if not re.search(r"عنوان المدونة|وصف المدونة|Blog title|Blog description|العنوان|الوصف", text_blob, re.I):
-                    continue
+    root = roots[0]
+    controls = root.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    visible = []
+    for i in range(min(controls.count(), 30)):
+        item = controls.nth(i)
+        try:
+            if item.is_visible():
+                visible.append(item)
+        except Exception:
+            pass
 
-                inputs = dialog.locator('input:not([type="hidden"])')
-                textareas = dialog.locator("textarea, [contenteditable='true']")
-                title_field = None
-                desc_field = None
-                for j in range(min(inputs.count(), 12)):
-                    c = inputs.nth(j)
-                    if c.is_visible():
-                        title_field = c
-                        break
-                for j in range(min(textareas.count(), 12)):
-                    c = textareas.nth(j)
-                    if c.is_visible():
-                        desc_field = c
-                        break
-                if title_field and desc_field:
-                    title_field.fill(title)
-                    desc_field.fill(description)
-                    if not _click_first(dialog, (r"حفظ", r"Save"), role="button"):
-                        _click_first(dialog, (r"حفظ", r"Save"))
-                    page.wait_for_timeout(900)
-                    print("Blogger Page Header title/description updated from Layout.")
-                    return True
-            except Exception:
-                continue
+    print(f"Blogger Header editor visible controls={len(visible)}")
+    if not visible:
+        try:
+            Path("generated").mkdir(parents=True, exist_ok=True)
+            page.screenshot(path="generated/blogger-header-editor.png", full_page=True)
+        except Exception:
+            pass
+        return False
 
-        # Close a non-matching dialog before trying the next gadget.
-        _click_first(page, (r"إلغاء", r"Cancel", r"إغلاق", r"Close"), role="button")
-    return False
+    try:
+        visible[0].fill(title)
+        if len(visible) > 1:
+            visible[1].fill(description)
+        if not _click_first(root, (r"حفظ", r"Save"), role="button"):
+            _click_first(root, (r"حفظ", r"Save"))
+        page.wait_for_timeout(1200)
+        print("Blogger Header gadget updated.")
+        return True
+    except Exception as exc:
+        print(f"Blogger Header gadget update failed: {exc}")
+        return False
 
 
 def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
