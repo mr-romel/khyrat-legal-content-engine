@@ -899,6 +899,7 @@ def main() -> int:
                 print("REEL_STAGE tts=edge_egyptian_ok")
             except Exception as edge_tts_exc:
                 print(f"REEL_STAGE tts=edge_unavailable reason={edge_tts_exc}")
+                raise RuntimeError("Gemini TTS failed and Edge Egyptian Neural TTS is unavailable; refusing Telegram delivery.")
                 tts_audio = output_dir / "voice-google-cloud.wav"
                 try:
                     generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
