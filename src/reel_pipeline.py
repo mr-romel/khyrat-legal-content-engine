@@ -957,70 +957,42 @@ def main() -> int:
                         check=False,
                     )
                 if result.returncode == 0:
-                    task_videos = sorted(
-                        (mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4")
-                    )
+                    task_videos = sorted((mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4"))
                     if task_videos:
                         candidate = task_videos[-1]
                         candidate_duration = _media_duration(candidate)
-                        if candidate_duration < 45.0 or candidate_duration > 75.0:
-                            print(f"MoneyPrinterTurbo produced invalid duration={candidate_duration:.1f}s; rejecting candidate.")
-                        else:
+                        print(f"REEL_STAGE mpt_candidate_duration={candidate_duration:.1f}s")
+                        if 45.0 <= candidate_duration <= 75.0:
                             raw_video = output_dir / "mpt-base.mp4"
                             shutil.copy2(candidate, raw_video)
-                        mpt_duration = _probe_video_duration(raw_video)
-                        print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
-                        if mpt_duration < 45 or mpt_duration > 80:
-                            print(f"REEL_STAGE mpt_rejected_duration={mpt_duration:.1f}s")
-                            raw_video.unlink(missing_ok=True)
-                        else:
-                                slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+                            slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
                             slogan_ready = False
-                            # The brand sign-off is intentionally short (about 3–8s).
-                            # generate_gemini_tts_audio validates long narration, so do
-                            # not route a short slogan through that 45–80s gate.
                             try:
                                 clean_slogan = prepare_tts_script(slogan_text)
-                                generate_gemini_tts_audio_unbounded(
-                                    cfg["gemini_api_key"],
-                                    clean_slogan,
-                                    [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
-                                    slogan_audio,
-                                    min_seconds=1.0,
-                                    max_seconds=10.0,
-                                )
+                                generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                                 slogan_ready = slogan_audio.is_file()
                                 print(f"Reel slogan: Gemini ready={slogan_ready}")
                             except Exception as slogan_gemini_exc:
-                                print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
+                                print(f"Reel slogan: Gemini unavailable; using Egyptian Neural TTS: {slogan_gemini_exc}")
                                 try:
-                                    generate_local_short_neural_tts(
-                                    clean_slogan if 'clean_slogan' in locals() else slogan_text,
-                                    slogan_audio,
-                                )
+                                    generate_local_short_neural_tts(clean_slogan if 'clean_slogan' in locals() else slogan_text, slogan_audio)
                                     slogan_ready = slogan_audio.is_file()
                                 except Exception as slogan_local_exc:
                                     print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
-                                    slogan_ready = False
                             try:
-                                add_motion_graphics_layer(
-                                    raw_video,
-                                    output_video,
-                                    "",
-                                    os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
-                                    slogan_audio if slogan_ready else None,
-                                )
+                                add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio if slogan_ready else None)
                                 print("REEL_STAGE branding=ok")
                             except Exception as branding_exc:
-                                # A finished MPT video is already a valid review asset.
-                                # Never lose a generated Reel because the optional end-card layer failed.
                                 print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
                                 shutil.copy2(raw_video, output_video)
                             raw_video.unlink(missing_ok=True)
                             mpt_ok = output_video.is_file() and 45.0 <= _media_duration(output_video) <= 75.0
-                        if not mpt_ok:
-                            output_video.unlink(missing_ok=True)
+                            if not mpt_ok:
+                                output_video.unlink(missing_ok=True)
+                                print("REEL_STAGE mpt_rejected_after_branding")
+                        else:
+                            print(f"REEL_STAGE mpt_rejected_duration={candidate_duration:.1f}s")
                 if not mpt_ok:
                     print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
             except Exception as mpt_exc:
