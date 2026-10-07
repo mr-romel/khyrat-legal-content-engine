@@ -430,6 +430,7 @@ def _smart_main() -> None:
         rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
+    reel_recovery_row = None
     if not candidates and force_due:
         forced = []
         for row_number, row in enumerate(rows, start=2):
@@ -442,6 +443,22 @@ def _smart_main() -> None:
         if forced:
             candidates = forced
             print(f"FORCE_DUE enabled: selected today's scheduled row {forced[0][0]} for immediate recovery execution.")
+        if not candidates:
+            reel_candidates = []
+            for row_number, row in enumerate(rows, start=2):
+                publish_date = parse_date(row.get("تاريخ النشر", ""))
+                status = str(row.get("الحالة", "")).strip().upper()
+                reel_status = str(row.get("Reel Status", "")).strip().upper()
+                fb_ok = str(row.get("Facebook Status", "")).strip().upper() == "PUBLISHED"
+                li_ok = str(row.get("LinkedIn Status", "")).strip().upper() == "PUBLISHED"
+                if publish_date == current.date() and status == "PUBLISHED" and reel_status not in {"PUBLISHED", "APPROVED", "REVIEW", "GENERATING"} and (fb_ok or li_ok) and str(row.get("المحتوى", "")).strip():
+                    reel_candidates.append((row_number, row))
+            if reel_candidates:
+                reel_recovery_row = reel_candidates[-1]
+                print(f"FORCE_DUE Reel recovery: locked to today's already-published row {reel_recovery_row[0]} (ID={reel_recovery_row[1].get('ID', '')}). No social republish will occur.")
+    if not candidates and reel_recovery_row:
+        _write_reel_source_context(service=service, config=config, sheet_name=sheet_name, row_number=reel_recovery_row[0])
+        return
     if not candidates:
         _due_diagnostics(rows, current)
         nearest = []
