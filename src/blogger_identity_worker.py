@@ -202,6 +202,94 @@ def _ensure_pages_gadget(page) -> None:
     raise RuntimeError("internal")
 
 
+def _open_gadget_editor_by_text(page, text_pattern: str) -> bool:
+    marker = page.get_by_text(re.compile(text_pattern, re.I))
+    for i in range(min(marker.count(), 10)):
+        item = marker.nth(i)
+        try:
+            if not item.is_visible():
+                continue
+            container = item.locator("xpath=ancestor::*[.//button][1]")
+            buttons = container.locator("button")
+            for j in range(buttons.count() - 1, -1, -1):
+                button = buttons.nth(j)
+                if button.is_visible() and button.is_enabled():
+                    button.click()
+                    page.wait_for_timeout(900)
+                    return True
+        except Exception:
+            continue
+    return False
+
+
+def _configure_pages_gadget(page) -> bool:
+    # Existing PageList gadgets must be opened explicitly; creating a second
+    # gadget is not useful when the theme already has one.
+    if not _open_gadget_editor_by_text(page, r"^مقالات$|Pages gadget"):
+        print("Blogger Pages gadget editor could not be opened.")
+        return False
+
+    page.wait_for_timeout(800)
+    dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
+    dialog = None
+    for i in range(min(dialogs.count(), 10)):
+        d = dialogs.nth(i)
+        try:
+            if d.is_visible():
+                dialog = d
+                break
+        except Exception:
+            pass
+
+    root = dialog or page
+    body = _clean(root.inner_text())
+    print("Blogger Pages editor preview:", body[:5000])
+
+    changed = False
+    for title in PAGE_TITLES:
+        try:
+            label = root.get_by_text(re.compile(rf"^{re.escape(title)}$", re.I))
+            if not label.count():
+                continue
+            for i in range(label.count()):
+                item = label.nth(i)
+                if not item.is_visible():
+                    continue
+                try:
+                    item.click()
+                    changed = True
+                    page.wait_for_timeout(150)
+                except Exception:
+                    pass
+                break
+        except Exception:
+            pass
+
+    # If the page rows expose explicit checkboxes, select only rows whose
+    # accessible/nearby text matches one of our five page titles.
+    checks = root.locator('input[type="checkbox"]')
+    for i in range(min(checks.count(), 50)):
+        check = checks.nth(i)
+        try:
+            if not check.is_visible():
+                continue
+            row = check.locator("xpath=ancestor::*[self::label or .//text()][1]")
+            row_text = _clean(row.inner_text()) if row.count() else ""
+            if any(t in row_text for t in PAGE_TITLES) and not check.is_checked():
+                check.check()
+                changed = True
+        except Exception:
+            pass
+
+    if changed:
+        if not _click_first(root, (r"حفظ", r"Save"), role="button"):
+            _click_first(root, (r"حفظ", r"Save"))
+        page.wait_for_timeout(1000)
+    else:
+        print("Blogger Pages editor: no target page controls changed.")
+    return changed
+
+
 def _update_page_header_from_layout(page, title: str, description: str) -> bool:
     # Blogger themes expose the Page Header as a Layout gadget. The edit
     # dialog is more stable than the Basic Settings selectors across themes.
@@ -282,39 +370,7 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
 
         page.wait_for_timeout(1200)
 
-    # Whether the gadget was new or already existed, configure visible pages.
-    # Current Blogger uses checkboxes in the gadget editor.
-    for title in PAGE_TITLES:
-        try:
-            loc = page.get_by_text(re.compile(rf"^{re.escape(title)}$", re.I))
-            for i in range(loc.count()):
-                item = loc.nth(i)
-                if not item.is_visible():
-                    continue
-                # Click the associated row/label; this works when the checkbox
-                # itself is visually hidden.
-                try:
-                    item.click()
-                    page.wait_for_timeout(150)
-                except Exception:
-                    pass
-                break
-        except Exception:
-            pass
-
-    # Select unchecked page checkboxes only; avoid toggling already-selected ones.
-    checks = page.locator('input[type="checkbox"]')
-    for i in range(min(checks.count(), 40)):
-        c = checks.nth(i)
-        try:
-            if c.is_visible() and not c.is_checked():
-                c.check()
-        except Exception:
-            pass
-
-    if not _click_first(page, (r"حفظ", r"Save"), role="button"):
-        _click_first(page, (r"حفظ", r"Save"))
-
+    _configure_pages_gadget(page)
     page.wait_for_timeout(1200)
     # Layout itself has a separate Save button on the current Blogger UI.
     _click_first(page, (r"حفظ", r"Save"), role="button")
