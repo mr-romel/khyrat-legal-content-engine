@@ -94,7 +94,7 @@ def egyptian_spoken_text(text: str) -> str:
         out = out.replace(src, dst)
     # TTS-safe: no hashtags, URLs, brackets, slashes, percent signs, Latin handles,
     # or stray markup that a speech model might read literally.
-    out = re.sub(r"https?://\\S+", "", out, flags=re.I)
+    out = re.sub(r"https?://\S+", "", out, flags=re.I)
     out = re.sub(r"[@#%*_{}\[\]<>|\\/]+", " ", out)
     out = re.sub(r"\b(?:API|SEO|GEO|CTA|FAQ|URL)\b", "", out, flags=re.I)
     out = re.sub(r"\s+", " ", out).strip(" .،؛:|-")
