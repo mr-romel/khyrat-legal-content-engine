@@ -117,6 +117,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Download locked Reel source context
+        continue-on-error: true
         uses: actions/download-artifact@v5
         with:
           name: reel-source-context
