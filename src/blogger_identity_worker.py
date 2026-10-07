@@ -97,6 +97,28 @@ def _edit_current_setting(page, section_label: str, next_label: str, value: str)
     page.wait_for_timeout(600)
 
     controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    if controls.count() == 0:
+        try:
+            value_loc = page.get_by_text(re.compile(rf"^{re.escape(current)}$", re.I))
+            print(f"Blogger current setting {section_label}: matches={value_loc.count()}")
+            if value_loc.count():
+                html = value_loc.first.evaluate("(e) => e.parentElement ? e.parentElement.outerHTML : e.outerHTML")
+                print("Blogger setting DOM:", html[:8000])
+                # Some current Blogger rows put the click target one or two
+                # levels above the displayed value.
+                for selector in ("xpath=..", "xpath=../..", "xpath=../../.."):
+                    try:
+                        parent = value_loc.first.locator(selector)
+                        if parent.is_visible():
+                            parent.click()
+                            page.wait_for_timeout(600)
+                            controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+                            if controls.count():
+                                break
+                    except Exception:
+                        pass
+        except Exception as exc:
+            print(f"Blogger setting DOM diagnostic failed: {exc}")
     visible = []
     for i in range(min(controls.count(), 30)):
         c = controls.nth(i)
