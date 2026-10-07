@@ -113,7 +113,9 @@ def _click_current_setting_value(page, current_value: str) -> bool:
 
 
 def _click_layout_edit_fallback(page, kind: str) -> bool:
-    x, y = (947, 452) if kind == "header" else (947, 573)
+    # Current 1280x720 Blogger Layout: Header edit icon is around 947,452;
+    # Page List edit icon is around 947,614.
+    x, y = (947, 452) if kind == "header" else (947, 614)
     try:
         page.mouse.click(x, y)
         page.wait_for_timeout(900)
