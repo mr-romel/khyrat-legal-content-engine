@@ -990,10 +990,7 @@ def main() -> int:
                             raw_video.unlink(missing_ok=True)
                             mpt_ok = False
                 if not mpt_ok:
-                                output_video.unlink(missing_ok=True)
-                                print("REEL_STAGE mpt_rejected_after_branding")
-                        else:
-                            print(f"REEL_STAGE mpt_rejected_duration={candidate_duration:.1f}s")
+                    output_video.unlink(missing_ok=True)
                 if not mpt_ok:
                     print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
             except Exception as mpt_exc:
