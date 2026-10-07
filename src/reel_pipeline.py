@@ -170,33 +170,44 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
 
 
 def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
-    """Lightweight local Arabic fallback. Gemini remains the primary voice."""
+    """Egyptian Arabic neural fallback; never use robotic espeak for production Reels."""
     clean = prepare_tts_script(script)
-    # Keep the fallback dependency-free: espeak-ng is installed by the Reel job.
-    # This is only a resilience path when Gemini TTS is unavailable.
-    try:
-        subprocess.run(
-            ["espeak-ng", "-v", "ar", "-s", "145", "-p", "45", "-w", str(output_path), clean],
-            check=True,
-            timeout=120,
-            capture_output=True,
-            text=True,
-        )
-    except Exception as exc:
-        raise RuntimeError(f"Arabic local TTS fallback failed: {exc}") from exc
+    voice = os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
+    rate = os.getenv("REEL_EDGE_TTS_RATE", "+10%")
+    edge = shutil.which("edge-tts")
+    if not edge:
+        raise RuntimeError("edge-tts is not installed; refusing robotic espeak fallback.")
+    subprocess.run([edge, "--voice", voice, "--rate", rate, "--text", clean, "--write-media", str(output_path)], check=True, timeout=180, capture_output=True, text=True)
     if not output_path.is_file():
-        raise RuntimeError("Arabic local TTS fallback produced no audio file.")
-    probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
-        capture_output=True, text=True, check=True, timeout=30,
-    )
-    duration = float(probe.stdout.strip() or "0")
-    if duration < 20:
-        raise RuntimeError(f"Local Arabic TTS fallback produced too little audio: {duration:.1f}s")
-    print(f"Local Arabic TTS fallback succeeded: duration={duration:.1f}s")
-    return output_path
+        raise RuntimeError("Egyptian Neural TTS fallback produced no audio file.")
+    return _normalize_reel_audio_duration(output_path)
 
+def _media_duration(path: Path) -> float:
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)], capture_output=True, text=True, check=True, timeout=30)
+    return float(probe.stdout.strip() or "0")
+
+def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path:
+    duration = _media_duration(path)
+    if duration < 40.0:
+        raise RuntimeError(f"Egyptian Neural TTS audio is too short: {duration:.1f}s")
+    if duration <= target_max:
+        print(f"Egyptian Neural TTS ready: duration={duration:.1f}s")
+        return path
+    factor = min(1.55, duration / 58.0)
+    filters = []
+    remaining = factor
+    while remaining > 2.0:
+        filters.append("atempo=2.0")
+        remaining /= 2.0
+    filters.append(f"atempo={remaining:.6f}")
+    normalized = path.with_name(path.stem + "-normalized.wav")
+    subprocess.run(["ffmpeg", "-y", "-i", str(path), "-filter:a", ",".join(filters), "-ar", "44100", "-ac", "2", str(normalized)], check=True, timeout=180, capture_output=True, text=True)
+    final_duration = _media_duration(normalized)
+    if final_duration < 40.0 or final_duration > 72.0:
+        raise RuntimeError(f"Normalized Egyptian Neural TTS duration invalid: {final_duration:.1f}s")
+    shutil.move(str(normalized), str(path))
+    print(f"Egyptian Neural TTS normalized: {duration:.1f}s -> {final_duration:.1f}s")
+    return path
 def generate_gemini_tts_audio_unbounded(
     api_key: str,
     script: str,
@@ -251,28 +262,6 @@ def generate_gemini_tts_audio_unbounded(
     duration = float(probe.stdout.strip() or "0")
     if duration < min_seconds or duration > max_seconds:
         raise RuntimeError(f"Gemini short TTS duration outside {min_seconds}-{max_seconds}s: {duration:.1f}s")
-    return output_path
-
-
-def generate_local_egyptian_tts_audio_unbounded(
-    script: str,
-    output_path: Path,
-    min_seconds: float = 1.0,
-    max_seconds: float = 10.0,
-) -> Path:
-    clean = prepare_tts_script(script)
-    subprocess.run(
-        ["espeak-ng", "-v", "ar", "-s", "145", "-p", "45", "-w", str(output_path), clean],
-        check=True, timeout=120, capture_output=True, text=True,
-    )
-    probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
-        capture_output=True, text=True, check=True, timeout=30,
-    )
-    duration = float(probe.stdout.strip() or "0")
-    if duration < min_seconds or duration > max_seconds:
-        raise RuntimeError(f"Local short TTS duration outside {min_seconds}-{max_seconds}s: {duration:.1f}s")
     return output_path
 
 
@@ -935,40 +924,24 @@ def main() -> int:
                 build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=56)
 
         video_path = output_dir / "daily-reel.mp4"
-        # Hard quality gate before Telegram: a review Reel must be a real short
-        # video, not a truncated MPT artifact. The narration target is 55–75s.
-        probe = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
-            capture_output=True, text=True, check=True, timeout=30,
-        )
-        final_duration = float(probe.stdout.strip() or "0")
-        if final_duration < 50 or final_duration > 80:
-            raise RuntimeError(
-                f"Reel quality gate rejected video duration={final_duration:.1f}s; expected 50–80s."
-            )
-        audio_probe = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "a:0",
-             "-show_entries", "stream=codec_name",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
-            capture_output=True, text=True, check=False, timeout=30,
-        )
+        if not video_path.is_file():
+            raise RuntimeError("Reel output MP4 is missing.")
+        final_duration = _media_duration(video_path)
+        if final_duration < 45.0 or final_duration > 75.0:
+            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 45–75s.")
+        audio_probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(video_path)], capture_output=True, text=True, check=False, timeout=30)
         if not audio_probe.stdout.strip():
-            raise RuntimeError("Reel quality gate rejected video: no audio stream.")
-        print(f"REEL_STAGE quality_gate=ok duration={final_duration:.1f}s audio={audio_probe.stdout.strip()}")
-        # Telegram delivery is part of the review contract: do not mark a Reel
-        # REVIEW unless the actual MP4 was successfully delivered for approval.
-        send_video(
-            str(video_path),
-            caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}",
-            reply_markup={
-                "inline_keyboard": [[
-                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"},
-                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"},
-                ]]
-            },
-        )
-        review_video_delivered = True
+            raise RuntimeError("Reel delivery blocked: final MP4 has no audio stream.")
+        current_reel_review = str(row.get("Reel Review", "") or "").strip()
+        if current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED"):
+            print(f"Reel Telegram delivery already locked for row {row_number}; refusing duplicate send.")
+            review_video_delivered = current_reel_review.startswith("TELEGRAM_DELIVERED")
+        else:
+            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
+            telegram_result = send_video(str(video_path), caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية", reply_markup={"inline_keyboard": [[{"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"}, {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"}]]})
+            message_id = str((telegram_result or {}).get("message_id", ""))
+            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_DELIVERED | message_id={message_id} | duration={final_duration:.1f}s"})
+            review_video_delivered = True
 
         review_payload = {
             "Reel Status": "REVIEW",
@@ -976,7 +949,7 @@ def main() -> int:
             "Reel File": str(output_dir / "daily-reel.mp4"),
             "Reel Run ID": os.getenv("GITHUB_RUN_ID", ""),
             "Reel Approval": "",
-            "Reel Review": "جاهز للمراجعة اليدوية قبل أي نشر",
+            "Reel Review": f"TELEGRAM_DELIVERED | review_ready | duration={final_duration:.1f}s",
             "Reel Last Error": "",
         }
         sheet_saved = False
