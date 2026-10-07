@@ -248,6 +248,35 @@ jobs:
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
           BLOGGER_SEO_MAX_POSTS: "5"
         run: PYTHONPATH=src python src/blogger_seo_worker.py
+  blogger_site_setup:
+    name: 3c. Blogger Site Identity + Pages
+    needs: blogger_seo
+    if: ${{ needs.blogger_seo.result == 'success' }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Create or update Blogger professional pages
+        env:
+          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
+          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: PYTHONPATH=src python src/blogger_site_setup.py
+
   linkedin_engagement:
     name: 4. LinkedIn Engagement
     needs: publish
