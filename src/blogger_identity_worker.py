@@ -280,17 +280,15 @@ def _open_gadget_editor_by_text(page, text_pattern: str) -> bool:
 
 
 def _configure_pages_gadget(page) -> bool:
-    # Existing PageList gadgets must be opened explicitly; creating a second
-    # gadget is not useful when the theme already has one.
     if not _open_gadget_editor_by_text(page, r"Pages gadget|^مقالات$"):
         if not _click_layout_edit_fallback(page, "pages"):
             print("Blogger Pages gadget editor could not be opened.")
             return False
 
-    page.wait_for_timeout(800)
+    page.wait_for_timeout(900)
     dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
     dialog = None
-    for i in range(min(dialogs.count(), 10)):
+    for i in range(min(dialogs.count(), 12)):
         d = dialogs.nth(i)
         try:
             if d.is_visible():
@@ -298,100 +296,122 @@ def _configure_pages_gadget(page) -> bool:
                 break
         except Exception:
             pass
-
     root = dialog or page
-    body = _clean(root.inner_text())
-    print("Blogger Pages editor preview:", body[:5000])
+
+    try:
+        Path("generated").mkdir(parents=True, exist_ok=True)
+        page.screenshot(path="generated/blogger-pages-editor.png", full_page=True)
+    except Exception:
+        pass
+
+    print("Blogger Pages editor preview:", _clean(root.inner_text())[:7000])
+
+    # Blogger's current Page List editor uses hidden/native checkboxes in some
+    # themes. Inspect and click the row whose text contains each target title.
+    result = root.locator('input[type="checkbox"]').evaluate_all(
+        """els => els.map((e,i) => {
+            let p=e;
+            for(let n=0;n<5 && p;n++,p=p.parentElement) {
+                const t=(p.innerText||'').trim().replace(/\\s+/g,' ');
+                if(t.length>0 && t.length<500) return {i,text:t,checked:e.checked,html:e.outerHTML};
+            }
+            return {i,text:'',checked:e.checked,html:e.outerHTML};
+        })"""
+    )
+    print("Blogger Pages checkbox diagnostics:", json.dumps(result[:80], ensure_ascii=False))
 
     changed = False
     for title in PAGE_TITLES:
+        matched = root.locator('input[type="checkbox"]').evaluate(
+            """(els, title) => {
+                for (const e of els) {
+                    let p=e;
+                    for(let n=0;n<7 && p;n++,p=p.parentElement) {
+                        const t=(p.innerText||'').trim().replace(/\\s+/g,' ');
+                        if(t === title || t.includes(title)) {
+                            if(!e.checked) e.click();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }""",
+            title,
+        )
+        if matched:
+            changed = True
+            print(f"Blogger Pages selected: {title}")
+        else:
+            print(f"Blogger Pages target not found: {title}")
+
+    # Some versions render custom rows without native checkbox elements.
+    # Click the exact page label as a secondary path, without toggling arbitrary rows.
+    for title in PAGE_TITLES:
         try:
             label = root.get_by_text(re.compile(rf"^{re.escape(title)}$", re.I))
-            if not label.count():
-                continue
             for i in range(label.count()):
                 item = label.nth(i)
-                if not item.is_visible():
-                    continue
                 try:
-                    item.click()
-                    changed = True
-                    page.wait_for_timeout(150)
+                    if item.is_visible():
+                        item.click(force=True)
+                        changed = True
+                        print(f"Blogger Pages label clicked: {title}")
+                        break
                 except Exception:
                     pass
-                break
         except Exception:
             pass
 
-    # If the page rows expose explicit checkboxes, select only rows whose
-    # accessible/nearby text matches one of our five page titles.
-    checks = root.locator('input[type="checkbox"]')
-    for i in range(min(checks.count(), 50)):
-        check = checks.nth(i)
-        try:
-            if not check.is_visible():
-                continue
-            row = check.locator("xpath=ancestor::*[self::label or .//text()][1]")
-            row_text = _clean(row.inner_text()) if row.count() else ""
-            if any(t in row_text for t in PAGE_TITLES) and not check.is_checked():
-                check.check()
-                changed = True
-        except Exception:
-            pass
-
-    if changed:
-        if not _click_first(root, (r"حفظ", r"Save"), role="button"):
-            _click_first(root, (r"حفظ", r"Save"))
-        page.wait_for_timeout(1000)
-    else:
-        print("Blogger Pages editor: no target page controls changed.")
+    if not _click_first(root, (r"حفظ", r"Save"), role="button"):
+        _click_first(root, (r"حفظ", r"Save"))
+    page.wait_for_timeout(1200)
     return changed
 
-
 def _update_page_header_from_layout(page, title: str, description: str) -> bool:
-    # Target the actual Header gadget shown in Blogger Layout instead of
-    # trying every Edit button on the page.
-    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\(رأس الصفحة\).*Ask-Mahmoud|Ask-Mahmoud"):
+    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\\(رأس الصفحة\\).*Ask-Mahmoud|Ask-Mahmoud"):
         if not _click_layout_edit_fallback(page, "header"):
             print("Blogger Header gadget editor could not be opened.")
             return False
 
-    page.wait_for_timeout(800)
+    page.wait_for_timeout(900)
     dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
-    roots = [page]
-    for i in range(min(dialogs.count(), 10)):
+    root = page
+    for i in range(min(dialogs.count(), 12)):
         d = dialogs.nth(i)
         try:
             if d.is_visible():
-                roots.insert(0, d)
+                root = d
                 break
         except Exception:
             pass
 
-    root = roots[0]
-    controls = root.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
-    visible = []
-    for i in range(min(controls.count(), 30)):
-        item = controls.nth(i)
-        try:
-            if item.is_visible():
-                visible.append(item)
-        except Exception:
-            pass
+    try:
+        Path("generated").mkdir(parents=True, exist_ok=True)
+        page.screenshot(path="generated/blogger-header-editor.png", full_page=True)
+    except Exception:
+        pass
 
-    print(f"Blogger Header editor visible controls={len(visible)}")
-    if not visible:
-        try:
-            Path("generated").mkdir(parents=True, exist_ok=True)
-            page.screenshot(path="generated/blogger-header-editor.png", full_page=True)
-        except Exception:
-            pass
+    controls = root.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    print(f"Blogger Header editor controls total={controls.count()}")
+    diagnostics = controls.evaluate_all(
+        """els => els.map((e,i)=>({
+            i, tag:e.tagName, type:e.getAttribute('type'), value:e.value||e.innerText||'',
+            aria:e.getAttribute('aria-label'), name:e.getAttribute('name'),
+            visible:!!(e.offsetWidth||e.offsetHeight||e.getClientRects().length)
+        }))"""
+    )
+    print("Blogger Header controls diagnostics:", json.dumps(diagnostics[:30], ensure_ascii=False))
+
+    editable = [controls.nth(i) for i in range(min(controls.count(), 20))]
+    if len(editable) < 2:
+        print("Blogger Header editor does not expose two editable fields.")
         return False
 
     try:
-        visible[0].fill(title)
-        if len(visible) > 1:
-            visible[1].fill(description)
+        # Force-fill because Blogger's Material UI may report these inputs as
+        # non-visible while they are visibly rendered in the dialog.
+        editable[0].fill(title, force=True)
+        editable[1].fill(description, force=True)
         if not _click_first(root, (r"حفظ", r"Save"), role="button"):
             _click_first(root, (r"حفظ", r"Save"))
         page.wait_for_timeout(1200)
@@ -400,7 +420,6 @@ def _update_page_header_from_layout(page, title: str, description: str) -> bool:
     except Exception as exc:
         print(f"Blogger Header gadget update failed: {exc}")
         return False
-
 
 def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
