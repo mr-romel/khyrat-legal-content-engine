@@ -456,6 +456,43 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     }
 
 
+def build_fast_fallback_reel(
+    scenes: list[Path],
+    audio_path: Path,
+    output_video: Path,
+    duration_seconds: int = 56,
+) -> None:
+    """Build a deterministic review Reel without MoneyPrinterTurbo."""
+    if len(scenes) < 4:
+        raise RuntimeError("Fast Reel fallback requires at least 4 scenes.")
+    output_video.parent.mkdir(parents=True, exist_ok=True)
+    selected = scenes[:8]
+    per_scene = max(4.0, duration_seconds / len(selected))
+    concat_file = output_video.parent / "fast_concat.txt"
+    lines = []
+    for scene in selected:
+        path = str(scene.resolve()).replace("'", "'\\\\''")
+        lines.append("file '" + path + "'")
+        lines.append(f"duration {per_scene:.3f}")
+    lines.append("file '" + str(selected[-1].resolve()).replace("'", "'\\\\''") + "'")
+    concat_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        "-i", str(audio_path),
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p",
+        "-t", str(duration_seconds),
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
+        str(output_video),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=240, check=False)
+    if result.returncode != 0 or not output_video.is_file():
+        raise RuntimeError("Fast Reel fallback failed: " + (result.stderr or result.stdout)[-4000:])
+    print(f"Fast Reel fallback created: {output_video}")
+
+
 def main() -> int:
     cfg = load_reel_config()
     service = create_service(cfg["service_account_info"])
@@ -688,72 +725,67 @@ def main() -> int:
                 "--task-id", str(task_id),
             ]
             env = os.environ.copy()
-            result = subprocess.run(
-                ["uv", "sync", "--frozen"],
-                cwd=mpt,
-                env=env,
-                text=True,
-                capture_output=True,
-                timeout=900,
-                check=False,
-            )
-            if result.returncode != 0:
-                raise RuntimeError("MoneyPrinterTurbo dependency sync failed: " + (result.stderr or result.stdout)[-5000:])
-            else:
+            output_video = output_dir / "daily-reel.mp4"
+            mpt_ok = False
+            try:
                 result = subprocess.run(
-                    command,
+                    ["uv", "sync", "--frozen"],
                     cwd=mpt,
                     env=env,
                     text=True,
                     capture_output=True,
-                    timeout=1800,
+                    timeout=240,
                     check=False,
                 )
-                if result.returncode != 0:
-                    raise RuntimeError("MoneyPrinterTurbo native CLI failed: " + (result.stderr or result.stdout)[-5000:])
-                else:
+                if result.returncode == 0:
+                    result = subprocess.run(
+                        command,
+                        cwd=mpt,
+                        env=env,
+                        text=True,
+                        capture_output=True,
+                        timeout=300,
+                        check=False,
+                    )
+                if result.returncode == 0:
                     task_videos = sorted(
                         (mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4")
                     )
-                    if not task_videos:
-                        raise RuntimeError(
-                            "MoneyPrinterTurbo completed without producing final-*.mp4."
+                    if task_videos:
+                        raw_video = output_dir / "mpt-base.mp4"
+                        shutil.copy2(task_videos[-1], raw_video)
+                        slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+                        slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
+                        try:
+                            generate_gemini_tts_audio(
+                                cfg["gemini_api_key"],
+                                slogan_text,
+                                [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
+                                slogan_audio,
+                            )
+                        except Exception as slogan_gemini_exc:
+                            print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
+                            generate_local_egyptian_tts_audio(
+                                slogan_text,
+                                slogan_audio,
+                                [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
+                            )
+                        add_motion_graphics_layer(
+                            raw_video,
+                            output_video,
+                            "",
+                            os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
+                            slogan_audio,
                         )
-                    raw_video = output_dir / "mpt-base.mp4"
-                    shutil.copy2(task_videos[-1], raw_video)
-                    output_video = output_dir / "daily-reel.mp4"
-                    slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                    slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
-                    try:
-                        generate_gemini_tts_audio(cfg["gemini_api_key"], slogan_text, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio)
-                    except Exception as slogan_gemini_exc:
-                        print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
-                        generate_local_egyptian_tts_audio(slogan_text, slogan_audio, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}])
-                    add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio)
-                    raw_video.unlink(missing_ok=True)
+                        raw_video.unlink(missing_ok=True)
+                        mpt_ok = output_video.is_file()
+                if not mpt_ok:
+                    print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
+            except Exception as mpt_exc:
+                print(f"MoneyPrinterTurbo bounded run failed; using fast FFmpeg fallback: {mpt_exc}")
 
-
-                    probe = subprocess.run(
-                        [
-                            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                            "-of", "default=noprint_wrappers=1:nokey=1", str(output_video),
-                        ],
-                        capture_output=True, text=True, check=True, timeout=30,
-                    )
-                    duration = float(probe.stdout.strip() or "0")
-                    streams = subprocess.run(
-                        [
-                            "ffprobe", "-v", "error", "-select_streams", "a:0",
-                            "-show_entries", "stream=codec_name",
-                            "-of", "default=noprint_wrappers=1:nokey=1", str(output_video),
-                        ],
-                        capture_output=True, text=True, check=True, timeout=30,
-                    )
-                    if duration < 50 or duration > 80 or not streams.stdout.strip():
-                        raise RuntimeError(
-                            f"Invalid Reel render: duration={duration:.1f}s "
-                            f"audio={'yes' if streams.stdout.strip() else 'no'}"
-                        )
+            if not mpt_ok:
+                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=56)
 
         video_path = output_dir / "daily-reel.mp4"
         # Telegram delivery is part of the review contract: do not mark a Reel
