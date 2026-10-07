@@ -302,6 +302,9 @@ def main() -> int:
 
     try:
         if use_ui:
+            # Upload to Blogger storage; Rich Editor should not embed the raw GitHub asset URL.
+            blogger_image_url = upload_blogger_image(image_path)
+            print(f"Blogger image uploaded to Blogger storage: {blogger_image_url}")
             try:
                 article = prepare_article(
                     api_key=os.getenv("GEMINI_API_KEY", "").strip(),
@@ -315,7 +318,7 @@ def main() -> int:
                 article = _fallback_article(topic, post, legal_sources)
             article = _article_copy(article or {})
             title = str(article.get("title") or topic).strip()[:110]
-            content = build_article_html(title, topic, post, image_url, legal_sources, [], article=article)
+            content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
             labels = list(dict.fromkeys([
                 "قانون مصر",
                 "اسأل محمود",
