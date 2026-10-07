@@ -168,7 +168,9 @@ def _set_brand_identity(page, bid: str, title: str, description: str) -> None:
     last_error = None
     for url in urls:
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            print(f"Blogger settings navigation: url={page.url} title={page.title()!r} status={(response.status if response else None)}")
+            page.screenshot(path="generated/blogger-settings.png", full_page=True)
             page.wait_for_timeout(1800)
             if "accounts.google.com" in page.url:
                 raise RuntimeError("Blogger UI session is not authenticated.")
@@ -316,7 +318,9 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
 
 
 def _verify_public(page, expected_title: str, expected_description: str) -> None:
-    page.goto(BLOG_URL, wait_until="domcontentloaded", timeout=60000)
+    response = page.goto(BLOG_URL, wait_until="domcontentloaded", timeout=60000)
+    print(f"Blogger public navigation: url={page.url} title={page.title()!r} status={(response.status if response else None)}")
+    page.screenshot(path="generated/blogger-public.png", full_page=True)
     page.wait_for_timeout(1500)
     actual_title = _clean(page.title())
     meta = page.locator('meta[name="description"]')
@@ -350,8 +354,14 @@ def main() -> int:
         try:
             _set_brand_identity(page, bid, title, description)
             layout_url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
-            page.goto(layout_url, wait_until="domcontentloaded", timeout=60000)
+            response = page.goto(layout_url, wait_until="domcontentloaded", timeout=60000)
+            print(f"Blogger layout navigation: url={page.url} title={page.title()!r} status={(response.status if response else None)}")
+            page.screenshot(path="generated/blogger-layout.png", full_page=True)
             page.wait_for_timeout(1800)
+            try:
+                print("Blogger Layout body preview:", _clean(page.locator("body").inner_text())[:5000])
+            except Exception as exc:
+                print(f"Blogger Layout body read failed: {exc}")
             if not _update_page_header_from_layout(page, title, description):
                 print("Blogger Page Header gadget was not updated; continuing with navigation setup.")
             _ensure_pages_gadget_on_layout(page, bid)
