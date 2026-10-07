@@ -235,6 +235,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     # never acceptable. Image generation therefore gates social publication.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
     image_attempted = str(row.get("Image QA Attempt", "") or "").strip() == "1"
+    image_failed = str(row.get("Image QA Status", "") or "").strip().upper() in {"IMAGE_GENERATION_FAILED_BLOCKED", "RETRY_REQUIRED"}
     reusable_existing = (
         "FALLBACK" not in existing_image_mode
         and image_path.is_file()
@@ -244,7 +245,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     if reusable_existing:
         generated_image_path = image_path
         print(f"Image reuse: preserving existing generated asset {image_path}; no regeneration.")
-    elif not image_attempted:
+    elif not image_attempted or image_failed:
         try:
             create_legal_image(
                 topic=topic,
