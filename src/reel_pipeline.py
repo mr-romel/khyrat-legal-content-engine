@@ -15,7 +15,7 @@ from google import genai
 from config import load_reel_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from post_bank import get_bank_rows
-from telegram_bot import send_video
+from telegram_bot import send_video, send_message
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from utils import now_cairo, parse_date
 
@@ -775,13 +775,20 @@ def main() -> int:
                                 slogan_audio,
                                 [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
                             )
-                        add_motion_graphics_layer(
-                            raw_video,
-                            output_video,
-                            "",
-                            os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
-                            slogan_audio,
-                        )
+                        try:
+                            add_motion_graphics_layer(
+                                raw_video,
+                                output_video,
+                                "",
+                                os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
+                                slogan_audio,
+                            )
+                            print("REEL_STAGE branding=ok")
+                        except Exception as branding_exc:
+                            # A finished MPT video is already a valid review asset.
+                            # Never lose a generated Reel because the optional end-card layer failed.
+                            print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
+                            shutil.copy2(raw_video, output_video)
                         raw_video.unlink(missing_ok=True)
                         mpt_ok = output_video.is_file()
                 if not mpt_ok:
@@ -850,6 +857,12 @@ def main() -> int:
             })
         except Exception as sheet_exc:
             print(f"Failed to record Reel FAILED state in Sheet: {sheet_exc}")
+        try:
+            send_message(
+                f"🚨 Reel failed before Telegram delivery\nالصف: {row_number}\nالموضوع: {topic}\nالسبب: {str(exc)[:1200]}"
+            )
+        except Exception as telegram_exc:
+            print(f"Reel failure Telegram notification failed: {telegram_exc}")
         raise
 
 
