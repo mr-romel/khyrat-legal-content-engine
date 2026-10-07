@@ -810,10 +810,16 @@ def main() -> int:
                 generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
                 print("REEL_STAGE tts=google_cloud_ok")
             except Exception as cloud_tts_exc:
-                raise RuntimeError(
-                    "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
-                    f"Gemini={gemini_tts_exc}; Google Cloud TTS={cloud_tts_exc}"
-                ) from cloud_tts_exc
+                print(f"REEL_STAGE tts=google_cloud_unavailable reason={cloud_tts_exc}")
+                tts_audio = output_dir / "voice-egyptian-neural.mp3"
+                try:
+                    generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
+                    print("REEL_STAGE tts=edge_egyptian_neural_ok")
+                except Exception as edge_tts_exc:
+                    raise RuntimeError(
+                        "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
+                        f"Gemini={gemini_tts_exc}; Google Cloud TTS={cloud_tts_exc}; Edge Neural={edge_tts_exc}"
+                    ) from edge_tts_exc
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
