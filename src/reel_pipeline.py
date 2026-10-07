@@ -223,6 +223,29 @@ def _media_duration(path: Path) -> float:
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)], capture_output=True, text=True, check=True, timeout=30)
     return float(probe.stdout.strip() or "0")
 
+def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Path:
+    duration = _media_duration(path)
+    if duration < 45.0:
+        raise RuntimeError(f"Reel narration is too short: {duration:.1f}s")
+    if duration <= 65.0:
+        return path
+    factor = duration / target_seconds
+    if factor > 1.6:
+        raise RuntimeError(f"Reel narration is excessively long: {duration:.1f}s")
+    normalized = path.with_name(path.stem + "-reel-fit.wav")
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(path), "-filter:a", f"atempo={factor:.6f}",
+         "-ar", "44100", "-ac", "2", str(normalized)],
+        check=True, timeout=180, capture_output=True, text=True,
+    )
+    final_duration = _media_duration(normalized)
+    if not 55.0 <= final_duration <= 65.0:
+        raise RuntimeError(f"Fitted Reel narration duration invalid: {final_duration:.1f}s")
+    shutil.move(str(normalized), str(path))
+    print(f"Reel narration fitted: {duration:.1f}s -> {final_duration:.1f}s")
+    return path
+
+
 def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path:
     duration = _media_duration(path)
     if duration < 40.0:
