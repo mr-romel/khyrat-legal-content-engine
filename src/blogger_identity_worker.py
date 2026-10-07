@@ -195,6 +195,60 @@ def _ensure_pages_gadget(page) -> None:
     raise RuntimeError("internal")
 
 
+def _update_page_header_from_layout(page, title: str, description: str) -> bool:
+    # Blogger themes expose the Page Header as a Layout gadget. The edit
+    # dialog is more stable than the Basic Settings selectors across themes.
+    edits = page.get_by_role("button", name=re.compile(r"تعديل|Edit", re.I))
+    for i in range(min(edits.count(), 40)):
+        candidate = edits.nth(i)
+        try:
+            if not candidate.is_visible():
+                continue
+            candidate.click()
+            page.wait_for_timeout(700)
+        except Exception:
+            continue
+
+        dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog')
+        for d_i in range(min(dialogs.count(), 8)):
+            dialog = dialogs.nth(d_i)
+            try:
+                if not dialog.is_visible():
+                    continue
+                text_blob = _clean(dialog.inner_text())
+                if not re.search(r"عنوان المدونة|وصف المدونة|Blog title|Blog description|العنوان|الوصف", text_blob, re.I):
+                    continue
+
+                inputs = dialog.locator('input:not([type="hidden"])')
+                textareas = dialog.locator("textarea, [contenteditable='true']")
+                title_field = None
+                desc_field = None
+                for j in range(min(inputs.count(), 12)):
+                    c = inputs.nth(j)
+                    if c.is_visible():
+                        title_field = c
+                        break
+                for j in range(min(textareas.count(), 12)):
+                    c = textareas.nth(j)
+                    if c.is_visible():
+                        desc_field = c
+                        break
+                if title_field and desc_field:
+                    title_field.fill(title)
+                    desc_field.fill(description)
+                    if not _click_first(dialog, (r"حفظ", r"Save"), role="button"):
+                        _click_first(dialog, (r"حفظ", r"Save"))
+                    page.wait_for_timeout(900)
+                    print("Blogger Page Header title/description updated from Layout.")
+                    return True
+            except Exception:
+                continue
+
+        # Close a non-matching dialog before trying the next gadget.
+        _click_first(page, (r"إلغاء", r"Cancel", r"إغلاق", r"Close"), role="button")
+    return False
+
+
 def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
     page.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -295,6 +349,11 @@ def main() -> int:
 
         try:
             _set_brand_identity(page, bid, title, description)
+            layout_url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
+            page.goto(layout_url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(1800)
+            if not _update_page_header_from_layout(page, title, description):
+                print("Blogger Page Header gadget was not updated; continuing with navigation setup.")
             _ensure_pages_gadget_on_layout(page, bid)
             _verify_public(page, title, description)
         finally:
