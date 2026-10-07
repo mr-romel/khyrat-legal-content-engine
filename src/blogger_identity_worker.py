@@ -351,9 +351,10 @@ def _configure_pages_gadget(page) -> bool:
 def _update_page_header_from_layout(page, title: str, description: str) -> bool:
     # Target the actual Header gadget shown in Blogger Layout instead of
     # trying every Edit button on the page.
-    if not _open_gadget_editor_by_text(page, r"\(رأس الصفحة\).*Ask-Mahmoud|Ask-Mahmoud"):
-        print("Blogger Header gadget editor could not be opened.")
-        return False
+    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\(رأس الصفحة\).*Ask-Mahmoud|Ask-Mahmoud"):
+        if not _click_layout_edit_fallback(page, "header"):
+            print("Blogger Header gadget editor could not be opened.")
+            return False
 
     page.wait_for_timeout(800)
     dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
