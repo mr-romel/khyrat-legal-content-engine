@@ -748,13 +748,17 @@ def main() -> int:
 
         print("REEL_STAGE tts=start")
         tts_audio = output_dir / "voice-gemini.wav"
+        # Never send a low-quality robotic local voice to the reviewer.
+        # Gemini TTS is the approved Reel voice. If it is unavailable/quota-limited,
+        # fail before video delivery instead of silently substituting espeak.
         try:
             generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
             print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
-            print(f"REEL_STAGE tts=local_fallback reason={gemini_tts_exc}")
-            tts_audio = output_dir / "voice-egyptian-local.wav"
-            generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
+            raise RuntimeError(
+                "Reel voice generation unavailable; refusing to send robotic/local TTS. "
+                f"Gemini TTS error: {gemini_tts_exc}"
+            ) from gemini_tts_exc
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
@@ -875,6 +879,27 @@ def main() -> int:
                 build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=56)
 
         video_path = output_dir / "daily-reel.mp4"
+        # Hard quality gate before Telegram: a review Reel must be a real short
+        # video, not a truncated MPT artifact. The narration target is 55–75s.
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+            capture_output=True, text=True, check=True, timeout=30,
+        )
+        final_duration = float(probe.stdout.strip() or "0")
+        if final_duration < 50 or final_duration > 80:
+            raise RuntimeError(
+                f"Reel quality gate rejected video duration={final_duration:.1f}s; expected 50–80s."
+            )
+        audio_probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0",
+             "-show_entries", "stream=codec_name",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+        if not audio_probe.stdout.strip():
+            raise RuntimeError("Reel quality gate rejected video: no audio stream.")
+        print(f"REEL_STAGE quality_gate=ok duration={final_duration:.1f}s audio={audio_probe.stdout.strip()}")
         # Telegram delivery is part of the review contract: do not mark a Reel
         # REVIEW unless the actual MP4 was successfully delivered for approval.
         send_video(
