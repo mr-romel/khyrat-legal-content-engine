@@ -216,7 +216,9 @@ def main() -> int:
         bid = blog_id(service, config["blogger_url"])
     else:
         bid = str(config.get("blogger_blog_id", "") or "").strip() or blog_id(service, config["blogger_url"])
-    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)\n    deduped = dedupe_blogger_topics(blogger_api, bid, rows)\n    print(f"Blogger dedupe: removed {deduped} duplicate posts.")
+    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
+    deduped = dedupe_blogger_topics(blogger_api, bid, rows)
+    print(f"Blogger dedupe: removed {deduped} duplicate posts.")
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
