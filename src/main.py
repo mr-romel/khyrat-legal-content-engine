@@ -535,6 +535,19 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     pillar, objective = classify(topic, row.get("المحتوى", ""))
     try:
         post, image_url, image_path, review_level, review_text, legal_sources = _generate_if_needed(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current, topic=topic, bank_rows=bank_rows)
+        # Persist the final generated post on every successful generation, including when
+        # an existing image is reused. Downstream workers must never depend on image generation
+        # to obtain the canonical post text.
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "المحتوى": post,
+                "وصف الصورة": str(row.get("وصف الصورة", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1200]}",
+                "رابط الصورة": image_url or str(row.get("رابط الصورة", "") or "").strip(),
+            })
+            row["المحتوى"] = post
+            print(f"Canonical post content persisted for row {row_number}.")
+        except Exception as content_state_exc:
+            print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
             print("No generated image is available; publication continues as text-only. Image generation never blocks publishing.")
