@@ -147,6 +147,85 @@ def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_ma
     print(f"Local Arabic TTS fallback succeeded: duration={duration:.1f}s")
     return output_path
 
+def generate_gemini_tts_audio_unbounded(
+    api_key: str,
+    script: str,
+    emotion_map: list[dict[str, Any]],
+    output_path: Path,
+    min_seconds: float = 1.0,
+    max_seconds: float = 10.0,
+) -> Path:
+    """Gemini TTS helper for short brand stings; separate from long Reel narration validation."""
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is required for short TTS.")
+    clean = prepare_tts_script(script)
+    content = [{
+        "type": "text",
+        "text": sentence,
+        "annotations": [{
+            "type": "speech_metadata",
+            "style": "Egyptian Arabic, mature male legal presenter, confident memorable sign-off, natural Cairo delivery",
+        }],
+    } for sentence in [s.strip() for s in re.split(r"(?<=[؟!.])\s+", clean) if s.strip()]]
+    payload = {
+        "model": os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts"),
+        "input": [{"type": "user_input", "content": content}],
+        "response_format": {"type": "audio"},
+        "generation_config": {"speech_config": [{"voice": os.getenv("GEMINI_TTS_VOICE", "Orus")}]},
+    }
+    req = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=180) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    encoded = ((data.get("interaction") or {}).get("output_audio") or {}).get("data")
+    if not encoded:
+        for step in data.get("steps") or (data.get("interaction") or {}).get("steps") or []:
+            for item in step.get("content") or []:
+                if item.get("type") == "audio" and item.get("data"):
+                    encoded = item["data"]
+                    break
+            if encoded:
+                break
+    if not encoded:
+        raise RuntimeError(f"Gemini short TTS returned no audio: {str(data)[:1200]}")
+    output_path.write_bytes(base64.b64decode(encoded))
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip() or "0")
+    if duration < min_seconds or duration > max_seconds:
+        raise RuntimeError(f"Gemini short TTS duration outside {min_seconds}-{max_seconds}s: {duration:.1f}s")
+    return output_path
+
+
+def generate_local_egyptian_tts_audio_unbounded(
+    script: str,
+    output_path: Path,
+    min_seconds: float = 1.0,
+    max_seconds: float = 10.0,
+) -> Path:
+    clean = prepare_tts_script(script)
+    subprocess.run(
+        ["espeak-ng", "-v", "ar", "-s", "145", "-p", "45", "-w", str(output_path), clean],
+        check=True, timeout=120, capture_output=True, text=True,
+    )
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip() or "0")
+    if duration < min_seconds or duration > max_seconds:
+        raise RuntimeError(f"Local short TTS duration outside {min_seconds}-{max_seconds}s: {duration:.1f}s")
+    return output_path
+
+
 def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[str, Any]], output_path: Path) -> Path:
     """Generate the Reel narration with Gemini 3.8 Flash TTS, not Edge TTS."""
     if not api_key:
@@ -742,27 +821,42 @@ def main() -> int:
                         shutil.copy2(task_videos[-1], raw_video)
                         slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                         slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
+                        slogan_ready = False
+                        # The brand sign-off is intentionally short (about 3–8s).
+                        # generate_gemini_tts_audio validates long narration, so do
+                        # not route a short slogan through that 45–80s gate.
                         try:
-                            generate_gemini_tts_audio(
+                            clean_slogan = prepare_tts_script(slogan_text)
+                            generate_gemini_tts_audio_unbounded(
                                 cfg["gemini_api_key"],
-                                slogan_text,
+                                clean_slogan,
                                 [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
                                 slogan_audio,
+                                min_seconds=1.0,
+                                max_seconds=10.0,
                             )
+                            slogan_ready = slogan_audio.is_file()
+                            print(f"Reel slogan: Gemini ready={slogan_ready}")
                         except Exception as slogan_gemini_exc:
                             print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
-                            generate_local_egyptian_tts_audio(
-                                slogan_text,
-                                slogan_audio,
-                                [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
-                            )
+                            try:
+                                generate_local_egyptian_tts_audio_unbounded(
+                                    clean_slogan if 'clean_slogan' in locals() else slogan_text,
+                                    slogan_audio,
+                                    min_seconds=1.0,
+                                    max_seconds=10.0,
+                                )
+                                slogan_ready = slogan_audio.is_file()
+                            except Exception as slogan_local_exc:
+                                print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
+                                slogan_ready = False
                         try:
                             add_motion_graphics_layer(
                                 raw_video,
                                 output_video,
                                 "",
                                 os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
-                                slogan_audio,
+                                slogan_audio if slogan_ready else None,
                             )
                             print("REEL_STAGE branding=ok")
                         except Exception as branding_exc:
