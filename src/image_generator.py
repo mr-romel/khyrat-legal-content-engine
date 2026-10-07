@@ -274,6 +274,29 @@ ancient Egypt, pharaoh, ancient costume, historical reenactment, fantasy,
 blurry subject, low detail, oversaturated
 """.strip()
 
+    # Primary provider: Cloudflare. If it fails, use Gemini native image generation.
+    def _generate_with_gemini() -> bytes:
+        if not os.getenv("GEMINI_API_KEY", "").strip():
+            raise ImageGenerationError("GEMINI_API_KEY is missing for image fallback.")
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY").strip())
+            model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+            response = client.models.generate_content(
+                model=model, contents=[prompt],
+                config=types.GenerateContentConfig(response_modalities=["IMAGE"], response_format={"image": {"aspect_ratio": "4:5"}}),
+            )
+            for part in getattr(response, "parts", []) or []:
+                image = part.as_image() if hasattr(part, "as_image") else None
+                if image is not None:
+                    import io
+                    buf = io.BytesIO()
+                    image.save(buf, format="PNG")
+                    return buf.getvalue()
+            raise ImageGenerationError("Gemini image response contained no image data.")
+        except Exception as exc:
+            raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
     endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(
         account_id=account_id,
     )
@@ -307,35 +330,26 @@ blurry subject, low detail, oversaturated
         "Accept": "image/*",
     }
 
+    cloudflare_error = None
     try:
-        response = requests.post(
-            endpoint,
-            headers=headers,
-            json=request_body,
-            timeout=180,
-        )
-
+        response = requests.post(endpoint, headers=headers, json=request_body, timeout=180)
+        if response.ok:
+            image_bytes = _extract_image_bytes(response)
+        else:
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = response.text
+            cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
     except requests.RequestException as exc:
-        raise ImageGenerationError(
-            f"Cloudflare image request failed: {exc}"
-        ) from exc
+        cloudflare_error = str(exc)
 
-    if not response.ok:
-        try:
-            error_payload = response.json()
-        except ValueError:
-            error_payload = response.text
-
-        raise ImageGenerationError(
-            "Cloudflare image API failed: "
-            f"HTTP {response.status_code} - "
-            f"{error_payload}"
-        )
-
-    image_bytes = _extract_image_bytes(
-        response
-    )
-
+    if cloudflare_error:
+        print(f"Cloudflare image provider failed; switching to Gemini image generation: {cloudflare_error}")
+        image_bytes = _generate_with_gemini()
+        provider = "GEMINI_IMAGE_FALLBACK"
+    else:
+        provider = "DIRECT_CLOUDFLARE"
     output = Path(
         output_path
     )
@@ -357,10 +371,7 @@ blurry subject, low detail, oversaturated
             "Generated image file is empty."
         )
 
-    print(
-        "Cloudflare AI image generated successfully: "
-        f"{output}"
-    )
+    print(f"Editorial image generated successfully: provider={provider} path={output}")
 
     print(
         f"Generated image size: "
