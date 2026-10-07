@@ -297,6 +297,11 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
     # Layout itself has a separate Save button on the current Blogger UI.
     _click_first(page, (r"حفظ", r"Save"), role="button")
     page.wait_for_timeout(1500)
+    try:
+        Path("generated").mkdir(parents=True, exist_ok=True)
+        page.screenshot(path="generated/blogger-layout-after-save.png", full_page=True)
+    except Exception as exc:
+        print(f"Blogger layout screenshot failed: {exc}")
     print("Blogger Pages navigation configured and layout save attempted.")
 
 
