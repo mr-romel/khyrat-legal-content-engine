@@ -310,6 +310,14 @@ jobs:
           BLOGGER_SITE_TITLE: "اسأل محمود - مستشار قانوني للشركات"
           BLOGGER_SITE_DESCRIPTION: "محتوى قانوني عملي للشركات وأصحاب الأعمال والإدارة والموارد البشرية حول العقود والعمل والشركات والمنازعات والإجراءات القانونية في مصر."
         run: PYTHONPATH=src python src/blogger_identity_worker.py
+      - name: Upload Blogger UI diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-ui-diagnostics-${{ github.run_id }}
+          path: generated/blogger-*.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   linkedin_engagement:
     name: 4. LinkedIn Engagement
