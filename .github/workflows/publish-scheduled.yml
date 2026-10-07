@@ -14,7 +14,9 @@ permissions:
 # never block the other stages. Only the core publishing engine is the
 # prerequisite for the downstream workers.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ github.run_id }}
+  # Serialize all scheduled/emergency runs. A unique run_id here allowed concurrent
+  # Reel workers to select the same Sheet row and send the same video repeatedly.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
