@@ -115,7 +115,7 @@ jobs:
     name: 2. Reel Generator + Telegram Review
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
-    continue-on-error: true
+    continue-on-error: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
