@@ -84,112 +84,58 @@ def _click_current_setting_value(page, current_value: str) -> bool:
     return False
 
 
-def _fill_settings_fields(page, title: str, description: str) -> bool:
-    # Blogger's current UI has changed labels/structure more than once.
-    # Prefer semantic labels, then fall back to visible form controls.
-    title_patterns = (r"Blog title", r"عنوان المدونة", r"عنوان", r"title")
-    desc_patterns = (r"Blog description", r"وصف المدونة", r"الوصف", r"description")
-
-    title_field = None
-    desc_field = None
-
-    # Current Blogger settings render the values as clickable text; the
-    # editable input appears only after clicking the current value.
+def _edit_current_setting(page, section_label: str, next_label: str, value: str) -> bool:
+    body = _clean(page.locator("body").inner_text())
     try:
-        current_title = _clean(page.locator("body").inner_text()).split("العنوان", 1)[1].split("الوصف", 1)[0]
-        current_title = _clean(current_title)
-        if current_title:
-            _click_current_setting_value(page, current_title)
+        current = _clean(body.split(section_label, 1)[1].split(next_label, 1)[0])
     except Exception:
-        pass
+        current = ""
+    if not current:
+        return False
+    if not _click_current_setting_value(page, current):
+        return False
+    page.wait_for_timeout(600)
 
-    try:
-        current_desc = _clean(page.locator("body").inner_text()).split("الوصف", 1)[1].split("لغة المدونة", 1)[0]
-        current_desc = _clean(current_desc)
-        if current_desc:
-            _click_current_setting_value(page, current_desc)
-    except Exception:
-        pass
-
-    page.wait_for_timeout(500)
-
-    for label in title_patterns:
-        for getter in (
-            lambda: page.get_by_label(re.compile(label, re.I)),
-            lambda: page.get_by_role("textbox", name=re.compile(label, re.I)),
-        ):
-            try:
-                loc = getter()
-                if loc.count() and loc.first.is_visible():
-                    title_field = loc.first
-                    break
-            except Exception:
-                pass
-        if title_field:
-            break
-
-    for label in desc_patterns:
-        for getter in (
-            lambda: page.get_by_label(re.compile(label, re.I)),
-            lambda: page.get_by_role("textbox", name=re.compile(label, re.I)),
-        ):
-            try:
-                loc = getter()
-                if loc.count() and loc.first.is_visible():
-                    desc_field = loc.first
-                    break
-            except Exception:
-                pass
-        if desc_field:
-            break
-
-    if not title_field:
-        candidates = page.locator('input:not([type="hidden"])')
-        for i in range(min(candidates.count(), 30)):
-            c = candidates.nth(i)
-            try:
-                if c.is_visible() and (c.get_attribute("type") or "text").lower() in {"text", "search"}:
-                    title_field = c
-                    break
-            except Exception:
-                pass
-
-    if not desc_field:
-        candidates = page.locator("textarea, [contenteditable='true']")
-        for i in range(min(candidates.count(), 30)):
-            c = candidates.nth(i)
-            try:
-                if c.is_visible():
-                    desc_field = c
-                    break
-            except Exception:
-                pass
-
-    if not title_field or not desc_field:
-        # Emit enough diagnostics to make the next UI change actionable.
-        controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
-        rows = []
-        for i in range(min(controls.count(), 40)):
-            c = controls.nth(i)
-            try:
-                if not c.is_visible():
-                    continue
-                rows.append({
-                    "tag": c.evaluate("(e)=>e.tagName"),
-                    "type": c.get_attribute("type"),
-                    "aria": c.get_attribute("aria-label"),
-                    "name": c.get_attribute("name"),
-                    "placeholder": c.get_attribute("placeholder"),
-                    "value": c.input_value() if c.evaluate("(e)=>'value' in e") else c.inner_text(),
-                })
-            except Exception:
-                continue
-        print("Blogger settings controls:", json.dumps(rows, ensure_ascii=False))
+    controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    visible = []
+    for i in range(min(controls.count(), 30)):
+        c = controls.nth(i)
+        try:
+            if c.is_visible():
+                visible.append(c)
+        except Exception:
+            pass
+    if not visible:
+        print(f"Blogger setting dialog for {section_label} has no editable controls.")
         return False
 
-    title_field.fill(title)
-    desc_field.fill(description)
+    target = visible[0]
+    target.fill(value)
+    if not _save_settings(page):
+        raise RuntimeError(f"Could not save Blogger {section_label} setting.")
+    page.wait_for_timeout(1000)
     return True
+
+
+def _fill_settings_fields(page, title: str, description: str) -> bool:
+    # The current Blogger Arabic UI opens an editor dialog after clicking the
+    # displayed value. Edit title and description sequentially.
+    title_ok = _edit_current_setting(page, "العنوان", "الوصف", title)
+    if not title_ok:
+        print("Blogger title setting could not be opened from current value.")
+        return False
+
+    # Reload because the title dialog closes after Save and the page state can
+    # otherwise retain stale DOM nodes.
+    page.reload(wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1200)
+
+    desc_ok = _edit_current_setting(page, "الوصف", "لغة المدونة", description)
+    if not desc_ok:
+        print("Blogger description setting could not be opened from current value.")
+        return False
+    return True
+
 
 
 def _save_settings(page) -> bool:
