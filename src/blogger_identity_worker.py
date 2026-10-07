@@ -233,19 +233,29 @@ def _ensure_pages_gadget(page) -> None:
 
 def _open_gadget_editor_by_text(page, text_pattern: str) -> bool:
     marker = page.get_by_text(re.compile(text_pattern, re.I))
-    for i in range(min(marker.count(), 10)):
+    for i in range(min(marker.count(), 20)):
         item = marker.nth(i)
         try:
             if not item.is_visible():
                 continue
-            container = item.locator("xpath=ancestor::*[.//button][1]")
-            buttons = container.locator("button")
-            for j in range(buttons.count() - 1, -1, -1):
-                button = buttons.nth(j)
-                if button.is_visible() and button.is_enabled():
-                    button.click()
-                    page.wait_for_timeout(900)
-                    return True
+            # The gadget card has a dedicated edit icon/button. Walk upward
+            # until we reach the smallest ancestor that owns that button.
+            for level in range(1, 7):
+                container = item.locator("xpath=" + "/.." * level)
+                buttons = container.locator("button")
+                if buttons.count() == 0:
+                    continue
+                for j in range(buttons.count() - 1, -1, -1):
+                    button = buttons.nth(j)
+                    if button.is_visible() and button.is_enabled():
+                        label = (button.get_attribute("aria-label") or "") + " " + (button.get_attribute("title") or "")
+                        # Prefer the actual edit control when Blogger exposes it.
+                        if label and not re.search(r"edit|تعديل|تحرير", label, re.I):
+                            continue
+                        button.click()
+                        page.wait_for_timeout(900)
+                        print(f"Blogger gadget editor opened for {text_pattern}")
+                        return True
         except Exception:
             continue
     return False
@@ -254,7 +264,7 @@ def _open_gadget_editor_by_text(page, text_pattern: str) -> bool:
 def _configure_pages_gadget(page) -> bool:
     # Existing PageList gadgets must be opened explicitly; creating a second
     # gadget is not useful when the theme already has one.
-    if not _open_gadget_editor_by_text(page, r"^مقالات$|Pages gadget"):
+    if not _open_gadget_editor_by_text(page, r"Pages gadget|^مقالات$"):
         print("Blogger Pages gadget editor could not be opened.")
         return False
 
