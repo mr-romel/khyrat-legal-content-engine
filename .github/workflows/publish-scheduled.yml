@@ -116,6 +116,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Download locked Reel source context
+        uses: actions/download-artifact@v5
+        with:
+          name: reel-source-context
+          path: generated
+          merge-multiple: true
+
       - name: Cache Egyptian TTS model
         uses: actions/cache@v4
         with:
@@ -125,7 +132,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
           pip install uv
           pip install voicetut-tts "git+https://github.com/k2-fsa/OmniVoice.git"
           sudo apt-get update -qq
@@ -177,7 +184,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
           python -m playwright install --with-deps chromium
 
@@ -214,7 +221,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
           python -m playwright install --with-deps chromium
       - name: Run Blogger Search Description worker
@@ -246,7 +253,7 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
       - name: Run LinkedIn engagement independently
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
@@ -282,7 +289,7 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
       - name: Run Facebook engagement independently
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
@@ -317,7 +324,7 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-worker.txt
       - name: Run Facebook public comment replies independently
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
