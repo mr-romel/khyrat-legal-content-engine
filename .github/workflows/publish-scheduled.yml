@@ -14,7 +14,7 @@ permissions:
 # never block the other stages. Only the core publishing engine is the
 # prerequisite for the downstream workers.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ github.run_id }}
   cancel-in-progress: false
 
 env:
