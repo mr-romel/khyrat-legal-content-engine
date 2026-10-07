@@ -119,6 +119,34 @@ def prepare_tts_script(text: str) -> str:
     return out
 
 
+def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
+    """Natural Egyptian Arabic Microsoft Neural voice fallback."""
+    import asyncio
+    import edge_tts
+
+    clean = prepare_tts_script(script)
+    voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
+    rate = os.getenv("EDGE_TTS_RATE", "-5%")
+    pitch = os.getenv("EDGE_TTS_PITCH", "+0Hz")
+
+    async def _save() -> None:
+        await edge_tts.Communicate(clean, voice=voice, rate=rate, pitch=pitch).save(str(output_path))
+
+    asyncio.run(_save())
+    if not output_path.is_file():
+        raise RuntimeError("Edge TTS produced no audio file.")
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip() or "0")
+    if duration < 45 or duration > 90:
+        raise RuntimeError(f"Edge Egyptian TTS duration outside 45-90s: {duration:.1f}s")
+    print(f"Edge Egyptian Neural TTS succeeded: voice={voice} duration={duration:.1f}s")
+    return output_path
+
+
 def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
     """High-quality Arabic fallback using the existing Google service account."""
     from google.oauth2 import service_account
@@ -802,16 +830,22 @@ def main() -> int:
             print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
             print(f"REEL_STAGE tts=gemini_unavailable reason={gemini_tts_exc}")
-            # Production fallback: local Arabic TTS is deterministic, available
-            # on the runner, and does not consume Gemini quota.
-            tts_audio = output_dir / "voice-egyptian-local.wav"
+            # Use a real Egyptian Neural voice, never espeak/local robotic synthesis.
+            tts_audio = output_dir / "voice-egyptian-neural.mp3"
             try:
-                generate_local_egyptian_tts_audio(brief["script"], tts_audio, brief.get("emotion_map", []))
-                print("REEL_STAGE tts=local_ok")
-            except Exception as local_tts_exc:
-                raise RuntimeError(
-                    f"No usable Arabic TTS for Reel. Gemini={gemini_tts_exc}; local={local_tts_exc}"
-                ) from local_tts_exc
+                generate_edge_egyptian_tts_audio(brief["script"], tts_audio)
+                print("REEL_STAGE tts=edge_egyptian_ok")
+            except Exception as edge_tts_exc:
+                print(f"REEL_STAGE tts=edge_unavailable reason={edge_tts_exc}")
+                tts_audio = output_dir / "voice-google-cloud.wav"
+                try:
+                    generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
+                    print("REEL_STAGE tts=google_cloud_ok")
+                except Exception as cloud_tts_exc:
+                    raise RuntimeError(
+                        "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
+                        f"Gemini={gemini_tts_exc}; Edge Egyptian={edge_tts_exc}; Google Cloud={cloud_tts_exc}"
+                    ) from cloud_tts_exc
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
