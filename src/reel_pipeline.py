@@ -447,6 +447,22 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     return output_video
 
 
+def post_visual_terms(post: str, topic: str) -> list[str]:
+    """Build visual searches from the actual post first; topic is only a fallback."""
+    text = " ".join(str(post or "").split()).lower()
+    groups = [
+        (("عقد", "توقيع", "اتفاق"), ["Egypt contract signing close up realistic office", "business contract document review Egypt", "two people discussing contract paperwork office", "legal document signature close up", "company legal department contract review", "contract dispute evidence documents"]),
+        (("إيجار", "مؤجر", "مستأجر", "شقة"), ["Egypt apartment lease signing landlord tenant", "rental contract document close up", "tenant landlord dispute apartment Egypt", "apartment keys lease agreement", "rental notice document close up", "Egypt lawyer rental dispute consultation"]),
+        (("عمل", "موظف", "فصل", "مرتب", "راتب"), ["Egypt workplace employment dispute realistic office", "employee employment contract review", "termination letter workplace document", "salary dispute documents office", "HR legal review employment file Egypt", "workplace meeting employment issue"]),
+        (("شيك", "إيصال", "دفع", "تحويل", "فلوس", "مبلغ"), ["bank payment dispute Egypt realistic", "cheque financial document close up", "payment receipt evidence close up", "bank transfer smartphone evidence", "financial dispute paperwork office", "Egypt lawyer reviewing payment documents"]),
+        (("رسالة", "واتساب", "موبايل", "دليل", "إثبات"), ["smartphone message evidence close up realistic", "digital evidence phone screen unreadable", "person preserving phone evidence Egypt", "legal evidence documents smartphone", "complaint evidence collection realistic", "lawyer reviewing digital evidence"]),
+        (("طلاق", "نفقة", "حضانة", "أسرة", "زوج", "زوجة"), ["Egyptian family legal consultation realistic", "family legal documents close up", "divorce paperwork Egypt office", "child custody documents legal consultation", "family dispute discussion realistic Egypt", "alimony financial documents consultation"]),
+    ]
+    for keys, terms in groups:
+        if any(k in text for k in keys):
+            return terms + topic_visual_terms(topic)[:2]
+    return topic_visual_terms(topic)
+
 def topic_visual_terms(topic: str) -> list[str]:
     t = (topic or "").lower()
     groups = [
@@ -616,7 +632,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         emotions.append({"sentence_index": i, "delivery_emotion": emotion})
     return {
         "script": script,
-        "video_terms": topic_visual_terms(topic),
+        "video_terms": post_visual_terms(post, topic),
         "facebook_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات المرتبطة بالموضوع.",
         "linkedin_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات قبل اتخاذ القرار.",
         "emotion_map": emotions,
