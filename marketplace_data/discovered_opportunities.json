@@ -18,15 +18,5 @@
     "live": true,
     "source_filter": "https://mostaql.com/projects/business",
     "source_kind": "mostaql_business_filter"
-  },
-  {
-    "platform": "mostaql",
-    "title": "1268209 محامي خبرة في القضاء السعودي",
-    "description": "السلام عليكم احتاج محامي له معرفه بالقضاء السعودي.... للاستشارة فقط حالة المشروع مفتوح تاريخ النشر منذ 6 أيام",
-    "source_url": "https://mostaql.com/project/1268209-%D9%85%D8%AD%D8%A7%D9%85%D9%8A-%D8%AE%D8%A8%D8%B1%D8%A9-%D9%81%D9%8A-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A1-%D8%A7%D9%84%D8%B3%D8%B9%D9%88%D8%AF%D9%8A",
-    "discovery_score": 89,
-    "live": true,
-    "source_filter": "https://mostaql.com/projects/business",
-    "source_kind": "mostaql_business_filter"
   }
 ]
