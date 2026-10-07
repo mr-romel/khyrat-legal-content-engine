@@ -139,3 +139,6 @@ Final publishing verification
 
 
 EMERGENCY_RUN_NOW
+
+
+EMERGENCY_RUN_NOW image + blogger verification
