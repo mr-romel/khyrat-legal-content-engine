@@ -599,35 +599,83 @@ def build_fast_fallback_reel(
     output_video: Path,
     duration_seconds: int = 56,
 ) -> None:
-    """Build a deterministic review Reel without MoneyPrinterTurbo."""
+    """Deterministic slideshow fallback whose video duration follows the narration."""
     if len(scenes) < 4:
         raise RuntimeError("Fast Reel fallback requires at least 4 scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
+
+    audio_probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    audio_duration = float(audio_probe.stdout.strip() or "0")
+    if audio_duration < 45 or audio_duration > 90:
+        raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s")
+    target_duration = min(75.0, max(50.0, audio_duration))
     selected = scenes[:8]
-    per_scene = max(4.0, duration_seconds / len(selected))
-    concat_file = output_video.parent / "fast_concat.txt"
-    lines = []
-    for scene in selected:
-        path = str(scene.resolve()).replace("'", "'\\\\''")
-        lines.append("file '" + path + "'")
-        lines.append(f"duration {per_scene:.3f}")
-    lines.append("file '" + str(selected[-1].resolve()).replace("'", "'\\\\''") + "'")
-    concat_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", str(concat_file),
-        "-i", str(audio_path),
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p",
-        "-t", str(duration_seconds),
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
-        str(output_video),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=240, check=False)
+    per_scene = target_duration / len(selected)
+    clips_dir = output_video.parent / "fast_clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    clip_paths: list[Path] = []
+
+    for idx, scene in enumerate(selected, start=1):
+        clip = clips_dir / f"scene_{idx:02d}.mp4"
+        vf = (
+            "scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920,format=yuv420p,"
+            "zoompan=z='min(zoom+0.0008,1.03)':d=1:s=1080x1920:fps=30"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1", "-i", str(scene),
+            "-t", f"{per_scene:.3f}",
+            "-vf", vf,
+            "-an",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            str(clip),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
+        if result.returncode != 0 or not clip.is_file():
+            raise RuntimeError("Fast Reel scene render failed: " + (result.stderr or result.stdout)[-3000:])
+        clip_paths.append(clip)
+
+    concat_file = clips_dir / "concat.txt"
+    concat_file.write_text(
+        "\n".join(f"file '{p.resolve()}'" for p in clip_paths) + "\n",
+        encoding="utf-8",
+    )
+    silent_video = clips_dir / "silent.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+         "-c", "copy", "-movflags", "+faststart", str(silent_video)],
+        capture_output=True, text=True, timeout=240, check=False,
+    )
+    if result.returncode != 0 or not silent_video.is_file():
+        raise RuntimeError("Fast Reel concat failed: " + (result.stderr or result.stdout)[-3000:])
+
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio_path),
+         "-map", "0:v:0", "-map", "1:a:0",
+         "-t", f"{target_duration:.3f}",
+         "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+         "-shortest", "-movflags", "+faststart", str(output_video)],
+        capture_output=True, text=True, timeout=240, check=False,
+    )
     if result.returncode != 0 or not output_video.is_file():
-        raise RuntimeError("Fast Reel fallback failed: " + (result.stderr or result.stdout)[-4000:])
-    print(f"Fast Reel fallback created: {output_video}")
+        raise RuntimeError("Fast Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
+
+    print(f"Fast Reel fallback created: {output_video} duration_target={target_duration:.1f}s audio={audio_duration:.1f}s")
+
+
+def _probe_video_duration(video_path: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    return float(result.stdout.strip() or "0")
 
 
 def main() -> int:
@@ -910,51 +958,57 @@ def main() -> int:
                     if task_videos:
                         raw_video = output_dir / "mpt-base.mp4"
                         shutil.copy2(task_videos[-1], raw_video)
-                        slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                        slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
-                        slogan_ready = False
-                        # The brand sign-off is intentionally short (about 3–8s).
-                        # generate_gemini_tts_audio validates long narration, so do
-                        # not route a short slogan through that 45–80s gate.
-                        try:
-                            clean_slogan = prepare_tts_script(slogan_text)
-                            generate_gemini_tts_audio_unbounded(
-                                cfg["gemini_api_key"],
-                                clean_slogan,
-                                [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
-                                slogan_audio,
-                                min_seconds=1.0,
-                                max_seconds=10.0,
-                            )
-                            slogan_ready = slogan_audio.is_file()
-                            print(f"Reel slogan: Gemini ready={slogan_ready}")
-                        except Exception as slogan_gemini_exc:
-                            print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
+                        mpt_duration = _probe_video_duration(raw_video)
+                        print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
+                        if mpt_duration < 45 or mpt_duration > 80:
+                            print(f"REEL_STAGE mpt_rejected_duration={mpt_duration:.1f}s")
+                            raw_video.unlink(missing_ok=True)
+                        else:
+                                slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+                            slogan_text = "وفي النهاية خليك دايما فاكر ... اسأل محمود"
+                            slogan_ready = False
+                            # The brand sign-off is intentionally short (about 3–8s).
+                            # generate_gemini_tts_audio validates long narration, so do
+                            # not route a short slogan through that 45–80s gate.
                             try:
-                                generate_local_short_neural_tts(
-                                clean_slogan if 'clean_slogan' in locals() else slogan_text,
-                                slogan_audio,
-                            )
+                                clean_slogan = prepare_tts_script(slogan_text)
+                                generate_gemini_tts_audio_unbounded(
+                                    cfg["gemini_api_key"],
+                                    clean_slogan,
+                                    [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}],
+                                    slogan_audio,
+                                    min_seconds=1.0,
+                                    max_seconds=10.0,
+                                )
                                 slogan_ready = slogan_audio.is_file()
-                            except Exception as slogan_local_exc:
-                                print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
-                                slogan_ready = False
-                        try:
-                            add_motion_graphics_layer(
-                                raw_video,
-                                output_video,
-                                "",
-                                os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
-                                slogan_audio if slogan_ready else None,
-                            )
-                            print("REEL_STAGE branding=ok")
-                        except Exception as branding_exc:
-                            # A finished MPT video is already a valid review asset.
-                            # Never lose a generated Reel because the optional end-card layer failed.
-                            print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
-                            shutil.copy2(raw_video, output_video)
-                        raw_video.unlink(missing_ok=True)
-                        mpt_ok = output_video.is_file()
+                                print(f"Reel slogan: Gemini ready={slogan_ready}")
+                            except Exception as slogan_gemini_exc:
+                                print(f"Reel slogan: Gemini unavailable; using local Egyptian TTS: {slogan_gemini_exc}")
+                                try:
+                                    generate_local_short_neural_tts(
+                                    clean_slogan if 'clean_slogan' in locals() else slogan_text,
+                                    slogan_audio,
+                                )
+                                    slogan_ready = slogan_audio.is_file()
+                                except Exception as slogan_local_exc:
+                                    print(f"Reel slogan disabled; continuing without slogan audio: {slogan_local_exc}")
+                                    slogan_ready = False
+                            try:
+                                add_motion_graphics_layer(
+                                    raw_video,
+                                    output_video,
+                                    "",
+                                    os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"),
+                                    slogan_audio if slogan_ready else None,
+                                )
+                                print("REEL_STAGE branding=ok")
+                            except Exception as branding_exc:
+                                # A finished MPT video is already a valid review asset.
+                                # Never lose a generated Reel because the optional end-card layer failed.
+                                print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
+                                shutil.copy2(raw_video, output_video)
+                            raw_video.unlink(missing_ok=True)
+                            mpt_ok = output_video.is_file()
                 if not mpt_ok:
                     print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
             except Exception as mpt_exc:
