@@ -9,3 +9,4 @@ pytest>=8.0.0,<9.0.0
 text2tashkeel>=0.1.0
 arabic-reshaper>=3.0.0
 python-bidi>=0.4.2
+edge-tts>=7.0.0,<8
