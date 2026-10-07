@@ -71,17 +71,46 @@ def _click_current_setting_value(page, current_value: str) -> bool:
     current_value = _clean(current_value)
     if not current_value:
         return False
-    loc = page.get_by_text(re.compile(rf"^{re.escape(current_value)}$", re.I))
+
+    try:
+        exact_count = page.locator("body").evaluate(
+            """(body, value) => Array.from(body.querySelectorAll('*'))
+                .filter(e => (e.textContent || '').trim() === value).length""",
+            current_value,
+        )
+        print(f"Blogger current value DOM matches for {current_value!r}: {exact_count}")
+        clicked = page.locator("body").evaluate(
+            """(body, value) => {
+                const els = Array.from(body.querySelectorAll('*'))
+                    .filter(e => (e.textContent || '').trim() === value);
+                if (!els.length) return false;
+                const el = els.sort((a,b) => a.children.length - b.children.length)[0];
+                el.click();
+                const parent = el.parentElement;
+                if (parent) parent.click();
+                return true;
+            }""",
+            current_value,
+        )
+        if clicked:
+            page.wait_for_timeout(700)
+            return True
+    except Exception as exc:
+        print(f"Blogger DOM click failed for {current_value!r}: {exc}")
+
+    loc = page.get_by_text(re.compile(re.escape(current_value), re.I))
+    print(f"Blogger fallback text matches for {current_value!r}: {loc.count()}")
     for i in range(min(loc.count(), 10)):
         candidate = loc.nth(i)
         try:
-            if candidate.is_visible() and candidate.is_enabled():
-                candidate.click()
+            if candidate.is_visible():
+                candidate.click(force=True)
                 page.wait_for_timeout(700)
                 return True
         except Exception:
             continue
     return False
+
 
 
 def _edit_current_setting(page, section_label: str, next_label: str, value: str) -> bool:
