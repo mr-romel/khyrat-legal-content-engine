@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import requests
 
 CORE_HASHTAGS = ["#قانون", "#محامي", "#استشارات_قانونية", "#قانون_مصري"]
 
@@ -82,14 +83,73 @@ HASHTAG_RE = re.compile(
 )
 
 
+GOOGLE_SUGGEST_URL = "https://suggestqueries.google.com/complete/search"
+
+
+def _google_suggest(query: str) -> list[str]:
+    try:
+        response = requests.get(
+            GOOGLE_SUGGEST_URL,
+            params={"client": "firefox", "q": query, "hl": "ar", "gl": "eg"},
+            headers={"User-Agent": "Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        suggestions = payload[1] if isinstance(payload, list) and len(payload) > 1 else []
+        return [str(x).strip() for x in suggestions if str(x).strip()]
+    except Exception as exc:
+        print(f"Google Suggest hashtags unavailable for {query!r}: {exc}")
+        return []
+
+
+def _hashtag_from_phrase(phrase: str) -> str:
+    words = re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", str(phrase or ""))
+    words = [w for w in words if len(w) >= 2]
+    if not words:
+        return ""
+    return "#" + "_".join(words[:5])
+
+
 def build_hashtags(topic: str, *, max_tags: int = 8) -> list[str]:
     text = str(topic or "").strip().casefold()
-    tags: list[str] = list(CORE_HASHTAGS)
-    for keyword, tag in KEYWORD_HASHTAGS.items():
-        if keyword.casefold() in text and tag not in tags:
-            tags.append(tag)
-        if len(tags) >= max_tags:
+    tags: list[str] = []
+    seen: set[str] = set()
+
+    # Use Google autocomplete as a search-language signal, not as a ranking trick.
+    # This captures the phrases people actually type around the topic in Egypt.
+    queries = [text, f"{text} قانون", f"{text} مصر", f"ماذا أفعل إذا {text}"]
+    suggestions: list[str] = []
+    for query in queries:
+        suggestions.extend(_google_suggest(query))
+
+    for suggestion in suggestions:
+        tag = _hashtag_from_phrase(suggestion)
+        if not tag or tag.casefold() in seen:
+            continue
+        # Keep tags tightly related to the actual topic and avoid sentence-like tags.
+        words = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", suggestion.casefold()))
+        topic_words = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", text))
+        if topic_words and not (words & topic_words) and not any(k in suggestion for k in ("قانون", "حقوق", "محكمة", "دعوى", "عقد", "شركة", "عمل", "إيجار")):
+            continue
+        seen.add(tag.casefold())
+        tags.append(tag)
+        if len(tags) >= max_tags - len(CORE_HASHTAGS):
             break
+
+    # Stable legal brand/category tags are added after the search-derived terms.
+    for tag in CORE_HASHTAGS:
+        if tag.casefold() not in seen and len(tags) < max_tags:
+            seen.add(tag.casefold())
+            tags.append(tag)
+
+    # Deterministic keyword fallback when Google Suggest is unavailable.
+    if len(tags) < min(max_tags, 6):
+        for keyword, tag in KEYWORD_HASHTAGS.items():
+            if keyword.casefold() in text and tag.casefold() not in seen and len(tags) < max_tags:
+                seen.add(tag.casefold())
+                tags.append(tag)
+
     return tags[:max_tags]
 
 
