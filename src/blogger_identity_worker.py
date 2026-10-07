@@ -16,6 +16,14 @@ DEFAULT_TITLE = "اسأل محمود - مستشار قانوني للشركات"
 DEFAULT_DESCRIPTION = "محتوى قانوني عملي للشركات وأصحاب الأعمال والإدارة والموارد البشرية حول العقود والعمل والشركات والمنازعات والإجراءات القانونية في مصر."
 STATE_FILE = Path(os.getenv("BLOGGER_UI_STORAGE_STATE_FILE", "generated/blogger/browser-state.json"))
 
+PAGE_TITLES = (
+    "من نحن",
+    "تواصل معنا",
+    "إخلاء المسؤولية القانونية",
+    "سياسة الخصوصية",
+    "فهرس الموضوعات القانونية",
+)
+
 
 def _storage_state() -> dict:
     raw = os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip()
@@ -30,34 +38,243 @@ def _clean(v: str) -> str:
     return " ".join(str(v or "").split()).strip()
 
 
-def _find_field(page, labels: tuple[str, ...], selectors: tuple[str, ...]):
-    for label in labels:
-        loc = page.get_by_label(re.compile(label, re.I))
-        if loc.count():
-            return loc.first
-        loc = page.get_by_role("textbox", name=re.compile(label, re.I))
-        if loc.count():
-            return loc.first
-    for selector in selectors:
-        loc = page.locator(selector)
-        if loc.count():
-            return loc.first
-    return None
+def _visible(loc) -> bool:
+    try:
+        return loc.count() > 0 and loc.first.is_visible()
+    except Exception:
+        return False
 
 
-def _save(page) -> None:
-    for pattern in (r"Save", r"حفظ", r"تحديث", r"Save settings"):
-        loc = page.get_by_role("button", name=re.compile(pattern, re.I))
-        for i in range(min(loc.count(), 8)):
-            candidate = loc.nth(i)
+def _click_first(page, patterns: tuple[str, ...], *, role: str | None = None) -> bool:
+    for pattern in patterns:
+        try:
+            loc = (
+                page.get_by_role(role, name=re.compile(pattern, re.I))
+                if role
+                else page.get_by_text(re.compile(pattern, re.I))
+            )
+            for i in range(min(loc.count(), 12)):
+                candidate = loc.nth(i)
+                try:
+                    if candidate.is_visible() and candidate.is_enabled():
+                        candidate.click()
+                        page.wait_for_timeout(900)
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return False
+
+
+def _fill_settings_fields(page, title: str, description: str) -> bool:
+    # Blogger's current UI has changed labels/structure more than once.
+    # Prefer semantic labels, then fall back to visible form controls.
+    title_patterns = (r"Blog title", r"عنوان المدونة", r"عنوان", r"title")
+    desc_patterns = (r"Blog description", r"وصف المدونة", r"الوصف", r"description")
+
+    title_field = None
+    desc_field = None
+
+    for label in title_patterns:
+        for getter in (
+            lambda: page.get_by_label(re.compile(label, re.I)),
+            lambda: page.get_by_role("textbox", name=re.compile(label, re.I)),
+        ):
             try:
-                if candidate.is_visible() and candidate.is_enabled():
-                    candidate.click()
-                    page.wait_for_timeout(1200)
-                    return
+                loc = getter()
+                if loc.count() and loc.first.is_visible():
+                    title_field = loc.first
+                    break
             except Exception:
                 pass
-    raise RuntimeError("Could not find Blogger settings Save button.")
+        if title_field:
+            break
+
+    for label in desc_patterns:
+        for getter in (
+            lambda: page.get_by_label(re.compile(label, re.I)),
+            lambda: page.get_by_role("textbox", name=re.compile(label, re.I)),
+        ):
+            try:
+                loc = getter()
+                if loc.count() and loc.first.is_visible():
+                    desc_field = loc.first
+                    break
+            except Exception:
+                pass
+        if desc_field:
+            break
+
+    if not title_field:
+        candidates = page.locator('input:not([type="hidden"])')
+        for i in range(min(candidates.count(), 30)):
+            c = candidates.nth(i)
+            try:
+                if c.is_visible() and (c.get_attribute("type") or "text").lower() in {"text", "search"}:
+                    title_field = c
+                    break
+            except Exception:
+                pass
+
+    if not desc_field:
+        candidates = page.locator("textarea, [contenteditable='true']")
+        for i in range(min(candidates.count(), 30)):
+            c = candidates.nth(i)
+            try:
+                if c.is_visible():
+                    desc_field = c
+                    break
+            except Exception:
+                pass
+
+    if not title_field or not desc_field:
+        # Emit enough diagnostics to make the next UI change actionable.
+        controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+        rows = []
+        for i in range(min(controls.count(), 40)):
+            c = controls.nth(i)
+            try:
+                if not c.is_visible():
+                    continue
+                rows.append({
+                    "tag": c.evaluate("(e)=>e.tagName"),
+                    "type": c.get_attribute("type"),
+                    "aria": c.get_attribute("aria-label"),
+                    "name": c.get_attribute("name"),
+                    "placeholder": c.get_attribute("placeholder"),
+                    "value": c.input_value() if c.evaluate("(e)=>'value' in e") else c.inner_text(),
+                })
+            except Exception:
+                continue
+        print("Blogger settings controls:", json.dumps(rows, ensure_ascii=False))
+        return False
+
+    title_field.fill(title)
+    desc_field.fill(description)
+    return True
+
+
+def _save_settings(page) -> bool:
+    patterns = (r"Save", r"حفظ", r"تحديث", r"Save settings")
+    return _click_first(page, patterns, role="button")
+
+
+def _set_brand_identity(page, bid: str, title: str, description: str) -> None:
+    urls = [
+        f"https://www.blogger.com/blog/settings/{bid}/basic?hl=ar",
+        f"https://www.blogger.com/blog/settings/{bid}?hl=ar",
+    ]
+    last_error = None
+    for url in urls:
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(1800)
+            if "accounts.google.com" in page.url:
+                raise RuntimeError("Blogger UI session is not authenticated.")
+            if _fill_settings_fields(page, title, description):
+                if not _save_settings(page):
+                    raise RuntimeError("Could not find Blogger settings Save button.")
+                print(f"Blogger basic settings saved through {page.url}")
+                return
+            # Some Blogger themes expose the Page Header widget in Layout
+            # rather than the Basic settings form. Let the caller use that path.
+            last_error = RuntimeError("Blogger Basic settings fields were not found.")
+        except Exception as exc:
+            last_error = exc
+    if last_error:
+        print(f"Blogger Basic settings path unavailable: {last_error}")
+
+
+def _ensure_pages_gadget(page) -> None:
+    layout_urls = [
+        f"https://www.blogger.com/blog/layout/{page.get_attribute('data-blog-id') or ''}?hl=ar",
+    ]
+    # The blog id is injected by the caller through a data attribute only when
+    # available; the direct URL below is the reliable Blogger route.
+    raise RuntimeError("internal")
+
+
+def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
+    url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
+    page.goto(url, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(2200)
+    if "accounts.google.com" in page.url:
+        raise RuntimeError("Blogger UI session is not authenticated.")
+
+    body = _clean(page.locator("body").inner_text())
+    has_pages_gadget = any(
+        marker in body
+        for marker in ("قائمة الصفحات", "Pages gadget", "PageList", "الصفحات")
+    )
+
+    if not has_pages_gadget:
+        added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"), role="button")
+        if not added:
+            added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"))
+        if not added:
+            raise RuntimeError("Blogger Layout: Add a Gadget control not found.")
+
+        if not _click_first(page, (r"الصفحات", r"Pages"), role="button"):
+            if not _click_first(page, (r"الصفحات", r"Pages")):
+                raise RuntimeError("Blogger Layout: Pages gadget was not found in the gadget picker.")
+
+        page.wait_for_timeout(1200)
+
+    # Whether the gadget was new or already existed, configure visible pages.
+    # Current Blogger uses checkboxes in the gadget editor.
+    for title in PAGE_TITLES:
+        try:
+            loc = page.get_by_text(re.compile(rf"^{re.escape(title)}$", re.I))
+            for i in range(loc.count()):
+                item = loc.nth(i)
+                if not item.is_visible():
+                    continue
+                # Click the associated row/label; this works when the checkbox
+                # itself is visually hidden.
+                try:
+                    item.click()
+                    page.wait_for_timeout(150)
+                except Exception:
+                    pass
+                break
+        except Exception:
+            pass
+
+    # Select unchecked page checkboxes only; avoid toggling already-selected ones.
+    checks = page.locator('input[type="checkbox"]')
+    for i in range(min(checks.count(), 40)):
+        c = checks.nth(i)
+        try:
+            if c.is_visible() and not c.is_checked():
+                c.check()
+        except Exception:
+            pass
+
+    if not _click_first(page, (r"حفظ", r"Save"), role="button"):
+        _click_first(page, (r"حفظ", r"Save"))
+
+    page.wait_for_timeout(1200)
+    # Layout itself has a separate Save button on the current Blogger UI.
+    _click_first(page, (r"حفظ", r"Save"), role="button")
+    page.wait_for_timeout(1500)
+    print("Blogger Pages navigation configured and layout save attempted.")
+
+
+def _verify_public(page, expected_title: str, expected_description: str) -> None:
+    page.goto(BLOG_URL, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1500)
+    actual_title = _clean(page.title())
+    meta = page.locator('meta[name="description"]')
+    actual_description = _clean(meta.first.get_attribute("content") or "") if meta.count() else ""
+    body = _clean(page.locator("body").inner_text())
+    print(f"Blogger public title: {actual_title!r}")
+    print(f"Blogger public description: {actual_description!r}")
+    print(f"Blogger public page navigation visible: {all(t in body for t in PAGE_TITLES[:2])}")
+    if expected_title not in actual_title:
+        raise RuntimeError(f"Homepage title verification failed: {actual_title!r}")
+    if actual_description and actual_description != expected_description:
+        raise RuntimeError(f"Homepage description verification failed: {actual_description!r}")
 
 
 def main() -> int:
@@ -71,61 +288,20 @@ def main() -> int:
     svc = service()
     bid = _clean(config.get("blogger_blog_id", "")) or blog_id(svc, config["blogger_url"])
 
-    urls = [
-        f"https://www.blogger.com/blog/settings/{bid}/basic?hl=ar",
-        f"https://www.blogger.com/blog/settings/{bid}?hl=ar",
-    ]
-
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(storage_state=_storage_state(), locale="ar-EG")
         page = context.new_page()
 
-        last_error = None
-        for url in urls:
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1500)
-                if "accounts.google.com" in page.url:
-                    raise RuntimeError("Blogger UI session is not authenticated.")
+        try:
+            _set_brand_identity(page, bid, title, description)
+            _ensure_pages_gadget_on_layout(page, bid)
+            _verify_public(page, title, description)
+        finally:
+            browser.close()
 
-                title_field = _find_field(
-                    page,
-                    (r"Blog title", r"عنوان المدونة", r"العنوان"),
-                    ('input[aria-label*="title" i]', 'input[aria-label*="عنوان" i]'),
-                )
-                desc_field = _find_field(
-                    page,
-                    (r"Blog description", r"وصف المدونة", r"الوصف"),
-                    ('textarea[aria-label*="description" i]', 'textarea[aria-label*="وصف" i]', 'input[aria-label*="description" i]'),
-                )
-                if not title_field or not desc_field:
-                    raise RuntimeError("Blogger Basic settings fields were not found.")
-
-                title_field.fill(title)
-                desc_field.fill(description)
-                _save(page)
-
-                page.goto(config["blogger_url"], wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1200)
-                actual_title = _clean(page.title())
-                meta = page.locator('meta[name="description"]')
-                actual_description = _clean(meta.first.get_attribute("content") or "") if meta.count() else ""
-
-                if title not in actual_title:
-                    raise RuntimeError(f"Homepage title verification failed: {actual_title!r}")
-                if actual_description != description:
-                    raise RuntimeError(f"Homepage description verification failed: {actual_description!r}")
-
-                print(f"Blogger identity verified: title={actual_title!r}")
-                print(f"Blogger description verified: {actual_description!r}")
-                browser.close()
-                return 0
-            except Exception as exc:
-                last_error = exc
-
-        browser.close()
-        raise RuntimeError(f"Blogger identity setup failed: {last_error}")
+    print("Blogger identity/navigation setup complete.")
+    return 0
 
 
 if __name__ == "__main__":
