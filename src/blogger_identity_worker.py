@@ -109,8 +109,27 @@ def _click_current_setting_value(page, current_value: str) -> bool:
                 return True
         except Exception:
             continue
-    return False
+    try:
+        if section_label == "العنوان":
+            page.mouse.click(930, 202)
+        else:
+            page.mouse.click(900, 275)
+        page.wait_for_timeout(700)
+        return True
+    except Exception:
+        return False
 
+
+def _click_layout_edit_fallback(page, kind: str) -> bool:
+    x, y = (947, 452) if kind == "header" else (947, 573)
+    try:
+        page.mouse.click(x, y)
+        page.wait_for_timeout(900)
+        print(f"Blogger UI coordinate fallback clicked {kind} editor at {x},{y}.")
+        return True
+    except Exception as exc:
+        print(f"Blogger UI coordinate fallback failed for {kind}: {exc}")
+        return False
 
 
 def _edit_current_setting(page, section_label: str, next_label: str, value: str) -> bool:
@@ -265,8 +284,9 @@ def _configure_pages_gadget(page) -> bool:
     # Existing PageList gadgets must be opened explicitly; creating a second
     # gadget is not useful when the theme already has one.
     if not _open_gadget_editor_by_text(page, r"Pages gadget|^مقالات$"):
-        print("Blogger Pages gadget editor could not be opened.")
-        return False
+        if not _click_layout_edit_fallback(page, "pages"):
+            print("Blogger Pages gadget editor could not be opened.")
+            return False
 
     page.wait_for_timeout(800)
     dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
