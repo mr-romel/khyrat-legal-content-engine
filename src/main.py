@@ -229,10 +229,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     generated_image_path = None
     current_image_brief = image_brief
 
-    # FINAL PROJECT RULE:
-    # Every social publication MUST carry a real editorial image generated from
-    # the complete published post. A stale row asset or text-only publication is
-    # never acceptable. Image generation therefore gates social publication.
+    # Image is preferred and generated from the complete published post, but image generation
+    # is NON-BLOCKING. Social publication must continue even when an image provider is down.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
     image_attempted = str(row.get("Image QA Attempt", "") or "").strip() == "1"
     image_failed = str(row.get("Image QA Status", "") or "").strip().upper() in {"IMAGE_GENERATION_FAILED_BLOCKED", "RETRY_REQUIRED"}
@@ -274,7 +272,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             })
             print("Image generated exactly once from the complete published post and locked for this row.")
         except ImageGenerationError as image_exc:
-            print(f"Image generation failed: social publication is blocked until a real image exists: {image_exc}")
+            print(f"Image generation failed; social publication will continue without an image: {image_exc}")
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Image QA Attempt": "1",
                 "Image QA Status": "IMAGE_GENERATION_FAILED_BLOCKED",
@@ -314,7 +312,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     "وقت آخر تشغيل": current.isoformat(),
                 })
             except ImageGenerationError as retry_exc:
-                raise RuntimeError("لا يمكن نشر المنشور بدون صورة مرتبطة بالموضوع: " + str(retry_exc)) from retry_exc
+                print(f"Image retry failed; continuing social publication as text-only: {retry_exc}")
         else:
             generated_image_path = image_path
         print("Image asset ready for publication: " + str(image_path))
