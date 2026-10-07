@@ -418,6 +418,52 @@ def _smart_main() -> None:
     except Exception as planner_exc:
         print(f"Monthly planner unavailable; preserving publishing flow: {planner_exc}")
     rows = [row_to_dict(row) for row in values[1:]]
+
+    # Repair an impossible state left by an interrupted/legacy run:
+    # a today's row marked PUBLISHED without either real social post ID is not
+    # a successful publication. Reset it to READY so the normal publisher can
+    # create the post exactly once. A published row with a bad/missing image is
+    # instead routed through the existing image-repair path.
+    state_repaired = False
+    for row_number, row in enumerate(rows, start=2):
+        try:
+            if parse_date(row.get("تاريخ النشر", "")) != current.date():
+                continue
+        except Exception:
+            continue
+        status = str(row.get("الحالة", "")).strip().upper()
+        if status != "PUBLISHED":
+            continue
+        fb_id = str(row.get("Facebook Post ID", "") or "").strip()
+        li_id = str(row.get("LinkedIn Post ID", "") or "").strip()
+        if not fb_id and not li_id:
+            print(f"Publication state repair: row={row_number} ID={row.get('ID','')} is PUBLISHED with no Facebook/LinkedIn post ID; resetting to READY.")
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "READY",
+                "Facebook Status": "",
+                "Facebook Post ID": "",
+                "LinkedIn Status": "",
+                "LinkedIn Post ID": "",
+                "وقت آخر تشغيل": "",
+                "آخر خطأ": "Repaired invalid PUBLISHED state: no real social post ID existed.",
+            })
+            row["الحالة"] = "READY"
+            row["Facebook Status"] = ""
+            row["Facebook Post ID"] = ""
+            row["LinkedIn Status"] = ""
+            row["LinkedIn Post ID"] = ""
+            state_repaired = True
+        elif production_main._is_bad_published_image(row):
+            print(f"Publication image repair queued: row={row_number} ID={row.get('ID','')} has published social IDs but invalid/missing image state.")
+            # Keep the row PUBLISHED; process_row has a dedicated, duplicate-safe
+            # replacement path that deletes the old social posts only after a
+            # new topic-matched image has been generated.
+            state_repaired = True
+
+    if state_repaired:
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+        rows = [row_to_dict(row) for row in values[1:]]
+
     recovered = _recover_stale_processing_rows(
         service=service,
         spreadsheet_id=config["sheet_id"],
@@ -429,6 +475,20 @@ def _smart_main() -> None:
         values = get_values(service, config["sheet_id"], config["sheet_range"])
         rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    if not candidates:
+        # A published row with a known bad image must still enter process_row so
+        # the existing image-repair path can replace the image without changing
+        # the published text or creating an extra publication.
+        image_repairs = [
+            (i, r) for i, r in enumerate(rows, start=2)
+            if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+            and _row_is_today(r, current.date())
+            and production_main._is_bad_published_image(r)
+            and (str(r.get("Facebook Post ID", "")).strip() or str(r.get("LinkedIn Post ID", "")).strip())
+        ]
+        if image_repairs:
+            candidates = [image_repairs[-1]]
+            print(f"Today's published image repair selected: row={candidates[0][0]}.")
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
     reel_recovery_row = None
     if not candidates and force_due:
