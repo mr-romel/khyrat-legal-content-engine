@@ -119,6 +119,56 @@ def prepare_tts_script(text: str) -> str:
     return out
 
 
+def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
+    """High-quality Arabic fallback using the existing Google service account."""
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+    credentials.refresh(Request())
+    if not credentials.token:
+        raise RuntimeError("Google Cloud TTS access token was not obtained.")
+
+    clean = prepare_tts_script(script)
+    payload = {
+        "input": {"text": clean},
+        "voice": {
+            "languageCode": os.getenv("GOOGLE_TTS_LANGUAGE", "ar-XA"),
+            "name": os.getenv("GOOGLE_TTS_VOICE", "ar-XA-Wavenet-D"),
+        },
+        "audioConfig": {
+            "audioEncoding": "LINEAR16",
+            "speakingRate": float(os.getenv("GOOGLE_TTS_SPEAKING_RATE", "0.96")),
+            "pitch": float(os.getenv("GOOGLE_TTS_PITCH", "0.0")),
+        },
+    }
+    req = urllib.request.Request(
+        "https://texttospeech.googleapis.com/v1/text:synthesize",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    encoded = str(data.get("audioContent") or "")
+    if not encoded:
+        raise RuntimeError(f"Google Cloud TTS returned no audio: {str(data)[:1200]}")
+    output_path.write_bytes(base64.b64decode(encoded))
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip() or "0")
+    if duration < 45 or duration > 90:
+        raise RuntimeError(f"Google Cloud TTS duration outside 45-90s: {duration:.1f}s")
+    print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
+    return output_path
+
+
 def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
     """Lightweight local Arabic fallback. Gemini remains the primary voice."""
     clean = prepare_tts_script(script)
@@ -748,17 +798,23 @@ def main() -> int:
 
         print("REEL_STAGE tts=start")
         tts_audio = output_dir / "voice-gemini.wav"
-        # Never send a low-quality robotic local voice to the reviewer.
-        # Gemini TTS is the approved Reel voice. If it is unavailable/quota-limited,
-        # fail before video delivery instead of silently substituting espeak.
+        # Never use espeak as a production voice. Gemini is primary; if its
+        # quota is exhausted, use the existing Google service account with Cloud
+        # Text-to-Speech. If both are unavailable, do not send a bad Reel.
         try:
             generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
             print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
-            raise RuntimeError(
-                "Reel voice generation unavailable; refusing to send robotic/local TTS. "
-                f"Gemini TTS error: {gemini_tts_exc}"
-            ) from gemini_tts_exc
+            print(f"REEL_STAGE tts=gemini_unavailable reason={gemini_tts_exc}")
+            tts_audio = output_dir / "voice-google-cloud.wav"
+            try:
+                generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
+                print("REEL_STAGE tts=google_cloud_ok")
+            except Exception as cloud_tts_exc:
+                raise RuntimeError(
+                    "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
+                    f"Gemini={gemini_tts_exc}; Google Cloud TTS={cloud_tts_exc}"
+                ) from cloud_tts_exc
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
