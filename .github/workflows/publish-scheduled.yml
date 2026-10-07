@@ -26,7 +26,7 @@ env:
 
 jobs:
   publish:
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' }}
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -75,7 +75,7 @@ jobs:
           GEMINI_FALLBACK_ATTEMPTS: "1"
           CLOUDFLARE_IMAGE_STEPS: "25"
           CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
-          KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_RUN_NOW' && 'true' || 'false' }}
+          KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR') && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
       - name: Lock Reel source context for downstream worker
@@ -155,6 +155,7 @@ jobs:
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
+          REEL_FORCE_REGENERATE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src .reel-venv/bin/python src/reel_pipeline.py
