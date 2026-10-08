@@ -227,33 +227,14 @@ def _media_duration(path: Path) -> float:
     return float(probe.stdout.strip() or "0")
 
 def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Path:
+    """QA only. Never speed up natural Egyptian narration."""
     duration = _media_duration(path)
-    if duration < 45.0:
-        raise RuntimeError(f"Reel narration is too short: {duration:.1f}s")
-    if duration <= 65.0:
-        return path
-    factor = duration / target_seconds
-    if factor > 2.7:
-        raise RuntimeError(f"Reel narration is excessively long: {duration:.1f}s")
-    filters = []
-    remaining = factor
-    while remaining > 2.0:
-        filters.append("atempo=2.0")
-        remaining /= 2.0
-    filters.append(f"atempo={remaining:.6f}")
-    normalized = path.with_name(path.stem + "-reel-fit.wav")
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(path), "-filter:a", ",".join(filters),
-         "-ar", "44100", "-ac", "2", str(normalized)],
-        check=True, timeout=180, capture_output=True, text=True,
-    )
-    final_duration = _media_duration(normalized)
-    if not 55.0 <= final_duration <= 65.0:
-        raise RuntimeError(f"Fitted Reel narration duration invalid: {final_duration:.1f}s")
-    shutil.move(str(normalized), str(path))
-    print(f"Reel narration fitted: {duration:.1f}s -> {final_duration:.1f}s")
+    if duration < 48.0:
+        raise RuntimeError("Reel narration is too short: %.1fs; regenerate a fuller script." % duration)
+    if duration > 72.0:
+        raise RuntimeError("Reel narration is too long: %.1fs; regenerate a shorter script. No time-compression is allowed." % duration)
+    print("Reel narration QA passed without speed change: duration=%.1fs" % duration)
     return path
-
 
 def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path:
     duration = _media_duration(path)
