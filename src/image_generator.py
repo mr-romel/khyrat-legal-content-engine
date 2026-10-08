@@ -108,8 +108,16 @@ def brand_published_image(image_path: str) -> str:
         width, height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
 
-        bold_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
-        bold = ImageFont.truetype(bold_path, max(28, int(width * 0.038)))
+        font_candidates = [
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ]
+        bold_path = next((p for p in font_candidates if Path(p).exists()), None)
+        if bold_path:
+            bold = ImageFont.truetype(bold_path, max(28, int(width * 0.038)))
+        else:
+            bold = ImageFont.load_default()
 
         strip_h = max(92, int(height * 0.115))
         y0 = height - strip_h
@@ -136,7 +144,8 @@ def brand_published_image(image_path: str) -> str:
         bbox = draw.textbbox((0, 0), brand, font=bold)
         tw = bbox[2] - bbox[0]
         if cx + radius + 18 + tw > width - 18:
-            bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
+            if bold_path:
+                bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
             bbox = draw.textbbox((0, 0), brand, font=bold)
             tw = bbox[2] - bbox[0]
 
@@ -218,6 +227,21 @@ def create_legal_image(
         raise ImageGenerationError("Published post context is required for contextual image generation.")
 
     # Primary provider: Cloudflare. If it fails, use Gemini native image generation.
+    # Build the provider prompt once. The previous version referenced an undefined
+    # local variable named "prompt", which forced every provider into the fallback path.
+    prompt = (
+        "Create a realistic editorial photograph for a professional Egyptian legal-business post. "
+        f"Topic: {topic}. Scene brief: {image_brief}. "
+        f"Post context: {post_context[:1800]}. "
+        "Show a concrete real-world business/legal scene with natural people, documents, office or courtroom context as appropriate. "
+        "No readable text, no watermarks, no invented logos, no UI mockups, no infographic layout. "
+        "Portrait 4:5 composition, professional photographic style, visually tied to the actual post."
+    )
+    negative_prompt = (
+        "text, captions, subtitles, watermark, logo, infographic, poster, UI, chart, distorted hands, "
+        "extra fingers, duplicate people, blurry faces, fantasy scene, cartoon, low quality"
+    )
+
     def _generate_with_gemini() -> bytes:
         if not gemini_key:
             raise ImageGenerationError("GEMINI_API_KEY is missing for image fallback.")
