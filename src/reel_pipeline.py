@@ -231,18 +231,18 @@ def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Pat
     duration = _media_duration(path)
     if duration < 48.0:
         raise RuntimeError("Reel narration is too short: %.1fs; regenerate a fuller script." % duration)
-    if duration > 72.0:
-        raise RuntimeError("Reel narration is too long: %.1fs; regenerate a shorter script. No time-compression is allowed." % duration)
+    if duration > 120.0:
+        raise RuntimeError("Reel narration is too long: %.1fs; regenerate a shorter script. Maximum natural narration is 120s." % duration)
     print("Reel narration QA passed without speed change: duration=%.1fs" % duration)
     return path
 
-def _normalize_reel_audio_duration(path: Path, target_max: float = 72.0) -> Path:
+def _normalize_reel_audio_duration(path: Path, target_max: float = 120.0) -> Path:
     """Keep Egyptian neural speech at natural speed; never use atempo compression."""
     duration = _media_duration(path)
     if duration < 45.0:
         raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs" % duration)
     if duration > target_max:
-        raise RuntimeError("Egyptian Neural TTS audio is too long: %.1fs; regenerate instead of speeding it up." % duration)
+        raise RuntimeError("Egyptian Neural TTS audio is too long: %.1fs; regenerate a shorter script." % duration)
     print("Egyptian Neural TTS ready without speed change: duration=%.1fs" % duration)
     return path
 
@@ -526,7 +526,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. Target 55-75 seconds and 125-145 Arabic words. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. Target 70-105 seconds and 160-220 Arabic words, with a hard natural-speech ceiling of 120 seconds. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -1073,8 +1073,8 @@ def main() -> int:
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
         final_duration = _media_duration(video_path)
-        if final_duration < 50.0 or final_duration > 78.0:
-            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 50–78s with natural speech pacing.")
+        if final_duration < 50.0 or final_duration > 120.0:
+            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 50–120s with natural speech pacing.")
         audio_probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(video_path)], capture_output=True, text=True, check=False, timeout=30)
         if not audio_probe.stdout.strip():
             raise RuntimeError("Reel delivery blocked: final MP4 has no audio stream.")
