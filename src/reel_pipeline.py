@@ -629,17 +629,17 @@ def build_fast_fallback_reel(
     scenes: list[Path],
     audio_path: Path,
     output_video: Path,
-    duration_seconds: int = 60,
+    duration_seconds: int = 120,
 ) -> None:
     """Multi-scene animated fallback; never render one static card for the whole Reel."""
     if len(scenes) < 6:
         raise RuntimeError("Fast Reel fallback requires at least 6 topic-matched scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
     audio_duration = _media_duration(audio_path)
-    if not 45.0 <= audio_duration <= 90.0:
-        raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s")
+    if not 45.0 <= audio_duration <= 120.0:
+        raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected 45–120s")
 
-    base_duration = min(70.0, max(50.0, audio_duration))
+    base_duration = min(120.0, max(50.0, audio_duration))
     count = min(8, len(scenes))
     per_scene = base_duration / count
     # Normalize every still image into a short MP4 clip first. This avoids
