@@ -170,6 +170,7 @@ def create_legal_image(
     image_brief: str,
     output_path: str,
     post_context: str = "",
+    visual_description: str = "",
     api_key: str | None = None,
     cloudflare_account_id: str | None = None,
     cloudflare_api_token: str | None = None,
@@ -184,32 +185,28 @@ def create_legal_image(
     account_id = (cloudflare_account_id or "").strip()
     api_token = (cloudflare_api_token or "").strip()
     gemini_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
-    post_context = " ".join(str(post_context or "").split()).strip()
+    visual_description = " ".join(str(visual_description or "").split()).strip()
+    if not visual_description:
+        raise ImageGenerationError("A post-derived visual description is required.")
 
-    if not post_context:
-        raise ImageGenerationError("Complete post content is required for image generation.")
-
-    # The complete post is the source of truth for the visual prompt.
-    # Do not substitute topic/image_brief or reuse an older image.
+    # The visual description is already extracted from the final post.
+    # The image model must not reinterpret the topic or invent a generic legal scene.
     prompt = (
-        "Create a single realistic editorial photograph that visually tells the "
-        "specific story contained in the complete social-media post below. "
-        "Extract the central legal problem, the people involved, their actions, "
-        "the relevant setting, and the practical conflict directly from the post. "
-        "Do not invent a different subject. Prefer a believable Egyptian setting "
-        "when the post context supports it. Use realistic Egyptian people, "
-        "authentic clothing and environments, natural facial expressions, "
-        "professional documentary/editorial photography, natural cinematic light, "
-        "strong visual storytelling, and a clear focal subject. "
-        "Do not use generic lawyers, random courtrooms, scales of justice, law books, "
-        "or office scenes unless the post itself calls for them. "
-        "Do not put any readable text, captions, letters, logos, watermarks, UI, "
-        "infographics, posters, or signage into the image. "
-        "Do not create cartoon, illustration, 3D, fantasy, surreal, or obviously "
-        "AI-styled imagery. Portrait 4:5 composition. "
-        "IMPORTANT: the following complete post is the only content source for the scene:\n\n"
-        f"{post_context}\n\n"
-        "Return only the visual scene as an image; do not render the post text."
+        "Create exactly the single realistic editorial photograph described below. "
+        "The description is derived exclusively from the final social-media post. "
+        "Follow its people, action, setting, and visible evidence literally. "
+        "Do not replace the described event with generic legal stock imagery. "
+        "Prefer a believable Egyptian setting only when the description supports it. "
+        "Use realistic people, authentic environments, natural expressions, "
+        "documentary/editorial photography, natural cinematic light, and one clear focal subject. "
+        "Do not add courtroom imagery, justice scales, law books, lawyer stock scenes, "
+        "or office scenes unless explicitly described below. "
+        "No readable text, captions, letters, numbers, logos, watermarks, UI, "
+        "infographics, posters, or signage. No cartoon, illustration, 3D, fantasy, "
+        "or surreal style. Portrait 4:5 composition.\n\n"
+        "POST-DERIVED VISUAL SCENE:\n"
+        f"{visual_description}\n\n"
+        "Return only the described visual scene as an image."
     )
     negative_prompt = (
         "text, letters, captions, subtitles, watermark, logo, readable signage, "
