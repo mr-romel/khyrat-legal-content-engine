@@ -218,7 +218,9 @@ def delete_post(*, token: str, post_urn: str) -> dict[str, Any]:
         raise LinkedInPublishError("LinkedIn delete requires an access token and post URN.")
     endpoint = f"{LINKEDIN_REST_BASE}/posts/{quote(post_urn, safe='')}"
     try:
-        response = requests.delete(endpoint, headers=_headers(token), timeout=60)
+        headers = _headers(token)
+        headers["X-RestLi-Method"] = "DELETE"
+        response = requests.delete(endpoint, headers=headers, timeout=60)
     except requests.RequestException as exc:
         raise LinkedInPublishError(f"LinkedIn post deletion network error: {exc}") from exc
     if not response.ok:
