@@ -150,3 +150,6 @@ Continuous publishing + Reel TTS/image fallback verification 2026-10-08T11:22+03
 
 
 RUN NOW
+
+
+TTS normalization validation
