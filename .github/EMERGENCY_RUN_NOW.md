@@ -193,3 +193,6 @@ Reel QA: natural voice speed + topic visuals + motion graphics + exact slogan 20
 EMERGENCY_RUN_NOW
 
 Reel 180 seconds QA fix 2026-10-08
+
+
+Emergency republish execution 2026-10-08T1791488435655
