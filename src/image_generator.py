@@ -164,36 +164,6 @@ def brand_published_image(image_path: str) -> str:
 
 
 
-def create_contextual_fallback_image(*, post_context: str, image_brief: str, output_path: str) -> str:
-    """Guaranteed local visual fallback derived from the actual post."""
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    image = Image.new("RGB", (1200, 1500), (18, 25, 38))
-    draw = ImageDraw.Draw(image, "RGBA")
-    regular_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"
-    bold_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
-    regular = ImageFont.truetype(regular_path, 42) if Path(regular_path).exists() else ImageFont.load_default()
-    bold = ImageFont.truetype(bold_path, 66) if Path(bold_path).exists() else regular
-    text = " ".join(str(post_context or "").split()) or " ".join(str(image_brief or "").split())
-    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
-    scene = (sentences[0] if sentences else text[:420])[:420]
-    words = scene.split()
-    lines = [" ".join(words[i:i+8]) for i in range(0, len(words), 8)]
-    draw.rounded_rectangle((70, 70, 1130, 1430), radius=55, fill=(28, 39, 58, 255), outline=(215, 220, 230, 220), width=4)
-    draw.rounded_rectangle((170, 220, 1030, 900), radius=35, fill=(245, 242, 232, 255))
-    draw.rectangle((245, 300, 955, 360), fill=(35, 45, 58, 255))
-    for y in range(430, 790, 80):
-        draw.rounded_rectangle((245, y, 900, y + 18), radius=8, fill=(125, 132, 142, 180))
-    draw.ellipse((430, 770, 770, 1110), fill=(45, 105, 155, 210), outline=(230, 235, 240, 240), width=5)
-    draw.line((600, 1110, 600, 1260), fill=(230, 235, 240, 230), width=10)
-    y = 1180
-    for idx, line in enumerate(lines[:4]):
-        draw.text((600, y), _rtl_text(line), font=bold if idx == 0 else regular, anchor="mm", fill=(245, 245, 245, 255))
-        y += 62
-    image.save(path, quality=94, optimize=True)
-    return str(path)
-
-
 def create_legal_image(
     *,
     topic: str,
@@ -205,41 +175,48 @@ def create_legal_image(
     cloudflare_api_token: str | None = None,
 ) -> str:
     """
-    Generate a real editorial image using Cloudflare Workers AI.
+    Generate ONE fresh editorial image for every post.
 
-    The image engine is intentionally independent from Gemini so that
-    the Core Engine can swap image providers later without redesign.
+    The image prompt is derived directly from the complete published post.
+    No generic topic-only prompt, local placeholder image, or text-only
+    publication fallback is allowed.
     """
-
     account_id = (cloudflare_account_id or "").strip()
     api_token = (cloudflare_api_token or "").strip()
     gemini_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
+    post_context = " ".join(str(post_context or "").split()).strip()
 
-    topic = (topic or "").strip()
-    image_brief = (image_brief or "").strip()
-    post_context = (post_context or "").strip()
-
-    if not topic:
-        raise ImageGenerationError("Topic is empty.")
-    if not image_brief:
-        raise ImageGenerationError("Image brief is empty.")
     if not post_context:
-        raise ImageGenerationError("Published post context is required for contextual image generation.")
+        raise ImageGenerationError("Complete post content is required for image generation.")
 
-    # Primary provider: Cloudflare. If it fails, use Gemini native image generation.
-    # Build the provider prompt once. The previous version referenced an undefined
-    # local variable named "prompt", which forced every provider into the fallback path.
+    # The complete post is the source of truth for the visual prompt.
+    # Do not substitute topic/image_brief or reuse an older image.
     prompt = (
-        "Create a realistic editorial photograph for a professional Egyptian legal-business post. "
-        f"Topic: {topic}. Scene brief: {image_brief}. "
-        f"Post context: {post_context[:1800]}. "
-        "Show a concrete real-world business/legal scene with natural people, documents, office or courtroom context as appropriate. "
-        "No readable text, no watermarks, no invented logos, no UI mockups, no infographic layout. "
-        "Portrait 4:5 composition, professional photographic style, visually tied to the actual post."
+        "Create a single realistic editorial photograph that visually tells the "
+        "specific story contained in the complete social-media post below. "
+        "Extract the central legal problem, the people involved, their actions, "
+        "the relevant setting, and the practical conflict directly from the post. "
+        "Do not invent a different subject. Prefer a believable Egyptian setting "
+        "when the post context supports it. Use realistic Egyptian people, "
+        "authentic clothing and environments, natural facial expressions, "
+        "professional documentary/editorial photography, natural cinematic light, "
+        "strong visual storytelling, and a clear focal subject. "
+        "Do not use generic lawyers, random courtrooms, scales of justice, law books, "
+        "or office scenes unless the post itself calls for them. "
+        "Do not put any readable text, captions, letters, logos, watermarks, UI, "
+        "infographics, posters, or signage into the image. "
+        "Do not create cartoon, illustration, 3D, fantasy, surreal, or obviously "
+        "AI-styled imagery. Portrait 4:5 composition. "
+        "IMPORTANT: the following complete post is the only content source for the scene:\n\n"
+        f"{post_context}\n\n"
+        "Return only the visual scene as an image; do not render the post text."
     )
     negative_prompt = (
-        "text, captions, subtitles, watermark, logo, infographic, poster, UI, chart, distorted hands, "
-        "extra fingers, duplicate people, blurry faces, fantasy scene, cartoon, low quality"
+        "text, letters, captions, subtitles, watermark, logo, readable signage, "
+        "infographic, poster, UI, chart, random courtroom, scales of justice, "
+        "generic lawyer stock photo, generic law books, unrelated office scene, "
+        "distorted hands, extra fingers, duplicate people, blurry faces, "
+        "cartoon, illustration, 3D render, fantasy, surrealism, low quality"
     )
 
     def _generate_with_gemini() -> bytes:
@@ -251,8 +228,12 @@ def create_legal_image(
             client = genai.Client(api_key=gemini_key)
             model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
             response = client.models.generate_content(
-                model=model, contents=[prompt],
-                config=types.GenerateContentConfig(response_modalities=["IMAGE"], response_format={"image": {"aspect_ratio": "4:5"}}),
+                model=model,
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    response_format={"image": {"aspect_ratio": "4:5"}},
+                ),
             )
             for part in getattr(response, "parts", []) or []:
                 image = part.as_image() if hasattr(part, "as_image") else None
@@ -264,9 +245,12 @@ def create_legal_image(
             raise ImageGenerationError("Gemini image response contained no image data.")
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
-    endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id) if account_id and api_token else ""
 
-    # 4:5 portrait. Keep enough diffusion steps for a coherent real-world scene.
+    endpoint = (
+        CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id)
+        if account_id and api_token else ""
+    )
+
     width = 1024
     height = 1280
     try:
@@ -288,19 +272,23 @@ def create_legal_image(
     }
 
     headers = {
-        "Authorization": (
-            f"Bearer {api_token}"
-        ),
+        "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
         "Accept": "image/*",
     }
 
     cloudflare_error = None
+    image_bytes = None
     if not endpoint:
-        cloudflare_error = "Cloudflare credentials unavailable; using Gemini contextual image generation."
+        cloudflare_error = "Cloudflare credentials unavailable."
     else:
         try:
-            response = requests.post(endpoint, headers=headers, json=request_body, timeout=180)
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json=request_body,
+                timeout=180,
+            )
             if response.ok:
                 image_bytes = _extract_image_bytes(response)
             else:
@@ -312,47 +300,31 @@ def create_legal_image(
         except requests.RequestException as exc:
             cloudflare_error = str(exc)
 
-    if cloudflare_error:
-        print(f"Cloudflare image provider unavailable; switching to Gemini contextual image generation: {cloudflare_error}")
+    if image_bytes is None:
+        print(
+            "Cloudflare image generation failed; trying Gemini with the SAME "
+            f"post-derived prompt: {cloudflare_error}"
+        )
         try:
             image_bytes = _generate_with_gemini()
             provider = "GEMINI_IMAGE_GENERATION"
         except Exception as gemini_error:
-            print(f"Gemini image generation failed; using guaranteed contextual local visual: {gemini_error}")
-            return create_contextual_fallback_image(
-                post_context=post_context,
-                image_brief=image_brief,
-                output_path=output_path,
-            )
+            raise ImageGenerationError(
+                "Mandatory image generation failed. "
+                f"Cloudflare={cloudflare_error}; Gemini={gemini_error}"
+            ) from gemini_error
     else:
         provider = "DIRECT_CLOUDFLARE"
 
-    output = Path(
-        output_path
-    )
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(image_bytes)
 
-    output.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    if not output.exists() or output.stat().st_size == 0:
+        raise ImageGenerationError("Generated image file is empty.")
 
-    output.write_bytes(
-        image_bytes
-    )
-
-    if (
-        not output.exists()
-        or output.stat().st_size == 0
-    ):
-        raise ImageGenerationError(
-            "Generated image file is empty."
-        )
-
-    print(f"Editorial image generated successfully: provider={provider} path={output}")
-
-    print(
-        f"Generated image size: "
-        f"{output.stat().st_size} bytes"
-    )
-
+    brand_published_image(str(output))
+    print(f"Fresh post-derived editorial image generated: provider={provider} path={output}")
+    print(f"Generated image size: {output.stat().st_size} bytes")
     return str(output)
+
