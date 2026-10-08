@@ -361,6 +361,91 @@ def _recover_stale_processing_rows(*, service, spreadsheet_id: str, sheet_name: 
     return recovered
 
 
+def _force_republish_today(*, service, config, sheet_name: str, rows: list[dict[str, str]], current) -> tuple[int, dict[str, str]] | None:
+    """Explicit emergency recovery: reopen today's latest social row for a real republish.
+
+    This is only enabled by the emergency workflow flag. Existing platform IDs are
+    deleted first when possible, then the local state is cleared so stale Sheet state
+    cannot suppress a real publication.
+    """
+    if os.getenv("KHYRAT_FORCE_REPUBLISH", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return None
+
+    candidates = []
+    for row_number, row in enumerate(rows, start=2):
+        if parse_date(row.get("تاريخ النشر", "")) != current.date():
+            continue
+        status = str(row.get("الحالة", "")).strip().upper()
+        if status in {"CANCELLED"}:
+            continue
+        if not str(row.get("الموضوع", "")).strip() and not str(row.get("المحتوى", "")).strip():
+            continue
+        candidates.append((row_number, row))
+    if not candidates:
+        print("FORCE_REPUBLISH: no usable row for today.")
+        return None
+
+    row_number, row = candidates[-1]
+    old_fb = str(row.get("Facebook Post ID", "") or "").strip()
+    old_li = str(row.get("LinkedIn Post ID", "") or "").strip()
+    print(f"FORCE_REPUBLISH: reopening row={row_number} ID={row.get('ID', '')} | old_fb={old_fb or '-'} | old_li={old_li or '-'}")
+
+    if old_fb:
+        try:
+            production_main.delete_facebook_post(
+                post_id=old_fb,
+                page_access_token=config["facebook_page_access_token"],
+                graph_version=config["facebook_graph_version"],
+            )
+            print(f"FORCE_REPUBLISH: deleted old Facebook post {old_fb}")
+        except Exception as exc:
+            if "404" not in str(exc):
+                print(f"FORCE_REPUBLISH: Facebook old post could not be deleted; aborting to avoid a duplicate: {exc}")
+                return None
+            print(f"FORCE_REPUBLISH: old Facebook post {old_fb} is already absent.")
+
+    if old_li:
+        try:
+            production_main.delete_linkedin_post(
+                token=config["linkedin_access_token"],
+                post_urn=old_li,
+            )
+            print(f"FORCE_REPUBLISH: deleted old LinkedIn post {old_li}")
+        except Exception as exc:
+            if "404" not in str(exc):
+                print(f"FORCE_REPUBLISH: LinkedIn old post could not be deleted; aborting to avoid a duplicate: {exc}")
+                return None
+            print(f"FORCE_REPUBLISH: old LinkedIn post {old_li} is already absent.")
+
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "الحالة": "READY",
+        "Facebook Status": "",
+        "Facebook Post ID": "",
+        "LinkedIn Status": "",
+        "LinkedIn Post ID": "",
+        "Facebook Comment Status": "",
+        "Facebook Reaction Status": "",
+        "LinkedIn Comment Status": "",
+        "LinkedIn Reaction Status": "",
+        "Reel Status": "",
+        "Reel Script": "",
+        "Reel File": "",
+        "Reel Run ID": "",
+        "Reel Approval": "",
+        "Reel Review": "",
+        "Reel Last Error": "",
+        "آخر خطأ": "Emergency republish: previous social publication state was treated as unverified and reopened.",
+        "وقت آخر تشغيل": current.isoformat(),
+    })
+    row["الحالة"] = "READY"
+    row["Facebook Status"] = ""
+    row["Facebook Post ID"] = ""
+    row["LinkedIn Status"] = ""
+    row["LinkedIn Post ID"] = ""
+    print(f"FORCE_REPUBLISH: row={row_number} reset to READY and will be published now.")
+    return row_number, row
+
+
 REEL_SOURCE_PATH = Path("generated/reel_source.json")
 
 def _write_reel_source_context(*, service, config, sheet_name: str, row_number: int) -> None:
@@ -418,6 +503,17 @@ def _smart_main() -> None:
     except Exception as planner_exc:
         print(f"Monthly planner unavailable; preserving publishing flow: {planner_exc}")
     rows = [row_to_dict(row) for row in values[1:]]
+
+    force_republish_row = _force_republish_today(
+        service=service,
+        config=config,
+        sheet_name=sheet_name,
+        rows=rows,
+        current=current,
+    )
+    if force_republish_row:
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+        rows = [row_to_dict(row) for row in values[1:]]
 
     # Repair an impossible state left by an interrupted/legacy run:
     # a today's row marked PUBLISHED without either real social post ID is not
@@ -486,6 +582,9 @@ def _smart_main() -> None:
         values = get_values(service, config["sheet_id"], config["sheet_range"])
         rows = [row_to_dict(row) for row in values[1:]]
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    if force_republish_row:
+        candidates = [force_republish_row]
+        print(f"FORCE_REPUBLISH: bypassing schedule gate for row {force_republish_row[0]}.")
     if not candidates:
         # A published row with a known bad image must still enter process_row so
         # the existing image-repair path can replace the image without changing
