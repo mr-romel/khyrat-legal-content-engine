@@ -431,7 +431,7 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     from bidi.algorithm import get_display
     rtl = lambda value: get_display(arabic_reshaper.reshape(value))
     draw.text((540, 1220), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font, anchor="mm", fill="white")
-    draw.text((540, 1340), rtl("وفي النهاية خليك دايما فاكر ... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
+    draw.text((540, 1340), rtl("خليك فاكر دايما .... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
     draw.ellipse((455, 1430, 625, 1600), fill=(24,119,242))
     fbfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 125)
     draw.text((540, 1515), "f", font=fbfont, anchor="mm", fill="white")
