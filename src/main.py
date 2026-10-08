@@ -239,8 +239,27 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     )
 
     if reusable_existing:
-        generated_image_path = image_path
-        print(f"Image reuse: preserving existing generated asset {image_path}.")
+        try:
+            # Reused assets must pass the same branding gate as newly generated images.
+            # This repairs assets left on disk by an earlier branding failure.
+            brand_published_image(str(image_path))
+            generated_image_path = image_path
+            image_url = github_raw_url(str(image_path))
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "رابط الصورة": image_url,
+                "Image Mode": "CONTEXTUAL_AI_GENERATION",
+                "Image QA Attempt": "1",
+                "Image QA Status": "REUSED_ASSET_REBRANDED",
+                "Image QA Score": "",
+                "Image QA Issues": "",
+                "المحتوى": post,
+                "وصف الصورة": current_image_brief,
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+            print(f"Image reuse: preserved and rebranded existing generated asset {image_path}.")
+        except Exception as reuse_exc:
+            print(f"Image reuse validation failed; regenerating the asset: {reuse_exc}")
+            reusable_existing = False
     else:
         try:
             create_legal_image(
