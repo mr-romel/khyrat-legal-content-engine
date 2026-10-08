@@ -229,11 +229,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     generated_image_path = None
     current_image_brief = image_brief
 
-    # Image is preferred and generated from the complete published post, but image generation
-    # is NON-BLOCKING. Social publication must continue even when an image provider is down.
+    # Image generation is best-effort and MUST NEVER block social publication.
+    # Every publish attempt gets a contextual image attempt when no usable asset exists.
     existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
-    image_attempted = str(row.get("Image QA Attempt", "") or "").strip() == "1"
-    image_failed = str(row.get("Image QA Status", "") or "").strip().upper() in {"IMAGE_GENERATION_FAILED_BLOCKED", "RETRY_REQUIRED"}
     reusable_existing = (
         "FALLBACK" not in existing_image_mode
         and image_path.is_file()
@@ -242,8 +240,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
 
     if reusable_existing:
         generated_image_path = image_path
-        print(f"Image reuse: preserving existing generated asset {image_path}; no regeneration.")
-    elif not image_attempted or image_failed:
+        print(f"Image reuse: preserving existing generated asset {image_path}.")
+    else:
         try:
             create_legal_image(
                 topic=topic,
@@ -255,13 +253,12 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             )
             if not image_path.is_file() or image_path.stat().st_size == 0:
                 raise ImageGenerationError("Generated image file was empty.")
-
             brand_published_image(str(image_path))
             generated_image_path = image_path
             image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
-                "Image Mode": "DIRECT_CLOUDFLARE",
+                "Image Mode": "DIRECT_CONTEXTUAL_GENERATION",
                 "Image QA Attempt": "1",
                 "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
                 "Image QA Score": "",
@@ -270,53 +267,29 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "وصف الصورة": current_image_brief,
                 "وقت آخر تشغيل": current.isoformat(),
             })
-            print("Image generated exactly once from the complete published post and locked for this row.")
-        except ImageGenerationError as image_exc:
-            print(f"Image generation failed; social publication will continue without an image: {image_exc}")
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image QA Attempt": "1",
-                "Image QA Status": "IMAGE_GENERATION_FAILED_BLOCKED",
-                "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "NONE",
-                "رابط الصورة": "",
-                "وصف الصورة": current_image_brief,
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-    else:
-        if not image_path.is_file() or image_path.stat().st_size == 0:
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Image QA Attempt": "",
-                "Image QA Status": "RETRY_REQUIRED",
-                "Image Mode": "",
-                "رابط الصورة": "",
-                "وقت آخر تشغيل": current.isoformat(),
-            })
+            print("Contextual image generated from the complete published post; publication continues regardless of provider.")
+        except Exception as image_exc:
+            # Do NOT convert image failure into a publication failure.
+            # The same row remains publishable and the next run may retry the image.
+            print(f"Image generation unavailable; continuing social publication without image: {image_exc}")
             try:
-                create_legal_image(
-                    topic=topic,
-                    image_brief=current_image_brief,
-                    post_context=post,
-                    output_path=str(image_path),
-                    cloudflare_account_id=config["cloudflare_account_id"],
-                    cloudflare_api_token=config["cloudflare_api_token"],
-                )
-                brand_published_image(str(image_path))
-                generated_image_path = image_path
                 update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "رابط الصورة": github_raw_url(str(image_path)),
-                    "Image Mode": "DIRECT_CLOUDFLARE",
                     "Image QA Attempt": "1",
-                    "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
-                    "Image QA Issues": "",
+                    "Image QA Status": "IMAGE_GENERATION_RETRYABLE",
+                    "Image QA Issues": str(image_exc)[:1500],
+                    "Image Mode": "NONE",
+                    "رابط الصورة": "",
                     "وصف الصورة": current_image_brief,
                     "وقت آخر تشغيل": current.isoformat(),
                 })
-            except ImageGenerationError as retry_exc:
-                print(f"Image retry failed; continuing social publication as text-only: {retry_exc}")
-        else:
-            generated_image_path = image_path
-        print("Image asset ready for publication: " + str(image_path))
+            except Exception as state_exc:
+                print(f"Image failure state persistence unavailable: {state_exc}")
 
+    image_url = (
+        existing_image_url
+        if reusable_existing
+        else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
+    )
     image_url = (        existing_image_url
         if reusable_existing
         else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
