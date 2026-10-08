@@ -1,0 +1,8 @@
+google-genai>=2.0.0
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+Pillow>=10.0.0
+requests>=2.32.0,<3.0.0
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
+edge-tts>=7.0.0,<8
