@@ -943,6 +943,8 @@ def main() -> int:
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
+            if os.getenv("REEL_USE_MPT", "false").strip().lower() not in {"1", "true", "yes", "on"}:
+                raise RuntimeError("MPT disabled by production default; use animated FFmpeg fallback.")
             subprocess.run(
                 ["git", "clone", "--depth", "1", "--branch", MPT_REF, MPT_REPO, str(mpt)],
                 check=True,
