@@ -654,8 +654,8 @@ def build_fast_fallback_reel(
             "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(scene),
             "-t", f"{per_scene:.3f}",
             "-vf", "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920,"
-                   "zoompan=z='min(zoom+0.0012,1.035)':x='iw/2-(iw/zoom/2)+18*sin(on/17)':"
-                   "y='ih/2-(ih/zoom/2)+16*cos(on/21)':d=1:s=1080x1920:fps=30,"
+                   "zoompan=z='min(zoom+0.0028,1.09)':x='iw/2-(iw/zoom/2)+42*sin(on/11)':"
+                   "y='ih/2-(ih/zoom/2)+34*cos(on/13)':d=1:s=1080x1920:fps=30,"
                    "eq=contrast=1.04:saturation=1.05,setsar=1",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
             "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", str(clip),
@@ -672,7 +672,10 @@ def build_fast_fallback_reel(
         # Purposeful animated accent over every topic image. No Sheet title,
         # no static title card, and no generic legal text is burned into the Reel.
         filters.append(
-            f"[{i}:v]drawbox=x='mod(t*170,1280)-160':y='mod(t*38,1900)':w=5:h=220:color=white@0.20:t=fill,"
+            f"[{i}:v]"
+            f"drawbox=x='mod(t*420,1500)-180':y='mod(t*120,2050)-120':w=9:h=300:color=white@0.26:t=fill,"
+            f"drawbox=x='mod(1500-t*300,1500)-180':y='420+180*sin(t*2.2)':w=260:h=8:color=white@0.24:t=fill,"
+            f"drawbox=x='860+80*sin(t*2.8)':y='260+120*cos(t*2.1)':w=12:h=180:color=white@0.22:t=fill,"
             f"format=yuv420p[v{i}]"
         )
     concat_inputs = "".join(f"[v{i}]" for i in range(count))
