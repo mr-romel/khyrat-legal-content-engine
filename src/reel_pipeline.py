@@ -589,7 +589,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         return deterministic_brief(topic, post)
     script = prepare_tts_script(str(data.get("script", "")).strip())
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
-    if len(terms) < 6: terms = topic_visual_terms(topic)
+    if len(terms) < 6: terms = topic_visual_terms(" ".join(str(post or "").split())[:900])
     if len(script.split()) < 115 or len(terms) < 6:
         raise RuntimeError("Reel package is incomplete.")
     return {
