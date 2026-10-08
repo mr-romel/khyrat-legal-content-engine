@@ -169,3 +169,5 @@ EMERGENCY_REEL_REPAIR
 EMERGENCY_REEL_REPAIR
 
 EMERGENCY_REEL_REPAIR
+
+Reel render + post-derived image fix verification 2026-10-08
