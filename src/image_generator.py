@@ -288,8 +288,21 @@ def create_legal_image(
         except requests.RequestException as exc:
             cloudflare_error = str(exc)
 
+    if cloudflare_error:
+        print(f"Cloudflare image provider unavailable; switching to Gemini contextual image generation: {cloudflare_error}")
+        try:
+            image_bytes = _generate_with_gemini()
+            provider = "GEMINI_IMAGE_GENERATION"
+        except Exception as gemini_error:
+            print(f"Gemini image generation failed; using guaranteed contextual local visual: {gemini_error}")
+            return create_contextual_fallback_image(
+                post_context=post_context,
+                image_brief=image_brief,
+                output_path=output_path,
+            )
     else:
         provider = "DIRECT_CLOUDFLARE"
+
     output = Path(
         output_path
     )
