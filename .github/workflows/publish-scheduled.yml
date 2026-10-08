@@ -76,6 +76,7 @@ jobs:
           CLOUDFLARE_IMAGE_STEPS: "25"
           CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
           KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR') && 'true' || 'false' }}
+          KHYRAT_FORCE_REPUBLISH: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_RUN_NOW' && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
       - name: Lock Reel source context for downstream worker
@@ -99,7 +100,16 @@ jobs:
           else
             git commit -m "Store generated legal publishing assets"
             git fetch origin "${GITHUB_REF_NAME}"
-            git rebase "origin/${GITHUB_REF_NAME}"
+            # Generated reel context is an artifact and must not make the publishing
+            # job fail because another scheduled run updated the same ephemeral file.
+            if git rebase "origin/${GITHUB_REF_NAME}"; then
+              :
+            else
+              git rebase --abort
+              git reset --hard "origin/${GITHUB_REF_NAME}"
+              echo "Generated asset commit was skipped because remote moved; artifact remains available."
+              exit 0
+            fi
             for attempt in 1 2 3; do
               if git push origin HEAD:${GITHUB_REF_NAME}; then
                 echo "Generated assets pushed successfully."
