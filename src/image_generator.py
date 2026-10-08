@@ -232,7 +232,6 @@ def create_legal_image(
                 contents=[prompt],
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
-                    response_format={"image": {"aspect_ratio": "4:5"}},
                 ),
             )
             for part in getattr(response, "parts", []) or []:
@@ -254,7 +253,7 @@ def create_legal_image(
     width = 1024
     height = 1280
     try:
-        num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "25")), 30))
+        num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "20")), 20))
     except ValueError:
         num_steps = 25
     try:
