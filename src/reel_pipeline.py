@@ -687,7 +687,7 @@ def build_fast_fallback_reel(
             "-vf", "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920,"
                    "zoompan=z='min(zoom+0.0012,1.035)':x='iw/2-(iw/zoom/2)+18*sin(on/17)':"
                    "y='ih/2-(ih/zoom/2)+16*cos(on/21)':d=1:s=1080x1920:fps=30,"
-                   "eq=contrast=1.04:saturation=1.05",
+                   "eq=contrast=1.04:saturation=1.05,setsar=1",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
             "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", str(clip),
         ]
