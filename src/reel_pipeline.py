@@ -146,8 +146,8 @@ def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 90:
-        raise RuntimeError(f"Edge Egyptian TTS duration outside 45-90s: {duration:.1f}s")
+    if duration < 45 or duration > 240:
+        raise RuntimeError(f"Edge Egyptian TTS duration outside production range: {duration:.1f}s")
     print(f"Edge Egyptian Neural TTS succeeded: voice={voice} duration={duration:.1f}s")
     return output_path
 
@@ -403,8 +403,8 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 80:
-        raise RuntimeError(f"Gemini TTS duration outside Reel target: {duration:.1f}s")
+    if duration < 45 or duration > 240:
+        raise RuntimeError(f"Gemini TTS duration outside production range: {duration:.1f}s")
     return output_path
 
 
