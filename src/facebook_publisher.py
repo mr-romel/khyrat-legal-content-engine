@@ -154,8 +154,23 @@ def publish_text(*, page_id: str, page_access_token: str, graph_version: str, me
         post_id = str(payload.get("id", "")).strip()
         if not post_id:
             raise FacebookPublishError(f"Facebook text publish returned no Post ID: {payload}")
-        print(f"Facebook text publication completed: post_id={post_id}")
-        return {"post_id": post_id, "permalink_url": "", "verified": False, "raw": payload}
+        verification = _verify_published_post(
+            post_id=post_id,
+            page_id=page_id,
+            page_access_token=token,
+            graph_version=graph_version,
+        )
+        print(
+            f"Facebook text publication verified: post_id={post_id} | "
+            f"published={verification.get('is_published')} | "
+            f"permalink={verification.get('permalink_url', '')}"
+        )
+        return {
+            "post_id": post_id,
+            "permalink_url": verification.get("permalink_url", ""),
+            "verified": True,
+            "raw": {"publish": payload, "verification": verification},
+        }
     except requests.RequestException as exc:
         raise FacebookPublishError(f"Facebook text publish network error: {exc}") from exc
 
