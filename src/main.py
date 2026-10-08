@@ -258,7 +258,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_url = github_raw_url(str(image_path))
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
-                "Image Mode": "DIRECT_CONTEXTUAL_GENERATION",
+                "Image Mode": "CONTEXTUAL_AI_GENERATION",
                 "Image QA Attempt": "1",
                 "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
                 "Image QA Score": "",
@@ -468,7 +468,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "الحالة": "PUBLISHED",
         "رابط الصورة": image_url,
-        "Image Mode": "DIRECT_CLOUDFLARE",
+        "Image Mode": "CONTEXTUAL_AI_GENERATION",
         "Image QA Attempt": "1",
         "Image QA Status": "REPAIRED_SINGLE_GENERATION",
         "Image QA Score": "",
