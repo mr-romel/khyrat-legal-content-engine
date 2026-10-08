@@ -189,3 +189,5 @@ Final verified image/reel runtime trigger 2026-10-08T17:35+03:00
 
 
 Reel QA: natural voice speed + topic visuals + motion graphics + exact slogan 2026-10-08
+
+EMERGENCY_RUN_NOW
