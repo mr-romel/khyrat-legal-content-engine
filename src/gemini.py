@@ -168,6 +168,49 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
     return _validate_data(_extract_json(raw_text))
 
 
+def generate_image_scene_from_post(api_key: str, model: str, post: str) -> str:
+    """Derive one concrete visual scene from the final post only."""
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is missing.")
+    post = " ".join(str(post or "").split()).strip()
+    if not post:
+        raise RuntimeError("Final post content is required.")
+    selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
+    client = genai.Client(api_key=api_key)
+    prompt = f"""
+Transform the FINAL POST below into one concrete, image-ready scene description.
+
+STRICT RULES:
+- The final post is the ONLY semantic source.
+- Extract the specific situation, people, actions, setting, and visible evidence described by the post.
+- Convert abstract legal explanations into the closest direct visual representation supported by the post.
+- Never add a generic courtroom, lawyer, law books, justice scales, office, contract, police scene, or other legal stock imagery unless the post itself supports it.
+- Never invent people, actions, documents, locations, events, numbers, logos, or facts.
+- Use one scene only, not a collage or multiple panels.
+- Describe subject, action, setting, important visual evidence, composition, camera angle, and lighting.
+- English only.
+- No readable text, letters, numbers, logos, captions, watermarks, UI, or infographic elements in the image.
+
+FINAL POST:
+{post}
+
+Return only the English visual scene description.
+"""
+    response = client.models.generate_content(
+        model=selected_model,
+        contents=prompt,
+        config={"max_output_tokens": 1200},
+    )
+    scene = " ".join(str(getattr(response, "text", "") or "").split()).strip()
+    if len(scene) < 80:
+        raise RuntimeError("Visual scene description is too short.")
+    generic = ("generic legal", "professional legal image", "legal concept",
+               "lawyer at desk", "justice scales", "law books", "legal background")
+    if any(term in scene.lower() for term in generic):
+        raise RuntimeError("Visual scene description is generic.")
+    return scene
+
+
 def generate_post(
     api_key: str,
     model: str,
