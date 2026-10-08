@@ -58,6 +58,10 @@ def choose_row(
         if reel_status == "PUBLISHED" and not force_regenerate:
             print(f"Reel source row {target_number} already has Reel Status=PUBLISHED.")
             return None
+        reel_review = str(row.get("Reel Review", "") or "").strip().upper()
+        if not force_regenerate and (reel_review.startswith("TELEGRAM_DELIVERED") or reel_review.startswith("TELEGRAM_SENDING")):
+            print(f"Reel source row {target_number} already has Telegram delivery lock; refusing duplicate generation/send.")
+            return None
         if not force_regenerate and reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
             # Reuse only when the stored file belongs to this row AND actually exists.
             if str(source_id or "").strip() in reel_file and Path(reel_file).is_file():
@@ -222,11 +226,17 @@ def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Pat
     if duration <= 65.0:
         return path
     factor = duration / target_seconds
-    if factor > 1.6:
+    if factor > 2.7:
         raise RuntimeError(f"Reel narration is excessively long: {duration:.1f}s")
+    filters = []
+    remaining = factor
+    while remaining > 2.0:
+        filters.append("atempo=2.0")
+        remaining /= 2.0
+    filters.append(f"atempo={remaining:.6f}")
     normalized = path.with_name(path.stem + "-reel-fit.wav")
     subprocess.run(
-        ["ffmpeg", "-y", "-i", str(path), "-filter:a", f"atempo={factor:.6f}",
+        ["ffmpeg", "-y", "-i", str(path), "-filter:a", ",".join(filters),
          "-ar", "44100", "-ac", "2", str(normalized)],
         check=True, timeout=180, capture_output=True, text=True,
     )
