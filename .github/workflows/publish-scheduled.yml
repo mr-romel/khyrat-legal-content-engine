@@ -156,6 +156,7 @@ jobs:
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
           REEL_FORCE_REGENERATE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' && 'true' || 'false' }}
+          REEL_FORCE_TELEGRAM_REVIEW: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src .reel-venv/bin/python src/reel_pipeline.py
