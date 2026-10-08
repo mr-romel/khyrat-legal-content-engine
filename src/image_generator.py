@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +151,38 @@ def brand_published_image(image_path: str) -> str:
         raise ImageGenerationError(
             f"Failed to apply mandatory image branding: {exc}"
         ) from exc
+
+
+
+
+def create_contextual_fallback_image(*, post_context: str, image_brief: str, output_path: str) -> str:
+    """Guaranteed local visual fallback derived from the actual post."""
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.new("RGB", (1200, 1500), (18, 25, 38))
+    draw = ImageDraw.Draw(image, "RGBA")
+    regular_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"
+    bold_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
+    regular = ImageFont.truetype(regular_path, 42) if Path(regular_path).exists() else ImageFont.load_default()
+    bold = ImageFont.truetype(bold_path, 66) if Path(bold_path).exists() else regular
+    text = " ".join(str(post_context or "").split()) or " ".join(str(image_brief or "").split())
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
+    scene = (sentences[0] if sentences else text[:420])[:420]
+    words = scene.split()
+    lines = [" ".join(words[i:i+8]) for i in range(0, len(words), 8)]
+    draw.rounded_rectangle((70, 70, 1130, 1430), radius=55, fill=(28, 39, 58, 255), outline=(215, 220, 230, 220), width=4)
+    draw.rounded_rectangle((170, 220, 1030, 900), radius=35, fill=(245, 242, 232, 255))
+    draw.rectangle((245, 300, 955, 360), fill=(35, 45, 58, 255))
+    for y in range(430, 790, 80):
+        draw.rounded_rectangle((245, y, 900, y + 18), radius=8, fill=(125, 132, 142, 180))
+    draw.ellipse((430, 770, 770, 1110), fill=(45, 105, 155, 210), outline=(230, 235, 240, 240), width=5)
+    draw.line((600, 1110, 600, 1260), fill=(230, 235, 240, 230), width=10)
+    y = 1180
+    for idx, line in enumerate(lines[:4]):
+        draw.text((600, y), _rtl_text(line), font=bold if idx == 0 else regular, anchor="mm", fill=(245, 245, 245, 255))
+        y += 62
+    image.save(path, quality=94, optimize=True)
+    return str(path)
 
 
 def create_legal_image(
@@ -346,8 +379,12 @@ blurry subject, low detail, oversaturated
 
     if cloudflare_error:
         print(f"Cloudflare image provider failed; switching to Gemini image generation: {cloudflare_error}")
-        image_bytes = _generate_with_gemini()
-        provider = "GEMINI_IMAGE_FALLBACK"
+        try:
+            image_bytes = _generate_with_gemini()
+            provider = "GEMINI_IMAGE_FALLBACK"
+        except Exception as gemini_error:
+            print(f"Gemini image fallback failed; using guaranteed contextual local visual: {gemini_error}")
+            return create_contextual_fallback_image(post_context=post_context, image_brief=image_brief, output_path=output_path)
     else:
         provider = "DIRECT_CLOUDFLARE"
     output = Path(
