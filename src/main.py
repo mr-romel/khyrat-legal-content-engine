@@ -269,28 +269,58 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             })
             print("Contextual image generated from the complete published post; publication continues regardless of provider.")
         except Exception as image_exc:
-            # Do NOT convert image failure into a publication failure.
-            # The same row remains publishable and the next run may retry the image.
-            print(f"Image generation unavailable; continuing social publication without image: {image_exc}")
+            # Image generation must never stop Facebook/LinkedIn publication.
+            # First guarantee a post-derived visual locally, then publish it when available.
+            print(f"Primary image generation unavailable; creating guaranteed post-derived fallback: {image_exc}")
             try:
-                update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "Image QA Attempt": "1",
-                    "Image QA Status": "IMAGE_GENERATION_RETRYABLE",
-                    "Image QA Issues": str(image_exc)[:1500],
-                    "Image Mode": "NONE",
-                    "رابط الصورة": "",
-                    "وصف الصورة": current_image_brief,
-                    "وقت آخر تشغيل": current.isoformat(),
-                })
-            except Exception as state_exc:
-                print(f"Image failure state persistence unavailable: {state_exc}")
+                from image_generator import create_contextual_fallback_image
+                create_contextual_fallback_image(
+                    post_context=post,
+                    image_brief=current_image_brief,
+                    output_path=str(image_path),
+                )
+                if image_path.is_file() and image_path.stat().st_size > 0:
+                    brand_published_image(str(image_path))
+                    generated_image_path = image_path
+                    image_url = github_raw_url(str(image_path))
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {
+                        "رابط الصورة": image_url,
+                        "Image Mode": "POST_DERIVED_FALLBACK",
+                        "Image QA Attempt": "1",
+                        "Image QA Status": "POST_DERIVED_FALLBACK_READY",
+                        "Image QA Score": "",
+                        "Image QA Issues": str(image_exc)[:1500],
+                        "المحتوى": post,
+                        "وصف الصورة": current_image_brief,
+                        "وقت آخر تشغيل": current.isoformat(),
+                        "آخر خطأ": "",
+                    })
+                    print(f"Post-derived fallback image ready: {image_path}")
+                else:
+                    raise ImageGenerationError("Post-derived fallback image was empty.")
+            except Exception as fallback_exc:
+                # Final rule: publication continues even if every image provider fails.
+                print(f"All image generation paths failed; publication remains unblocked: {fallback_exc}")
+                try:
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {
+                        "Image QA Attempt": "1",
+                        "Image QA Status": "IMAGE_GENERATION_RETRYABLE",
+                        "Image QA Issues": f"primary={image_exc}; fallback={fallback_exc}"[:1500],
+                        "Image Mode": "NONE",
+                        "رابط الصورة": "",
+                        "وصف الصورة": current_image_brief,
+                        "وقت آخر تشغيل": current.isoformat(),
+                    })
+                except Exception as state_exc:
+                    print(f"Image failure state persistence unavailable: {state_exc}")
 
     image_url = (
         existing_image_url
         if reusable_existing
         else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
     )
-    image_url = (        existing_image_url
+    image_url = (
+        existing_image_url
         if reusable_existing
         else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
     )
