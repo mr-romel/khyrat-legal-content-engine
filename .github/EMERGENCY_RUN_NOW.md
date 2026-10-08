@@ -202,3 +202,6 @@ Image repair + republish verification 2026-10-08T1791488655593
 
 
 Reused-image branding gate + final social image republish 2026-10-08T1791489191003
+
+
+MANDATORY FRESH POST-DERIVED IMAGE GENERATION 2026-10-08T1791489621316
