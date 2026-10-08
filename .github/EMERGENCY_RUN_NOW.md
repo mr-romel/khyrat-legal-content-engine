@@ -196,3 +196,6 @@ Reel 180 seconds QA fix 2026-10-08
 
 
 Emergency republish execution 2026-10-08T1791488435655
+
+
+Image repair + republish verification 2026-10-08T1791488655593
