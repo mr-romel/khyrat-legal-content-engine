@@ -199,3 +199,6 @@ Emergency republish execution 2026-10-08T1791488435655
 
 
 Image repair + republish verification 2026-10-08T1791488655593
+
+
+Reused-image branding gate + final social image republish 2026-10-08T1791489191003
