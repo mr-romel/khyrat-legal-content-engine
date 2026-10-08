@@ -136,7 +136,7 @@ jobs:
           python3 --version
           python3 -m venv .reel-venv
           .reel-venv/bin/python -m pip install --upgrade pip
-          .reel-venv/bin/pip install -r requirements-worker.txt
+          .reel-venv/bin/pip install -r requirements-reel.txt
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg espeak-ng
 
