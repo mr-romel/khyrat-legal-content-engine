@@ -17,7 +17,7 @@ permissions:
 # prerequisite for the downstream workers.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GEMINI_PRIMARY_ATTEMPTS: "2"
