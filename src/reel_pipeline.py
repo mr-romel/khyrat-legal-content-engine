@@ -138,7 +138,7 @@ def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
 
     clean = prepare_neural_tts_script(script)
     voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("EDGE_TTS_RATE", "-5%")
+    rate = os.getenv("EDGE_TTS_RATE", "+0%")
     pitch = os.getenv("EDGE_TTS_PITCH", "+0Hz")
 
     async def _save() -> None:
@@ -213,7 +213,7 @@ def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_ma
     """Egyptian Arabic neural fallback; never use robotic espeak for production Reels."""
     clean = prepare_neural_tts_script(script)
     voice = os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("REEL_EDGE_TTS_RATE", "+10%")
+    rate = os.getenv("REEL_EDGE_TTS_RATE", "+0%")
     edge = shutil.which("edge-tts")
     if not edge:
         raise RuntimeError("edge-tts is not installed; refusing robotic espeak fallback.")
@@ -236,28 +236,16 @@ def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Pat
     print("Reel narration QA passed without speed change: duration=%.1fs" % duration)
     return path
 
-def _normalize_reel_audio_duration(path: Path, target_max: float = 68.0) -> Path:
+def _normalize_reel_audio_duration(path: Path, target_max: float = 72.0) -> Path:
+    """Keep Egyptian neural speech at natural speed; never use atempo compression."""
     duration = _media_duration(path)
-    if duration < 40.0:
-        raise RuntimeError(f"Egyptian Neural TTS audio is too short: {duration:.1f}s")
-    if duration <= target_max:
-        print(f"Egyptian Neural TTS ready: duration={duration:.1f}s")
-        return path
-    factor = min(1.55, duration / 58.0)
-    filters = []
-    remaining = factor
-    while remaining > 2.0:
-        filters.append("atempo=2.0")
-        remaining /= 2.0
-    filters.append(f"atempo={remaining:.6f}")
-    normalized = path.with_name(path.stem + "-normalized.wav")
-    subprocess.run(["ffmpeg", "-y", "-i", str(path), "-filter:a", ",".join(filters), "-ar", "44100", "-ac", "2", str(normalized)], check=True, timeout=180, capture_output=True, text=True)
-    final_duration = _media_duration(normalized)
-    if final_duration < 40.0 or final_duration > 72.0:
-        raise RuntimeError(f"Normalized Egyptian Neural TTS duration invalid: {final_duration:.1f}s")
-    shutil.move(str(normalized), str(path))
-    print(f"Egyptian Neural TTS normalized: {duration:.1f}s -> {final_duration:.1f}s")
+    if duration < 45.0:
+        raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs" % duration)
+    if duration > target_max:
+        raise RuntimeError("Egyptian Neural TTS audio is too long: %.1fs; regenerate instead of speeding it up." % duration)
+    print("Egyptian Neural TTS ready without speed change: duration=%.1fs" % duration)
     return path
+
 def generate_local_short_neural_tts(script: str, output_path: Path) -> Path:
     clean = prepare_neural_tts_script(script)
     edge = shutil.which("edge-tts")
@@ -426,13 +414,13 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
     if slogan_audio and slogan_audio.is_file():
-        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-i",str(slogan_audio),"-t","3.0",
+        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-i",str(slogan_audio),"-t","4.5",
             "-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
-            "-af","apad=pad_dur=3,atrim=duration=3","-map","0:v:0","-map","1:a:0",
+            "-af","apad=pad_dur=4.5,atrim=duration=4.5","-map","0:v:0","-map","1:a:0",
             "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
     else:
         subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t","3.0","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
+            "-t","4.5","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
             "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
     base = work_dir / "base_motion.mp4"
     vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.03:saturation=1.04"
