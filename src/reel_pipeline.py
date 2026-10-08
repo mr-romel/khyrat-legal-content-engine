@@ -61,8 +61,14 @@ def choose_row(
             return None
         reel_review = str(row.get("Reel Review", "") or "").strip().upper()
         if not force_regenerate and (reel_review.startswith("TELEGRAM_DELIVERED") or reel_review.startswith("TELEGRAM_SENDING")):
-            print(f"Reel source row {target_number} already has Telegram delivery lock; refusing duplicate generation/send.")
-            return None
+            # A Sheet flag alone is not a durable delivery proof. The final MP4
+            # must still exist at the row-owned path; otherwise the lock is stale
+            # (for example after a failed render before Telegram delivery).
+            delivery_file_exists = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
+            if delivery_file_exists:
+                print(f"Reel source row {target_number} has a valid Telegram delivery lock; refusing duplicate generation/send.")
+                return None
+            print(f"Reel source row {target_number} has a stale Telegram lock without a valid final MP4; clearing lock for regeneration.")
         if not force_regenerate and reel_status in {"GENERATING", "REVIEW", "APPROVED"} and reel_file:
             # Reuse only when the stored file belongs to this row AND actually exists.
             if str(source_id or "").strip() in reel_file and Path(reel_file).is_file():
