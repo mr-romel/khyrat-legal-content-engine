@@ -943,13 +943,15 @@ def main() -> int:
 
         with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
             mpt = Path(temp) / "MoneyPrinterTurbo"
-            if os.getenv("REEL_USE_MPT", "false").strip().lower() not in {"1", "true", "yes", "on"}:
-                raise RuntimeError("MPT disabled by production default; use animated FFmpeg fallback.")
-            subprocess.run(
-                ["git", "clone", "--depth", "1", "--branch", MPT_REF, MPT_REPO, str(mpt)],
-                check=True,
-                timeout=180,
-            )
+            use_mpt = os.getenv("REEL_USE_MPT", "false").strip().lower() in {"1", "true", "yes", "on"}
+            if use_mpt:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", "--branch", MPT_REF, MPT_REPO, str(mpt)],
+                    check=True,
+                    timeout=180,
+                )
+            else:
+                print("REEL_STAGE renderer=animated_ffmpeg")
 
             # Use the native MPT CLI directly. The agent wrapper performs an
             # unnecessary LLM-provider preflight even when a complete script and
