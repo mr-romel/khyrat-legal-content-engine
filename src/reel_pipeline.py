@@ -667,19 +667,37 @@ def build_fast_fallback_reel(
     base_duration = min(62.0, max(52.0, audio_duration - 2.0))
     count = min(8, len(scenes))
     per_scene = base_duration / count
+    # Normalize every still image into a short MP4 clip first. This avoids
+    # FFmpeg image2 timestamp/0.04s-duration behavior on downloaded JPG/PNG assets.
+    # The Reel renderer consumes video clips only, while preserving real topic-matched imagery.
+    scene_clips = output_video.parent / "scene_clips"
+    scene_clips.mkdir(parents=True, exist_ok=True)
+    normalized = []
+    for i, scene in enumerate(scenes[:count]):
+        clip = scene_clips / f"scene_{i+1:02d}.mp4"
+        clip_cmd = [
+            "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(scene),
+            "-t", f"{per_scene:.3f}",
+            "-vf", "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920,"
+                   "zoompan=z='min(zoom+0.0012,1.035)':x='iw/2-(iw/zoom/2)+18*sin(on/17)':"
+                   "y='ih/2-(ih/zoom/2)+16*cos(on/21)':d=1:s=1080x1920:fps=30,"
+                   "eq=contrast=1.04:saturation=1.05",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+            "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", str(clip),
+        ]
+        converted = subprocess.run(clip_cmd, capture_output=True, text=True, timeout=180, check=False)
+        if converted.returncode != 0 or not clip.is_file():
+            raise RuntimeError(f"Failed to normalize Reel scene {i+1}: {(converted.stderr or converted.stdout)[-1800:]}")
+        normalized.append(clip)
+
     inputs = []
     filters = []
-    for i, scene in enumerate(scenes[:count]):
-        inputs += ["-loop", "1", "-t", f"{per_scene:.3f}", "-i", str(scene)]
-        # Purposeful camera movement + an animated visual accent. No Sheet title,
+    for i, clip in enumerate(normalized):
+        inputs += ["-i", str(clip)]
+        # Purposeful animated accent over every topic image. No Sheet title,
         # no static title card, and no generic legal text is burned into the Reel.
         filters.append(
-            f"[{i}:v]scale=1160:2060:force_original_aspect_ratio=increase,"
-            f"crop=1080:1920,"
-            f"zoompan=z='min(zoom+0.0012,1.035)':x='iw/2-(iw/zoom/2)+18*sin(on/17)':"
-            f"y='ih/2-(ih/zoom/2)+16*cos(on/21)':d=1:s=1080x1920:fps=30,"
-            f"eq=contrast=1.04:saturation=1.05,"
-            f"drawbox=x='mod(t*170,1280)-160':y='mod(t*38,1900)':w=5:h=220:color=white@0.20:t=fill,"
+            f"[{i}:v]drawbox=x='mod(t*170,1280)-160':y='mod(t*38,1900)':w=5:h=220:color=white@0.20:t=fill,"
             f"format=yuv420p[v{i}]"
         )
     concat_inputs = "".join(f"[v{i}]" for i in range(count))
