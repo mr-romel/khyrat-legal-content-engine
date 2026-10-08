@@ -15,7 +15,7 @@ from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo, publish_text
-from gemini import generate_post
+from gemini import generate_post, generate_image_scene_from_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic
@@ -223,16 +223,19 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     # IMAGE IS MANDATORY: generate a fresh image for every publication.
     # Never reuse an old asset and never continue with text-only publication.
     generated_image_path = None
-    current_image_brief = (
-        f"Visual interpretation must be extracted directly from the complete post: {post[:1800]}"
-    )
-
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
     try:
+        visual_description = generate_image_scene_from_post(
+            api_key=config["gemini_api_key"],
+            model=config["gemini_model"],
+            post=post,
+        )
+        print(f"POST-DERIVED IMAGE SCENE: {visual_description}")
         create_legal_image(
             topic=topic,
-            image_brief=current_image_brief,
+            image_brief=visual_description,
             post_context=post,
+            visual_description=visual_description,
             output_path=str(image_path),
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
@@ -250,7 +253,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             "Image QA Score": "",
             "Image QA Issues": "",
             "المحتوى": post,
-            "وصف الصورة": current_image_brief,
+            "وصف الصورة": visual_description,
             "وقت آخر تشغيل": current.isoformat(),
             "آخر خطأ": "",
         })
@@ -347,19 +350,24 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
     raw_id = str(row.get("ID", "") or f"row-{row_number}")
     safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_id)
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
-    image_brief = str(row.get("وصف الصورة", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1400]}"
-
-    print(f"IMAGE REPAIR: generating exactly one replacement image for row {row_number}.")
+    print(f"IMAGE REPAIR: deriving a new visual scene strictly from the published post for row {row_number}.")
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "Image QA Attempt": "1",
         "Image QA Status": "IMAGE_REPAIR_IN_PROGRESS",
         "وقت آخر تشغيل": current.isoformat(),
     })
     try:
+        visual_description = generate_image_scene_from_post(
+            api_key=config["gemini_api_key"],
+            model=config["gemini_model"],
+            post=post,
+        )
+        print(f"POST-DERIVED IMAGE REPAIR SCENE: {visual_description}")
         create_legal_image(
             topic=topic,
-            image_brief=image_brief,
+            image_brief=visual_description,
             post_context=post,
+            visual_description=visual_description,
             output_path=str(image_path),
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
@@ -417,7 +425,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "الحالة": "PUBLISHED",
         "رابط الصورة": image_url,
-        "Image Mode": "CONTEXTUAL_AI_GENERATION",
+        "Image Mode": "POST_DERIVED_AI_GENERATION",
         "Image QA Attempt": "1",
         "Image QA Status": "REPAIRED_SINGLE_GENERATION",
         "Image QA Score": "",
@@ -492,7 +500,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "المحتوى": post,
-                "وصف الصورة": str(row.get("وصف الصورة", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1200]}",
+                "وصف الصورة": str(row.get("وصف الصورة", "") or "").strip(),
                 "رابط الصورة": image_url or str(row.get("رابط الصورة", "") or "").strip(),
             })
             row["المحتوى"] = post
@@ -501,7 +509,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
-            print("No generated image is available; publication continues as text-only. Image generation never blocks publishing.")
+            raise ImageGenerationError("Publication requires a freshly generated image.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
@@ -534,7 +542,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
             try:
-                facebook = (publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post) if image_available else publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post))
+                facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
                 facebook_post_id = facebook["post_id"]
                 row["Facebook Status"] = "PUBLISHED"
                 try:
@@ -562,7 +570,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 token = config["linkedin_access_token"]
                 author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-                linkedin = (publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="") if image_available else publish_text_to_linkedin(token=token, author_urn=author, commentary=linkedin_post))
+                linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
                 linkedin_post_id = linkedin["post_urn"]
                 row["LinkedIn Status"] = "PUBLISHED"
                 comment_result = linkedin.get("comment") or {}
