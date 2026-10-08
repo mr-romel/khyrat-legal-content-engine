@@ -198,7 +198,6 @@ def main() -> int:
         return 0
 
     service = create_service(config["service_account_info"])
-    blogger_api = blogger_service()
     sheet_name = config["sheet_range"].split("!", 1)[0]
     ensure_headers(service, config["sheet_id"], sheet_name)
     values = get_values(service, config["sheet_id"], config["sheet_range"])
@@ -213,12 +212,13 @@ def main() -> int:
     use_ui = bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
-        bid = blog_id(service, config["blogger_url"])
+        blogger_api = blogger_service()
+        bid = blog_id(blogger_api, config["blogger_url"])
+        cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
+        deduped = dedupe_blogger_topics(blogger_api, bid, rows)
+        print(f"Blogger dedupe: removed {deduped} duplicate posts.")
     else:
-        bid = str(config.get("blogger_blog_id", "") or "").strip() or blog_id(service, config["blogger_url"])
-    cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
-    deduped = dedupe_blogger_topics(blogger_api, bid, rows)
-    print(f"Blogger dedupe: removed {deduped} duplicate posts.")
+        print("Blogger UI session detected: bypassing Blogger REST OAuth initialization.")
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     for existing in rows:
@@ -303,8 +303,10 @@ def main() -> int:
     try:
         if use_ui:
             # Upload to Blogger storage; Rich Editor should not embed the raw GitHub asset URL.
-            blogger_image_url = upload_blogger_image(image_path)
-            print(f"Blogger image uploaded to Blogger storage: {blogger_image_url}")
+            blogger_image_url = image_url
+            if not blogger_image_url:
+                raise BloggerUIPublishError("Published row has no image URL for Blogger UI.")
+            print(f"Blogger UI: embedding row-owned generated image URL: {blogger_image_url}")
             try:
                 article = prepare_article(
                     api_key=os.getenv("GEMINI_API_KEY", "").strip(),
@@ -361,38 +363,13 @@ def main() -> int:
         print(f"Blogger published: {result['title']} -> {result['post_url']}")
         return 0
     except BloggerUIPublishError as ui_exc:
-        print(f"Blogger UI publication failed; falling back to Blogger REST API: {ui_exc}")
-        try:
-            result = publish_article(
-                topic=topic,
-                post=post,
-                image_url=image_url,
-                image_path=image_path,
-                legal_sources=legal_sources,
-                output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
-            )
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Blogger Status": "PUBLISHED",
-                "Blogger Post ID": result["post_id"],
-                "Blogger URL": result["post_url"],
-                "Blogger Search Title": result["title"],
-                "Blogger Search Query": result["search_query"],
-                "Blogger Search Candidates": result["search_candidates"],
-                "Blogger Meta Description": result.get("meta_description", ""),
-                "Blogger SEO Status": "PENDING",
-                "Blogger SEO Error": "",
-                "Blogger Last Error": "",
-            })
-            print(f"Blogger REST fallback published: {result['title']} -> {result['post_url']}")
-            return 0
-        except BloggerPublishError as api_exc:
-            error = f"UI: {ui_exc} | REST: {api_exc}"[:1500]
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "Blogger Status": "FAILED",
-                "Blogger Last Error": error,
-            })
-            print(f"Blogger publication failed after UI + REST fallback: {error}")
-            return 0
+        error = f"UI: {ui_exc}"[:1500]
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Blogger Status": "FAILED",
+            "Blogger Last Error": error,
+        })
+        print(f"Blogger UI publication failed (retryable); REST fallback intentionally disabled when UI session is configured: {error}")
+        return 0
     except BloggerPublishError as exc:
         error = str(exc)[:1500]
         update_row(service, config["sheet_id"], sheet_name, row_number, {
