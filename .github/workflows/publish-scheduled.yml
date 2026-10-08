@@ -22,7 +22,7 @@ concurrency:
 env:
   GEMINI_PRIMARY_ATTEMPTS: "2"
   GEMINI_FALLBACK_ATTEMPTS: "1"
-  CLOUDFLARE_IMAGE_STEPS: "25"
+  CLOUDFLARE_IMAGE_STEPS: "20"
 
 jobs:
   publish:
@@ -73,7 +73,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_PRIMARY_ATTEMPTS: "2"
           GEMINI_FALLBACK_ATTEMPTS: "1"
-          CLOUDFLARE_IMAGE_STEPS: "25"
+          CLOUDFLARE_IMAGE_STEPS: "20"
           CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
           KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR') && 'true' || 'false' }}
           KHYRAT_FORCE_REPUBLISH: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'FIX_IMAGE_RUN') && 'true' || 'false' }}
