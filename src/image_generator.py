@@ -202,119 +202,29 @@ def create_legal_image(
     the Core Engine can swap image providers later without redesign.
     """
 
-    del api_key  # Gemini is no longer used for image generation.
+    account_id = (cloudflare_account_id or "").strip()
+    api_token = (cloudflare_api_token or "").strip()
+    gemini_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
 
-    account_id = (
-        cloudflare_account_id or ""
-    ).strip()
-
-    api_token = (
-        cloudflare_api_token or ""
-    ).strip()
-
-    topic = (
-        topic or ""
-    ).strip()
-
-    image_brief = (
-        image_brief or ""
-    ).strip()
-
-    post_context = (
-        post_context or ""
-    ).strip()
-
-    if not account_id:
-        raise ImageGenerationError(
-            "CLOUDFLARE_ACCOUNT_ID is missing."
-        )
-
-    if not api_token:
-        raise ImageGenerationError(
-            "CLOUDFLARE_API_TOKEN is missing."
-        )
+    topic = (topic or "").strip()
+    image_brief = (image_brief or "").strip()
+    post_context = (post_context or "").strip()
 
     if not topic:
-        raise ImageGenerationError(
-            "Topic is empty."
-        )
-
+        raise ImageGenerationError("Topic is empty.")
     if not image_brief:
-        raise ImageGenerationError(
-            "Image brief is empty."
-        )
-
-    # The published post is the visual source of truth. The spreadsheet topic is
-    # metadata only and must never override the concrete situation described in
-    # the actual post.
-    prompt = f"""
-Create a premium editorial photograph that visually explains the ACTUAL LEGAL SITUATION described in the published Egyptian Arabic post below.
-
-PUBLISHED POST — PRIMARY VISUAL SOURCE:
-{post_context or "No post supplied."}
-
-EXTRACTED VISUAL BRIEF:
-{image_brief}
-
-METADATA ONLY — DO NOT VISUALIZE THIS AS A GENERIC SUBJECT:
-{topic}
-
-SCENE EXTRACTION RULES:
-- Read the published post first and extract ONE concrete, visually representable moment, action, object, document, interaction, workplace situation, family situation, property situation, financial transaction, or procedural event explicitly described in it
-- The published post has priority over the metadata topic and over any generic legal imagery
-- Build the image around that exact moment from the post, not around the broad legal category
-- If the post describes a person receiving, signing, refusing, sending, reviewing, keeping, handing over, terminating, disputing, paying, demanding, or discussing a specific thing, show that exact action and thing
-- If the post describes a document, contract, cheque, receipt, notice, employment paper, lease, complaint, evidence, phone message, payment, or other concrete item, make that item central to the composition
-- If the post describes a dispute between people, show the actual relationship and interaction described, with realistic body language
-- If the post describes a company or workplace decision, show the actual decision context rather than a generic lawyer portrait
-- Do NOT invent a different incident merely because it is more visually attractive
-- Do NOT replace the post's concrete situation with a courthouse, gavel, scales of justice, law books, a lawyer at a desk, or an abstract legal background unless the post itself is specifically about that scene
-- The image must be understandable as an illustration of THIS POST even if the viewer never sees the topic field or any caption
-- Do not put legal text, explanations, labels, or invented facts into the image
-- Prefer a realistic Egyptian setting when the post supports it
-
-CREATIVE REQUIREMENTS:
-- Photorealistic cinematic editorial photography
-- One unmistakable focal situation
-- Natural Egyptian people, clothing, interiors, streets, offices, homes, or workplaces where relevant
-- Realistic documents and objects, but all written content must be unreadable/non-textual
-- Strong composition and clear action
-- Serious, credible, sophisticated professional photography
-- Portrait composition, 4:5
-
-ABSOLUTELY DO NOT:
-- add text, letters, Arabic writing, English writing, numbers, headlines, captions, subtitles
-- add logos or watermarks
-- create a poster, infographic, presentation, quote card, social template, collage, UI, or screenshot
-- create a generic lawyer-at-a-desk scene
-- create generic justice scales or courthouse imagery unless the post explicitly describes them
-- create an unrelated stock-photo concept
-- invent a legal event that does not appear in the post
-
-The final image must be a direct visual translation of the published post's concrete situation.
-""".strip()
-
-    negative_prompt = """
-text, typography, letters, Arabic text, English text,
-headline, caption, subtitle, logo, watermark,
-poster, infographic, presentation, quote card,
-social media template, UI, screenshot, collage,
-split screen, generic lawyer desk,
-generic scales of justice, cartoon,
-cheap stock photo, distorted face,
-extra fingers, malformed hands, duplicate people,
-ancient Egypt, pharaoh, ancient costume, historical reenactment, fantasy,
-blurry subject, low detail, oversaturated
-""".strip()
+        raise ImageGenerationError("Image brief is empty.")
+    if not post_context:
+        raise ImageGenerationError("Published post context is required for contextual image generation.")
 
     # Primary provider: Cloudflare. If it fails, use Gemini native image generation.
     def _generate_with_gemini() -> bytes:
-        if not os.getenv("GEMINI_API_KEY", "").strip():
+        if not gemini_key:
             raise ImageGenerationError("GEMINI_API_KEY is missing for image fallback.")
         try:
             from google import genai
             from google.genai import types
-            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY").strip())
+            client = genai.Client(api_key=gemini_key)
             model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
             response = client.models.generate_content(
                 model=model, contents=[prompt],
@@ -330,9 +240,7 @@ blurry subject, low detail, oversaturated
             raise ImageGenerationError("Gemini image response contained no image data.")
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
-    endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(
-        account_id=account_id,
-    )
+    endpoint = CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id) if account_id and api_token else ""
 
     # 4:5 portrait. Keep enough diffusion steps for a coherent real-world scene.
     width = 1024
@@ -364,27 +272,22 @@ blurry subject, low detail, oversaturated
     }
 
     cloudflare_error = None
-    try:
-        response = requests.post(endpoint, headers=headers, json=request_body, timeout=180)
-        if response.ok:
-            image_bytes = _extract_image_bytes(response)
-        else:
-            try:
-                error_payload = response.json()
-            except ValueError:
-                error_payload = response.text
-            cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
-    except requests.RequestException as exc:
-        cloudflare_error = str(exc)
-
-    if cloudflare_error:
-        print(f"Cloudflare image provider failed; switching to Gemini image generation: {cloudflare_error}")
+    if not endpoint:
+        cloudflare_error = "Cloudflare credentials unavailable; using Gemini contextual image generation."
+    else:
         try:
-            image_bytes = _generate_with_gemini()
-            provider = "GEMINI_IMAGE_FALLBACK"
-        except Exception as gemini_error:
-            print(f"Gemini image fallback failed; using guaranteed contextual local visual: {gemini_error}")
-            return create_contextual_fallback_image(post_context=post_context, image_brief=image_brief, output_path=output_path)
+            response = requests.post(endpoint, headers=headers, json=request_body, timeout=180)
+            if response.ok:
+                image_bytes = _extract_image_bytes(response)
+            else:
+                try:
+                    error_payload = response.json()
+                except ValueError:
+                    error_payload = response.text
+                cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
+        except requests.RequestException as exc:
+            cloudflare_error = str(exc)
+
     else:
         provider = "DIRECT_CLOUDFLARE"
     output = Path(
