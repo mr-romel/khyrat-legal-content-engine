@@ -169,11 +169,7 @@ def _fallback_post(topic: str, legal_sources: str = "") -> str:
 
 
 def _generate_if_needed(*, service, config, sheet_name, row_number, row, current, topic, bank_rows):
-    """Generate content through the original direct Cloudflare image path.
-
-    Character references and Gemini image-QA loops are intentionally removed.
-    Image failure never creates a fake visual and never blocks social publication.
-    """
+    """Generate the post and a mandatory fresh image derived from the complete post."""
     existing_post = str(row.get("المحتوى", "") or "").strip()
     existing_image_url = str(row.get("رابط الصورة", "") or "").strip()
     raw_id = row.get("ID", "") or f"row-{row_number}"
@@ -216,12 +212,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             previous_context=previous_context,
         )
         post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, legal_sources)
-        image_brief = str(result.get("image_brief", "") or "").strip() or f"Concrete scene extracted from the published post: {post[:1200]}"
         review_level = str(result.get("review_level", "CLEAR") or "CLEAR").upper()
         review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     except Exception as exc:
         post = existing_post or _fallback_post(topic, legal_sources)
-        image_brief = f"Concrete scene extracted from the published post: {post[:1200]}"
         review_level = "ADVISORY"
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
@@ -279,17 +273,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         ) from image_exc
 
 
-    image_url = (
-        existing_image_url
-        if reusable_existing
-        else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
-    )
-    image_url = (
-        existing_image_url
-        if reusable_existing
-        else (github_raw_url(str(generated_image_path)) if generated_image_path else "")
-    )
-
+    image_url = github_raw_url(str(generated_image_path))
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
 
