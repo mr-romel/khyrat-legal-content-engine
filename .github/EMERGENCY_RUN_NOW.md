@@ -173,3 +173,5 @@ EMERGENCY_REEL_REPAIR
 Reel render + post-derived image fix verification 2026-10-08
 
 Reel stale Telegram lock fix verification 2026-10-08
+
+Reel SAR concat fix verification 2026-10-08
