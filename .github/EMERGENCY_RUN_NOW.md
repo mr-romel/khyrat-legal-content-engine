@@ -153,3 +153,6 @@ RUN NOW
 
 
 TTS normalization validation
+
+
+Concurrency/idempotency verification
