@@ -226,112 +226,58 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
+    # IMAGE IS MANDATORY: generate a fresh image for every publication.
+    # Never reuse an old asset and never continue with text-only publication.
     generated_image_path = None
-    current_image_brief = image_brief
-
-    # Image generation is best-effort and MUST NEVER block social publication.
-    # Every publish attempt gets a contextual image attempt when no usable asset exists.
-    existing_image_mode = str(row.get("Image Mode", "") or "").strip().upper()
-    reusable_existing = (
-        "FALLBACK" not in existing_image_mode
-        and image_path.is_file()
-        and image_path.stat().st_size > 0
+    current_image_brief = (
+        f"Visual interpretation must be extracted directly from the complete post: {post[:1800]}"
     )
 
-    if reusable_existing:
-        try:
-            # Reused assets must pass the same branding gate as newly generated images.
-            # This repairs assets left on disk by an earlier branding failure.
-            brand_published_image(str(image_path))
-            generated_image_path = image_path
-            image_url = github_raw_url(str(image_path))
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "رابط الصورة": image_url,
-                "Image Mode": "CONTEXTUAL_AI_GENERATION",
-                "Image QA Attempt": "1",
-                "Image QA Status": "REUSED_ASSET_REBRANDED",
-                "Image QA Score": "",
-                "Image QA Issues": "",
-                "المحتوى": post,
-                "وصف الصورة": current_image_brief,
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-            print(f"Image reuse: preserved and rebranded existing generated asset {image_path}.")
-        except Exception as reuse_exc:
-            print(f"Image reuse validation failed; regenerating the asset: {reuse_exc}")
-            reusable_existing = False
-    else:
-        try:
-            create_legal_image(
-                topic=topic,
-                image_brief=current_image_brief,
-                post_context=post,
-                output_path=str(image_path),
-                cloudflare_account_id=config["cloudflare_account_id"],
-                cloudflare_api_token=config["cloudflare_api_token"],
-            )
-            if not image_path.is_file() or image_path.stat().st_size == 0:
-                raise ImageGenerationError("Generated image file was empty.")
-            brand_published_image(str(image_path))
-            generated_image_path = image_path
-            image_url = github_raw_url(str(image_path))
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "رابط الصورة": image_url,
-                "Image Mode": "CONTEXTUAL_AI_GENERATION",
-                "Image QA Attempt": "1",
-                "Image QA Status": "ACCEPTED_SINGLE_GENERATION",
-                "Image QA Score": "",
-                "Image QA Issues": "",
-                "المحتوى": post,
-                "وصف الصورة": current_image_brief,
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-            print("Contextual image generated from the complete published post; publication continues regardless of provider.")
-        except Exception as image_exc:
-            # Image generation must never stop Facebook/LinkedIn publication.
-            # First guarantee a post-derived visual locally, then publish it when available.
-            print(f"Primary image generation unavailable; creating guaranteed post-derived fallback: {image_exc}")
-            try:
-                from image_generator import create_contextual_fallback_image
-                create_contextual_fallback_image(
-                    post_context=post,
-                    image_brief=current_image_brief,
-                    output_path=str(image_path),
-                )
-                if image_path.is_file() and image_path.stat().st_size > 0:
-                    brand_published_image(str(image_path))
-                    generated_image_path = image_path
-                    image_url = github_raw_url(str(image_path))
-                    update_row(service, config["sheet_id"], sheet_name, row_number, {
-                        "رابط الصورة": image_url,
-                        "Image Mode": "POST_DERIVED_FALLBACK",
-                        "Image QA Attempt": "1",
-                        "Image QA Status": "POST_DERIVED_FALLBACK_READY",
-                        "Image QA Score": "",
-                        "Image QA Issues": str(image_exc)[:1500],
-                        "المحتوى": post,
-                        "وصف الصورة": current_image_brief,
-                        "وقت آخر تشغيل": current.isoformat(),
-                        "آخر خطأ": "",
-                    })
-                    print(f"Post-derived fallback image ready: {image_path}")
-                else:
-                    raise ImageGenerationError("Post-derived fallback image was empty.")
-            except Exception as fallback_exc:
-                # Final rule: publication continues even if every image provider fails.
-                print(f"All image generation paths failed; publication remains unblocked: {fallback_exc}")
-                try:
-                    update_row(service, config["sheet_id"], sheet_name, row_number, {
-                        "Image QA Attempt": "1",
-                        "Image QA Status": "IMAGE_GENERATION_RETRYABLE",
-                        "Image QA Issues": f"primary={image_exc}; fallback={fallback_exc}"[:1500],
-                        "Image Mode": "NONE",
-                        "رابط الصورة": "",
-                        "وصف الصورة": current_image_brief,
-                        "وقت آخر تشغيل": current.isoformat(),
-                    })
-                except Exception as state_exc:
-                    print(f"Image failure state persistence unavailable: {state_exc}")
+    image_path = GENERATED_DIR / f"{safe_id}.jpg"
+    try:
+        create_legal_image(
+            topic=topic,
+            image_brief=current_image_brief,
+            post_context=post,
+            output_path=str(image_path),
+            cloudflare_account_id=config["cloudflare_account_id"],
+            cloudflare_api_token=config["cloudflare_api_token"],
+            api_key=config.get("gemini_api_key", ""),
+        )
+        if not image_path.is_file() or image_path.stat().st_size == 0:
+            raise ImageGenerationError("Mandatory generated image file is empty.")
+        generated_image_path = image_path
+        image_url = github_raw_url(str(image_path))
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "رابط الصورة": image_url,
+            "Image Mode": "MANDATORY_POST_DERIVED_GENERATION",
+            "Image QA Attempt": "1",
+            "Image QA Status": "ACCEPTED_FRESH_GENERATION",
+            "Image QA Score": "",
+            "Image QA Issues": "",
+            "المحتوى": post,
+            "وصف الصورة": current_image_brief,
+            "وقت آخر تشغيل": current.isoformat(),
+            "آخر خطأ": "",
+        })
+        print(
+            "MANDATORY IMAGE: fresh image generated directly from complete post; "
+            f"path={image_path}"
+        )
+    except Exception as image_exc:
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Image QA Attempt": "1",
+            "Image QA Status": "IMAGE_GENERATION_FAILED",
+            "Image QA Issues": str(image_exc)[:1500],
+            "Image Mode": "IMAGE_REQUIRED_FAILED",
+            "وقت آخر تشغيل": current.isoformat(),
+            "آخر خطأ": f"Mandatory image generation failed: {image_exc}"[:1500],
+        })
+        print(f"MANDATORY IMAGE GENERATION FAILED: {image_exc}")
+        raise ImageGenerationError(
+            f"Publication blocked because mandatory image generation failed: {image_exc}"
+        ) from image_exc
+
 
     image_url = (
         existing_image_url
