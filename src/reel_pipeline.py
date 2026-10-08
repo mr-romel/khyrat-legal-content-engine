@@ -639,7 +639,7 @@ def build_fast_fallback_reel(
     if not 45.0 <= audio_duration <= 90.0:
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s")
 
-    base_duration = min(62.0, max(52.0, audio_duration - 2.0))
+    base_duration = min(70.0, max(50.0, audio_duration))
     count = min(8, len(scenes))
     per_scene = base_duration / count
     # Normalize every still image into a short MP4 clip first. This avoids
@@ -1073,8 +1073,8 @@ def main() -> int:
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
         final_duration = _media_duration(video_path)
-        if final_duration < 55.0 or final_duration > 65.0:
-            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 45–75s.")
+        if final_duration < 50.0 or final_duration > 78.0:
+            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 50–78s with natural speech pacing.")
         audio_probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(video_path)], capture_output=True, text=True, check=False, timeout=30)
         if not audio_probe.stdout.strip():
             raise RuntimeError("Reel delivery blocked: final MP4 has no audio stream.")
