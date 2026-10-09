@@ -392,7 +392,7 @@ def main() -> int:
     model_candidates = list(dict.fromkeys([
         model,
         os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
-        "gemini-2.5-flash",
+        "gemini-3.8-flash",
     ]))
     for candidate_model in (x for x in model_candidates if x):
         try:
@@ -419,7 +419,7 @@ def main() -> int:
     html = build_article_html(
         title=title,
         topic=query,
-        post=draft,
+        post=str(article.get("lead", "") or search_brief),
         image_url="",
         legal_sources=packet,
         related=_related_public_posts(published, query),
