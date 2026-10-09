@@ -425,3 +425,80 @@ def publish_article_ui(
             Path(state_path).unlink(missing_ok=True)
         except Exception:
             pass
+
+
+def publish_page_ui(
+    *,
+    title: str,
+    content_html: str,
+    blog_id: str,
+    page_id: str = "",
+) -> dict[str, str]:
+    """Create or update a Blogger static page using the authenticated Blogger UI."""
+    state_path = _storage_state_path()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context(
+                storage_state=state_path,
+                viewport={"width": 1440, "height": 1000},
+                locale="ar-EG",
+            )
+            page = context.new_page()
+            page.set_default_timeout(15000)
+            target_blog_id = str(blog_id or "").strip()
+            if not target_blog_id:
+                raise BloggerUIPublishError("BLOGGER_BLOG_ID is required for static-page publication.")
+
+            route = str(page_id or "").strip()
+            editor_url = (
+                f"https://www.blogger.com/blog/page/edit/{target_blog_id}/{route}"
+                if route else
+                f"https://www.blogger.com/blog/page/edit/{target_blog_id}/new"
+            )
+            page.goto(editor_url, wait_until="domcontentloaded")
+            page.wait_for_timeout(1400)
+            if "accounts.google.com" in page.url or "signin" in page.url.lower():
+                raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
+
+            _fill_title(page, title)
+            _set_editor_html(page, content_html)
+            action_patterns = (
+                'button:has-text("Publish")',
+                '[role="button"]:has-text("Publish")',
+                'button:has-text("Update")',
+                '[role="button"]:has-text("Update")',
+                'button:has-text("نشر")',
+                '[role="button"]:has-text("نشر")',
+                'button:has-text("تحديث")',
+                '[role="button"]:has-text("تحديث")',
+            )
+            action = _first_visible(page, action_patterns)
+            if not action:
+                raise BloggerUIPublishError("Blogger static-page Publish/Update button was not found.")
+            action.click()
+            page.wait_for_timeout(800)
+            confirm = _first_visible(page, action_patterns)
+            if confirm:
+                try:
+                    confirm.click()
+                    page.wait_for_timeout(900)
+                except Exception:
+                    pass
+            current_url = page.url
+            match = re.search(r"/blog/page/edit/([0-9]+)/([0-9]+)", current_url)
+            resolved_page_id = match.group(2) if match else route
+            context.close()
+            browser.close()
+            return {"page_id": resolved_page_id, "editor_url": current_url, "title": title}
+    except PlaywrightTimeoutError as exc:
+        raise BloggerUIPublishError(f"Blogger static-page editor timed out: {exc}") from exc
+    except BloggerUIPublishError:
+        raise
+    except Exception as exc:
+        raise BloggerUIPublishError(f"Blogger static-page UI publication failed: {exc}") from exc
+    finally:
+        try:
+            Path(state_path).unlink(missing_ok=True)
+        except Exception:
+            pass
