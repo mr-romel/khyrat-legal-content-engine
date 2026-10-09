@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from comment_engine import generate_comments
 from config import load_facebook_engagement_config
-from engagement_strategy import choose_comment_count, normalize_comment
+from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, normalize_comment
 from facebook_publisher import add_comment, like_comment, like_post, verify_comment
 from sheets import create_service, get_values
 
@@ -167,12 +167,17 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
             continue
         candidates.append((_published_at(row, current), source_row, row, post_id))
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
-    candidates = candidates[:MAX_RECENT_POSTS]
+    total_published = len(candidates)
+    # Assign ranks across the full published history before limiting work to recent posts.
+    candidates = [
+        (*item, blog_cta_due(total_published - index))
+        for index, item in enumerate(candidates)
+    ][:MAX_RECENT_POSTS]
     print(f"Facebook engagement scope: latest {len(candidates)} published post(s) only")
 
     created = 0
     generated_posts = 0
-    for published_at, source_row, row, post_id in candidates:
+    for published_at, source_row, row, post_id, add_blog_cta in candidates:
         existing = [x for x in events if str(x.get("post_id", "")).strip() == post_id]
         reaction_id = f"COMMENT_BUNDLE:{post_id}:REACTION"
         bundled_event = next((x for x in existing if str(x.get("event_id", "")).strip() == reaction_id), None)
@@ -228,6 +233,13 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         comments = generated.get("facebook_comments", [])
         if len(comments) != missing:
             raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {missing}")
+        has_blog_cta = any(
+            BLOGGER_URL in str(x.get("comment_text", ""))
+            for x in existing
+            if str(x.get("action", "")).upper() == "COMMENT"
+        )
+        if add_blog_cta and not has_blog_cta and comments:
+            comments[-1] = blog_cta_comment("facebook")
 
         existing_sequences = {
             int(x.get("sequence", "0") or "0")
