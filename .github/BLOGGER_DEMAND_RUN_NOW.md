@@ -8,3 +8,5 @@ Retry daily demand article after fixing model fallback and article body composit
 
 
 Immediate retry requested: 2026-10-09. Commit message BLOGGER_DEMAND_RUN_NOW intentionally forces one demand-driven article run for the Cairo date.
+
+REST API publisher repair deployed; retry demand article after editor-selector failure.
