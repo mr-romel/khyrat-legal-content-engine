@@ -5,3 +5,6 @@ This marker exists to trigger the independent daily legal search-demand article 
 Retry trigger after reducing browser install time: 2026-10-09.
 
 Retry daily demand article after fixing model fallback and article body composition.
+
+
+Immediate retry requested: 2026-10-09. Commit message BLOGGER_DEMAND_RUN_NOW intentionally forces one demand-driven article run for the Cairo date.
