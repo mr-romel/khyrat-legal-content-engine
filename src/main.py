@@ -203,6 +203,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         legal_sources = sheet_legal_sources
         print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
 
+    image_brief = str(row.get("وصف الصورة", "") or "").strip()
     try:
         result = generate_post(
             api_key=config["gemini_api_key"],
@@ -212,6 +213,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             previous_context=previous_context,
         )
         post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, legal_sources)
+        # Keep the scene brief produced alongside the post: this was the stable,
+        # working path before the separate post-to-scene rewrite was introduced.
+        image_brief = str(result.get("image_brief", "") or "").strip() or image_brief
         review_level = str(result.get("review_level", "CLEAR") or "CLEAR").upper()
         review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     except Exception as exc:
@@ -220,17 +224,21 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
-    # IMAGE IS MANDATORY: generate a fresh image for every publication.
-    # Never reuse an old asset and never continue with text-only publication.
+    # Image generation is best-effort and must never hold up social publication.
+    # Prefer the image_brief produced with the post; only derive a scene separately
+    # when a fallback post has no usable brief.
     generated_image_path = None
+    image_url = ""
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
     try:
-        visual_description = generate_image_scene_from_post(
-            api_key=config["gemini_api_key"],
-            model=config["gemini_model"],
-            post=post,
-        )
-        print(f"POST-DERIVED IMAGE SCENE: {visual_description}")
+        visual_description = image_brief
+        if not visual_description:
+            visual_description = generate_image_scene_from_post(
+                api_key=config["gemini_api_key"],
+                model=config["gemini_model"],
+                post=post,
+            )
+        print(f"POST-ALIGNED IMAGE BRIEF: {visual_description}")
         create_legal_image(
             topic=topic,
             image_brief=visual_description,
@@ -242,54 +250,58 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             api_key=config.get("gemini_api_key", ""),
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
-            raise ImageGenerationError("Mandatory generated image file is empty.")
-        image_qa = qa_image(
-            api_key=config["gemini_api_key"],
-            image_path=str(image_path),
-            topic=topic,
-            image_brief=visual_description,
-        )
-        image_qa_summary = summarize_qa(image_qa)
-        print(f"IMAGE SEMANTIC QA: {image_qa_summary}")
-        if str(image_qa.get("decision", "")).upper() != "PASS":
-            raise ImageGenerationError(
-                "Generated image failed visual relevance/text QA; refusing to publish an unrelated image. "
-                + image_qa_summary
-            )
+            raise ImageGenerationError("Generated image file is empty.")
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
+
+        # Semantic QA is diagnostic only: a QA warning is recorded but does not
+        # cancel publication or discard a successfully generated image.
+        image_qa_summary = "QA not run"
+        image_qa_score = ""
+        image_qa_status = "GENERATED_QA_PENDING"
+        try:
+            image_qa = qa_image(
+                api_key=config["gemini_api_key"],
+                image_path=str(image_path),
+                topic=topic,
+                image_brief=visual_description,
+            )
+            image_qa_summary = summarize_qa(image_qa)
+            image_qa_score = str(image_qa.get("overall_score", ""))
+            image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_WARNING_NON_BLOCKING"
+        except Exception as qa_exc:
+            image_qa_summary = f"Image QA unavailable (non-blocking): {qa_exc}"
+            image_qa_status = "QA_UNAVAILABLE_NON_BLOCKING"
+        print(f"IMAGE SEMANTIC QA: {image_qa_status} | {image_qa_summary}")
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "رابط الصورة": image_url,
-            "Image Mode": "MANDATORY_POST_DERIVED_GENERATION",
+            "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
             "Image QA Attempt": "1",
-            "Image QA Status": "PASS",
-            "Image QA Score": str(image_qa.get("overall_score", "")),
-            "Image QA Issues": image_qa_summary,
+            "Image QA Status": image_qa_status,
+            "Image QA Score": image_qa_score,
+            "Image QA Issues": image_qa_summary[:1500],
             "المحتوى": post,
             "وصف الصورة": visual_description,
             "وقت آخر تشغيل": current.isoformat(),
-            "آخر خطأ": "",
+            "آخر خطأ": "" if image_qa_status == "PASS" else image_qa_summary[:1500],
         })
-        print(
-            "MANDATORY IMAGE: fresh image generated directly from complete post; "
-            f"path={image_path}"
-        )
+        print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
+        # Do not leave a stale image URL that could misrepresent this publication.
+        image_url = ""
+        generated_image_path = None
         update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "رابط الصورة": "",
             "Image QA Attempt": "1",
-            "Image QA Status": "IMAGE_GENERATION_FAILED",
+            "Image QA Status": "IMAGE_GENERATION_FAILED_NON_BLOCKING",
             "Image QA Issues": str(image_exc)[:1500],
-            "Image Mode": "IMAGE_REQUIRED_FAILED",
+            "Image Mode": "TEXT_ONLY_FALLBACK",
+            "المحتوى": post,
             "وقت آخر تشغيل": current.isoformat(),
-            "آخر خطأ": f"Mandatory image generation failed: {image_exc}"[:1500],
+            "آخر خطأ": f"Image generation failed; text publication continues: {image_exc}"[:1500],
         })
-        print(f"MANDATORY IMAGE GENERATION FAILED: {image_exc}")
-        raise ImageGenerationError(
-            f"Publication blocked because mandatory image generation failed: {image_exc}"
-        ) from image_exc
+        print(f"IMAGE GENERATION FAILED — continuing with text-only publication: {image_exc}")
 
-
-    image_url = github_raw_url(str(generated_image_path))
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
 
@@ -535,7 +547,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
-            raise ImageGenerationError("Publication requires a freshly generated image.")
+            print("Image unavailable; publication will continue as text-only on supported platforms.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
@@ -568,7 +580,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
             try:
-                facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
+                if image_available:
+                    facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
+                else:
+                    facebook = publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post)
                 facebook_post_id = facebook["post_id"]
                 row["Facebook Status"] = "PUBLISHED"
                 try:
@@ -596,7 +611,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 token = config["linkedin_access_token"]
                 author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-                linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
+                if image_available:
+                    linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
+                else:
+                    linkedin = publish_text_to_linkedin(token=token, author_urn=author, commentary=linkedin_post)
                 linkedin_post_id = linkedin["post_urn"]
                 row["LinkedIn Status"] = "PUBLISHED"
                 comment_result = linkedin.get("comment") or {}
