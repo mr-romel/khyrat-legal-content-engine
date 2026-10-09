@@ -22,9 +22,9 @@ from utils import now_cairo, parse_date
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
-REEL_MAX_DURATION_SECONDS = max(30, int(os.getenv("REEL_MAX_DURATION_SECONDS", "60")))
+REEL_MAX_DURATION_SECONDS = min(120, max(30, int(os.getenv("REEL_MAX_DURATION_SECONDS", "120"))))
 REEL_MIN_DURATION_SECONDS = min(30, REEL_MAX_DURATION_SECONDS)
-REEL_CONTENT_MAX_SECONDS = max(20, REEL_MAX_DURATION_SECONDS - 5)
+REEL_CONTENT_MAX_SECONDS = min(115, max(20, REEL_MAX_DURATION_SECONDS - 5))
 
 
 def choose_row(
@@ -537,9 +537,9 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 45–55 seconds and 110–140 Arabic words maximum, with the spoken audio strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 90–105 seconds and 200–260 Arabic words maximum, with the spoken audio strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
-        "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
+        "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the exact reviewed post and sentence. Visuals must depict the concrete event, people, documents, workplace, home, phone, or evidence described in the post. STRICTLY FORBIDDEN: pharaohs, pyramids, ancient Egypt, hieroglyphics, temples, mummies, ancient costumes, gold-and-sandstone pharaonic aesthetics, fantasy/history visuals, or any unrelated stock imagery. Use contemporary realistic Egyptian settings only when supported by the post. Never use generic courtroom/lawyer imagery when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
         "Choose delivery emotions that fit the legal subject and sentence function, such as calm_authority, warning, empathy, urgency, reassurance, clarification, or strong_cta. "
         "The voice must sound like a confident Egyptian male lawyer in his late 30s: natural Egyptian Arabic, clear diction, measured pace, never a newsreader or generic MSA narrator. "
