@@ -502,3 +502,41 @@ def publish_page_ui(
             Path(state_path).unlink(missing_ok=True)
         except Exception:
             pass
+
+
+def resolve_blog_id_ui() -> str:
+    """Resolve the current Blogger blog ID from the authenticated UI without OAuth API tokens."""
+    state_path = _storage_state_path()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context(storage_state=state_path, locale="ar-EG")
+            page = context.new_page()
+            page.goto("https://www.blogger.com/", wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(1200)
+            if "accounts.google.com" in page.url or "signin" in page.url.lower():
+                raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
+            value = _blog_id_from_url(page.url)
+            if not value:
+                # Blogger's dashboard may render the selected blog ID only in a link.
+                hrefs = page.locator('a[href*="/blog/posts/"], a[href*="/blog/pages/"]').evaluate_all(
+                    "els => els.map(e => e.href)"
+                )
+                for href in hrefs:
+                    value = _blog_id_from_url(str(href))
+                    if value:
+                        break
+            context.close()
+            browser.close()
+            if not value:
+                raise BloggerUIPublishError(f"Could not resolve Blogger blog ID from authenticated UI URL: {page.url}")
+            return value
+    except BloggerUIPublishError:
+        raise
+    except Exception as exc:
+        raise BloggerUIPublishError(f"Could not resolve Blogger blog ID through UI: {exc}") from exc
+    finally:
+        try:
+            Path(state_path).unlink(missing_ok=True)
+        except Exception:
+            pass
