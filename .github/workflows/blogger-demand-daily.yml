@@ -6,9 +6,9 @@ on:
     paths:
       - ".github/BLOGGER_DEMAND_RUN_NOW.md"
   schedule:
-    # Cairo local 23:00 in summer (20:00 UTC) or winter (21:00 UTC).
-    # The worker enforces the Cairo-time window and is idempotent per local date.
-    - cron: "0 20,21 * * *"
+    # Run before the social publishing window; timezone is explicit to handle DST.
+    - cron: "0 7 * * *"
+      timezone: "Africa/Cairo"
   workflow_dispatch:
 
 permissions:
