@@ -23,7 +23,8 @@ MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
 REEL_MAX_DURATION_SECONDS = max(30, int(os.getenv("REEL_MAX_DURATION_SECONDS", "60")))
-REEL_MIN_DURATION_SECONDS = min(45, REEL_MAX_DURATION_SECONDS)
+REEL_MIN_DURATION_SECONDS = min(30, REEL_MAX_DURATION_SECONDS)
+REEL_CONTENT_MAX_SECONDS = max(20, REEL_MAX_DURATION_SECONDS - 5)
 
 
 def choose_row(
@@ -155,7 +156,7 @@ def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
         raise RuntimeError(f"Edge Egyptian TTS duration outside production range: {duration:.1f}s")
     print(f"Edge Egyptian Neural TTS succeeded: voice={voice} duration={duration:.1f}s")
     return output_path
@@ -232,7 +233,7 @@ def fit_reel_narration_duration(path: Path, target_seconds: float | None = None)
     """QA only. Never speed up natural Egyptian narration."""
     duration = _media_duration(path)
     minimum = min(45.0, float(REEL_MIN_DURATION_SECONDS))
-    maximum = float(REEL_MAX_DURATION_SECONDS)
+    maximum = float(REEL_CONTENT_MAX_SECONDS)
     if duration < minimum:
         raise RuntimeError("Reel narration is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
     if duration > maximum:
@@ -244,7 +245,7 @@ def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) 
     """Keep Egyptian neural speech at natural speed; never use atempo compression."""
     duration = _media_duration(path)
     minimum = float(REEL_MIN_DURATION_SECONDS)
-    maximum = min(float(target_max), float(REEL_MAX_DURATION_SECONDS)) if target_max is not None else float(REEL_MAX_DURATION_SECONDS)
+    maximum = min(float(target_max), float(REEL_CONTENT_MAX_SECONDS)) if target_max is not None else float(REEL_CONTENT_MAX_SECONDS)
     if duration < minimum:
         raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
     if duration > maximum:
@@ -536,7 +537,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target no more than {REEL_MAX_DURATION_SECONDS} seconds and enough Arabic words for a natural narration within that hard limit. Never generate a script that exceeds the configured maximum. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 45–55 seconds and 110–140 Arabic words maximum, with the spoken audio strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -646,7 +647,7 @@ def build_fast_fallback_reel(
         raise RuntimeError("Fast Reel fallback requires at least 6 topic-matched scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
     audio_duration = _media_duration(audio_path)
-    if not float(REEL_MIN_DURATION_SECONDS) <= audio_duration <= float(REEL_MAX_DURATION_SECONDS):
+    if not float(REEL_MIN_DURATION_SECONDS) <= audio_duration <= float(REEL_CONTENT_MAX_SECONDS):
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected configured duration limit")
 
     base_duration = min(180.0, max(50.0, audio_duration))
@@ -1022,7 +1023,7 @@ def main() -> int:
                         shutil.copy2(task_videos[-1], raw_video)
                         mpt_duration = _media_duration(raw_video)
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
-                        if float(REEL_MIN_DURATION_SECONDS) <= mpt_duration <= float(REEL_MAX_DURATION_SECONDS):
+                        if float(REEL_MIN_DURATION_SECONDS) <= mpt_duration <= float(REEL_CONTENT_MAX_SECONDS):
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "خليك فاكر دايما .... اسأل محمود"
                             slogan_ready = False
@@ -1056,7 +1057,7 @@ def main() -> int:
                 print(f"MoneyPrinterTurbo bounded run failed; using fast FFmpeg fallback: {mpt_exc}")
 
             if not mpt_ok:
-                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=REEL_MAX_DURATION_SECONDS)
+                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=REEL_CONTENT_MAX_SECONDS)
                 # Apply the same branded motion layer and spoken slogan to the fallback.
                 slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                 slogan_text = "خليك فاكر دايما .... اسأل محمود"
