@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: blogger-daily-search-demand
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish-demand-article:
