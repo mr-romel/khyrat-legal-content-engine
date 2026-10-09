@@ -12,3 +12,5 @@ Immediate retry requested: 2026-10-09. Commit message BLOGGER_DEMAND_RUN_NOW int
 REST API publisher repair deployed; retry demand article after editor-selector failure.
 
 Retry after adding the Gemini-quota fallback and Blogger REST API publishing path.
+
+Retry after installing Google API dependencies and adding authenticated UI fallback for revoked OAuth tokens.
