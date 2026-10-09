@@ -26,7 +26,7 @@ env:
 
 jobs:
   publish:
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' }}
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -164,8 +164,9 @@ jobs:
           GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
+          REEL_MAX_DURATION_SECONDS: "60"
           REEL_RECOVERY: "true"
-          REEL_FORCE_REGENERATE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' && 'true' || 'false' }}
+          REEL_FORCE_REGENERATE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX') && 'true' || 'false' }}
           REEL_FORCE_TELEGRAM_REVIEW: ${{ github.event_name == 'push' && github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
