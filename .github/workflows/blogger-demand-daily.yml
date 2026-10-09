@@ -1,6 +1,10 @@
 name: Blogger Daily Search Demand Article
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_DEMAND_RUN_NOW.md"
   schedule:
     # Cairo local 23:00 in summer (20:00 UTC) or winter (21:00 UTC).
     # The worker enforces the Cairo-time window and is idempotent per local date.
@@ -52,6 +56,7 @@ jobs:
           SEARCH_CONSOLE_SITE_URL: ${{ secrets.SEARCH_CONSOLE_SITE_URL }}
           SEARCH_CONSOLE_DAYS: "28"
           BLOGGER_KEYWORD_MAP_PATH: data/blogger_keyword_map.json
+          BLOGGER_DEMAND_FORCE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'BLOGGER_DEMAND_RUN_NOW' && 'true' || 'false' }}
         run: PYTHONPATH=src python src/blogger_demand_worker.py
 
       - name: Persist keyword map and research history
