@@ -1,0 +1,378 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+import time
+import xml.etree.ElementTree as ET
+from collections import Counter
+from datetime import datetime, timedelta
+from pathlib import Path
+from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
+
+import requests
+from google import genai
+
+from blogger_publisher import build_article_html, prepare_article
+from blogger_ui_publisher import publish_article_ui
+from legal_research import research_legal_topic
+
+BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip()
+BLOG_ID = os.getenv("BLOGGER_BLOG_ID", "").strip()
+MAP_PATH = Path(os.getenv("BLOGGER_KEYWORD_MAP_PATH", "data/blogger_keyword_map.json"))
+TIMEOUT = 18
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudLegalResearch/1.0)"}
+
+# Seeds are problem-oriented, Egyptian-law topics. Search suggestions expand them
+# into natural questions rather than treating these seeds as search-volume data.
+SEEDS = [
+    "الابتزاز الإلكتروني في مصر",
+    "الفصل التعسفي ومستحقات العامل",
+    "الإيجار القديم والجديد وحقوق المستأجر",
+    "نفقة الزوجة والأطفال وإجراءات التنفيذ",
+    "حضانة الأطفال والرؤية في القانون المصري",
+    "إيصال الأمانة والشيك بدون رصيد",
+    "التعويض عن الضرر في القانون المصري",
+    "الاستيلاء المؤقت على العقار للمنفعة العامة",
+    "تأسيس الشركات ومسؤولية المدير",
+    "تأخر صاحب العمل في صرف المرتب",
+    "فسخ العقد والشرط الجزائي",
+    "امتناع أحد الورثة عن تقسيم التركة",
+    "التصالح في مخالفات البناء",
+    "مستحقات نهاية الخدمة في مصر",
+    "السب والقذف والتشهير عبر الإنترنت",
+    "التوقيع على بياض واسترداد الحق",
+    "رفض تسليم الوحدة العقارية",
+    "حقوق الشريك عند الخلاف في الشركة",
+    "الفصل من العمل بدون إنذار",
+    "استرداد الأموال في النصب العقاري",
+    "التظلم من قرار إداري في مصر",
+    "حقوق العامل في ساعات العمل الإضافية",
+    "إجراءات رفع دعوى تعويض",
+    "مسؤولية المدير عن ديون الشركة",
+    "امتناع الورثة عن بيع أو تقسيم العقار",
+    "حقوق الموظف عند انتهاء عقد العمل",
+]
+
+AR_STOP = {
+    "في", "من", "على", "عن", "الى", "إلى", "ما", "ماذا", "كيف", "هل", "مع",
+    "عند", "بعد", "قبل", "مصر", "المصري", "المصرية", "قانون", "القانون",
+    "حقوق", "حق", "إجراءات", "طريقة", "شرح", "ماهي", "ماهو", "التي", "الذي",
+    "هذا", "هذه", "ذلك", "ولا", "إذا", "لو", "لدى", "بشأن", "بين", "أو",
+}
+QUESTION_TERMS = ("ازاي", "كيف", "ماذا", "هل", "متى", "عقوبة", "حقوق", "إجراءات", "طريقة", "أعمل", "أفعل", "مستحقات")
+LEGAL_TERMS = ("قانون", "حقوق", "محكمة", "دعوى", "عقد", "إيجار", "عمل", "تعويض", "ورثة", "نفقة", "حضانة", "شيك", "أمانة", "ابتزاز", "فصل", "إخلاء", "شركة", "عقار", "ترخيص", "مخالفة", "تظلم", "مستحقات")
+
+
+def _clean(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _norm(value: str) -> str:
+    value = _clean(value).casefold()
+    value = re.sub(r"[ـًٌٍَُِّْٰ]", "", value)
+    value = re.sub(r"[إأآٱ]", "ا", value)
+    value = value.replace("ى", "ي").replace("ة", "ه")
+    tokens = re.findall(r"[\u0600-\u06ff]+|[a-z0-9]+", value)
+    return " ".join(x for x in tokens if x not in AR_STOP and len(x) > 1)
+
+
+def _similarity(a: str, b: str) -> float:
+    aa, bb = set(_norm(a).split()), set(_norm(b).split())
+    if not aa or not bb:
+        return 0.0
+    return len(aa & bb) / len(aa | bb)
+
+
+def _suggest(query: str) -> list[str]:
+    try:
+        response = requests.get(
+            "https://suggestqueries.google.com/complete/search",
+            params={"client": "firefox", "q": query, "hl": "ar", "gl": "eg"},
+            headers=HEADERS,
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return list(dict.fromkeys(_clean(x) for x in (data[1] if isinstance(data, list) and len(data) > 1 else []) if _clean(x)))
+    except Exception as exc:
+        print(f"Autocomplete unavailable for {query!r}: {exc}")
+        return []
+
+
+def _serp(query: str) -> list[dict[str, str]]:
+    """Collect public result titles/snippets as context; not a source of search-volume claims."""
+    try:
+        response = requests.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": query, "kl": "eg-ar"},
+            headers=HEADERS,
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        from html import unescape
+        text = response.text
+        pattern = re.compile(
+            r'<a[^>]+class=["\']result__a["\'][^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+            re.I | re.S,
+        )
+        out = []
+        for match in pattern.finditer(text):
+            url = unescape(match.group(1))
+            title = _clean(re.sub(r"<[^>]+>", " ", unescape(match.group(2))))
+            if title and url.startswith("http"):
+                out.append({"title": title, "url": url})
+            if len(out) >= 6:
+                break
+        return out
+    except Exception as exc:
+        print(f"SERP context unavailable for {query!r}: {exc}")
+        return []
+
+
+def _trending_legal_terms() -> list[str]:
+    """Use Egypt's public trending feed only as an optional recency signal."""
+    url = "https://trends.google.com/trending/rss?geo=EG"
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+        root = ET.fromstring(response.text)
+        terms = []
+        for item in root.findall(".//item"):
+            title = _clean(item.findtext("title", ""))
+            if title and any(term in title for term in LEGAL_TERMS):
+                terms.append(title)
+        return terms[:20]
+    except Exception as exc:
+        print(f"Google Trends Egypt feed unavailable (optional): {exc}")
+        return []
+
+
+def _public_titles() -> list[dict[str, str]]:
+    """Read recent public posts from Blogger's public JSON feed; no OAuth needed."""
+    url = BLOG_URL.rstrip("/") + "/feeds/posts/default"
+    try:
+        response = requests.get(url, params={"alt": "json", "max-results": "100"}, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+        data = response.json().get("feed", {}).get("entry", [])
+        out = []
+        for item in data:
+            title = _clean(item.get("title", {}).get("$t", ""))
+            links = item.get("link", [])
+            href = next((x.get("href", "") for x in links if x.get("rel") == "alternate"), "")
+            if title:
+                out.append({"title": title, "url": href})
+        return out
+    except Exception as exc:
+        print(f"Blogger public feed unavailable; keyword-map history remains active: {exc}")
+        return []
+
+
+def _load_map() -> dict:
+    try:
+        data = json.loads(MAP_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            data.setdefault("history", [])
+            data.setdefault("keyword_frequency", {})
+            return data
+    except Exception:
+        pass
+    return {
+        "schema_version": 1,
+        "description": "Observed Egyptian Arabic legal search queries and daily Blogger research articles. Suggestions/SERP are directional demand signals, not exact search volumes.",
+        "history": [],
+        "keyword_frequency": {},
+    }
+
+
+def _save_map(data: dict) -> None:
+    MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MAP_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def collect_candidates(history: list[dict], published: list[dict[str, str]], trends: list[str]) -> list[dict]:
+    seen = set()
+    candidates = []
+    recent_queries = [
+        str(item.get("query", ""))
+        for item in history[-45:]
+        if str(item.get("status", "")).upper() in {"PUBLISHED", "PROCESSING"}
+    ]
+    existing_titles = [item.get("title", "") for item in published]
+    for seed in SEEDS:
+        variants = [seed, f"ازاي أتصرف لو {seed}", f"ما هي الإجراءات القانونية في {seed}"]
+        suggestions = []
+        for query in variants[:2]:
+            suggestions.extend(_suggest(query))
+            time.sleep(0.12)
+        if not suggestions:
+            suggestions = [seed]
+        for query in [seed, *suggestions]:
+            query = _clean(query)
+            norm = _norm(query)
+            if not norm or len(query) < 10 or norm in seen:
+                continue
+            seen.add(norm)
+            if not any(term in query for term in LEGAL_TERMS):
+                continue
+            if any(_similarity(query, old) >= 0.52 for old in recent_queries if old):
+                continue
+            if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
+                continue
+            query_variants = [query, f"{query} مصر", f"{query} ماذا أفعل"]
+            signal_suggestions = []
+            for variant in query_variants[:2]:
+                signal_suggestions.extend(_suggest(variant))
+            signal_suggestions = list(dict.fromkeys(signal_suggestions))[:12]
+            question_score = sum(1 for term in QUESTION_TERMS if term in query)
+            trend_matches = [term for term in trends if _similarity(term, query) >= 0.25]
+            score = min(100, 20 + len(signal_suggestions) * 4 + question_score * 5 + len(trend_matches) * 15)
+            candidates.append({
+                "query": query,
+                "seed": seed,
+                "suggestions": signal_suggestions,
+                "suggestion_count": len(signal_suggestions),
+                "trend_matches": trend_matches,
+                "demand_score": score,
+                "demand_signal": "Google Autocomplete + public SERP context; optional Google Trends Egypt match",
+            })
+    candidates.sort(key=lambda x: (x["demand_score"], len(x["query"])), reverse=True)
+    return candidates
+
+
+def _generate_source_draft(api_key: str, model: str, query: str, packet: str, serp: list[dict[str, str]]) -> str:
+    client = genai.Client(api_key=api_key)
+    serp_context = "\n".join(f"- {x['title']} ({x['url']})" for x in serp[:6]) or "No public SERP snippets retrieved."
+    prompt = f"""أنت باحث ومحرر قانوني مصري. اكتب مسودة عربية أصلية تجيب مباشرة عن سؤال البحث التالي:
+{query}
+
+هذه نتائج بحث عامة للاستدلال على صياغة سؤال المستخدم فقط، وليست مراجع قانونية موثوقة:
+{serp_context}
+
+حزمة البحث القانوني المتحقق منها:
+{packet}
+
+شروط إلزامية:
+- اكتب بالعربية المصرية المهنية الواضحة، وابدأ بإجابة مباشرة.
+- استخدم القانون المصري فقط، ولا تخترع أرقام مواد أو عقوبات أو مواعيد أو أحكامًا.
+- إذا لم تتضمن حزمة البحث سندًا موثقًا، لا تنسب إليها قاعدة قانونية محددة؛ وضّح الوقائع والمستندات والأسئلة التي يجب التحقق منها.
+- اشرح السيناريوهات المحتملة، المستندات التي تغيّر التقييم، الأخطاء الشائعة، والخطوات العملية الآمنة.
+- لا تكرر مقالًا عامًا؛ اجعل المقال خاصًا بسؤال البحث.
+- أخرج مسودة بين 500 و750 كلمة تصلح أساسًا لمقال متخصص، من دون تسويق أو ادعاء وجود حجم بحث رقمي.
+"""
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config={"max_output_tokens": 7000},
+    )
+    draft = _clean(getattr(response, "text", ""))
+    if len(draft) < 900:
+        raise RuntimeError("Demand article source draft is too short; refusing to publish thin content.")
+    return draft
+
+
+def _find_public_url(title: str, fallback: str) -> str:
+    for item in _public_titles():
+        if _norm(item["title"]) == _norm(title) and item.get("url"):
+            return item["url"]
+    return fallback
+
+
+def main() -> int:
+    if os.getenv("BLOGGER_ENABLED", "true").strip().lower() not in {"1", "true", "yes", "on"}:
+        print("Blogger is disabled; daily search-demand article skipped.")
+        return 0
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is required for the daily Blogger search-demand article.")
+    if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
+        raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required; this worker publishes through the existing authenticated Blogger UI.")
+
+    today = datetime.now(ZoneInfo("Africa/Cairo")).date().isoformat()
+    keyword_map = _load_map()
+    history = keyword_map["history"]
+    if any(item.get("date") == today and item.get("status") == "PUBLISHED" for item in history):
+        print(f"Daily Blogger search-demand article already published for {today}; idempotent skip.")
+        return 0
+
+    published = _public_titles()
+    trends = _trending_legal_terms()
+    candidates = collect_candidates(history, published, trends)
+    if not candidates:
+        raise RuntimeError("No distinct legal search-demand candidate found after deduplication.")
+    selected = candidates[0]
+    query = selected["query"]
+    print(f"Selected search-demand query: {query}")
+    print(f"Directional demand score: {selected['demand_score']} (not a search-volume estimate)")
+    print(f"Autocomplete suggestions: {selected['suggestions']}")
+    serp = _serp(f'"{query}" مصر قانون')
+    packet = research_legal_topic(query)
+    model = os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip() or "gemini-3.6-flash"
+    draft = _generate_source_draft(api_key, model, query, packet, serp)
+    article = prepare_article(
+        api_key=api_key,
+        model=model,
+        topic=query,
+        post=draft,
+        legal_sources=packet,
+    )
+    title = _clean(article.get("title", ""))[:110]
+    description = _clean(article.get("meta_description", ""))[:180]
+    if not title or len(description) < 40:
+        raise RuntimeError("SEO article title or search description is missing; refusing to publish incomplete metadata.")
+    keywords = [ _clean(x) for x in article.get("keywords", []) if _clean(x) ]
+    labels = list(dict.fromkeys(["قانون مصر", "اسأل محمود", *keywords]))[:10]
+    html = build_article_html(
+        title=title,
+        topic=query,
+        post=draft,
+        image_url="",
+        legal_sources=packet,
+        related=[],
+        article=article,
+    )
+    history_entry = {
+        **selected,
+        "date": today,
+        "status": "PROCESSING",
+        "title": title,
+        "keywords": keywords,
+        "meta_description": description,
+        "serp_titles": [x["title"] for x in serp],
+        "serp_urls": [x["url"] for x in serp],
+        "research_date": today,
+    }
+    history.append(history_entry)
+    _save_map(keyword_map)
+
+    result = publish_article_ui(
+        title=title,
+        content_html=html,
+        labels=labels,
+        blog_id=BLOG_ID,
+        blog_url=BLOG_URL,
+        search_description=description,
+    )
+    public_url = _find_public_url(title, result.get("post_url", ""))
+    history_entry.update({
+        "status": "PUBLISHED",
+        "post_id": result.get("post_id", ""),
+        "post_url": public_url,
+        "published_at": datetime.now(ZoneInfo("Africa/Cairo")).isoformat(),
+    })
+    frequency = Counter(keyword_map.get("keyword_frequency", {}))
+    for keyword in [query, *keywords, *selected["suggestions"]]:
+        clean_keyword = _clean(keyword)
+        if clean_keyword:
+            frequency[clean_keyword] += 1
+    keyword_map["keyword_frequency"] = dict(frequency.most_common(500))
+    keyword_map["updated_at"] = datetime.now(ZoneInfo("Africa/Cairo")).isoformat()
+    _save_map(keyword_map)
+    print(f"Daily search-demand article published: {title} -> {public_url}")
+    print(f"Keyword map updated: {MAP_PATH}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
