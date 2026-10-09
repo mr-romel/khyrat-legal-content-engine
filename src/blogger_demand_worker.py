@@ -212,6 +212,8 @@ def collect_candidates(
         norm = _norm(query)
         if not norm or len(query) < 8 or norm in seen:
             continue
+        if not any(term in query for term in LEGAL_TERMS):
+            continue
         if any(_similarity(query, old) >= 0.52 for old in recent_queries if old):
             continue
         if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
