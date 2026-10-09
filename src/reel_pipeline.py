@@ -481,10 +481,7 @@ def add_motion_graphics_layer(
         cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
         # Main words are source-derived; line art is drawn like a whiteboard sketch.
         cd.text((450, 190), rtl(phrase[:42]), font=font(37), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
-        # Marker tip is positioned at the underline endpoint; FFmpeg reveals the stroke over time.
-        cd.ellipse((735, 238, 773, 276), fill=(255, 255, 255, 255), outline=(10, 87, 129, 255), width=4)
-        cd.line((748, 248, 759, 261), fill=(10, 87, 129, 255), width=4)
-        cd.line((759, 261, 767, 246), fill=(10, 87, 129, 255), width=4)
+        # The moving hand/marker is a separate animated overlay, not a static decoration.
         icon_x, icon_y = 105, 310
         if i == 0:
             cd.rounded_rectangle((icon_x, icon_y-24, icon_x+34, icon_y+18), radius=5, outline=(10, 87, 129, 255), width=4)
@@ -501,6 +498,20 @@ def add_motion_graphics_layer(
         path = work_dir / f"whiteboard_card_{i+1}.png"
         card.save(path)
         overlay_inputs.extend(["-loop", "1", "-i", str(path)])
+
+    # A hand holding a marker travels along each underline while it is revealed.
+    hand = Image.new("RGBA", (150, 170), (0, 0, 0, 0))
+    hd = ImageDraw.Draw(hand)
+    hand_color = (9, 72, 105, 255)
+    hd.line([(28, 146), (42, 119), (47, 80), (54, 56), (64, 54), (69, 66), (67, 96)], fill=hand_color, width=9, joint="curve")
+    hd.line([(67, 96), (78, 72), (89, 73), (92, 84), (82, 109), (70, 132)], fill=hand_color, width=9, joint="curve")
+    hd.line([(44, 120), (67, 139), (96, 136), (117, 113), (122, 101)], fill=hand_color, width=9, joint="curve")
+    hd.line([(54, 57), (53, 35), (61, 20), (69, 31), (69, 66)], fill=(35, 174, 230, 255), width=7, joint="curve")
+    hd.line([(61, 20), (69, 7)], fill=(35, 174, 230, 255), width=7)
+    hand_path = work_dir / "whiteboard_hand_marker.png"
+    hand.save(hand_path)
+    for _ in range(4):
+        overlay_inputs.extend(["-loop", "1", "-i", str(hand_path)])
 
     base = work_dir / "whiteboard_base.mp4"
     vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.04:saturation=1.06"
@@ -529,7 +540,18 @@ def add_motion_graphics_layer(
         filter_parts = ["[0:v]null[wbfinal]"]
         previous = "[wbfinal]"
     else:
-        # Draw-on line and moving marker are synced to the active whiteboard card.
+        # The hand moves with the draw-on stroke, then exits with the board.
+        for i in range(4):
+            start = max(2.0, duration * (0.10 + i * 0.19))
+            end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
+            hand_index = 5 + i
+            filter_parts.append(
+                f"{previous}[{hand_index}:v]overlay=x='if(lt(t,{start:.3f}),-180,"
+                f"if(lt(t,{start+2.5:.3f}),210+(t-{start:.3f})*220,-180))':"
+                f"y=925:eval=frame:enable='between(t,{start:.3f},{min(end,start+2.7):.3f})'[hand{i}]"
+            )
+            previous = f"[hand{i}]"
+        # Reveal the cyan marker stroke over time, rather than displaying a complete underline.
         for i in range(4):
             start = max(2.0, duration * (0.10 + i * 0.19))
             end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
