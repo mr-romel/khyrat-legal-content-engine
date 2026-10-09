@@ -227,3 +227,6 @@ PRODUCTION_QUALITY_FIX final QA gate 2026-10-09
 PRODUCTION_QUALITY_FIX final image-context + non-blocking publication validation — 2026-10-09
 Commit message: `PRODUCTION_QUALITY_FIX`
 Reason: validate current image-context restoration, fixed RTL brand overlay, and text-only publication fallback if image generation fails.
+
+
+2026-10-09 recovery: run today's missing social publishing slot without deleting or republishing any existing social post IDs. Repair the failed Reel using the two-minute TTS limit.
