@@ -524,29 +524,38 @@ def main() -> int:
     _save_map(keyword_map)
 
     if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
-        # Prefer Blogger's supported REST API over brittle UI selectors.
-        # The UI publisher remains available only for environments without OAuth credentials.
-        blogger_api = blogger_rest_service()
-        target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
-        response = blogger_api.posts().insert(
-            blogId=target_blog_id,
-            body={
-                "kind": "blogger#post",
-                "title": title,
-                "content": html,
-                "labels": labels,
-            },
-            isDraft=False,
-        ).execute()
-        result = {
-            "post_id": str(response.get("id", "")),
-            "post_url": str(response.get("url", "")),
-            "title": str(response.get("title", title)),
-            "publisher": "BLOGGER_REST_API",
-        }
-        if not result["post_id"] or not result["post_url"]:
-            raise RuntimeError("Blogger REST API did not return a verifiable published post ID and URL.")
-        print("Demand article published through Blogger REST API.")
+        try:
+            blogger_api = blogger_rest_service()
+            target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
+            response = blogger_api.posts().insert(
+                blogId=target_blog_id,
+                body={
+                    "kind": "blogger#post",
+                    "title": title,
+                    "content": html,
+                    "labels": labels,
+                },
+                isDraft=False,
+            ).execute()
+            result = {
+                "post_id": str(response.get("id", "")),
+                "post_url": str(response.get("url", "")),
+                "title": str(response.get("title", title)),
+                "publisher": "BLOGGER_REST_API",
+            }
+            if not result["post_id"] or not result["post_url"]:
+                raise RuntimeError("Blogger REST API did not return a verifiable published post ID and URL.")
+            print("Demand article published through Blogger REST API.")
+        except Exception as api_exc:
+            print(f"Blogger REST API unavailable; trying the saved authenticated UI session: {api_exc}")
+            result = publish_article_ui(
+                title=title,
+                content_html=html,
+                labels=labels,
+                blog_id=BLOG_ID,
+                blog_url=BLOG_URL,
+                search_description=description,
+            )
     else:
         print("BLOGGER_OAUTH_JSON is absent; using the authenticated Blogger UI publisher.")
         result = publish_article_ui(
