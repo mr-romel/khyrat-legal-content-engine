@@ -102,8 +102,22 @@ def _notify_review(row_number: int, row: dict[str, str], review_level: str, revi
     send_review_request(row_number=row_number, topic=row.get("الموضوع", ""), post=row.get("المحتوى", ""), reason=review_text, sheet_id=config["sheet_id"], status=review_level)
 
 
+def _remove_facebook_page_link(post: str) -> str:
+    """Remove the Facebook Page URL from post copy; page branding remains on the image."""
+    text = str(post or "")
+    text = re.sub(
+        r"https?://(?:www\.)?facebook\.com/AskMahmoudNow/?(?:\?[^\s]*)?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"(?im)^\s*صفحة\s*اسأل\s*محمود\s*:?\s*$", "", text)
+    text = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)
+    return text.strip()
+
+
 def _ensure_facebook_cta(post: str) -> str:
-    text = (post or "").strip()
+    text = _remove_facebook_page_link((post or "").strip())
     if not text:
         return text
     additions = []
@@ -114,8 +128,7 @@ def _ensure_facebook_cta(post: str) -> str:
         additions.append("ولو عندك موقف مشابه، اكتب سؤالك في التعليقات ونوضح لك الإطار القانوني العام للمسألة.")
     contact_cta = (
         "لو محتاج تقييم موقفك القانوني على وقائعك ومستنداتك، ما تعتمدش على المعلومة العامة وحدها.\n"
-        "واتساب مباشر: https://wa.me/201022718375\n"
-        "صفحة اسأل محمود: https://www.facebook.com/AskMahmoudNow"
+        "واتساب مباشر: https://wa.me/201022718375"
     ) if "wa.me/201022718375" not in text else ""
     addition_text = "\n\n".join(additions).strip()
     return text + (("\n\n" + addition_text) if addition_text else "") + (("\n\n" + contact_cta) if contact_cta else "")
@@ -447,7 +460,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             post_urn=linkedin_old,
         )
 
-    facebook_post = append_hashtags(sanitize_social_copy(post), topic)
+    facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(post)), topic)
     linkedin_post = append_hashtags(sanitize_social_copy(post), topic)
     fb = publish_photo(
         page_id=config["facebook_page_id"],
