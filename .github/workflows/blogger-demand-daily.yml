@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
 
       - name: Research demand signals and publish the additional Blogger article
         env:
