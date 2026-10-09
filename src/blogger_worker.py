@@ -305,16 +305,31 @@ def main() -> int:
                 print(f"Blogger UI: embedding row-owned generated image URL: {blogger_image_url}")
             else:
                 print("Blogger UI: publishing a text-first article because no image is available.")
-            try:
-                article = prepare_article(
-                    api_key=os.getenv("GEMINI_API_KEY", "").strip(),
-                    model=os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
-                    topic=topic,
-                    post=post,
-                    legal_sources=legal_sources,
-                )
-            except Exception as exc:
-                print(f"Blogger UI editorial layer unavailable; using structured fallback: {exc}")
+            article = None
+            editorial_errors = []
+            api_key = os.getenv("GEMINI_API_KEY", "").strip()
+            model_candidates = list(dict.fromkeys([
+                os.getenv("GEMINI_MODEL", "").strip(),
+                os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+                "gemini-2.5-flash",
+            ]))
+            if api_key:
+                for candidate_model in (x for x in model_candidates if x):
+                    try:
+                        article = prepare_article(
+                            api_key=api_key,
+                            model=candidate_model,
+                            topic=topic,
+                            post=post,
+                            legal_sources=legal_sources,
+                        )
+                        print(f"Blogger editorial article generated with model {candidate_model}.")
+                        break
+                    except Exception as exc:
+                        editorial_errors.append(f"{candidate_model}: {exc}")
+                        print(f"Blogger editorial generation failed with {candidate_model}: {exc}")
+            if not isinstance(article, dict):
+                print("Blogger editorial layer unavailable; using structured fallback: " + " | ".join(editorial_errors))
                 article = _fallback_article(topic, post, legal_sources)
             article = _article_copy(article or {})
             title = str(article.get("title") or topic).strip()[:110]
