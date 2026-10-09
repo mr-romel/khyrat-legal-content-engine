@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 import requests
 from google import genai
 
-from blogger_publisher import build_article_html, prepare_article
+from blogger_publisher import build_article_html, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id
 from blogger_ui_publisher import publish_article_ui
 from legal_research import research_legal_topic
 
@@ -202,7 +202,7 @@ def collect_candidates(
     recent_queries = [
         str(item.get("query", ""))
         for item in history[-45:]
-        if str(item.get("status", "")).upper() in {"PUBLISHED", "PROCESSING"}
+        if str(item.get("status", "")).upper() == "PUBLISHED"
     ]
     existing_titles = [item.get("title", "") for item in published]
     # Real Search Console impressions/clicks take precedence over proxy signals
@@ -439,14 +439,40 @@ def main() -> int:
     history.append(history_entry)
     _save_map(keyword_map)
 
-    result = publish_article_ui(
-        title=title,
-        content_html=html,
-        labels=labels,
-        blog_id=BLOG_ID,
-        blog_url=BLOG_URL,
-        search_description=description,
-    )
+    if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+        # Prefer Blogger's supported REST API over brittle UI selectors.
+        # The UI publisher remains available only for environments without OAuth credentials.
+        blogger_api = blogger_rest_service()
+        target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
+        response = blogger_api.posts().insert(
+            blogId=target_blog_id,
+            body={
+                "kind": "blogger#post",
+                "title": title,
+                "content": html,
+                "labels": labels,
+            },
+            isDraft=False,
+        ).execute()
+        result = {
+            "post_id": str(response.get("id", "")),
+            "post_url": str(response.get("url", "")),
+            "title": str(response.get("title", title)),
+            "publisher": "BLOGGER_REST_API",
+        }
+        if not result["post_id"] or not result["post_url"]:
+            raise RuntimeError("Blogger REST API did not return a verifiable published post ID and URL.")
+        print("Demand article published through Blogger REST API.")
+    else:
+        print("BLOGGER_OAUTH_JSON is absent; using the authenticated Blogger UI publisher.")
+        result = publish_article_ui(
+            title=title,
+            content_html=html,
+            labels=labels,
+            blog_id=BLOG_ID,
+            blog_url=BLOG_URL,
+            search_description=description,
+        )
     public_url = _find_public_url(title, result.get("post_url", ""))
     history_entry.update({
         "status": "PUBLISHED",
