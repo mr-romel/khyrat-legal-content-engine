@@ -243,15 +243,28 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
             raise ImageGenerationError("Mandatory generated image file is empty.")
+        image_qa = qa_image(
+            api_key=config["gemini_api_key"],
+            image_path=str(image_path),
+            topic=topic,
+            image_brief=visual_description,
+        )
+        image_qa_summary = summarize_qa(image_qa)
+        print(f"IMAGE SEMANTIC QA: {image_qa_summary}")
+        if str(image_qa.get("decision", "")).upper() != "PASS":
+            raise ImageGenerationError(
+                "Generated image failed visual relevance/text QA; refusing to publish an unrelated image. "
+                + image_qa_summary
+            )
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "رابط الصورة": image_url,
             "Image Mode": "MANDATORY_POST_DERIVED_GENERATION",
             "Image QA Attempt": "1",
-            "Image QA Status": "ACCEPTED_FRESH_GENERATION",
-            "Image QA Score": "",
-            "Image QA Issues": "",
+            "Image QA Status": "PASS",
+            "Image QA Score": str(image_qa.get("overall_score", "")),
+            "Image QA Issues": image_qa_summary,
             "المحتوى": post,
             "وصف الصورة": visual_description,
             "وقت آخر تشغيل": current.isoformat(),
@@ -374,6 +387,19 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
             raise ImageGenerationError("Replacement image file was empty.")
+        image_qa = qa_image(
+            api_key=config["gemini_api_key"],
+            image_path=str(image_path),
+            topic=topic,
+            image_brief=visual_description,
+        )
+        image_qa_summary = summarize_qa(image_qa)
+        print(f"IMAGE REPAIR SEMANTIC QA: {image_qa_summary}")
+        if str(image_qa.get("decision", "")).upper() != "PASS":
+            raise ImageGenerationError(
+                "Replacement image failed visual relevance/text QA; refusing to republish. "
+                + image_qa_summary
+            )
         brand_published_image(str(image_path))
     except ImageGenerationError as exc:
         update_row(service, config["sheet_id"], sheet_name, row_number, {
