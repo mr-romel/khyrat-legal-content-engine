@@ -539,7 +539,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "المحتوى": post,
                 "وصف الصورة": str(row.get("وصف الصورة", "") or "").strip(),
-                "رابط الصورة": image_url or str(row.get("رابط الصورة", "") or "").strip(),
+                "رابط الصورة": image_url,
             })
             row["المحتوى"] = post
             print(f"Canonical post content persisted for row {row_number}.")
