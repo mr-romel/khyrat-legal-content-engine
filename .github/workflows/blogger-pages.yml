@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - ".github/BLOGGER_PAGES_RUN_NOW.md"
+  schedule:
+    - cron: "0 6 * * 1"
+      timezone: "Africa/Cairo"
   workflow_dispatch:
 permissions:
   contents: read
