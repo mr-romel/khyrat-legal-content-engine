@@ -574,7 +574,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
-        facebook_post = append_hashtags(sanitize_social_copy(editorial["facebook_post"]), topic)
+        facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(editorial["facebook_post"])), topic)
         linkedin_body, _ = split_hashtags(editorial.get("linkedin_post", ""))
         linkedin_post = append_hashtags(sanitize_social_copy(linkedin_body), topic)
         try:
