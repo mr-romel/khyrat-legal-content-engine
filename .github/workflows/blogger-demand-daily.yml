@@ -1,0 +1,77 @@
+name: Blogger Daily Search Demand Article
+
+on:
+  schedule:
+    # Cairo local 23:00 in summer (20:00 UTC) or winter (21:00 UTC).
+    # The worker enforces the Cairo-time window and is idempotent per local date.
+    - cron: "0 20,21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blogger-daily-search-demand
+  cancel-in-progress: false
+
+jobs:
+  publish-demand-article:
+    name: Research Egyptian legal searches and publish one extra article
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install worker and browser dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+          pip install -r requirements-browser.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Research demand signals and publish the additional Blogger article
+        env:
+          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+          BLOGGER_KEYWORD_MAP_PATH: data/blogger_keyword_map.json
+        run: PYTHONPATH=src python src/blogger_demand_worker.py
+
+      - name: Persist keyword map and research history
+        if: ${{ always() }}
+        run: |
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/blogger_keyword_map.json
+          if git diff --cached --quiet; then
+            echo "No keyword-map changes to persist."
+            exit 0
+          fi
+          git commit -m "Update Blogger legal keyword map"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Keyword map persisted."
+                exit 0
+              fi
+            else
+              git rebase --abort
+            fi
+            echo "Retrying keyword-map persistence (${attempt}/3)."
+          done
+          echo "Keyword map persistence failed after retries."
+          exit 1
