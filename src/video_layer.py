@@ -9,7 +9,7 @@ from telegram_bot import send_message
 from utils import now_cairo
 
 VIDEO_TASKS_DIR = Path("generated/video_tasks")
-VIDEO_DURATION = "45–75 seconds"
+VIDEO_DURATION = "90–115 seconds (hard maximum 120 seconds; never exceed 2 minutes)"
 TELEGRAM_SAFE_LIMIT = 3900
 
 
@@ -29,7 +29,7 @@ def _published(row: dict[str, str]) -> bool:
 def _prompt(topic: str, facebook_post: str) -> str:
     return f"""Create a 9:16 vertical legal Reel / Short, {VIDEO_DURATION}, based ONLY on the approved Facebook post below.
 
-Language: natural Egyptian Arabic. Audience: Egyptian non-lawyers. Start with a strong hook, explain simply and quickly, then end with a practical takeaway/CTA supported by the source. Use a confident, calm, natural Egyptian male lawyer voice (late 30s), not a news presenter. Use clean legal/social visuals, simple transitions, and short large on-screen text for key points only. No music or distracting sound effects. No lawyer avatar required. Maintain the “اسأل محمود” identity.
+Language: natural Egyptian Arabic. Audience: Egyptian non-lawyers. Start with a strong hook, explain simply and quickly, then end with a practical takeaway/CTA supported by the source. Use a confident, calm, natural Egyptian male lawyer voice (late 30s), not a news presenter. Build every scene and image prompt from the actual APPROVED FACEBOOK POST below: depict its specific people, actions, documents, setting, and evidence; do not generate a generic legal illustration. Use contemporary realistic Egyptian settings only when the post supports them, with simple transitions and short large on-screen text for key points only. STRICTLY FORBIDDEN: pharaohs, pyramids, ancient Egypt, hieroglyphics, temples, mummies, ancient costumes, gold-and-sandstone pharaonic aesthetics, fantasy/history visuals, or unrelated stock imagery. No music or distracting sound effects. No lawyer avatar required. Maintain the “اسأل محمود” identity.
 
 LEGAL SAFETY: The approved post is the sole legal source. Do not add or invent any article, ruling, penalty, deadline, exception, fact, example, statistic, legal conclusion, or other information. Do not change the legal meaning. Do not add disclaimers or filler. Output VIDEO ONLY: no caption, description, title, hashtags, or separate publishing text.
 
