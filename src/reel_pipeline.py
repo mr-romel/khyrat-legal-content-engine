@@ -22,6 +22,8 @@ from utils import now_cairo, parse_date
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
+REEL_MAX_DURATION_SECONDS = max(30, int(os.getenv("REEL_MAX_DURATION_SECONDS", "60")))
+REEL_MIN_DURATION_SECONDS = min(45, REEL_MAX_DURATION_SECONDS)
 
 
 def choose_row(
@@ -153,7 +155,7 @@ def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 240:
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
         raise RuntimeError(f"Edge Egyptian TTS duration outside production range: {duration:.1f}s")
     print(f"Edge Egyptian Neural TTS succeeded: voice={voice} duration={duration:.1f}s")
     return output_path
@@ -203,7 +205,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 90:
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
         raise RuntimeError(f"Google Cloud TTS duration outside 45-90s: {duration:.1f}s")
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
@@ -226,23 +228,27 @@ def _media_duration(path: Path) -> float:
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)], capture_output=True, text=True, check=True, timeout=30)
     return float(probe.stdout.strip() or "0")
 
-def fit_reel_narration_duration(path: Path, target_seconds: float = 62.0) -> Path:
+def fit_reel_narration_duration(path: Path, target_seconds: float | None = None) -> Path:
     """QA only. Never speed up natural Egyptian narration."""
     duration = _media_duration(path)
-    if duration < 48.0:
-        raise RuntimeError("Reel narration is too short: %.1fs; regenerate a fuller script." % duration)
-    if duration > 180.0:
-        raise RuntimeError("Reel narration is too long: %.1fs; regenerate a shorter script. Maximum natural narration is 180s." % duration)
+    minimum = min(45.0, float(REEL_MIN_DURATION_SECONDS))
+    maximum = float(REEL_MAX_DURATION_SECONDS)
+    if duration < minimum:
+        raise RuntimeError("Reel narration is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
+    if duration > maximum:
+        raise RuntimeError("Reel narration exceeds configured hard maximum: %.1fs > %.1fs." % (duration, maximum))
     print("Reel narration QA passed without speed change: duration=%.1fs" % duration)
     return path
 
-def _normalize_reel_audio_duration(path: Path, target_max: float = 180.0) -> Path:
+def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) -> Path:
     """Keep Egyptian neural speech at natural speed; never use atempo compression."""
     duration = _media_duration(path)
-    if duration < 45.0:
-        raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs" % duration)
-    if duration > target_max:
-        raise RuntimeError("Egyptian Neural TTS audio is too long: %.1fs; regenerate a shorter script." % duration)
+    minimum = float(REEL_MIN_DURATION_SECONDS)
+    maximum = min(float(target_max), float(REEL_MAX_DURATION_SECONDS)) if target_max is not None else float(REEL_MAX_DURATION_SECONDS)
+    if duration < minimum:
+        raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
+    if duration > maximum:
+        raise RuntimeError("Egyptian Neural TTS audio exceeds configured hard maximum: %.1fs > %.1fs." % (duration, maximum))
     print("Egyptian Neural TTS ready without speed change: duration=%.1fs" % duration)
     return path
 
@@ -379,7 +385,7 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
-    if duration < 45 or duration > 240:
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
         raise RuntimeError(f"Gemini TTS duration outside production range: {duration:.1f}s")
     return output_path
 
@@ -406,8 +412,12 @@ def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str 
     import arabic_reshaper
     from bidi.algorithm import get_display
     rtl = lambda value: get_display(arabic_reshaper.reshape(value))
-    draw.text((540, 1220), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font, anchor="mm", fill="white")
-    draw.text((540, 1340), rtl("خليك فاكر دايما .... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
+    try:
+        draw.text((540, 1220), "اسأل محمود - مستشار قانوني للشركات", font=font, anchor="mm", fill="white", direction="rtl", language="ar")
+        draw.text((540, 1340), "خليك فاكر دايما .... اسأل محمود", font=small, anchor="mm", fill=(215,225,240), direction="rtl", language="ar")
+    except (TypeError, ValueError):
+        draw.text((540, 1220), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font, anchor="mm", fill="white")
+        draw.text((540, 1340), rtl("خليك فاكر دايما .... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
     draw.ellipse((455, 1430, 625, 1600), fill=(24,119,242))
     fbfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 125)
     draw.text((540, 1515), "f", font=fbfont, anchor="mm", fill="white")
@@ -526,7 +536,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. Target 70-105 seconds and 160-220 Arabic words, with a hard natural-speech ceiling of 180 seconds. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. Target no more than {REEL_MAX_DURATION_SECONDS} seconds and enough Arabic words for a natural narration within that hard limit. Never generate a script that exceeds the configured maximum. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the topic and sentence; never generic courtroom/lawyer images when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -636,8 +646,8 @@ def build_fast_fallback_reel(
         raise RuntimeError("Fast Reel fallback requires at least 6 topic-matched scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
     audio_duration = _media_duration(audio_path)
-    if not 45.0 <= audio_duration <= 180.0:
-        raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected 45–180s")
+    if not float(REEL_MIN_DURATION_SECONDS) <= audio_duration <= float(REEL_MAX_DURATION_SECONDS):
+        raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected configured duration limit")
 
     base_duration = min(180.0, max(50.0, audio_duration))
     count = min(8, len(scenes))
@@ -1012,7 +1022,7 @@ def main() -> int:
                         shutil.copy2(task_videos[-1], raw_video)
                         mpt_duration = _media_duration(raw_video)
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
-                        if 45.0 <= mpt_duration <= 180.0:
+                        if float(REEL_MIN_DURATION_SECONDS) <= mpt_duration <= float(REEL_MAX_DURATION_SECONDS):
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "خليك فاكر دايما .... اسأل محمود"
                             slogan_ready = False
@@ -1033,7 +1043,7 @@ def main() -> int:
                                 print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
                                 shutil.copy2(raw_video, output_video)
                             raw_video.unlink(missing_ok=True)
-                            mpt_ok = output_video.is_file() and 45.0 <= _media_duration(output_video) <= 180.0
+                            mpt_ok = output_video.is_file() and float(REEL_MIN_DURATION_SECONDS) <= _media_duration(output_video) <= float(REEL_MAX_DURATION_SECONDS)
                         else:
                             print(f"REEL_STAGE mpt_rejected_duration={mpt_duration:.1f}s")
                             raw_video.unlink(missing_ok=True)
@@ -1046,7 +1056,7 @@ def main() -> int:
                 print(f"MoneyPrinterTurbo bounded run failed; using fast FFmpeg fallback: {mpt_exc}")
 
             if not mpt_ok:
-                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=60)
+                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=REEL_MAX_DURATION_SECONDS)
                 # Apply the same branded motion layer and spoken slogan to the fallback.
                 slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                 slogan_text = "خليك فاكر دايما .... اسأل محمود"
@@ -1073,8 +1083,8 @@ def main() -> int:
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
         final_duration = _media_duration(video_path)
-        if final_duration < 50.0 or final_duration > 180.0:
-            raise RuntimeError(f"Reel delivery blocked: final video duration is {final_duration:.1f}s; expected 50–180s with natural speech pacing.")
+        if final_duration < float(REEL_MIN_DURATION_SECONDS) or final_duration > float(REEL_MAX_DURATION_SECONDS):
+            raise RuntimeError(f"Reel delivery blocked: final duration {final_duration:.1f}s exceeds configured {REEL_MIN_DURATION_SECONDS}–{REEL_MAX_DURATION_SECONDS}s limit.")
         audio_probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(video_path)], capture_output=True, text=True, check=False, timeout=30)
         if not audio_probe.stdout.strip():
             raise RuntimeError("Reel delivery blocked: final MP4 has no audio stream.")
