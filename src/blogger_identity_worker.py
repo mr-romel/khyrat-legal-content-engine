@@ -8,7 +8,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from blogger_publisher import blog_id, service
+from blogger_ui_publisher import resolve_blog_id_ui
 from config import load_blogger_config
 
 BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
@@ -540,8 +540,7 @@ def main() -> int:
 
     title = _clean(os.getenv("BLOGGER_SITE_TITLE", DEFAULT_TITLE))
     description = _clean(os.getenv("BLOGGER_SITE_DESCRIPTION", DEFAULT_DESCRIPTION))[:180]
-    svc = service()
-    bid = _clean(config.get("blogger_blog_id", "")) or blog_id(svc, config["blogger_url"])
+    bid = _clean(config.get("blogger_blog_id", "")) or resolve_blog_id_ui()
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
