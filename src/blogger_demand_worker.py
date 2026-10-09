@@ -201,14 +201,13 @@ def collect_candidates(history: list[dict], published: list[dict[str, str]], tre
     ]
     existing_titles = [item.get("title", "") for item in published]
     for seed in SEEDS:
-        variants = [seed, f"ازاي أتصرف لو {seed}", f"ما هي الإجراءات القانونية في {seed}"]
-        suggestions = []
-        for query in variants[:2]:
-            suggestions.extend(_suggest(query))
-            time.sleep(0.12)
-        if not suggestions:
-            suggestions = [seed]
-        for query in [seed, *suggestions]:
+        # One autocomplete request per seed. Reuse its returned suggestions as
+        # demand evidence rather than issuing two more requests for every candidate.
+        seed_suggestions = _suggest(seed)
+        time.sleep(0.08)
+        if not seed_suggestions:
+            seed_suggestions = [seed]
+        for query in [seed, *seed_suggestions]:
             query = _clean(query)
             norm = _norm(query)
             if not norm or len(query) < 10 or norm in seen:
@@ -220,19 +219,14 @@ def collect_candidates(history: list[dict], published: list[dict[str, str]], tre
                 continue
             if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
                 continue
-            query_variants = [query, f"{query} مصر", f"{query} ماذا أفعل"]
-            signal_suggestions = []
-            for variant in query_variants[:2]:
-                signal_suggestions.extend(_suggest(variant))
-            signal_suggestions = list(dict.fromkeys(signal_suggestions))[:12]
             question_score = sum(1 for term in QUESTION_TERMS if term in query)
             trend_matches = [term for term in trends if _similarity(term, query) >= 0.25]
-            score = min(100, 20 + len(signal_suggestions) * 4 + question_score * 5 + len(trend_matches) * 15)
+            score = min(100, 20 + len(seed_suggestions) * 4 + question_score * 5 + len(trend_matches) * 15)
             candidates.append({
                 "query": query,
                 "seed": seed,
-                "suggestions": signal_suggestions,
-                "suggestion_count": len(signal_suggestions),
+                "suggestions": seed_suggestions[:12],
+                "suggestion_count": len(seed_suggestions),
                 "trend_matches": trend_matches,
                 "demand_score": score,
                 "demand_signal": "Google Autocomplete + public SERP context; optional Google Trends Egypt match",
