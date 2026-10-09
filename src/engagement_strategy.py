@@ -10,6 +10,31 @@ from social_content import sanitize_social_copy
 MIN_COMMENTS = 3
 MAX_COMMENTS = 7
 COMMENT_INTERVAL_MINUTES = 15
+BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
+
+
+def blog_cta_comment(platform: str = "facebook") -> str:
+    """A contextual, reader-first CTA used periodically as one queued comment."""
+    if str(platform or "").strip().lower() == "linkedin":
+        return (
+            "للمتابعة والاطلاع على شروحات ومقالات قانونية عملية بتفصيل أكبر، "
+            "يمكنك زيارة مدونة «اسأل محمود». ننشر فيها معلومات وأمثلة تساعد على فهم "
+            "الحقوق والإجراءات قبل اتخاذ القرار: " + BLOGGER_URL
+        )
+    return (
+        "لو حابب تتابع معلومات قانونية أوضح وتقرأ مقالات وشروحات عملية بتفصيل أكبر، "
+        "زور مدونة «اسأل محمود»؛ بننشر فيها موضوعات وأمثلة تساعدك تفهم حقوقك والخطوات "
+        "القانونية المناسبة: " + BLOGGER_URL
+    )
+
+
+def blog_cta_due(publication_rank: int) -> bool:
+    """Include the blog CTA on every third published post, not every post."""
+    try:
+        rank = int(publication_rank)
+    except (TypeError, ValueError):
+        return False
+    return rank > 0 and rank % 3 == 0
 
 
 def choose_comment_count(post_key: str) -> int:
