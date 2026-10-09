@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-reel.txt
           pip install uv
           pip install voicetut-tts "git+https://github.com/k2-fsa/OmniVoice.git"
           sudo apt-get update -qq
