@@ -289,7 +289,13 @@ def main() -> int:
     if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
         raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required; this worker publishes through the existing authenticated Blogger UI.")
 
-    today = datetime.now(ZoneInfo("Africa/Cairo")).date().isoformat()
+    cairo_now = datetime.now(ZoneInfo("Africa/Cairo"))
+    # Run only in the late-evening window, after the social publishing slots.
+    # The workflow checks twice in UTC to remain correct across Cairo DST changes.
+    if cairo_now.hour not in {22, 23} or (cairo_now.hour == 22 and cairo_now.minute < 30):
+        print(f"Outside daily Blogger research window: Cairo time={cairo_now.isoformat()}; no-op.")
+        return 0
+    today = cairo_now.date().isoformat()
     keyword_map = _load_map()
     history = keyword_map["history"]
     if any(item.get("date") == today and item.get("status") == "PUBLISHED" for item in history):
