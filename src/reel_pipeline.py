@@ -22,9 +22,9 @@ from utils import now_cairo, parse_date
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
-REEL_MAX_DURATION_SECONDS = min(120, max(30, int(os.getenv("REEL_MAX_DURATION_SECONDS", "120"))))
+REEL_MAX_DURATION_SECONDS = 120  # hard production cap: never exceed two minutes
 REEL_MIN_DURATION_SECONDS = min(30, REEL_MAX_DURATION_SECONDS)
-REEL_CONTENT_MAX_SECONDS = min(115, max(20, REEL_MAX_DURATION_SECONDS - 5))
+REEL_CONTENT_MAX_SECONDS = 110  # reserve 10s for intro/outro and rendering overhead
 
 
 def choose_row(
@@ -206,8 +206,8 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
-        raise RuntimeError(f"Google Cloud TTS duration outside 45-90s: {duration:.1f}s")
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
+        raise RuntimeError(f"Google Cloud TTS duration outside configured content limit: {duration:.1f}s; maximum {REEL_CONTENT_MAX_SECONDS}s")
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
 
@@ -531,13 +531,33 @@ def add_motion_graphics(video_path: Path, topic: str, work_dir: Path) -> Path:
     shutil.copy2(styled, video_path)
     return video_path
 
+
+def _bound_reel_script(script: str, max_words: int = 140) -> str:
+    """Keep spoken copy short enough for a two-minute Reel without speeding up TTS."""
+    script = prepare_tts_script(script)
+    if len(script.split()) <= max_words:
+        return script
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\\s+", script) if s.strip()]
+    if len(sentences) < 3:
+        return " ".join(script.split()[:max_words])
+    first, last = sentences[0], sentences[-1]
+    budget = max_words - len(first.split()) - len(last.split())
+    middle = []
+    for sentence in sentences[1:-1]:
+        count = len(sentence.split())
+        if count <= budget:
+            middle.append(sentence)
+            budget -= count
+    result = " ".join([first, *middle, last]).strip()
+    return " ".join(result.split()[:max_words]) if len(result.split()) > max_words else result
+
 def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
     prompt = (
         "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 90–105 seconds and 200–260 Arabic words maximum, with the spoken audio strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 90–105 seconds and 115–140 Arabic words maximum. Use concise sentences; the script must contain at most 140 whitespace-separated words. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the exact reviewed post and sentence. Visuals must depict the concrete event, people, documents, workplace, home, phone, or evidence described in the post. STRICTLY FORBIDDEN: pharaohs, pyramids, ancient Egypt, hieroglyphics, temples, mummies, ancient costumes, gold-and-sandstone pharaonic aesthetics, fantasy/history visuals, or any unrelated stock imagery. Use contemporary realistic Egyptian settings only when supported by the post. Never use generic courtroom/lawyer imagery when the sentence is about a different concrete event. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -574,10 +594,10 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     except json.JSONDecodeError as exc:
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
-    script = prepare_tts_script(str(data.get("script", "")).strip())
+    script = _bound_reel_script(str(data.get("script", "")).strip(), max_words=140)
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 6: terms = topic_visual_terms(" ".join(str(post or "").split())[:900])
-    if len(script.split()) < 115 or len(terms) < 6:
+    if not 115 <= len(script.split()) <= 140 or len(terms) < 6:
         raise RuntimeError("Reel package is incomplete.")
     return {
         "script": script,
@@ -608,7 +628,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         "وبعدها راجع الإجراء المناسب للوقائع نفسها، لأن خطوة واحدة غلط ممكن تغيّر موقف قانوني كامل. "
         "الخلاصة: ما تستعجلش القرار، ثبّت اللي حصل الأول، وبعدها اختار الإجراء على أساس المستندات والتفاصيل."
     )
-    script = prepare_tts_script(script)
+    script = _bound_reel_script(script, max_words=140)
     if len(script.split()) < 115:
         script += " وخلي بالك، نفس القاعدة ممكن تختلف نتيجتها من واقعة للتانية حسب التفاصيل وإيه اللي تقدر تثبته."
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
