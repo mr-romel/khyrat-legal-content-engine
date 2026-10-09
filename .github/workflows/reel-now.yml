@@ -52,6 +52,9 @@ jobs:
           GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
+          REEL_RECOVERY: "true"
+          REEL_FORCE_REGENERATE: "false"
+          REEL_FORCE_TELEGRAM_REVIEW: "false"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src python src/reel_pipeline.py
