@@ -311,6 +311,7 @@ def publish_article_ui(
     labels: list[str] | None = None,
     blog_id: str = "",
     blog_url: str = "https://askmahmoudkhyrat.blogspot.com/",
+    search_description: str = "",
 ) -> dict[str, str]:
     state_path = _storage_state_path()
     try:
@@ -339,6 +340,10 @@ def publish_article_ui(
             _fill_title(page, title)
             _set_editor_html(page, content_html)
             _set_labels(page, labels or [])
+            if search_description.strip():
+                # Reuse the verified Blogger Search Description UI interaction.
+                from blogger_seo_worker import _fill_description
+                _fill_description(page, search_description.strip()[:180])
             _click_publish(page)
 
             page.wait_for_timeout(1200)
