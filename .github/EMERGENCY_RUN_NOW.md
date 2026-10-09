@@ -222,3 +222,8 @@ PRODUCTION_QUALITY_FIX 2026-10-09
 PRODUCTION_QUALITY_FIX 2026-10-09 final-pass
 
 PRODUCTION_QUALITY_FIX final QA gate 2026-10-09
+
+
+PRODUCTION_QUALITY_FIX final image-context + non-blocking publication validation — 2026-10-09
+Commit message: `PRODUCTION_QUALITY_FIX`
+Reason: validate current image-context restoration, fixed RTL brand overlay, and text-only publication fallback if image generation fails.
