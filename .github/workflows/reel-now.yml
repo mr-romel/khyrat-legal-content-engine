@@ -39,6 +39,18 @@ jobs:
           pip install voicetut-tts "git+https://github.com/k2-fsa/OmniVoice.git"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Restore the last committed Reel source lock for this one-off redesign
+        if: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' }}
+        run: |
+          mkdir -p generated
+          cat > generated/reel_source.json <<'JSON'
+          {
+            "row_number": 147,
+            "topic": "جريمة التحرش",
+            "source_id": ""
+          }
+          JSON
+          cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
         run: |
           python -m py_compile src/reel_pipeline.py
