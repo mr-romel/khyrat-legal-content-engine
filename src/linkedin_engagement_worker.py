@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
+from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
 from linkedin_publisher import like_comment, like_post, resolve_member_urn, verify_comment
 from sheets import create_service, get_values
@@ -189,14 +190,19 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         candidates.append((published_at, source_row, row, post_urn))
 
     candidates.sort(key=lambda item: (item[0], int(item[1])), reverse=True)
-    candidates = candidates[:MAX_RECENT_POSTS]
+    total_published = len(candidates)
+    # Assign ranks across the full published history before limiting work to recent posts.
+    candidates = [
+        (*item, blog_cta_due(total_published - index))
+        for index, item in enumerate(candidates)
+    ][:MAX_RECENT_POSTS]
     if candidates:
         print(f"LinkedIn engagement scope: latest {len(candidates)} published post(s) only")
         print(f"Published LinkedIn posts eligible for engagement: {len(candidates)}")
 
     created = 0
     generated_posts = 0
-    for published_at, source_row, row, post_urn in candidates:
+    for published_at, source_row, row, post_urn, add_blog_cta in candidates:
         post_events = [x for x in existing if str(x.get("post_urn", "")).strip() == post_urn]
         bundle_id = f"COMMENT_BUNDLE:{post_urn}"
 
@@ -260,6 +266,13 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             count=missing,
         )
         generated_posts += 1
+        has_blog_cta = any(
+            BLOGGER_URL in str(x.get("comment_text", ""))
+            for x in post_events
+            if str(x.get("action", "")).upper() == "COMMENT"
+        )
+        if add_blog_cta and not has_blog_cta and comments:
+            comments[-1] = blog_cta_comment("linkedin")
         offsets = comment_schedule_offsets(missing)
         existing_sequences = {
             int(x.get("sequence", "0") or "0")
