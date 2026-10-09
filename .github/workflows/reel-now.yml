@@ -39,6 +39,10 @@ jobs:
           pip install voicetut-tts "git+https://github.com/k2-fsa/OmniVoice.git"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Validate Reel renderer syntax and required brand assets
+        run: |
+          python -m py_compile src/reel_pipeline.py
+          test -s "لوجو اسال محمود 3دي.png"
       - name: Generate Reel and send Telegram review
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
