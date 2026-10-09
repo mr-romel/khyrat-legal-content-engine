@@ -8,7 +8,7 @@ from html import unescape
 import requests
 
 from blogger_site_setup import PAGES
-from blogger_ui_publisher import publish_page_ui
+from blogger_ui_publisher import publish_page_ui, resolve_blog_id_ui
 
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID", "").strip()
@@ -46,8 +46,7 @@ def main() -> int:
         return 0
     if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
         raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required for UI-based Blogger static-page management.")
-    if not BLOG_ID:
-        raise RuntimeError("BLOGGER_BLOG_ID is required to manage static pages through the Blogger UI.")
+    blog_id = BLOG_ID or resolve_blog_id_ui()
 
     # Read the public page feed first so retries update existing pages instead
     # of creating duplicate pages. Fail closed if we cannot inspect current pages.
@@ -61,7 +60,7 @@ def main() -> int:
             print(f"Blogger static page already current: {title} -> {existing.get('url', '')}")
             continue
         page_id = existing.get("page_id", "") if existing else ""
-        result = publish_page_ui(title=title, content_html=content, blog_id=BLOG_ID, page_id=page_id)
+        result = publish_page_ui(title=title, content_html=content, blog_id=blog_id, page_id=page_id)
         print(f"Blogger static page {'updated' if page_id else 'published'}: {title}; editor={result.get('editor_url','')}")
         time.sleep(1.0)
 
