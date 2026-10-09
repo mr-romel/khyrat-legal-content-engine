@@ -359,14 +359,40 @@ def main() -> int:
     serp = _serp(f'"{query}" مصر قانون')
     packet = research_legal_topic(query)
     model = os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip() or "gemini-3.6-flash"
-    draft = _generate_source_draft(api_key, model, query, packet, serp)
-    article = prepare_article(
-        api_key=api_key,
-        model=model,
-        topic=query,
-        post=draft,
-        legal_sources=packet,
+    # Keep this to one successful Gemini generation call. Repeated daily
+    # workers previously exhausted the free-tier request quota with draft+rewrite.
+    serp_brief = "\n".join(f"- {x['title']}: {x['url']}" for x in serp[:5])
+    search_brief = (
+        "موجز مقال مستقل مبني على نية البحث، وليس منشورًا اجتماعيًا. "
+        f"سؤال البحث الأساسي: {query}\n"
+        "استخدم نتائج البحث التالية لفهم الأسئلة الفرعية فقط، ولا تعتبرها سندًا قانونيًا:\n"
+        f"{serp_brief or 'لا توجد نتائج بحث عامة متاحة.'}\n"
+        "اكتب مقالًا متخصصًا جديدًا يجيب عن السؤال، ويشرح الوقائع والمستندات والخطوات العملية، "
+        "ولا تخترع قاعدة أو رقم مادة أو عقوبة أو موعدًا."
     )
+    article = None
+    generation_errors = []
+    model_candidates = list(dict.fromkeys([
+        model,
+        os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+        "gemini-2.5-flash",
+    ]))
+    for candidate_model in (x for x in model_candidates if x):
+        try:
+            article = prepare_article(
+                api_key=api_key,
+                model=candidate_model,
+                topic=query,
+                post=search_brief,
+                legal_sources=packet,
+            )
+            print(f"Demand article generated with model {candidate_model}.")
+            break
+        except Exception as exc:
+            generation_errors.append(f"{candidate_model}: {exc}")
+            print(f"Demand article generation failed with {candidate_model}: {exc}")
+    if not isinstance(article, dict):
+        raise RuntimeError("Demand article generation failed across configured models: " + " | ".join(generation_errors))
     title = _clean(article.get("title", ""))[:110]
     description = _clean(article.get("meta_description", ""))[:180]
     if not title or len(description) < 40:
