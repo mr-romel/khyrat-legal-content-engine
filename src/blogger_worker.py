@@ -311,7 +311,7 @@ def main() -> int:
             model_candidates = list(dict.fromkeys([
                 os.getenv("GEMINI_MODEL", "").strip(),
                 os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
             ]))
             if api_key:
                 for candidate_model in (x for x in model_candidates if x):
