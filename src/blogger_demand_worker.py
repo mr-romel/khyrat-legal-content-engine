@@ -305,6 +305,24 @@ def _generate_source_draft(api_key: str, model: str, query: str, packet: str, se
     return draft
 
 
+def _related_public_posts(published: list[dict[str, str]], topic: str) -> list[dict[str, str]]:
+    related = []
+    seen = set()
+    for item in sorted(published, key=lambda x: _similarity(topic, x.get("title", "")), reverse=True):
+        title = _clean(item.get("title", ""))
+        url = _clean(item.get("url", ""))
+        score = _similarity(topic, title)
+        if not title or not url or url in seen or score < 0.12:
+            continue
+        if score >= 0.9:
+            continue
+        seen.add(url)
+        related.append({"title": title, "url": url})
+        if len(related) >= 3:
+            break
+    return related
+
+
 def _find_public_url(title: str, fallback: str) -> str:
     for item in _public_titles():
         if _norm(item["title"]) == _norm(title) and item.get("url"):
@@ -404,7 +422,7 @@ def main() -> int:
         post=draft,
         image_url="",
         legal_sources=packet,
-        related=[],
+        related=_related_public_posts(published, query),
         article=article,
     )
     history_entry = {
