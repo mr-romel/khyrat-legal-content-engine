@@ -1199,10 +1199,11 @@ def main() -> int:
                                 except Exception as slogan_local_exc:
                                     print(f"Reel slogan disabled: {slogan_local_exc}")
                             try:
-                                add_motion_graphics_layer(raw_video, output_video, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio if slogan_ready else None)
+                                if not slogan_ready:
+                                    raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
+                                add_motion_graphics_layer(raw_video, output_video, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
                             except Exception as branding_exc:
-                                print(f"REEL_STAGE branding_failed_using_raw={branding_exc}")
-                                shutil.copy2(raw_video, output_video)
+                                raise RuntimeError(f"REEL_STAGE branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
                             raw_video.unlink(missing_ok=True)
                             mpt_ok = output_video.is_file() and float(REEL_MIN_DURATION_SECONDS) <= _media_duration(output_video) <= float(REEL_MAX_DURATION_SECONDS)
                         else:
@@ -1235,10 +1236,12 @@ def main() -> int:
                         print(f"Reel fallback slogan unavailable: {local_slogan_exc}")
                 branded = output_dir / "branded-fallback.mp4"
                 try:
-                    add_motion_graphics_layer(output_video, branded, "", os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio if slogan_ready else None)
+                    if not slogan_ready:
+                        raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
+                    add_motion_graphics_layer(output_video, branded, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
                     shutil.move(str(branded), str(output_video))
                 except Exception as branding_exc:
-                    print(f"REEL_STAGE fallback_branding_failed={branding_exc}")
+                    raise RuntimeError(f"REEL_STAGE fallback_branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
 
         video_path = output_dir / "daily-reel.mp4"
         if not video_path.is_file():
