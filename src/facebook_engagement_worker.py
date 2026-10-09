@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from comment_engine import generate_comments
 from config import load_facebook_engagement_config
-from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, normalize_comment
+from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due, choose_comment_count, normalize_comment
 from facebook_publisher import add_comment, like_comment, like_post, verify_comment
 from sheets import create_service, get_values
 
