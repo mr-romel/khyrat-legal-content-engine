@@ -191,7 +191,12 @@ def _save_map(data: dict) -> None:
     MAP_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def collect_candidates(history: list[dict], published: list[dict[str, str]], trends: list[str]) -> list[dict]:
+def collect_candidates(
+    history: list[dict],
+    published: list[dict[str, str]],
+    trends: list[str],
+    search_console_rows: list[dict] | None = None,
+) -> list[dict]:
     seen = set()
     candidates = []
     recent_queries = [
@@ -200,6 +205,38 @@ def collect_candidates(history: list[dict], published: list[dict[str, str]], tre
         if str(item.get("status", "")).upper() in {"PUBLISHED", "PROCESSING"}
     ]
     existing_titles = [item.get("title", "") for item in published]
+    # Real Search Console impressions/clicks take precedence over proxy signals
+    # when a query is already bringing visitors to the site.
+    for row in search_console_rows or []:
+        query = _clean(row.get("query", ""))
+        norm = _norm(query)
+        if not norm or len(query) < 8 or norm in seen:
+            continue
+        if any(_similarity(query, old) >= 0.52 for old in recent_queries if old):
+            continue
+        if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
+            continue
+        seen.add(norm)
+        impressions = float(row.get("impressions", 0) or 0)
+        clicks = float(row.get("clicks", 0) or 0)
+        position = float(row.get("position", 100) or 100)
+        ctr = float(row.get("ctr", 0) or 0)
+        score = min(100, 45 + min(impressions / 20, 30) + min(clicks, 10) + (15 if 5 <= position <= 20 else 5 if position < 35 else 0) + (10 if impressions >= 50 and ctr < 0.04 else 0))
+        candidates.append({
+            "query": query,
+            "seed": query,
+            "suggestions": [],
+            "suggestion_count": 0,
+            "trend_matches": [],
+            "demand_score": round(score, 2),
+            "demand_signal": "GOOGLE_SEARCH_CONSOLE_OBSERVED",
+            "search_console": {
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": ctr,
+                "average_position": position,
+            },
+        })
     for seed in SEEDS:
         # One autocomplete request per seed. Reuse its returned suggestions as
         # demand evidence rather than issuing two more requests for every candidate.
@@ -298,7 +335,20 @@ def main() -> int:
 
     published = _public_titles()
     trends = _trending_legal_terms()
-    candidates = collect_candidates(history, published, trends)
+    search_console_rows = []
+    if os.getenv("SEARCH_CONSOLE_SITE_URL", "").strip() and (
+        os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        or os.getenv("GOOGLE_CREDENTIALS", "").strip()
+    ):
+        try:
+            from search_console_intelligence import query_search_console
+            search_console_rows = query_search_console(
+                days=max(1, int(os.getenv("SEARCH_CONSOLE_DAYS", "28")))
+            )
+            print(f"Google Search Console queries retrieved: {len(search_console_rows)}")
+        except Exception as exc:
+            print(f"Search Console data unavailable; using autocomplete/SERP demand signals: {exc}")
+    candidates = collect_candidates(history, published, trends, search_console_rows)
     if not candidates:
         raise RuntimeError("No distinct legal search-demand candidate found after deduplication.")
     selected = candidates[0]
