@@ -285,9 +285,38 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
     related_html = f'<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>' if rel else ""
     byline = f'<p class="article-byline">بقلم <a href="{html.escape(author_url, quote=True)}">محمود خيرت</a> — مستشار قانوني للشركات</p>'
-    sources_html = ''
+    sources_html = ""
     if legal_sources and _clean(legal_sources):
-        sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(_clean(legal_sources))}</section>'
+        source_text = str(legal_sources).strip()
+        if "LEGAL RESEARCH PACKET" in source_text:
+            # Research instructions and retrieval notes are internal metadata,
+            # not article copy. Render only retrieved, explicitly linked sources.
+            source_items = []
+            for block in re.split(r"(?m)^SOURCE\s+\d+\s*$", source_text):
+                url_match = re.search(r"(?m)^URL:\s*(https?://\S+)", block)
+                if not url_match:
+                    continue
+                source_url = url_match.group(1).strip()
+                title_match = re.search(r"(?m)^Title:\s*(.+)$", block)
+                court_match = re.search(r"(?m)^Court/source:\s*(.+)$", block)
+                case_match = re.search(r"(?m)^Case number:\s*(.+)$", block)
+                date_match = re.search(r"(?m)^Date:\s*(.+)$", block)
+                source_title = _clean(title_match.group(1)) if title_match else source_url
+                details = []
+                if court_match and _clean(court_match.group(1)) not in {"", "N/A"}:
+                    details.append(_clean(court_match.group(1)))
+                if case_match and _clean(case_match.group(1)) not in {"", "N/A"}:
+                    details.append("رقم القضية: " + _clean(case_match.group(1)))
+                if date_match and _clean(date_match.group(1)) not in {"", "N/A", "not stated"}:
+                    details.append("التاريخ: " + _clean(date_match.group(1)))
+                detail_html = f"<small>{html.escape(' — '.join(details))}</small>" if details else ""
+                source_items.append(
+                    f'<li><a href="{html.escape(source_url, quote=True)}" target="_blank" rel="noopener">{html.escape(source_title)}</a>{detail_html}</li>'
+                )
+            if source_items:
+                sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
+        else:
+            sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
     return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
