@@ -386,8 +386,8 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_MAX_DURATION_SECONDS:
-        raise RuntimeError(f"Gemini TTS duration outside production range: {duration:.1f}s")
+    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
+        raise RuntimeError(f"Gemini TTS duration outside configured content limit: {duration:.1f}s; maximum {REEL_CONTENT_MAX_SECONDS}s")
     return output_path
 
 
