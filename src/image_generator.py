@@ -152,27 +152,41 @@ def brand_published_image(image_path: str) -> str:
         )
 
         brand = "اسأل محمود - مستشار قانوني للشركات"
+        # Keep logical Arabic text intact for RAQM. On older Pillow builds,
+        # shape/reorder once and draw that fallback string without RTL flags.
+        display_brand = brand
+        use_raqm = True
         try:
             bbox = draw.textbbox((0, 0), brand, font=bold, direction="rtl", language="ar")
         except (TypeError, ValueError):
-            brand = get_display(arabic_reshaper.reshape(brand))
-            bbox = draw.textbbox((0, 0), brand, font=bold)
+            use_raqm = False
+            display_brand = get_display(arabic_reshaper.reshape(brand))
+            bbox = draw.textbbox((0, 0), display_brand, font=bold)
         tw = bbox[2] - bbox[0]
         if cx + radius + 18 + tw > width - 18:
             if bold_path:
                 bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
+            measure_text = brand if use_raqm else display_brand
             try:
-                bbox = draw.textbbox((0, 0), brand, font=bold, direction="rtl", language="ar")
+                bbox = draw.textbbox((0, 0), measure_text, font=bold, direction="rtl", language="ar") if use_raqm else draw.textbbox((0, 0), measure_text, font=bold)
             except (TypeError, ValueError):
-                bbox = draw.textbbox((0, 0), brand, font=bold)
+                use_raqm = False
+                display_brand = get_display(arabic_reshaper.reshape(brand))
+                bbox = draw.textbbox((0, 0), display_brand, font=bold)
             tw = bbox[2] - bbox[0]
 
-        text_y = cy - (bbox[3] - bbox[1]) / 2
+        # Center vertically and align to the right edge; 'rm' is a middle
+        # anchor, unlike 'ra' which anchors at the ascender line.
         try:
-            draw.text((width - 18, text_y), brand, font=bold, fill=(255, 255, 255, 255),
-                      anchor="ra", direction="rtl", language="ar")
+            if use_raqm:
+                draw.text((width - 18, cy), brand, font=bold, fill=(255, 255, 255, 255),
+                          anchor="rm", direction="rtl", language="ar")
+            else:
+                draw.text((width - 18, cy), display_brand, font=bold, fill=(255, 255, 255, 255),
+                          anchor="rm")
         except (TypeError, ValueError):
-            draw.text((width - 18 - tw, text_y), brand, font=bold, fill=(255, 255, 255, 255))
+            display_brand = get_display(arabic_reshaper.reshape(brand))
+            draw.text((width - 18, cy), display_brand, font=bold, fill=(255, 255, 255, 255))
 
 
         image.save(path, quality=94, optimize=True)
