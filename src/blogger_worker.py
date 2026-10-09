@@ -278,12 +278,9 @@ def main() -> int:
     source_id = str(row.get("ID", "")).strip()
     image_path = resolve_image_path(image_url, source_id, row_number)
     if not image_path:
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Blogger Status": "FAILED",
-            "Blogger Last Error": "No row-owned generated image is available; Blogger publication blocked.",
-        })
-        print("Blogger: no row-owned generated image is available; refusing text-only publication.")
-        return 0
+        # Article publication is independent from social-image availability.
+        # Keep the article moving; an image is an enhancement, never a blocker.
+        print("Blogger: no row-owned image available; continuing with a text-first article.")
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
@@ -304,9 +301,10 @@ def main() -> int:
         if use_ui:
             # Upload to Blogger storage; Rich Editor should not embed the raw GitHub asset URL.
             blogger_image_url = image_url
-            if not blogger_image_url:
-                raise BloggerUIPublishError("Published row has no image URL for Blogger UI.")
-            print(f"Blogger UI: embedding row-owned generated image URL: {blogger_image_url}")
+            if blogger_image_url:
+                print(f"Blogger UI: embedding row-owned generated image URL: {blogger_image_url}")
+            else:
+                print("Blogger UI: publishing a text-first article because no image is available.")
             try:
                 article = prepare_article(
                     api_key=os.getenv("GEMINI_API_KEY", "").strip(),
