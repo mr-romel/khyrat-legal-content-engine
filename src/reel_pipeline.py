@@ -537,7 +537,7 @@ def _bound_reel_script(script: str, max_words: int = 140) -> str:
     script = prepare_tts_script(script)
     if len(script.split()) <= max_words:
         return script
-    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\\s+", script) if s.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", script) if s.strip()]
     if len(sentences) < 3:
         return " ".join(script.split()[:max_words])
     first, last = sentences[0], sentences[-1]
@@ -631,6 +631,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     script = _bound_reel_script(script, max_words=140)
     if len(script.split()) < 115:
         script += " وخلي بالك، نفس القاعدة ممكن تختلف نتيجتها من واقعة للتانية حسب التفاصيل وإيه اللي تقدر تثبته."
+    script = _bound_reel_script(script, max_words=140)
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(sentences, start=1):
