@@ -842,8 +842,38 @@ def main() -> int:
             source_path.write_text(json.dumps(source_context, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"Reel recovery: rebuilt lock for today's published row {row_number}.")
         else:
-            print("Reel recovery: no eligible published row for today.")
-            return 0
+            # The core publisher may have no due row yet (or today's row may
+            # still be scheduled for later). Daily Reel delivery must not depend
+            # on the social slot being due at the exact same moment. Recover the
+            # newest already-published social post that has no valid Reel file.
+            fallback_candidates = []
+            for row_number, candidate in enumerate(rows, start=2):
+                source_id = str(candidate.get("ID", "") or "").strip()
+                post_text = str(candidate.get("المحتوى", "") or "").strip()
+                fb_status = str(candidate.get("Facebook Status", "") or "").strip().upper()
+                li_status = str(candidate.get("LinkedIn Status", "") or "").strip().upper()
+                reel_status = str(candidate.get("Reel Status", "") or "").strip().upper()
+                reel_file = str(candidate.get("Reel File", "") or "").strip()
+                review = str(candidate.get("Reel Review", "") or "").strip().upper()
+                valid_file = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
+                if not source_id or not post_text or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
+                    continue
+                if reel_status == "PUBLISHED" or valid_file:
+                    continue
+                if review.startswith("TELEGRAM_SENDING"):
+                    print(f"Reel recovery fallback skips row {row_number}: Telegram delivery is already in progress.")
+                    continue
+                fallback_candidates.append((row_number, candidate))
+            if fallback_candidates:
+                row_number, candidate = fallback_candidates[-1]
+                recovered.append((row_number, candidate))
+                print(
+                    f"Reel recovery fallback: today's social post is not published yet; "
+                    f"using newest undelivered eligible social row {row_number}."
+                )
+            else:
+                print("Reel recovery: no eligible published row today or in the undelivered recovery queue.")
+                return 0
 
     if source_context is None:
         print("Reel generator: no locked source from the core publishing worker; refusing to choose another row.")
