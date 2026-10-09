@@ -2,6 +2,10 @@ name: Blogger SEO GEO Publisher
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_PUBLISHER_RUN_NOW.md"
 
 permissions:
   contents: write
@@ -12,6 +16,7 @@ concurrency:
 
 jobs:
   publish:
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'BLOGGER_PUBLISHER_RUN_NOW' }}
     name: Publish next Blogger article
     runs-on: ubuntu-latest
     timeout-minutes: 15
