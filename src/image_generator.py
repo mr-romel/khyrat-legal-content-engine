@@ -93,8 +93,19 @@ def _extract_image_bytes(
     )
 
 
-def _rtl_text(text: str) -> str:
-    return get_display(arabic_reshaper.reshape(str(text or "")))
+def _draw_arabic_text(draw, xy, text: str, *, font, fill, anchor=None):
+    """Draw Arabic in logical order using Pillow's RTL layout engine when available."""
+    options = {"font": font, "fill": fill, "direction": "rtl", "language": "ar"}
+    if anchor:
+        options["anchor"] = anchor
+    try:
+        draw.text(xy, str(text or ""), **options)
+    except (TypeError, ValueError):
+        # Older Pillow builds lack RAQM; reshape/reorder exactly once as fallback.
+        fallback = {"font": font, "fill": fill}
+        if anchor:
+            fallback["anchor"] = anchor
+        draw.text(xy, get_display(arabic_reshaper.reshape(str(text or ""))), **fallback)
 
 
 def brand_published_image(image_path: str) -> str:
@@ -140,19 +151,29 @@ def brand_published_image(image_path: str) -> str:
             "f", font=f_font, fill=(255, 255, 255, 255)
         )
 
-        brand = _rtl_text("اسأل محمود - مستشار قانوني للشركات")
-        bbox = draw.textbbox((0, 0), brand, font=bold)
+        brand = "اسأل محمود - مستشار قانوني للشركات"
+        try:
+            bbox = draw.textbbox((0, 0), brand, font=bold, direction="rtl", language="ar")
+        except (TypeError, ValueError):
+            brand = get_display(arabic_reshaper.reshape(brand))
+            bbox = draw.textbbox((0, 0), brand, font=bold)
         tw = bbox[2] - bbox[0]
         if cx + radius + 18 + tw > width - 18:
             if bold_path:
                 bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
-            bbox = draw.textbbox((0, 0), brand, font=bold)
+            try:
+                bbox = draw.textbbox((0, 0), brand, font=bold, direction="rtl", language="ar")
+            except (TypeError, ValueError):
+                bbox = draw.textbbox((0, 0), brand, font=bold)
             tw = bbox[2] - bbox[0]
 
-        draw.text(
-            (width - 18 - tw, cy - (bbox[3] - bbox[1]) / 2),
-            brand, font=bold, fill=(255, 255, 255, 255)
-        )
+        text_y = cy - (bbox[3] - bbox[1]) / 2
+        try:
+            draw.text((width - 18, text_y), brand, font=bold, fill=(255, 255, 255, 255),
+                      anchor="ra", direction="rtl", language="ar")
+        except (TypeError, ValueError):
+            draw.text((width - 18 - tw, text_y), brand, font=bold, fill=(255, 255, 255, 255))
+
 
         image.save(path, quality=94, optimize=True)
         return str(path)
