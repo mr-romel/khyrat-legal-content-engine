@@ -481,8 +481,7 @@ def add_motion_graphics_layer(
         cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
         # Main words are source-derived; line art is drawn like a whiteboard sketch.
         cd.text((450, 190), rtl(phrase[:42]), font=font(37), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
-        cd.line((150, 255, 750, 255), fill=(35, 174, 230, 255), width=5)
-        # Marker/hand tip follows the growing underline, giving the line a drawn-on feel.
+        # Marker tip is positioned at the underline endpoint; FFmpeg reveals the stroke over time.
         cd.ellipse((735, 238, 773, 276), fill=(255, 255, 255, 255), outline=(10, 87, 129, 255), width=4)
         cd.line((748, 248, 759, 261), fill=(10, 87, 129, 255), width=4)
         cd.line((759, 261, 767, 246), fill=(10, 87, 129, 255), width=4)
