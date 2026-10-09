@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt pytest
       - name: Compile engagement modules
         run: |
           python -m py_compile src/config.py src/linkedin_engagement.py src/linkedin_comment_engine.py src/linkedin_engagement_worker.py tests/test_linkedin_engagement.py
