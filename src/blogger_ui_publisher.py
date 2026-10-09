@@ -145,6 +145,9 @@ def _set_editor_html(page, content: str) -> None:
     direct = _first_visible(page, [
         'textarea[aria-label*="HTML" i]',
         'textarea[aria-label*="html" i]',
+        'textarea[aria-label*="Post body" i]',
+        'textarea[aria-label*="محتوى المشاركة"]',
+        '[contenteditable="true"][aria-label*="Post body" i]',
         '.CodeMirror textarea',
         '.ace_text-input',
         'textarea',
@@ -184,6 +187,9 @@ def _set_editor_html(page, content: str) -> None:
 
     direct = _first_visible(page, [
         'textarea[aria-label*="HTML" i]',
+        'textarea[aria-label*="Post body" i]',
+        'textarea[aria-label*="محتوى المشاركة"]',
+        '[contenteditable="true"][aria-label*="Post body" i]',
         '.CodeMirror textarea',
         '.ace_text-input',
         'textarea',
@@ -220,6 +226,30 @@ def _set_editor_html(page, content: str) -> None:
             content,
         )
         return
+
+    # New Blogger editor builds sometimes expose the body as a large ARIA textbox
+    # without contenteditable. Avoid the title field by requiring a large canvas.
+    textboxes = page.locator('[role="textbox"]')
+    for index in range(textboxes.count()):
+        candidate = textboxes.nth(index)
+        try:
+            if not candidate.is_visible(timeout=500):
+                continue
+            label = " ".join([
+                candidate.get_attribute("aria-label") or "",
+                candidate.get_attribute("data-placeholder") or "",
+                candidate.get_attribute("class") or "",
+            ]).casefold()
+            if "title" in label or "العنوان" in label:
+                continue
+            box = candidate.bounding_box()
+            if not box or box["width"] < 450 or box["height"] < 180:
+                continue
+            candidate.click()
+            candidate.fill(content, timeout=5000)
+            return
+        except Exception:
+            continue
 
     raise BloggerUIPublishError("Blogger UI post editor was not found.")
 
@@ -332,7 +362,20 @@ def publish_article_ui(
 
             editor_url = f"https://www.blogger.com/blog/post/edit/{target_blog_id}/new"
             page.goto(editor_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(3000)
+            # The Blogger SPA can render the title/editor after its initial document.
+            try:
+                page.wait_for_function(
+                    """() => Boolean(
+                        document.querySelector('[contenteditable="true"]') ||
+                        document.querySelector('textarea[aria-label*="HTML" i]') ||
+                        document.querySelector('[role="textbox"]') ||
+                        document.querySelector('iframe')
+                    )""",
+                    timeout=10000,
+                )
+            except PlaywrightTimeoutError:
+                print("Blogger editor shell did not expose its usual fields before timeout; continuing with expanded selectors.")
 
             if "accounts.google.com" in page.url or "signin" in page.url.lower():
                 raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
