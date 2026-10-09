@@ -384,9 +384,13 @@ def publish_article_ui(
             _set_editor_html(page, content_html)
             _set_labels(page, labels or [])
             if search_description.strip():
-                # Reuse the verified Blogger Search Description UI interaction.
-                from blogger_seo_worker import _fill_description
-                _fill_description(page, search_description.strip()[:180])
+                # SEO metadata is important, but a changed Blogger sidebar must
+                # never prevent the article itself from being published.
+                try:
+                    from blogger_seo_worker import _fill_description
+                    _fill_description(page, search_description.strip()[:180])
+                except Exception as exc:
+                    print(f"Blogger Search Description could not be set before publish (non-blocking): {exc}")
             _click_publish(page)
 
             page.wait_for_timeout(1200)
