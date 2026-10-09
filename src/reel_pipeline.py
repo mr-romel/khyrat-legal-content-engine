@@ -391,58 +391,167 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     return output_path
 
 
-def add_motion_graphics_layer(input_video: Path, output_video: Path, topic: str = "", logo_path: str = "", slogan_audio: Path | None = None) -> Path:
-    """Use purposeful camera motion on real scenes; no generic floating graphics or editorial titles."""
+def add_motion_graphics_layer(
+    input_video: Path,
+    output_video: Path,
+    topic: str = "",
+    logo_path: str = "",
+    slogan_audio: Path | None = None,
+    script: str = "",
+) -> Path:
+    """Brand the Reel and add topic-derived, animated whiteboard explainers."""
     work_dir = output_video.parent / "motion"
     work_dir.mkdir(parents=True, exist_ok=True)
     from PIL import Image, ImageDraw, ImageFont
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+    def rtl(value: str) -> str:
+        return get_display(arabic_reshaper.reshape(value))
+
+    font_candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ]
+    font_path = next((p for p in font_candidates if Path(p).is_file()), "")
+    def font(size: int):
+        return ImageFont.truetype(font_path, size) if font_path else ImageFont.load_default()
+
+    # Never silently ship an unbranded/silent end card.
+    if slogan_audio is None or not slogan_audio.is_file():
+        raise RuntimeError("Required spoken brand slogan audio is missing; refusing unbranded Reel delivery.")
+
     logo = Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"))
     endcard = work_dir / "brand_endcard.mp4"
-    img = Image.new("RGB", (1080, 1920), (8, 13, 22))
+    img = Image.new("RGB", (1080, 1920), (7, 17, 34))
     draw = ImageDraw.Draw(img)
+    # Brand palette: midnight navy, bright cyan, clean white.
+    draw.rounded_rectangle((105, 210, 975, 1710), radius=54, outline=(35, 174, 230), width=5)
+    draw.ellipse((365, 350, 715, 700), outline=(35, 174, 230), width=8)
     if logo.is_file():
         try:
             mark = Image.open(logo).convert("RGBA")
-            mark.thumbnail((760, 760), Image.Resampling.LANCZOS)
+            mark.thumbnail((650, 650), Image.Resampling.LANCZOS)
             img.paste(mark, ((1080-mark.width)//2, 390), mark)
+            draw = ImageDraw.Draw(img)
         except Exception as exc:
-            print(f"Brand logo could not be loaded: {exc}")
-    font_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
-    font = ImageFont.truetype(font_path, 62) if Path(font_path).exists() else ImageFont.load_default()
-    small = ImageFont.truetype(font_path, 43) if Path(font_path).exists() else ImageFont.load_default()
-    import arabic_reshaper
-    from bidi.algorithm import get_display
-    rtl = lambda value: get_display(arabic_reshaper.reshape(value))
-    try:
-        draw.text((540, 1220), "اسأل محمود - مستشار قانوني للشركات", font=font, anchor="mm", fill="white", direction="rtl", language="ar")
-        draw.text((540, 1340), "خليك فاكر دايما .... اسأل محمود", font=small, anchor="mm", fill=(215,225,240), direction="rtl", language="ar")
-    except (TypeError, ValueError):
-        draw.text((540, 1220), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font, anchor="mm", fill="white")
-        draw.text((540, 1340), rtl("خليك فاكر دايما .... اسأل محمود"), font=small, anchor="mm", fill=(215,225,240))
-    draw.ellipse((455, 1430, 625, 1600), fill=(24,119,242))
-    fbfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 125)
-    draw.text((540, 1515), "f", font=fbfont, anchor="mm", fill="white")
+            print(f"Brand logo could not be loaded; using typographic mark: {exc}")
+            logo = Path("__missing_brand_logo__")
+    if not logo.is_file():
+        draw.text((540, 520), rtl("اسأل محمود"), font=font(88), anchor="mm", fill=(255, 255, 255))
+        draw.rounded_rectangle((300, 630, 780, 645), radius=7, fill=(35, 174, 230))
+    draw.text((540, 1050), rtl("اسأل محمود"), font=font(86), anchor="mm", fill=(255, 255, 255))
+    draw.text((540, 1170), rtl("مستشار قانوني للشركات"), font=font(45), anchor="mm", fill=(190, 220, 238))
+    draw.rounded_rectangle((190, 1280, 890, 1385), radius=38, fill=(13, 99, 145))
+    draw.text((540, 1332), rtl("خليك فاكر دايمًا"), font=font(48), anchor="mm", fill=(255, 255, 255))
+    draw.text((540, 1490), rtl("اسأل محمود"), font=font(70), anchor="mm", fill=(60, 198, 244))
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
-    if slogan_audio and slogan_audio.is_file():
-        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-i",str(slogan_audio),"-t","4.5",
-            "-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
-            "-af","apad=pad_dur=4.5,atrim=duration=4.5","-map","0:v:0","-map","1:a:0",
-            "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
-    else:
-        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(end_png),"-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t","4.5","-vf","scale=1080:1920,zoompan=z='min(zoom+0.0008,1.025)':d=1:s=1080x1920:fps=30",
-            "-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","160k","-shortest",str(endcard)],check=True,timeout=180)
-    base = work_dir / "base_motion.mp4"
-    vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.03:saturation=1.04"
-    subprocess.run(["ffmpeg","-y","-i",str(input_video),"-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","copy","-movflags","+faststart",str(base)],check=True,timeout=900)
-    styled = work_dir / "styled.mp4"
-    concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{base.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
-    subprocess.run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),"-c:v","libx264","-preset","veryfast","-crf","19","-c:a","aac","-b:a","160k","-movflags","+faststart",str(styled)],check=True,timeout=900)
-    shutil.copy2(styled, output_video)
-    return output_video
+    subprocess.run([
+        "ffmpeg", "-y", "-loop", "1", "-i", str(end_png), "-i", str(slogan_audio),
+        "-t", "5.5", "-vf",
+        "scale=1080:1920,zoompan=z='min(zoom+0.0007,1.035)':d=1:s=1080x1920:fps=30,fade=t=in:st=0:d=0.35",
+        "-af", "apad=pad_dur=5.5,atrim=duration=5.5,afade=t=out:st=4.8:d=0.6",
+        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "18", "-c:a", "aac", "-b:a", "160k", "-shortest", str(endcard)
+    ], check=True, timeout=180)
 
+    # Build four explainer cards from actual narration sentences, not generic stock labels.
+    sentences = [v.strip() for v in re.split(r"(?<=[؟!.])\s+", prepare_tts_script(script or topic)) if v.strip()]
+    if not sentences:
+        sentences = [topic.strip() or "راجع الوقائع", "اجمع المستندات", "راجع التفاصيل", "اختار الإجراء المناسب"]
+    selected = []
+    for sentence in sentences:
+        words = sentence.split()
+        phrase = " ".join(words[:8]).strip(" ،؛:.-")
+        if phrase and phrase not in selected:
+            selected.append(phrase)
+        if len(selected) == 4:
+            break
+    while len(selected) < 4:
+        selected.append(selected[-1] if selected else (topic or "راجع التفاصيل"))
+
+    overlay_inputs = []
+    for i, phrase in enumerate(selected):
+        card = Image.new("RGBA", (900, 390), (0, 0, 0, 0))
+        cd = ImageDraw.Draw(card)
+        cd.rounded_rectangle((18, 18, 882, 372), radius=34, fill=(250, 253, 255, 246), outline=(24, 153, 204, 255), width=5)
+        cd.rounded_rectangle((55, 48, 845, 110), radius=20, fill=(12, 43, 70, 255))
+        cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
+        # Main words are source-derived; line art is drawn like a whiteboard sketch.
+        cd.text((450, 190), rtl(phrase[:42]), font=font(37), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
+        cd.line((150, 255, 750, 255), fill=(35, 174, 230, 255), width=5)
+        # Marker/hand tip follows the growing underline, giving the line a drawn-on feel.
+        cd.ellipse((735, 238, 773, 276), fill=(255, 255, 255, 255), outline=(10, 87, 129, 255), width=4)
+        cd.line((748, 248, 759, 261), fill=(10, 87, 129, 255), width=4)
+        cd.line((759, 261, 767, 246), fill=(10, 87, 129, 255), width=4)
+        icon_x, icon_y = 105, 310
+        if i == 0:
+            cd.rounded_rectangle((icon_x, icon_y-24, icon_x+34, icon_y+18), radius=5, outline=(10, 87, 129, 255), width=4)
+            cd.line((icon_x+8, icon_y-10, icon_x+26, icon_y-10), fill=(10, 87, 129, 255), width=3)
+        elif i == 1:
+            cd.ellipse((icon_x, icon_y-24, icon_x+42, icon_y+18), outline=(10, 87, 129, 255), width=4)
+            cd.line((icon_x+11, icon_y-2, icon_x+19, icon_y+7, icon_x+33, icon_y-12), fill=(10, 87, 129, 255), width=4)
+        elif i == 2:
+            cd.line((icon_x+2, icon_y-20, icon_x+2, icon_y+17, icon_x+39, icon_y+17), fill=(10, 87, 129, 255), width=4)
+            cd.line((icon_x+8, icon_y+9, icon_x+18, icon_y-3, icon_x+27, icon_y+3, icon_x+37, icon_y-16), fill=(10, 87, 129, 255), width=4)
+        else:
+            cd.ellipse((icon_x, icon_y-23, icon_x+31, icon_y+8), outline=(10, 87, 129, 255), width=4)
+            cd.line((icon_x+26, icon_y+5, icon_x+43, icon_y+22), fill=(10, 87, 129, 255), width=5)
+        path = work_dir / f"whiteboard_card_{i+1}.png"
+        card.save(path)
+        overlay_inputs.extend(["-loop", "1", "-i", str(path)])
+
+    base = work_dir / "whiteboard_base.mp4"
+    vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.04:saturation=1.06"
+    subprocess.run(["ffmpeg", "-y", "-i", str(input_video), "-vf", vf, "-c:v", "libx264",
+                    "-preset", "veryfast", "-crf", "19", "-c:a", "copy", "-movflags", "+faststart", str(base)],
+                   check=True, timeout=900)
+    duration = _media_duration(base)
+    filter_parts = []
+    previous = "[0:v]"
+    for i in range(4):
+        idx = i + 1
+        start = max(2.0, duration * (0.10 + i * 0.19))
+        end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
+        if end <= start:
+            continue
+        out = f"[wb{i}]"
+        # Each whiteboard card slides in/out; the cyan underline grows and the marker tip travels.
+        filter_parts.append(
+            f"{previous}[{idx}:v]overlay=x='if(lt(t,{start:.3f}),-930,"
+            f"if(lt(t,{start+0.45:.3f}),-930+(t-{start:.3f})*2200,"
+            f"if(lt(t,{end-0.45:.3f}),75,75+(t-{end-0.45:.3f})*2200)))':"
+            f"y=760:eval=frame:enable='between(t,{start:.3f},{end:.3f})'{out}"
+        )
+        previous = out
+    if not filter_parts:
+        filter_parts = ["[0:v]null[wbfinal]"]
+        previous = "[wbfinal]"
+    else:
+        # Draw-on line and moving marker are synced to the active whiteboard card.
+        for i in range(4):
+            start = max(2.0, duration * (0.10 + i * 0.19))
+            end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
+            filter_parts.append(
+                f"{previous}drawbox=x=220:y=1015:w='min(560,max(0,(t-{start:.3f})*260))':h=7:"
+                f"color=0x23AEE6@0.95:t=fill:enable='between(t,{start+0.25:.3f},{min(end,start+2.6):.3f})'[line{i}]"
+            )
+            previous = f"[line{i}]"
+    filter_complex = ";".join(filter_parts)
+    styled = work_dir / "whiteboard_motion.mp4"
+    subprocess.run(["ffmpeg", "-y", "-i", str(base), *overlay_inputs, "-filter_complex", filter_complex,
+                    "-map", previous, "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
+                    "-crf", "19", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+                   check=True, timeout=900)
+    concat_list = work_dir / "concat.txt"
+    concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
+    subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-c:a", "aac",
+                    "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
+                   check=True, timeout=900)
+    return output_video
 
 def post_visual_terms(post: str, topic: str) -> list[str]:
     """Build visual searches from the actual post first; topic is only a fallback."""
