@@ -270,17 +270,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
+          pip install -r requirements-browser.txt
+          python -m playwright install --with-deps chromium
       - name: Create or update Blogger professional pages
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
-          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        run: PYTHONPATH=src python src/blogger_site_setup.py
+          BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
+        run: PYTHONPATH=src python src/blogger_pages_ui_worker.py
 
   blogger_identity_setup:
     name: 3d. Blogger Brand Identity + Description
