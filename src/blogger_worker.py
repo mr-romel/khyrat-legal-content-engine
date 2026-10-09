@@ -339,13 +339,41 @@ def main() -> int:
                 "اسأل محمود",
                 *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()],
             ]))[:10]
-            result = publish_article_ui(
-                title=title,
-                content_html=content,
-                labels=labels,
-                blog_id=bid,
-                blog_url=config["blogger_url"],
-            )
+            if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+                # Use the supported Blogger API when OAuth is available. The UI
+                # editor selectors have changed upstream and must not block publishing.
+                blogger_api = blogger_service()
+                target_blog_id = bid or blog_id(blogger_api, config["blogger_url"])
+                try:
+                    published = blogger_api.posts().insert(
+                        blogId=target_blog_id,
+                        body={
+                            "kind": "blogger#post",
+                            "title": title,
+                            "content": content,
+                            "labels": labels,
+                        },
+                        isDraft=False,
+                    ).execute()
+                except Exception as exc:
+                    raise BloggerPublishError(f"Blogger REST API publication failed: {exc}") from exc
+                result = {
+                    "post_id": str(published.get("id", "")),
+                    "post_url": str(published.get("url", "")),
+                    "title": str(published.get("title", title)),
+                    "publisher": "BLOGGER_REST_API",
+                }
+                if not result["post_id"] or not result["post_url"]:
+                    raise BloggerPublishError("Blogger REST API did not return a verifiable published post ID and URL.")
+                print("Blogger article published through REST API.")
+            else:
+                result = publish_article_ui(
+                    title=title,
+                    content_html=content,
+                    labels=labels,
+                    blog_id=bid,
+                    blog_url=config["blogger_url"],
+                )
             result["search_query"] = title
             result["search_candidates"] = json.dumps([title, *labels], ensure_ascii=False)
             result["meta_description"] = str(article.get("meta_description", "")).strip()[:180]
