@@ -15,7 +15,7 @@ concurrency:
 jobs:
   reel:
     name: Generate current locked Reel and send Telegram review
-    if: ${{ github.event.head_commit.message == 'RUN_REEL_NOW' }}
+    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN"]'), github.event.head_commit.message) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -53,8 +53,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
-          REEL_FORCE_REGENERATE: "false"
-          REEL_FORCE_TELEGRAM_REVIEW: "false"
+          REEL_FORCE_REGENERATE: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' && 'true' || 'false' }}
+          REEL_FORCE_TELEGRAM_REVIEW: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src python src/reel_pipeline.py
