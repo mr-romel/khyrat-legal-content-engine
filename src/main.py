@@ -273,33 +273,39 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_qa_summary = f"Image QA unavailable (non-blocking): {qa_exc}"
             image_qa_status = "QA_UNAVAILABLE_NON_BLOCKING"
         print(f"IMAGE SEMANTIC QA: {image_qa_status} | {image_qa_summary}")
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "رابط الصورة": image_url,
-            "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
-            "Image QA Attempt": "1",
-            "Image QA Status": image_qa_status,
-            "Image QA Score": image_qa_score,
-            "Image QA Issues": image_qa_summary[:1500],
-            "المحتوى": post,
-            "وصف الصورة": visual_description,
-            "وقت آخر تشغيل": current.isoformat(),
-            "آخر خطأ": "" if image_qa_status == "PASS" else image_qa_summary[:1500],
-        })
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "رابط الصورة": image_url,
+                "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
+                "Image QA Attempt": "1",
+                "Image QA Status": image_qa_status,
+                "Image QA Score": image_qa_score,
+                "Image QA Issues": image_qa_summary[:1500],
+                "المحتوى": post,
+                "وصف الصورة": visual_description,
+                "وقت آخر تشغيل": current.isoformat(),
+                "آخر خطأ": "" if image_qa_status == "PASS" else image_qa_summary[:1500],
+            })
+        except Exception as state_exc:
+            print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
         # Do not leave a stale image URL that could misrepresent this publication.
         image_url = ""
         generated_image_path = None
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "رابط الصورة": "",
-            "Image QA Attempt": "1",
-            "Image QA Status": "IMAGE_GENERATION_FAILED_NON_BLOCKING",
-            "Image QA Issues": str(image_exc)[:1500],
-            "Image Mode": "TEXT_ONLY_FALLBACK",
-            "المحتوى": post,
-            "وقت آخر تشغيل": current.isoformat(),
-            "آخر خطأ": f"Image generation failed; text publication continues: {image_exc}"[:1500],
-        })
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "رابط الصورة": "",
+                "Image QA Attempt": "1",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_NON_BLOCKING",
+                "Image QA Issues": str(image_exc)[:1500],
+                "Image Mode": "TEXT_ONLY_FALLBACK",
+                "المحتوى": post,
+                "وقت آخر تشغيل": current.isoformat(),
+                "آخر خطأ": f"Image generation failed; text publication continues: {image_exc}"[:1500],
+            })
+        except Exception as state_exc:
+            print(f"Image failure state update also failed; text publication still continues: {state_exc}")
         print(f"IMAGE GENERATION FAILED — continuing with text-only publication: {image_exc}")
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
