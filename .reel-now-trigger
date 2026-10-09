@@ -1,1 +1,3 @@
 Generate and send the daily legal Reel to Telegram from the latest eligible published social post.
+
+Retry failed Reel after enforcing 140-word narration and 120-second hard cap: 2026-10-09.
