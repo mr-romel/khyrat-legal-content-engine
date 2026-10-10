@@ -15,7 +15,7 @@ import requests
 from google import genai
 
 from blogger_publisher import build_article_html, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id
-from blogger_ui_publisher import publish_article_ui
+from blogger_ui_publisher import publish_article_ui, _public_post_permalink
 from legal_research import research_legal_topic
 
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip()
@@ -407,12 +407,15 @@ def _related_public_posts(published: list[dict[str, str]], topic: str) -> list[d
 
 
 def _find_public_url(title: str, fallback: str) -> str:
-    for attempt in range(5):
+    for attempt in range(3):
         for item in _public_titles():
             if _norm(item["title"]) == _norm(title) and item.get("url"):
                 return item["url"]
-        if attempt < 4:
+        if attempt < 2:
             time.sleep(2)
+    public_url, _ = _public_post_permalink(BLOG_URL, title, attempts=2)
+    if public_url:
+        return public_url
     return fallback
 
 
@@ -445,6 +448,8 @@ def main() -> int:
              if _norm(item.get("title", "")) == _norm(stored_title) and item.get("url")),
             "",
         )
+        if stored_title and not verified_url:
+            verified_url, _ = _public_post_permalink(BLOG_URL, stored_title, attempts=2)
         # A Blogger dashboard URL (?postId=...) is not a public permalink.
         # Old runs incorrectly marked that private URL as PUBLISHED, which made
         # every later daily run skip forever even though the public feed had no post.
