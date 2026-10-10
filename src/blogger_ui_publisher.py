@@ -424,7 +424,7 @@ def _published_url(page, title: str, blog_url: str) -> str:
                 parsed.scheme in {"http", "https"}
                 and parsed.netloc == expected_host
                 and not parsed.query
-                and re.search(r"/\\d{4}/\\d{2}/", parsed.path)
+and re.search(r"/\d{4}/\d{2}/", parsed.path)
                 and "/p/" not in parsed.path
             ):
                 return href
@@ -523,7 +523,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
                 parsed = urlparse(absolute)
                 if parsed.netloc != parsed_blog.netloc or parsed.query or "/p/" in parsed.path:
                     continue
-                if not re.search(r"/\\d{4}/\\d{2}/", parsed.path):
+and re.search(r"/\d{4}/\d{2}/", parsed.path)
                     continue
                 normalized_text = re.sub(r"\\s+", " ", anchor_text).strip().casefold()
                 if normalized_text == wanted:
