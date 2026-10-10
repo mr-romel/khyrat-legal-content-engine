@@ -65,5 +65,18 @@ jobs:
             echo "No Blogger artifacts to commit."
           else
             git commit -m "Store generated Blogger article"
-            git push origin HEAD:${GITHUB_REF_NAME}
+            for attempt in 1 2 3; do
+              git fetch origin "${GITHUB_REF_NAME}"
+              if git rebase "origin/${GITHUB_REF_NAME}"; then
+                if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                  echo "Blogger artifacts persisted."
+                  exit 0
+                fi
+              else
+                git rebase --abort
+              fi
+              echo "Retrying Blogger artifact persistence (${attempt}/3)."
+            done
+            echo "Blogger artifact persistence failed after retries."
+            exit 1
           fi
