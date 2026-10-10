@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Run with browser-based public permalink verification, strict publication status, and the shared Blogger writer lock.
-Trigger nonce: 2026-10-10T14:05+03:00
+Final retry after removing the unstable SEO sidebar, verifying public permalinks in the authenticated browser, and correcting permalink validation.
+Trigger nonce: 2026-10-10T14:15+03:00
