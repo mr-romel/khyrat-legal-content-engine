@@ -718,19 +718,19 @@ def _is_published_dashboard_row(row_text: str) -> bool:
     return bool(re.search(r"\bpublished\b|منشور", status))
 
 
-def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
-    """Resolve a public permalink only from the exact matching Published dashboard row."""
+def _published_dashboard_post(page, blog_url: str, title: str, blog_id: str = "") -> tuple[str, str]:
+    """Resolve an existing published post from its exact Blogger dashboard row."""
     if not blog_id:
         match = re.search(r"/blog/post/edit/([0-9]+)/", page.url)
         blog_id = match.group(1) if match else ""
     if not blog_id:
-        return ""
+        return "", ""
     try:
         page.goto(f"https://www.blogger.com/blog/posts/{blog_id}", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(1100)
         if "accounts.google.com" in page.url or "signin" in page.url.lower():
             print("Blogger dashboard permalink lookup skipped: authenticated session expired.")
-            return ""
+            return "", ""
         rows = _dashboard_title_rows(page, title)
         print("Blogger exact-title dashboard rows: " + json.dumps(rows, ensure_ascii=False)[:5000])
         if not rows:
@@ -744,19 +744,35 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
             row_text = str(row.get("text", "")).casefold()
             if not _is_published_dashboard_row(row_text):
                 continue
+            edit_post_id = ""
+            public_url = ""
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
+                edit_match = re.search(r"/blog/post/edit/[0-9]+/([0-9]+)", href)
+                if edit_match:
+                    edit_post_id = edit_match.group(1)
                 parsed = urlparse(href)
-                if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
-                    continue
-                if parsed.query or "/p/" in parsed.path or not re.search(r"/\d{4}/\d{2}/", parsed.path):
-                    continue
-                print(f"Blogger public permalink verified from matching Published dashboard row: {href}")
-                return href
-        print("No public permalink found in the exact matching Published dashboard row.")
+                if (
+                    parsed.scheme in {"http", "https"}
+                    and parsed.netloc == expected_host
+                    and not parsed.query
+                    and "/p/" not in parsed.path
+                    and re.search(r"/\d{4}/\d{2}/", parsed.path)
+                ):
+                    public_url = href
+            if public_url and edit_post_id:
+                print(f"Blogger public permalink verified from matching Published dashboard row: {public_url}")
+                return public_url, edit_post_id
+        print("No public permalink found in an exact matching Published dashboard row.")
     except Exception as exc:
         print(f"Blogger dashboard permalink lookup failed: {exc}")
-    return ""
+    return "", ""
+
+
+def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
+    """Compatibility wrapper returning only the verified public permalink."""
+    public_url, _post_id = _published_dashboard_post(page, blog_url, title, blog_id)
+    return public_url
 
 
 def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
@@ -807,6 +823,24 @@ def publish_article_ui(
 
             if not target_blog_id:
                 raise BloggerUIPublishError("BLOGGER_BLOG_ID is required for the Blogger UI publisher.")
+
+            # A previous attempt may have published successfully but failed while
+            # checking the public feed (for example, Google HTTP 429). Check the
+            # authenticated dashboard first so retries reuse the real permalink
+            # instead of creating a duplicate article.
+            existing_public_url, existing_public_id = _published_dashboard_post(
+                page, blog_url, title, target_blog_id
+            )
+            if existing_public_url and existing_public_id:
+                context.close()
+                browser.close()
+                print(f"Blogger idempotency: reusing existing published post {existing_public_url}")
+                return {
+                    "post_id": existing_public_id,
+                    "post_url": existing_public_url,
+                    "title": title,
+                    "publisher": "EXISTING_BLOGGER_UI",
+                }
 
             existing_draft_url = _existing_draft_editor_url(page, target_blog_id, title)
             if existing_draft_url:
