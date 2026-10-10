@@ -332,28 +332,31 @@ def _configure_pages_gadget(page) -> bool:
     print("Blogger Pages checkbox diagnostics:", json.dumps(result[:80], ensure_ascii=False))
 
     changed = False
-    for title in PAGE_TITLES:
-        matched = root.locator('input[type="checkbox"]').evaluate(
-            """(els, title) => {
-                for (const e of els) {
-                    let p=e;
-                    for(let n=0;n<7 && p;n++,p=p.parentElement) {
-                        const t=(p.innerText||'').trim().replace(/\\s+/g,' ');
-                        if(t === title || t.includes(title)) {
-                            if(!e.checked) e.click();
-                            return true;
+    if checkbox_count:
+        for title in PAGE_TITLES:
+            matched = root.locator('input[type="checkbox"]').evaluate(
+                """(els, title) => {
+                    for (const e of els) {
+                        let p=e;
+                        for(let n=0;n<7 && p;n++,p=p.parentElement) {
+                            const t=(p.innerText||'').trim().replace(/\\s+/g,' ');
+                            if(t === title || t.includes(title)) {
+                                if(!e.checked) e.click();
+                                return true;
+                            }
                         }
                     }
-                }
-                return false;
-            }""",
-            title,
-        )
-        if matched:
-            changed = True
-            print(f"Blogger Pages selected: {title}")
-        else:
-            print(f"Blogger Pages target not found: {title}")
+                    return false;
+                }""",
+                title,
+            )
+            if matched:
+                changed = True
+                print(f"Blogger Pages selected: {title}")
+            else:
+                print(f"Blogger Pages target not found: {title}")
+    else:
+        print("Blogger Pages editor has no native checkboxes; using exact visible labels only.")
 
     # Some versions render custom rows without native checkbox elements.
     # Click the exact page label as a secondary path, without toggling arbitrary rows.
@@ -417,9 +420,11 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
         raise RuntimeError("Blogger UI session is not authenticated.")
 
     body = _clean(page.locator("body").inner_text())
+    # The Blogger sidebar always contains a generic "Pages" navigation item.
+    # Do not confuse that sidebar item with an actual PageList gadget in the layout.
     has_pages_gadget = any(
         marker in body
-        for marker in ("قائمة الصفحات", "Pages gadget", "PageList", "الصفحات")
+        for marker in ("قائمة الصفحات", "Pages gadget", "PageList", "Page List")
     )
 
     if not has_pages_gadget:
