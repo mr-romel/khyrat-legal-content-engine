@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Final retry using publication lock v3, exact-title dashboard verification, matching-draft reuse, and explicit Blogger CONFIRM handling.
-Trigger nonce: 2026-10-10T15:55+03:00
+Retry with verified confirmation-dialog completion: if Blogger's CONFIRM action does not close the dialog, use a DOM click retry and fail safely. Exact-title public permalink required.
+Trigger nonce: 2026-10-10T16:05+03:00
