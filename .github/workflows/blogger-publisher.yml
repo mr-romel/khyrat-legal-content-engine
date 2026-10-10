@@ -11,7 +11,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: blogger-publisher
+  # All Blogger writers share one lock; the UI session must never publish concurrently.
+  group: blogger-publication
   cancel-in-progress: false
 
 jobs:
