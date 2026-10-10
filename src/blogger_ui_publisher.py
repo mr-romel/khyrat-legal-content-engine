@@ -382,23 +382,52 @@ def publish_article_ui(
 
             editor_url = f"https://www.blogger.com/blog/post/edit/{target_blog_id}/new"
             page.goto(editor_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(3000)
-            # The Blogger SPA can render the title/editor after its initial document.
+            page.wait_for_timeout(1400)
+
+            if "accounts.google.com" in page.url or "signin" in page.url.lower():
+                raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
+
+            # Current Blogger may redirect the legacy /blog/post/edit/.../new route
+            # to the posts dashboard. Open the editor through its visible NEW POST action.
+            if not _first_visible(page, [
+                'input[aria-label*="Title" i]',
+                'input[placeholder*="Title" i]',
+                'input[aria-label*="العنوان"]',
+                '[contenteditable="true"]',
+                'textarea[aria-label*="HTML" i]',
+                '[role="textbox"]',
+            ]):
+                new_post = _first_visible(page, [
+                    'button:has-text("New post")',
+                    '[role="button"]:has-text("New post")',
+                    'a:has-text("New post")',
+                    'text=NEW POST',
+                    '[aria-label*="New post" i]',
+                    'button:has-text("مشاركة جديدة")',
+                    '[role="button"]:has-text("مشاركة جديدة")',
+                ])
+                if new_post:
+                    new_post.click()
+                    page.wait_for_timeout(1800)
+                else:
+                    # Newer Blogger routes expose the creation action under /blog/posts/{id}/new.
+                    page.goto(f"https://www.blogger.com/blog/posts/{target_blog_id}/new", wait_until="domcontentloaded")
+                    page.wait_for_timeout(1800)
+
+            # Wait for actual editor controls; a generic dashboard iframe is not an editor.
             try:
                 page.wait_for_function(
                     """() => Boolean(
+                        document.querySelector('input[aria-label*="Title" i]') ||
+                        document.querySelector('input[placeholder*="Title" i]') ||
                         document.querySelector('[contenteditable="true"]') ||
                         document.querySelector('textarea[aria-label*="HTML" i]') ||
-                        document.querySelector('[role="textbox"]') ||
-                        document.querySelector('iframe')
+                        document.querySelector('[role="textbox"]')
                     )""",
                     timeout=10000,
                 )
             except PlaywrightTimeoutError:
-                print("Blogger editor shell did not expose its usual fields before timeout; continuing with expanded selectors.")
-
-            if "accounts.google.com" in page.url or "signin" in page.url.lower():
-                raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
+                print("Blogger editor controls did not appear before timeout; continuing with expanded selectors.")
 
             _fill_title(page, title)
             _set_editor_html(page, content_html)
@@ -471,13 +500,31 @@ def publish_page_ui(
                 raise BloggerUIPublishError("BLOGGER_BLOG_ID is required for static-page publication.")
 
             route = str(page_id or "").strip()
-            editor_url = (
-                f"https://www.blogger.com/blog/page/edit/{target_blog_id}/{route}"
-                if route else
-                f"https://www.blogger.com/blog/page/edit/{target_blog_id}/new"
-            )
-            page.goto(editor_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(1400)
+            if route:
+                editor_url = f"https://www.blogger.com/blog/page/edit/{target_blog_id}/{route}"
+                page.goto(editor_url, wait_until="domcontentloaded")
+                page.wait_for_timeout(1400)
+            else:
+                # As with posts, the legacy /new URL can redirect to the dashboard.
+                editor_url = f"https://www.blogger.com/blog/pages/{target_blog_id}"
+                page.goto(editor_url, wait_until="domcontentloaded")
+                page.wait_for_timeout(1000)
+                new_page = _first_visible(page, [
+                    'button:has-text("New page")',
+                    '[role="button"]:has-text("New page")',
+                    'a:has-text("New page")',
+                    'text=NEW PAGE',
+                    '[aria-label*="New page" i]',
+                    'button:has-text("صفحة جديدة")',
+                    '[role="button"]:has-text("صفحة جديدة")',
+                ])
+                if new_page:
+                    new_page.click()
+                    page.wait_for_timeout(1400)
+                else:
+                    page.goto(f"https://www.blogger.com/blog/page/edit/{target_blog_id}/new", wait_until="domcontentloaded")
+                    page.wait_for_timeout(1400)
+
             if "accounts.google.com" in page.url or "signin" in page.url.lower():
                 raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
 
