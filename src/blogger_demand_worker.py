@@ -472,11 +472,14 @@ def main() -> int:
     )
     article = None
     generation_errors = []
-    model_candidates = list(dict.fromkeys([
-        model,
-        os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
-        "gemini-3.8-flash",
-    ]))
+    model_candidates = list(dict.fromkeys(
+        candidate for candidate in [
+            model,
+            os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+            "gemini-3.8-flash",
+        ]
+        if candidate and candidate.casefold().removeprefix("models/") != "gemini-2.5-flash"
+    ))
     for candidate_model in (x for x in model_candidates if x):
         try:
             article = prepare_article(
