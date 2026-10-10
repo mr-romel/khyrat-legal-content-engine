@@ -113,18 +113,14 @@ def _click_current_setting_value(page, current_value: str) -> bool:
 
 
 def _click_layout_edit_fallback(page, kind: str) -> bool:
-    # Current 1280x720 Blogger Layout: Header edit icon is around 947,452;
-    # Page List edit icon is around 947,614.
-    x, y = (947, 452) if kind == "header" else (947, 614)
-    try:
-        page.mouse.click(x, y)
-        page.wait_for_timeout(900)
-        print(f"Blogger UI coordinate fallback clicked {kind} editor at {x},{y}.")
-        return True
-    except Exception as exc:
-        print(f"Blogger UI coordinate fallback failed for {kind}: {exc}")
-        return False
-
+    # Never click hard-coded screen coordinates in Blogger's responsive Layout UI.
+    # A previous run clicked the header editor while trying to configure the Page
+    # List gadget. Only use DOM-grounded controls; if none exist, fail safely.
+    print(
+        f"Blogger Layout {kind} edit control was not found through DOM selectors; "
+        "skipping coordinate fallback to avoid editing the wrong gadget."
+    )
+    return False
 
 def _edit_current_setting(page, section_label: str, next_label: str, value: str) -> bool:
     body = _clean(page.locator("body").inner_text())
