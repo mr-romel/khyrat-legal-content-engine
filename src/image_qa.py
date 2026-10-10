@@ -91,6 +91,10 @@ REFERENCE IMAGE RULE:
 No character-reference images are supplied or required. Evaluate the generated scene from the legal topic and visual brief only.
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
+CONTEMPORARY EGYPT RULE:
+This engine publishes current Egyptian legal content. Interpret "Egyptian" as present-day Egypt, not ancient Egypt.
+Reject pharaonic or historical imagery—pyramids, sphinxes, temples, hieroglyphs, sarcophagi, ancient statues/costumes, papyrus, archaeological ruins—unless the legal topic and visual brief explicitly concern antiquities or ancient history. Prefer the actual modern legal situation described in the brief.
+
 BRAND OVERLAY RULE:
 A small bottom-right overlay reading "{ALLOWED_BRAND_TEXT}" plus the Facebook "f" badge is intentionally
 added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text.
