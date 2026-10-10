@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Retry with DOM confirmation fallback and dialog-closure verification, exact-title permalink validation, and existing-draft reuse.
-Trigger nonce: 2026-10-10T16:06+03:00
+Verify idempotency: if today's scheduled title already has a public permalink, reuse it instead of creating another post. Persist generated artifacts with reset-and-push retries.
+Trigger nonce: 2026-10-10T16:25+03:00
