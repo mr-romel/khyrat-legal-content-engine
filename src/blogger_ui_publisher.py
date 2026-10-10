@@ -432,7 +432,7 @@ def _published_url(page, title: str, blog_url: str) -> str:
     return ""
 
 
-def _public_post_permalink(blog_url: str, title: str, attempts: int = 5) -> tuple[str, str]:
+def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tuple[str, str]:
     """Resolve a real public permalink and post ID from Blogger's public JSON feed."""
     feed_url = blog_url.rstrip("/") + "/feeds/posts/default"
     wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
@@ -442,7 +442,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 5) -> tupl
                 feed_url,
                 params={"alt": "json", "max-results": "100"},
                 headers={"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPublisher/1.0)"},
-                timeout=12,
+                timeout=6,
             )
             response.raise_for_status()
             entries = response.json().get("feed", {}).get("entry", []) or []
@@ -505,7 +505,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 5) -> tupl
             response = requests.get(
                 page_url,
                 headers={"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPublisher/1.0)"},
-                timeout=15,
+                timeout=8,
             )
             response.raise_for_status()
             parser = _AnchorParser()
@@ -624,7 +624,7 @@ def publish_article_ui(
 
             # Prefer a real public permalink from the feed over Blogger's private
             # dashboard/edit URL or the non-canonical ?postId= fallback.
-            public_permalink, public_post_id = _public_post_permalink(blog_url, title)
+            public_permalink, public_post_id = _public_post_permalink(blog_url, title, attempts=2)
             if public_permalink:
                 published_url = public_permalink
                 post_id = public_post_id or post_id
