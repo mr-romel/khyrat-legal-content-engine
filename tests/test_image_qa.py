@@ -35,3 +35,5 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "generated scene must be new" in prompt
     assert "bottom-right overlay" in prompt
     assert "legal situation" in prompt
+    assert "period-drama styling" in prompt
+    assert "antiquity-inspired decoration" in prompt
