@@ -434,7 +434,8 @@ def main() -> int:
     history = keyword_map["history"]
     published = _public_titles()
     existing_today = next(
-        (item for item in history if item.get("date") == today and item.get("status") == "PUBLISHED"),
+        (item for item in reversed(history)
+         if item.get("date") == today and item.get("status") in {"PUBLISHED", "PUBLISH_UNVERIFIED"}),
         None,
     )
     if existing_today:
@@ -444,12 +445,25 @@ def main() -> int:
              if _norm(item.get("title", "")) == _norm(stored_title) and item.get("url")),
             "",
         )
-        if stored_title and verified_url and existing_today.get("post_url") != verified_url:
-            existing_today["post_url"] = verified_url
-            _save_map(keyword_map)
-            print(f"Existing demand article permalink repaired from Blogger feed: {verified_url}")
-        print(f"Daily Blogger search-demand article already published for {today}; idempotent skip.")
-        return 0
+        # A Blogger dashboard URL (?postId=...) is not a public permalink.
+        # Old runs incorrectly marked that private URL as PUBLISHED, which made
+        # every later daily run skip forever even though the public feed had no post.
+        if verified_url and "postId=" not in verified_url:
+            if existing_today.get("post_url") != verified_url or existing_today.get("status") != "PUBLISHED":
+                existing_today["post_url"] = verified_url
+                existing_today["status"] = "PUBLISHED"
+                _save_map(keyword_map)
+                print(f"Existing demand article public permalink verified: {verified_url}")
+            print(f"Daily Blogger search-demand article already publicly published for {today}; idempotent skip.")
+            return 0
+        existing_today["status"] = "PUBLISH_UNVERIFIED"
+        existing_today["post_url"] = ""
+        existing_today.pop("post_id", None)
+        _save_map(keyword_map)
+        print(
+            "Previous demand run was a false positive: no public permalink exists for today's article. "
+            "Retrying publication instead of idempotently skipping."
+        )
     trends = _trending_legal_terms()
     search_console_rows = []
     if os.getenv("SEARCH_CONSOLE_SITE_URL", "").strip() and (
@@ -586,6 +600,18 @@ def main() -> int:
             search_description=description,
         )
     public_url = _find_public_url(title, result.get("post_url", ""))
+    if not public_url or "postId=" in public_url:
+        history_entry.update({
+            "status": "PUBLISH_UNVERIFIED",
+            "post_id": result.get("post_id", ""),
+            "post_url": "",
+            "publish_attempted_at": datetime.now(ZoneInfo("Africa/Cairo")).isoformat(),
+        })
+        _save_map(keyword_map)
+        raise RuntimeError(
+            "Blogger UI returned no public permalink. The article is NOT marked PUBLISHED; "
+            "the next run will retry instead of silently skipping."
+        )
     history_entry.update({
         "status": "PUBLISHED",
         "post_id": result.get("post_id", ""),
