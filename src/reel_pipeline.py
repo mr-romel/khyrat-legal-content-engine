@@ -481,7 +481,10 @@ def add_motion_graphics_layer(
         cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
         # Main words are source-derived; line art is drawn like a whiteboard sketch.
         cd.text((450, 190), rtl(phrase[:42]), font=font(37), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
-        # The moving hand/marker is a separate animated overlay, not a static decoration.
+        # Cyan hand-drawn underline is baked into the whiteboard card so the
+        # animation can stay lightweight enough for GitHub-hosted runners.
+        cd.line([(245, 250), (360, 246), (470, 252), (650, 248)], fill=(35, 174, 230, 255), width=6, joint="curve")
+        # Topic-specific line art completes the whiteboard sketch.
         icon_x, icon_y = 105, 310
         if i == 0:
             cd.rounded_rectangle((icon_x, icon_y-24, icon_x+34, icon_y+18), radius=5, outline=(10, 87, 129, 255), width=4)
@@ -499,20 +502,6 @@ def add_motion_graphics_layer(
         card.save(path)
         overlay_inputs.extend(["-loop", "1", "-framerate", "1", "-i", str(path)])
 
-    # A hand holding a marker travels along each underline while it is revealed.
-    hand = Image.new("RGBA", (150, 170), (0, 0, 0, 0))
-    hd = ImageDraw.Draw(hand)
-    hand_color = (9, 72, 105, 255)
-    hd.line([(28, 146), (42, 119), (47, 80), (54, 56), (64, 54), (69, 66), (67, 96)], fill=hand_color, width=9, joint="curve")
-    hd.line([(67, 96), (78, 72), (89, 73), (92, 84), (82, 109), (70, 132)], fill=hand_color, width=9, joint="curve")
-    hd.line([(44, 120), (67, 139), (96, 136), (117, 113), (122, 101)], fill=hand_color, width=9, joint="curve")
-    hd.line([(54, 57), (53, 35), (61, 20), (69, 31), (69, 66)], fill=(35, 174, 230, 255), width=7, joint="curve")
-    hd.line([(61, 20), (69, 7)], fill=(35, 174, 230, 255), width=7)
-    hand_path = work_dir / "whiteboard_hand_marker.png"
-    hand.save(hand_path)
-    for _ in range(4):
-        overlay_inputs.extend(["-loop", "1", "-framerate", "10", "-i", str(hand_path)])
-
     base = work_dir / "whiteboard_base.mp4"
     vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.04:saturation=1.06"
     subprocess.run(["ffmpeg", "-y", "-i", str(input_video), "-vf", vf, "-c:v", "libx264",
@@ -528,52 +517,46 @@ def add_motion_graphics_layer(
         if end <= start:
             continue
         out = f"[wb{i}]"
-        # Each whiteboard card slides in/out; the cyan underline grows and the marker tip travels.
+        # Four source-derived whiteboard cards slide in on a simple four-node
+        # graph. The previous hand+drawbox chain timed out even with low-fps
+        # still inputs, so the marker underline is now drawn into each card.
         filter_parts.append(
-            f"{previous}[{idx}:v]overlay=x='if(lt(t,{start:.3f}),-930,"
-            f"if(lt(t,{start+0.45:.3f}),-930+(t-{start:.3f})*2200,"
-            f"if(lt(t,{end-0.45:.3f}),75,75+(t-{end-0.45:.3f})*2200)))':"
+            f"{previous}[{idx}:v]overlay=x='if(lt(t,{start+0.40:.3f}),-930+(t-{start:.3f})*2512.5,75)':"
             f"y=760:eval=frame:enable='between(t,{start:.3f},{end:.3f})'{out}"
         )
         previous = out
     if not filter_parts:
         filter_parts = ["[0:v]null[wbfinal]"]
         previous = "[wbfinal]"
-    else:
-        # The hand moves with the draw-on stroke, then exits with the board.
-        for i in range(4):
-            start = max(2.0, duration * (0.10 + i * 0.19))
-            end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
-            hand_index = 5 + i
-            filter_parts.append(
-                f"{previous}[{hand_index}:v]overlay=x='if(lt(t,{start:.3f}),-180,"
-                f"if(lt(t,{start+2.5:.3f}),210+(t-{start:.3f})*220,-180))':"
-                f"y=925:eval=frame:enable='between(t,{start:.3f},{min(end,start+2.7):.3f})'[hand{i}]"
-            )
-            previous = f"[hand{i}]"
-        # Reveal the cyan marker stroke over time, rather than displaying a complete underline.
-        for i in range(4):
-            start = max(2.0, duration * (0.10 + i * 0.19))
-            end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
-            filter_parts.append(
-                f"{previous}drawbox=x=220:y=1015:w='min(560,max(0,(t-{start:.3f})*260))':h=7:"
-                f"color=0x23AEE6@0.95:t=fill:enable='between(t,{start+0.25:.3f},{min(end,start+2.6):.3f})'[line{i}]"
-            )
-            previous = f"[line{i}]"
-    # FFmpeg parses commas as filter-chain separators even inside quoted expression
-    # values. Escape them before invoking subprocess (shell quoting is not involved).
-    filter_complex = ";".join(filter_parts).replace(",", r"\,")
+    filter_complex = ";".join(filter_parts).replace(",", r"\\,")
     styled = work_dir / "whiteboard_motion.mp4"
-    # Keep still-card inputs at 1 fps and the marker at 10 fps; the base
-    # video supplies the 30 fps timeline. This avoids decoding nine infinite
-    # 25-fps image streams, which previously made branding exceed 15 minutes.
-    subprocess.run(["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base), *overlay_inputs,
-                    "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
-                    "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
-                    "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
-                   check=True, timeout=600)
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base), *overlay_inputs,
+             "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
+             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+             "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+            check=True, timeout=300,
+        )
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
+        # Branded, motion-card fallback: one whiteboard card overlays the base
+        # for a short window, then the branded end card is still appended.
+        print(f"REEL_STAGE whiteboard_simplified_fallback reason={exc}")
+        styled.unlink(missing_ok=True)
+        fallback_filter = (
+            "[0:v][1:v]overlay=x='if(lt(t,2.4),-930+(t-2.0)*2512.5,75)':"
+            "y=760:eval=frame:enable='between(t,2.0,8.0)'[wb]"
+        ).replace(",", r"\\,")
+        subprocess.run(
+            ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base),
+             "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
+             "-filter_complex", fallback_filter, "-map", "[wb]", "-map", "0:a:0?",
+             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+             "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+            check=True, timeout=180,
+        )
     concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
+    concat_list.write_text(f"file '{styled.resolve()}'\\nfile '{endcard.resolve()}'\\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
                     "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-crf", "21",
                     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
