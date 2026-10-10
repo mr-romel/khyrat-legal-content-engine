@@ -45,11 +45,18 @@ def _blog_id_from_url(url: str) -> str:
 
 
 def _first_visible(page, selectors):
+    """Return the first visible match, not merely the first (possibly hidden) match."""
     for selector in selectors:
-        locator = page.locator(selector).first
+        locator = page.locator(selector)
         try:
-            if locator.is_visible(timeout=1500):
-                return locator
+            count = min(locator.count(), 30)
+            for index in range(count):
+                candidate = locator.nth(index)
+                try:
+                    if candidate.is_visible(timeout=500):
+                        return candidate
+                except Exception:
+                    continue
         except Exception:
             continue
     return None
@@ -133,7 +140,22 @@ def _fill_title(page, title: str) -> None:
                 continue
 
     if not loc:
-        raise BloggerUIPublishError("Blogger UI title field was not found.")
+        try:
+            diagnostics = {
+                "url": page.url,
+                "title": page.title()[:160],
+                "buttons": page.locator('[role="button"]').evaluate_all(
+                    "els => els.filter(e => e.offsetParent !== null).map(e => ({text:(e.innerText||'').trim(), aria:e.getAttribute('aria-label')})).slice(0,25)"
+                ),
+                "body_excerpt": re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500))[:500],
+            }
+        except Exception as diagnostic_exc:
+            diagnostics = {"url": page.url, "diagnostic_error": str(diagnostic_exc)[:200]}
+        print("Blogger title DOM diagnostics: " + json.dumps(diagnostics, ensure_ascii=False))
+        raise BloggerUIPublishError(
+            "Blogger UI title field was not found. DOM diagnostics: "
+            + json.dumps(diagnostics, ensure_ascii=False)[:1000]
+        )
 
     try:
         loc.fill(title, timeout=5000)
