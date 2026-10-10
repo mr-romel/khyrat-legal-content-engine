@@ -441,9 +441,14 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
 
     # Prefer verifying the real public site over mutating Blogger's layout UI,
     # which no longer exposes the old gadget editor consistently.
-    if has_pages_gadget and public_navigation_visible():
-        print("Blogger public navigation already exposes every required static page; no layout mutation needed.")
-        return False
+    if has_pages_gadget:
+        if public_navigation_visible():
+            print("Blogger public navigation already exposes every required static page; no layout mutation needed.")
+            return False
+        # The public check navigates away from the layout screen; return before
+        # attempting any further layout interaction.
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(1200)
 
     if not has_pages_gadget:
         added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"), role="button")
@@ -551,14 +556,14 @@ def _verify_public(page, expected_title: str, expected_description: str) -> None
     body = _clean(page.locator("body").inner_text())
     print(f"Blogger public title: {actual_title!r}")
     print(f"Blogger public description: {actual_description!r}")
-    navigation_visible = all(t in body for t in PAGE_TITLES)
-    print(f"Blogger public page navigation visible for all required pages: {navigation_visible}")
-    if not navigation_visible:
-        raise RuntimeError("Public Blogger navigation does not expose all required static pages.")
     status = response.status if response else None
     if status == 429 or "google.com/sorry" in page.url:
         print("Blogger public verification skipped: Google returned anti-bot HTTP 429.")
         return
+    navigation_visible = all(t in body for t in PAGE_TITLES)
+    print(f"Blogger public page navigation visible for all required pages: {navigation_visible}")
+    if not navigation_visible:
+        raise RuntimeError("Public Blogger navigation does not expose all required static pages.")
     if expected_title not in actual_title:
         raise RuntimeError(f"Homepage title verification failed: {actual_title!r}")
     if actual_description and actual_description != expected_description:
