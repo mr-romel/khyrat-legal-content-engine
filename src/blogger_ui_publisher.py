@@ -418,7 +418,15 @@ def _published_url(page, title: str, blog_url: str) -> str:
     if link:
         try:
             href = str(link.get_attribute("href") or "").strip()
-            if href.startswith("http"):
+            parsed = urlparse(href)
+            expected_host = urlparse(blog_url).netloc
+            if (
+                parsed.scheme in {"http", "https"}
+                and parsed.netloc == expected_host
+                and not parsed.query
+                and re.search(r"/\\d{4}/\\d{2}/", parsed.path)
+                and "/p/" not in parsed.path
+            ):
                 return href
         except Exception:
             pass
