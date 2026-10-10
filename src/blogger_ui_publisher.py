@@ -14,6 +14,7 @@ from urllib.parse import quote, urljoin, urlparse
 import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+from blogger_publisher import normalize_blogger_labels
 
 
 class BloggerUIPublishError(RuntimeError):
@@ -344,7 +345,10 @@ def _set_editor_html(page, content: str) -> None:
 
 
 def _set_labels(page, labels: list[str]) -> None:
-    labels_text = ", ".join(dict.fromkeys(x.strip() for x in labels if x.strip()))
+    labels = normalize_blogger_labels(labels)
+    labels_text = ", ".join(labels)
+    if len(labels_text) > 180:
+        raise BloggerUIPublishError("Blogger labels exceed the safe combined character limit after normalization.")
     if not labels_text:
         return
     try:
