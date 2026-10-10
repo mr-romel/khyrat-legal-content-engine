@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Use explicit Blogger CONFIRM action, resume matching drafts, serialize all writers, and verify a real public permalink.
-Trigger nonce: 2026-10-10T15:26+03:00
+Final retry with exact-title dashboard row verification, CONFIRM dialog handling, and existing draft reuse.
+Trigger nonce: 2026-10-10T15:36+03:00
