@@ -1,3 +1,3 @@
-# Blogger publisher verification
-Retry after correcting Blogger editor navigation and page-ID parsing.
-Trigger nonce: 2026-10-10T12:50+03:00
+# Blogger publisher retry
+Retry publishing with dashboard-based editor navigation and robust click handling.
+Trigger nonce: 2026-10-10T13:00+03:00
