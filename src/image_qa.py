@@ -262,7 +262,7 @@ def qa_image(
             provenance["qa_issues"] = data["issues"]
             provenance["qa_checked_image_sha256"] = __import__("hashlib").sha256(path.read_bytes()).hexdigest()
             provenance_path.write_text(
-                json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n",
+                json.dumps(provenance, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
         except Exception as exc:
