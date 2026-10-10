@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 
 from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article, service as blogger_service
-from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui
+from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui, _public_post_permalink
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 from utils import parse_date
@@ -342,7 +342,21 @@ def main() -> int:
                 "اسأل محمود",
                 *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()],
             ]))[:10]
-            if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+            # Idempotency guard: a previous retry may already have published this
+            # title even if the Sheet/artifact commit failed. Never create another
+            # Blogger post when the public feed can verify an existing permalink.
+            existing_public_url, existing_public_id = _public_post_permalink(
+                config["blogger_url"], title, attempts=1
+            )
+            if existing_public_url:
+                result = {
+                    "post_id": existing_public_id or "",
+                    "post_url": existing_public_url,
+                    "title": title,
+                    "publisher": "EXISTING_PUBLIC_POST",
+                }
+                print(f"Blogger duplicate prevention: reusing existing public post {existing_public_url}")
+            elif os.getenv("BLOGGER_OAUTH_JSON", "").strip():
                 # Prefer the REST API, but attempt the authenticated browser session if
                 # OAuth refresh has been revoked/expired. Both paths verify the result.
                 try:
