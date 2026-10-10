@@ -578,16 +578,19 @@ def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
           const wanted = norm(TITLE);
           const rows = [];
           const seen = new Set();
-          const nodes = Array.from(body.querySelectorAll('a, span, div, td'))
+          const nodes = Array.from(body.querySelectorAll('a, span, td, [role="row"], div'))
             .filter(el => {
-              const t = norm(el.innerText || el.textContent || '');
-              return t && t.length <= wanted.length + 12 &&
+              const raw = el.textContent || '';
+              const t = norm(raw);
+              return t && raw.length <= wanted.length + 24 && t.length <= wanted.length + 12 &&
                 (t === wanted || t.endsWith(wanted) || (el.children.length === 0 && t.includes(wanted)));
             });
           for (const el of nodes) {
             let node = el;
             for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
-              const text = norm(node.innerText || node.textContent || '');
+              const rawRowText = node.textContent || '';
+              if (rawRowText.length > 1600) continue;
+              const text = norm(rawRowText);
               if (!text || text.length > 1200 || !text.includes(wanted)) continue;
               const links = Array.from(node.querySelectorAll('a[href]')).map(a => ({
                 href: a.href || a.getAttribute('href') || '',
