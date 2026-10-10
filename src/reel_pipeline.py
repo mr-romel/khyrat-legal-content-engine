@@ -546,7 +546,7 @@ def add_motion_graphics_layer(
         fallback_filter = (
             "[0:v][1:v]overlay=x='if(lt(t,2.4),-930+(t-2.0)*2512.5,75)':"
             "y=760:eval=frame:enable='between(t,2.0,8.0)'[wb]"
-        ).replace(",", r"\,)
+        ).replace(",", r"\,")
         subprocess.run(
             ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base),
              "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
