@@ -425,7 +425,7 @@ def main() -> int:
         return 0
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required for the daily Blogger search-demand article.")
+        print("GEMINI_API_KEY is absent; the worker will use the verified-source article fallback without AI generation.")
     if not os.getenv("BLOGGER_OAUTH_JSON", "").strip() and not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
         raise RuntimeError(
             "Publishing requires either valid BLOGGER_OAUTH_JSON or BLOGGER_UI_STORAGE_STATE_B64. "
@@ -517,7 +517,9 @@ def main() -> int:
             "gemini-3.8-flash",
         ]
         if candidate and candidate.casefold().removeprefix("models/") != "gemini-2.5-flash"
-    ))
+    )) if api_key else []
+    if not api_key:
+        generation_errors.append("GEMINI_API_KEY is not configured")
     for candidate_model in (x for x in model_candidates if x):
         try:
             article = prepare_article(
@@ -532,6 +534,12 @@ def main() -> int:
         except Exception as exc:
             generation_errors.append(f"{candidate_model}: {exc}")
             print(f"Demand article generation failed with {candidate_model}: {exc}")
+            # Gemini models in one project share the same project quota. A 429
+            # should jump directly to the research-grounded fallback, not burn
+            # calls trying other model names against the same exhausted quota.
+            error_text = str(exc).upper()
+            if "RESOURCE_EXHAUSTED" in error_text or "QUOTA EXCEEDED" in error_text or "429" in error_text:
+                break
     if not isinstance(article, dict):
         print("All configured Gemini models are unavailable; building a cautious article from the verified research packet. " + " | ".join(generation_errors))
         article = _fallback_demand_article(query, packet)
