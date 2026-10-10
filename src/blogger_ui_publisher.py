@@ -578,6 +578,8 @@ def publish_article_ui(
     search_description: str = "",
 ) -> dict[str, str]:
     state_path = _storage_state_path()
+    browser = None
+    context = None
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
@@ -695,6 +697,16 @@ def publish_article_ui(
     except Exception as exc:
         raise BloggerUIPublishError(f"Blogger UI publication failed: {exc}") from exc
     finally:
+        try:
+            if context is not None:
+                context.close()
+        except Exception as exc:
+            print(f"Blogger browser context cleanup warning: {exc}")
+        try:
+            if browser is not None:
+                browser.close()
+        except Exception as exc:
+            print(f"Blogger browser cleanup warning: {exc}")
         try:
             Path(state_path).unlink(missing_ok=True)
         except Exception:
