@@ -455,6 +455,17 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
         if not added:
             added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"))
         if not added:
+            try:
+                controls = page.locator('button, [role="button"], [aria-label], [data-tooltip]').evaluate_all(
+                    """els => els.filter(e => e.offsetParent !== null).map(e => ({
+                        tag:e.tagName, text:(e.innerText||'').trim().slice(0,100),
+                        aria:e.getAttribute('aria-label'), tooltip:e.getAttribute('data-tooltip'),
+                        title:e.getAttribute('title'), role:e.getAttribute('role')
+                    })).slice(0,100)"""
+                )
+                print("Blogger layout visible-control diagnostics: " + json.dumps(controls, ensure_ascii=False))
+            except Exception as exc:
+                print(f"Blogger layout visible-control diagnostics failed: {exc}")
             if public_navigation_visible():
                 print("Blogger Add a Gadget control is unavailable, but public navigation is already correct.")
                 return False
