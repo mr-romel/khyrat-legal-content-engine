@@ -55,6 +55,27 @@ def _first_visible(page, selectors):
     return None
 
 
+def _click_robust(locator, description: str) -> None:
+    """Click a grounded Blogger control, falling back only when overlays intercept it."""
+    try:
+        locator.click(timeout=5000)
+        return
+    except Exception as first_exc:
+        try:
+            locator.click(force=True, timeout=3000)
+            print(f"Blogger UI used force-click fallback for {description}: {first_exc}")
+            return
+        except Exception:
+            try:
+                locator.evaluate("(el) => el.click()")
+                print(f"Blogger UI used DOM-click fallback for {description}.")
+                return
+            except Exception as final_exc:
+                raise BloggerUIPublishError(
+                    f"Blogger UI could not click {description}: {str(final_exc)[:400]}"
+                ) from final_exc
+
+
 def _fill_title(page, title: str) -> None:
     loc = _first_visible(page, [
         'input[aria-label*="Title" i]',
@@ -312,7 +333,7 @@ def _click_publish(page) -> None:
     ])
     if not button:
         raise BloggerUIPublishError("Blogger UI Publish button was not found.")
-    button.click()
+    _click_robust(button, "Publish")
     page.wait_for_timeout(700)
 
     # Blogger may ask for confirmation after the first click.
@@ -324,7 +345,7 @@ def _click_publish(page) -> None:
     ])
     if confirm:
         try:
-            confirm.click()
+            _click_robust(confirm, "Publish confirmation")
         except Exception:
             pass
 
@@ -407,7 +428,7 @@ def publish_article_ui(
                     '[role="button"]:has-text("مشاركة جديدة")',
                 ])
                 if new_post:
-                    new_post.click()
+                    _click_robust(new_post, "New post")
                     page.wait_for_timeout(1800)
                 else:
                     # Newer Blogger routes expose the creation action under /blog/posts/{id}/new.
@@ -519,7 +540,7 @@ def publish_page_ui(
                     '[role="button"]:has-text("صفحة جديدة")',
                 ])
                 if new_page:
-                    new_page.click()
+                    _click_robust(new_page, "New page")
                     page.wait_for_timeout(1400)
                 else:
                     page.goto(f"https://www.blogger.com/blog/page/edit/{target_blog_id}/new", wait_until="domcontentloaded")
@@ -543,12 +564,12 @@ def publish_page_ui(
             action = _first_visible(page, action_patterns)
             if not action:
                 raise BloggerUIPublishError("Blogger static-page Publish/Update button was not found.")
-            action.click()
+            _click_robust(action, "static-page Publish/Update")
             page.wait_for_timeout(800)
             confirm = _first_visible(page, action_patterns)
             if confirm:
                 try:
-                    confirm.click()
+                    _click_robust(confirm, "static-page publish confirmation")
                     page.wait_for_timeout(900)
                 except Exception:
                     pass
