@@ -364,7 +364,7 @@ def _click_publish(page) -> None:
     _click_robust(button, "Publish")
     page.wait_for_timeout(1200)
     try:
-        after_click_body = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1800)).strip()
+        after_click_body = re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1800)).strip()
     except Exception:
         after_click_body = ""
     print(
@@ -388,7 +388,7 @@ def _click_publish(page) -> None:
     ])
     if dialog:
         try:
-            dialog_text = re.sub(r"\\s+", " ", dialog.inner_text(timeout=1200)).strip()
+            dialog_text = re.sub(r"\s+", " ", dialog.inner_text(timeout=1200)).strip()
         except Exception:
             dialog_text = ""
         confirm = _first_visible(dialog, [
