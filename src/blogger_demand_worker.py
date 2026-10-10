@@ -407,9 +407,12 @@ def _related_public_posts(published: list[dict[str, str]], topic: str) -> list[d
 
 
 def _find_public_url(title: str, fallback: str) -> str:
-    for item in _public_titles():
-        if _norm(item["title"]) == _norm(title) and item.get("url"):
-            return item["url"]
+    for attempt in range(5):
+        for item in _public_titles():
+            if _norm(item["title"]) == _norm(title) and item.get("url"):
+                return item["url"]
+        if attempt < 4:
+            time.sleep(2)
     return fallback
 
 
@@ -429,11 +432,24 @@ def main() -> int:
     today = cairo_now.date().isoformat()
     keyword_map = _load_map()
     history = keyword_map["history"]
-    if any(item.get("date") == today and item.get("status") == "PUBLISHED" for item in history):
+    published = _public_titles()
+    existing_today = next(
+        (item for item in history if item.get("date") == today and item.get("status") == "PUBLISHED"),
+        None,
+    )
+    if existing_today:
+        stored_title = str(existing_today.get("title", "") or "").strip()
+        verified_url = next(
+            (item.get("url", "") for item in published
+             if _norm(item.get("title", "")) == _norm(stored_title) and item.get("url")),
+            "",
+        )
+        if stored_title and verified_url and existing_today.get("post_url") != verified_url:
+            existing_today["post_url"] = verified_url
+            _save_map(keyword_map)
+            print(f"Existing demand article permalink repaired from Blogger feed: {verified_url}")
         print(f"Daily Blogger search-demand article already published for {today}; idempotent skip.")
         return 0
-
-    published = _public_titles()
     trends = _trending_legal_terms()
     search_console_rows = []
     if os.getenv("SEARCH_CONSOLE_SITE_URL", "").strip() and (
