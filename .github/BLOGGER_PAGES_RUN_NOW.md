@@ -1,4 +1,3 @@
-Run Blogger static-page publication and navigation verification using the authenticated Blogger UI session.
-
-
-Retry static pages and navigation verification: 2026-10-09.
+# Blogger foundation pages retry
+Retry static pages and navigation after correcting Blogger dashboard-to-editor navigation and page ID parsing.
+Trigger nonce: 2026-10-10T12:55+03:00
