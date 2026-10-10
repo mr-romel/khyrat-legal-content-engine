@@ -562,7 +562,7 @@ def add_motion_graphics_layer(
             previous = f"[line{i}]"
     # FFmpeg parses commas as filter-chain separators even inside quoted expression
     # values. Escape them before invoking subprocess (shell quoting is not involved).
-    filter_complex = ";".join(filter_parts).replace(",", r"\\,")
+    filter_complex = ";".join(filter_parts).replace(",", r"\,")
     styled = work_dir / "whiteboard_motion.mp4"
     subprocess.run(["ffmpeg", "-y", "-i", str(base), *overlay_inputs, "-filter_complex", filter_complex,
                     "-map", previous, "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
