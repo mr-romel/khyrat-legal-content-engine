@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Retry after fixing Blogger title retention, save-before-publish wait, and exact Published-row status/permalink matching. Persist the keyword map safely.
-Trigger nonce: 2026-10-10T17:00+03:00
+Retry after fixing the permalink-verifier indentation error; retain title verification, autosave wait, explicit CONFIRM handling, and conflict-safe keyword-map persistence.
+Trigger nonce: 2026-10-10T17:10+03:00
