@@ -23,6 +23,28 @@ class BloggerPublishError(RuntimeError): pass
 
 def _clean(v: Any) -> str: return " ".join(str(v or "").strip().split())
 
+
+def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, max_labels: int = 10) -> list[str]:
+    """Return unique Blogger labels below the 200-character combined UI limit."""
+    labels: list[str] = []
+    seen: set[str] = set()
+    total = 0
+    for raw in values or []:
+        label = re.sub(r"[\\r\\n,]+", " ", _clean(raw))
+        label = re.sub(r"\\s+", " ", label).strip()[:40].strip()
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        addition = len(label) + (2 if labels else 0)
+        if total + addition > max_total_chars:
+            continue
+        labels.append(label)
+        seen.add(key)
+        total += addition
+        if len(labels) >= max_labels:
+            break
+    return labels
+
 _EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال)?|زاوية\s*جديدة|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
 
 def _strip_editorial_metadata(text: str) -> str:
