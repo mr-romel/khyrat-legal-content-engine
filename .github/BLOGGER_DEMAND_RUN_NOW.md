@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Final retry with explicit publish-confirmation diagnostics, dashboard permalink diagnostics, and corrected browser cleanup. Never mark unverified URLs as published.
-Trigger nonce: 2026-10-10T15:05+03:00
+Publish-confirmation fix: Blogger's dialog uses CONFIRM, not Publish. Retry the article with the actual confirmation button and verify its public permalink.
+Trigger nonce: 2026-10-10T15:15+03:00
