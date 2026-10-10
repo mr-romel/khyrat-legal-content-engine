@@ -525,7 +525,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
                     continue
                 if not re.search(r"/\d{4}/\d{2}/", parsed.path):
                     continue
-                normalized_text = re.sub(r"\\s+", " ", anchor_text).strip().casefold()
+                normalized_text = re.sub(r"\s+", " ", anchor_text).strip().casefold()
                 if normalized_text == wanted:
                     print(f"Blogger public permalink verified from public HTML: {absolute}")
                     return absolute, ""
