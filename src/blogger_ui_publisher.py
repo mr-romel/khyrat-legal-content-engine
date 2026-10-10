@@ -332,7 +332,7 @@ def _set_editor_html(page, content: str) -> None:
             "textboxes": page.locator('[role="textbox"]').count(),
             "textareas": page.locator("textarea").count(),
             "iframes": page.locator("iframe").count(),
-            "body_excerpt": re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500))[:500],
+            "body_excerpt": re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500))[:500],
         }
     except Exception as diagnostic_exc:
         editor_diagnostics = {"diagnostic_error": str(diagnostic_exc)[:240], "url": page.url}
@@ -732,14 +732,14 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
             row_text = str(row.get("text", "")).casefold()
             if not re.search(r"\\bpublished\\b|منشور", row_text):
                 continue
-            if re.search(r"\\bdraft\\b|مسودة|scheduled|مجدول", row_text):
+            if not re.search(r"\bdraft\b|مسودة|scheduled|مجدول", row_text):
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
                 parsed = urlparse(href)
                 if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
                     continue
-                if parsed.query or "/p/" in parsed.path or not re.search(r"/\\d{4}/\\d{2}/", parsed.path):
+            if parsed.query or "/p/" in parsed.path or not re.search(r"/\d{4}/\d{2}/", parsed.path):
                     continue
                 print(f"Blogger public permalink verified from matching Published dashboard row: {href}")
                 return href
@@ -757,7 +757,7 @@ def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
         rows = _dashboard_title_rows(page, title)
         for row in rows:
             row_text = str(row.get("text", "")).casefold()
-            if not re.search(r"\\bdraft\\b|مسودة", row_text):
+            if not re.search(r"\bdraft\b|مسودة", row_text):
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
