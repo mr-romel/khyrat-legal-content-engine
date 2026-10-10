@@ -1208,17 +1208,20 @@ def main() -> int:
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "خليك فاكر دايما .... اسأل محمود"
                             slogan_ready = False
+                            clean_slogan = prepare_tts_script(slogan_text)
                             try:
-                                clean_slogan = prepare_tts_script(slogan_text)
-                                generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
+                                # The brand sting is fixed copy. Use Edge Neural TTS first
+                                # so Gemini's daily text/audio quota is reserved for legal content.
+                                generate_local_short_neural_tts(clean_slogan, slogan_audio)
                                 slogan_ready = slogan_audio.is_file()
-                            except Exception as slogan_gemini_exc:
-                                print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
+                                print("REEL_STAGE slogan=edge_tts_ok")
+                            except Exception as slogan_local_exc:
+                                print(f"Reel slogan Edge TTS unavailable: {slogan_local_exc}")
                                 try:
-                                    generate_local_short_neural_tts(clean_slogan if 'clean_slogan' in locals() else slogan_text, slogan_audio)
+                                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                                     slogan_ready = slogan_audio.is_file()
-                                except Exception as slogan_local_exc:
-                                    print(f"Reel slogan disabled: {slogan_local_exc}")
+                                except Exception as slogan_gemini_exc:
+                                    print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
                             try:
                                 if not slogan_ready:
                                     raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
@@ -1244,17 +1247,19 @@ def main() -> int:
                 slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                 slogan_text = "خليك فاكر دايما .... اسأل محمود"
                 slogan_ready = False
+                clean_slogan = prepare_tts_script(slogan_text)
                 try:
-                    clean_slogan = prepare_tts_script(slogan_text)
-                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
+                    # Avoid a Gemini call for a fixed, repeatable brand phrase.
+                    generate_local_short_neural_tts(clean_slogan, slogan_audio)
                     slogan_ready = slogan_audio.is_file()
-                except Exception as slogan_exc:
-                    print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
+                    print("REEL_STAGE fallback_slogan=edge_tts_ok")
+                except Exception as local_slogan_exc:
+                    print(f"Reel fallback slogan Edge TTS unavailable: {local_slogan_exc}")
                     try:
-                        generate_local_short_neural_tts(clean_slogan if "clean_slogan" in locals() else slogan_text, slogan_audio)
+                        generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                         slogan_ready = slogan_audio.is_file()
-                    except Exception as local_slogan_exc:
-                        print(f"Reel fallback slogan unavailable: {local_slogan_exc}")
+                    except Exception as slogan_exc:
+                        print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
                 branded = output_dir / "branded-fallback.mp4"
                 try:
                     if not slogan_ready:
