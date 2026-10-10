@@ -1,3 +1,3 @@
-# Blogger demand permalink verification
-Verify today's already-published demand article against Blogger's public feed and repair its permalink without creating another article.
-Trigger nonce: 2026-10-10T13:15+03:00
+# Blogger demand recovery
+Retry daily search-demand article only after verifying a real public permalink. Recover any false PUBLISHED marker from dashboard-only URLs.
+Trigger nonce: 2026-10-10T13:40+03:00
