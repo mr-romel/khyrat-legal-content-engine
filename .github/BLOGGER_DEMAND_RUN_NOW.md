@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Publish-confirmation fix: Blogger's dialog uses CONFIRM, not Publish. Retry the article with the actual confirmation button and verify its public permalink.
-Trigger nonce: 2026-10-10T15:15+03:00
+Publish with explicit Blogger CONFIRM action and reuse a matching existing draft to avoid duplicate drafts. Verify the public permalink before recording success.
+Trigger nonce: 2026-10-10T15:25+03:00
