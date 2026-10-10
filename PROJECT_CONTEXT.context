@@ -13,7 +13,7 @@ CURRENT VERIFIED STATE
 - Blogger OAuth REST refresh still fails with invalid_grant (expired/revoked token). The saved authenticated Playwright UI session successfully published the article, but that is a fallback, not a repair to OAuth.
 - Gemini free-tier quota returns 429 RESOURCE_EXHAUSTED. Blogger demand worker now allows no Gemini key and jumps to the verified-source article fallback; on quota error it stops cycling through model names.
 - Reel row 23 failed before Telegram delivery. The logged FFmpeg overlay used infinite looped still images and lacked a reliable output duration cap. Code now adds -t <source duration> and -shortest to both the main and fallback overlay commands. A new Reel Now run is required to verify the fix.
-- Image generator now writes a .provenance.json sidecar with provider/model, prompt, prompt SHA-256, final image SHA-256 and pending QA state. Image QA now records its decision/scores/issues into that sidecar and rejects anachronistic period-style visuals for normal current-law topics. Inspect exact final image before claiming the visual issue solved.
+- Image generator now writes a .provenance.json sidecar with provider/model, prompt, prompt SHA-256, final image SHA-256 and pending QA state. Image QA records its decision/scores/issues into that sidecar and rejects anachronistic period-style visuals for normal current-law topics. A QA decision of REGENERATE blocks that image from publication and falls back to text-only; QA-unavailable remains non-blocking to prevent quota outages from stopping the whole publishing pipeline. Inspect the exact final image before claiming the visual issue solved.
 
 NON-NEGOTIABLE SAFETY
 - Never put secret values, OAuth JSON, refresh tokens, browser cookies/storage state, service-account JSON or API keys in docs, logs or commits.
@@ -87,3 +87,6 @@ Prior failed row-23 Reel: https://github.com/mr-romel/khyrat-legal-content-engin
 Prior successful quality check: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38055120688
 
 DO NOT CLAIM THE WHOLE PROJECT IS FIXED until the new Reel workflow, final image inspection and OAuth re-authorization are verified.
+
+LATEST CHANGE
+- d1b84071fa1c21689f641b2828e343f5c8afa7fa — explicitly rejected images are removed and the row falls back to text-only publication rather than posting a known-bad image.
