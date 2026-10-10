@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Publish with explicit Blogger CONFIRM action and reuse a matching existing draft to avoid duplicate drafts. Verify the public permalink before recording success.
-Trigger nonce: 2026-10-10T15:25+03:00
+Final retry with exact-title dashboard row verification, confirmed Publish dialog action, and draft reuse. Only a permalink from the matching Published row counts as success.
+Trigger nonce: 2026-10-10T15:35+03:00
