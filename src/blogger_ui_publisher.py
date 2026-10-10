@@ -645,14 +645,15 @@ def publish_article_ui(
             _click_publish(page)
 
             page.wait_for_timeout(1200)
+            editor_url = page.url
             published_url = _published_url(page, title, blog_url)
+            post_id = ""
+            match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", editor_url)
+            if match:
+                post_id = match.group(2)
             browser_permalink = _public_permalink_in_browser(page, blog_url, title)
             if browser_permalink:
                 published_url = browser_permalink
-            post_id = ""
-            match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", page.url)
-            if match:
-                post_id = match.group(2)
 
             # Prefer a real public permalink from the feed over Blogger's private
             # dashboard/edit URL or the non-canonical ?postId= fallback.
