@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Retry scheduled Blogger publication after dashboard permalink verification, serialized Blogger writers, and OAuth/UI fallback.
-Trigger nonce: 2026-10-10T14:56+03:00
+Retry after the publish-confirmation detection fix and dashboard diagnostics. Serialize with all Blogger writers.
+Trigger nonce: 2026-10-10T15:06+03:00
