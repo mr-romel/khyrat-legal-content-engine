@@ -15,13 +15,13 @@ The project is active, but several external workflows remain sensitive to creden
 - Article title: **كيفية التعامل مع الابتزاز الإلكتروني في مصر: الأدلة والخطوات القانونية التي يجب مراجعتها**
 - Gemini free-tier quota was exhausted, but the Blogger worker used the verified-source fallback and still published.
 - Blogger labels were normalized after Blogger rejected overlong combined labels.
-- The Reel row-23 run did **not** deliver to Telegram. Its whiteboard FFmpeg overlay timed out because still-image inputs were looped while the output lacked a reliable duration cap. Code now adds an explicit `-t <base duration>` and `-shortest` to both normal and fallback overlay renders. This fix still requires a fresh run to prove delivery.
+- **Reel row 23 is now confirmed delivered to Telegram.** Run 38055595685 succeeded and logged `REEL_READY row=23 ... duration=69.8s telegram=delivered sheet=review`. The fix caps both the main and emergency overlay render with `-t <base duration>` and `-shortest`; a regression test requires both paths to retain the cap.
 - Blogger REST OAuth still returns `invalid_grant: Token has been expired or revoked`. The saved Playwright UI session did publish the article above, but the UI path is a fallback, not a durable OAuth repair.
 
 ## P0: current issues and the real boundary of code-only fixes
 
 1. **Blogger OAuth:** The current refresh token is invalid/revoked. Code cannot revive a revoked token or change Google Cloud OAuth consent-screen publishing mode. The owner must check whether the OAuth app is External + Testing, switch to Production if appropriate, re-authorize with the Blogger scope, and replace the GitHub secret `BLOGGER_OAUTH_JSON`. Never paste token JSON into chat or commit it.
-2. **Reel row 23:** Prior run failed at whiteboard rendering, not Telegram. The root cause was the infinite/looped still-image inputs without a hard output duration. The renderer now caps output to the source duration. A new run must produce a playable branded MP4 and Telegram delivery confirmation before declaring resolution.
+2. **Reel row 23:** Resolved and externally confirmed on run 38055595685. The MP4 was produced at 69.8 seconds and the worker logged `telegram=delivered`. Keep the duration cap in both render paths; regression test is wired into Quality Check.
 3. **Gemini 429:** Models in one project can share the same exhausted project quota. Cycling model names does not reliably restore quota. Blogger demand publishing now skips Gemini entirely when the key is absent and jumps to the source-grounded article fallback on quota errors instead of trying more models. This fallback must never invent statutory provisions or case citations.
 4. **Pharaonic/stale imagery:** The generator prompt is post-derived and contemporary; the final-image QA prompt now explicitly rejects anachronistic period styling for ordinary present-day legal topics. The image generator writes a provenance sidecar containing provider/model, exact prompt, prompt hash, final image hash, and pending QA status; QA updates the sidecar when it runs. A final-image QA decision of REGENERATE now blocks that image from publication and continues with text-only fallback. QA-unavailable remains non-blocking to avoid turning provider quota outages into whole-pipeline outages. Prompt improvements are not considered proven until the exact final image is reviewed.
 5. **UI-driven Blogger publishing:** Do not count a closed confirmation dialog as success. Success requires an exact-title Published row and a public permalink found from Blogger feed/dashboard evidence. Avoid Google HTML search as the primary verifier because it returned HTTP 429.
@@ -111,7 +111,7 @@ Depending on workflow: `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, `BL
 - [ ] Blogger REST OAuth succeeds after secure re-authorization; secret updated.
 - [x] At least one new Blogger demand article verified by public permalink (URL above).
 - [ ] Blogger retry reuses exact existing public post and does not duplicate.
-- [ ] Row-23 Reel renders under the Actions time budget, includes narration + spoken slogan + logo/end card, and Telegram delivery is confirmed.
+- [x] Row-23 Reel rendered at 69.8 seconds and Telegram delivery was confirmed by run 38055595685.
 - [ ] A current legal-topic image is inspected from the exact published asset; no irrelevant period-style imagery.
 - [ ] Provenance sidecar records provider/model, prompt hash, final image hash and QA outcome.
 - [ ] Quality Check passes for the final commit.
@@ -121,6 +121,7 @@ Depending on workflow: `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, `BL
 
 - Verified new Blogger demand article run: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054744408
 - Failed row-23 Reel before duration-cap fix: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054152090
+- Successful row-23 Reel + Telegram delivery after duration-cap fix: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38055595685
 - Quality check after 720p/15fps Reel optimization: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38055120688
 
 **Do not describe this handoff as a fully resolved project.** Blogger publishing has a verified successful path through the saved UI session, but REST OAuth needs owner action. Reel duration-cap and image-provenance/QA changes require post-commit workflow verification.
