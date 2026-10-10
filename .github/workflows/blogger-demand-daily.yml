@@ -15,8 +15,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: blogger-daily-search-demand
-  cancel-in-progress: true
+  # All Blogger writers share one lock; the UI session must never publish concurrently.
+  group: blogger-publication
+  cancel-in-progress: false
 
 jobs:
   publish-demand-article:
