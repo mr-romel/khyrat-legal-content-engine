@@ -636,6 +636,43 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
     return ""
 
 
+def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
+    """Reuse a matching Blogger draft instead of creating another duplicate on retry."""
+    try:
+        page.goto(f"https://www.blogger.com/blog/posts/{blog_id}", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(900)
+        result = page.locator("body").evaluate(
+            """body => {
+              const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+              const wanted = norm(TITLE);
+              const nodes = Array.from(body.querySelectorAll('a, span, div, td'))
+                .filter(el => {
+                  const t = norm(el.innerText || el.textContent || '');
+                  return t && (t === wanted || (wanted.length > 18 && t.includes(wanted)));
+                });
+              for (const el of nodes) {
+                let node = el;
+                for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
+                  const rowText = norm(node.innerText || node.textContent || '');
+                  if (!rowText || rowText.length > 1800 || !/(draft|مسودة)/i.test(rowText)) continue;
+                  const edit = Array.from(node.querySelectorAll('a[href]'))
+                    .map(a => a.href || a.getAttribute('href') || '')
+                    .find(href => /\\/blog\\/post\\/edit\\/\\d+\\/\\d+/.test(href));
+                  if (edit) return {url: edit, row: rowText.slice(0, 500)};
+                }
+              }
+              return null;
+            }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
+        )
+        if isinstance(result, dict) and result.get("url"):
+            print("Reusing existing Blogger draft for retry: " + json.dumps(result, ensure_ascii=False))
+            return str(result["url"])
+        print(f"No matching Blogger draft found for title: {title[:160]}")
+    except Exception as exc:
+        print(f"Blogger existing-draft lookup failed; will use new-post route: {exc}")
+    return ""
+
+
 def publish_article_ui(
     *,
     title: str,
@@ -664,8 +701,14 @@ def publish_article_ui(
             if not target_blog_id:
                 raise BloggerUIPublishError("BLOGGER_BLOG_ID is required for the Blogger UI publisher.")
 
-            editor_url = f"https://www.blogger.com/blog/post/edit/{target_blog_id}/new"
-            page.goto(editor_url, wait_until="domcontentloaded")
+            existing_draft_url = _existing_draft_editor_url(page, target_blog_id, title)
+            if existing_draft_url:
+                editor_url = existing_draft_url
+                page.goto(editor_url, wait_until="domcontentloaded")
+                print("Blogger publisher opened the matching existing draft instead of creating a duplicate.")
+            else:
+                editor_url = f"https://www.blogger.com/blog/post/edit/{target_blog_id}/new"
+                page.goto(editor_url, wait_until="domcontentloaded")
             page.wait_for_timeout(1400)
 
             if "accounts.google.com" in page.url or "signin" in page.url.lower():
