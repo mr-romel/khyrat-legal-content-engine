@@ -414,18 +414,68 @@ def _click_publish(page) -> None:
             confirm and cancel and re.search(r"publish|نشر", dialog_text, re.I)
             and len(dialog_text) < 900
         )
+        confirm_html = ""
+        if confirm:
+            try:
+                confirm_html = str(confirm.evaluate("(el) => el.outerHTML"))[:700]
+            except Exception:
+                pass
         print(
             "Blogger publish dialog inspection: "
             + json.dumps({
                 "text": dialog_text[:350],
                 "confirm_button": bool(confirm),
+                "confirm_html": confirm_html,
                 "cancel_button": bool(cancel),
                 "recognized_confirmation": has_publish_confirmation,
             }, ensure_ascii=False)
         )
         if has_publish_confirmation:
-            _click_robust(confirm, "actual Publish confirmation")
-            page.wait_for_timeout(1500)
+            _click_robust(confirm, "actual Blogger CONFIRM action")
+            page.wait_for_timeout(1800)
+            still_visible = _first_visible(page, [
+                '[role="dialog"]',
+                '[role="alertdialog"]',
+                '[aria-modal="true"]',
+                '.modal-dialog',
+                '[data-dialog]',
+            ])
+            if still_visible:
+                try:
+                    remaining = re.sub(r"\\s+", " ", still_visible.inner_text(timeout=1000)).strip()
+                except Exception:
+                    remaining = ""
+                if re.search(r"publish post\\?|this will publish this post|تأكيد النشر", remaining, re.I):
+                    retry_confirm = _first_visible(still_visible, [
+                        'button:has-text("CONFIRM")',
+                        '[role="button"]:has-text("CONFIRM")',
+                        'button:has-text("تأكيد")',
+                        '[role="button"]:has-text("تأكيد")',
+                    ])
+                    if retry_confirm:
+                        try:
+                            retry_confirm.evaluate("(el) => el.click()")
+                            page.wait_for_timeout(1800)
+                        except Exception as exc:
+                            print(f"Blogger DOM-confirm retry failed: {exc}")
+            remaining_dialog = _first_visible(page, [
+                '[role="dialog"]',
+                '[role="alertdialog"]',
+                '[aria-modal="true"]',
+                '.modal-dialog',
+                '[data-dialog]',
+            ])
+            if remaining_dialog:
+                try:
+                    remaining_text = re.sub(r"\\s+", " ", remaining_dialog.inner_text(timeout=1000)).strip()
+                except Exception:
+                    remaining_text = ""
+                if re.search(r"publish post\\?|this will publish this post|تأكيد النشر", remaining_text, re.I):
+                    raise BloggerUIPublishError(
+                        "Blogger Publish confirmation remained open after CONFIRM click; refusing to report success. "
+                        + remaining_text[:250]
+                    )
+            print("Blogger publish confirmation completed; dialog is no longer visible.")
     else:
         # Some Blogger builds render a confirmation sheet without dialog roles.
         # Click a second Publish button only when the visible copy explicitly asks
