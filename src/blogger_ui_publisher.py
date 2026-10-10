@@ -192,7 +192,7 @@ def _fill_title(page, title: str) -> None:
         actual_title = loc.input_value(timeout=1200) if loc.evaluate("(el) => el.tagName === 'INPUT'") else loc.inner_text(timeout=1200)
     except Exception:
         actual_title = ""
-    normalize = lambda value: re.sub(r"\\s+", " ", str(value or "")).strip()
+    normalize = lambda value: re.sub(r"\s+", " ", str(value or "")).strip()
     if normalize(actual_title) != normalize(title):
         try:
             loc.click(timeout=1500)
