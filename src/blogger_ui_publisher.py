@@ -358,20 +358,25 @@ def _click_publish(page) -> None:
     if not button:
         raise BloggerUIPublishError("Blogger UI Publish button was not found.")
     _click_robust(button, "Publish")
-    page.wait_for_timeout(700)
+    page.wait_for_timeout(1000)
 
-    # Blogger may ask for confirmation after the first click.
-    confirm = _first_visible(page, [
-        'button:has-text("Publish")',
-        '[role="button"]:has-text("Publish")',
-        'button:has-text("نشر")',
-        '[role="button"]:has-text("نشر")',
+    # Only click a second Publish action when Blogger actually opened a
+    # confirmation dialog; otherwise this may click the same editor button twice.
+    dialog = _first_visible(page, [
+        '[role="dialog"]',
+        '[aria-modal="true"]',
+        '.modal-dialog',
     ])
-    if confirm:
-        try:
+    if dialog:
+        confirm = _first_visible(dialog, [
+            'button:has-text("Publish")',
+            '[role="button"]:has-text("Publish")',
+            'button:has-text("نشر")',
+            '[role="button"]:has-text("نشر")',
+        ])
+        if confirm:
             _click_robust(confirm, "Publish confirmation")
-        except Exception:
-            pass
+            page.wait_for_timeout(900)
 
 
 def _published_url(page, title: str, blog_url: str) -> str:
@@ -541,11 +546,13 @@ def publish_article_ui(
                 published_url = public_permalink
                 post_id = public_post_id or post_id
 
-            # Do not report a successful publish unless the post identity can be
-            # verified. The feed lookup is retried before this gate.
+            # A private ?postId= URL is not a public permalink. Never report it as
+            # published when the public feed could not verify the canonical link.
+            if published_url and "?postId=" in published_url:
+                published_url = ""
             if not post_id or not published_url:
                 raise BloggerUIPublishError(
-                    f"Blogger UI publish could not verify the post ID and URL. Current URL: {page.url}; "
+                    f"Blogger UI publish could not verify a public permalink. Current URL: {page.url}; "
                     f"public permalink found={bool(public_permalink)}"
                 )
 
