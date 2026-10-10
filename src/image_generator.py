@@ -374,7 +374,7 @@ def create_legal_image(
     }
     provenance_path = output.with_suffix(output.suffix + ".provenance.json")
     provenance_path.write_text(
-        json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(
