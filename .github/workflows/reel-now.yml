@@ -15,7 +15,7 @@ concurrency:
 jobs:
   reel:
     name: Generate current locked Reel and send Telegram review
-    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN"]'), github.event.head_commit.message) }}
+    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,6 +51,18 @@ jobs:
           }
           JSON
           cat generated/reel_source.json
+      - name: Lock failed row 23 for a controlled Reel retry
+        if: ${{ github.event.head_commit.message == 'REEL_ROW23_RETRY' }}
+        run: |
+          mkdir -p generated
+          cat > generated/reel_source.json <<'JSON'
+          {
+            "row_number": 23,
+            "topic": "الادعاء المباشر — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+            "source_id": "20261010-1200-R010"
+          }
+          JSON
+          cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
         run: |
           python -m py_compile src/reel_pipeline.py
@@ -69,8 +81,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
-          REEL_FORCE_REGENERATE: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' && 'true' || 'false' }}
-          REEL_FORCE_TELEGRAM_REVIEW: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' && 'true' || 'false' }}
+          REEL_FORCE_REGENERATE: ${{ contains(fromJSON('["REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
+          REEL_FORCE_TELEGRAM_REVIEW: ${{ contains(fromJSON('["REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: PYTHONPATH=src python src/reel_pipeline.py
