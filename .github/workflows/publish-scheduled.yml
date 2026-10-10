@@ -182,6 +182,9 @@ jobs:
           retention-days: 14
 
   blogger:
+    concurrency:
+      group: blogger-publication-v2
+      cancel-in-progress: false
     name: 3. Blogger Publisher
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
@@ -221,6 +224,9 @@ jobs:
         run: PYTHONPATH=src python src/blogger_worker.py
 
   blogger_seo:
+    concurrency:
+      group: blogger-publication-v2
+      cancel-in-progress: false
     name: 3b. Blogger SEO Search Description
     needs: blogger
     if: ${{ needs.blogger.result == 'success' }}
@@ -254,6 +260,9 @@ jobs:
           BLOGGER_SEO_MAX_POSTS: "5"
         run: PYTHONPATH=src python src/blogger_seo_worker.py
   blogger_site_setup:
+    concurrency:
+      group: blogger-publication-v2
+      cancel-in-progress: false
     name: 3c. Blogger Site Identity + Pages
     needs: blogger_seo
     if: ${{ needs.blogger_seo.result == 'success' }}
@@ -281,6 +290,9 @@ jobs:
         run: PYTHONPATH=src python src/blogger_pages_ui_worker.py
 
   blogger_identity_setup:
+    concurrency:
+      group: blogger-publication-v2
+      cancel-in-progress: false
     name: 3d. Blogger Brand Identity + Description
     needs: blogger_site_setup
     if: ${{ needs.blogger_site_setup.result == 'success' }}
