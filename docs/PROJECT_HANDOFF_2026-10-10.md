@@ -189,3 +189,68 @@ Updated immediate priority:
 2. Store or generate the branded spoken slogan independently of Gemini (for example, a checked-in/non-secret audio asset or the already configured Edge Neural TTS path) and validate it before rendering.
 3. Re-run row 23 end-to-end and verify Telegram delivery.
 4. Continue Blogger demand-article OAuth and quota work; do not confuse the verified existing post permalink with a new demand article.
+
+
+## Addendum — live verification after the previous snapshot (2026-10-10)
+
+### Current run results
+
+- Scheduled workflow `38046936167` is **completed / failure**: [open run](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167).
+  - Core social publisher: success.
+  - Blogger Publisher: success, but this run reused an already-public article through duplicate prevention; do not interpret it as a new demand article.
+  - Blogger SEO Search Description and Blogger Site Identity + Pages: success.
+  - Facebook/LinkedIn engagement and comment-reply jobs: success.
+  - Reel Generator + Telegram Review: failure.
+  - Blogger Brand Identity + Description: failure.
+- Blogger Daily Search Demand Article `38046557377`: **failure** ([open run](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046557377)).
+- Quality Check `38047154627`: **success** ([open run](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38047154627)). This is code/test evidence only, not external publication evidence.
+
+### Reel failure: exact root cause in the latest run
+
+The latest scheduled Reel run did not reach the simplified FFmpeg card-overlay failure reported in the earlier Telegram alert. It failed later in the branding stage:
+- Cross-workflow artifact download failed: `Artifact not found for name: reel-source-context`.
+- Gemini quota returned HTTP 429 `RESOURCE_EXHAUSTED`.
+- Main narration recovered successfully using Edge Egyptian TTS, duration about 64.4 seconds.
+- Openverse returned zero assets.
+- MoneyPrinterTurbo's expected cloned directory was missing, so the pipeline switched to its FFmpeg fallback.
+- The final blocking exception was `Spoken brand slogan generation failed; refusing delivery`: Gemini was unavailable, and the fallback logged `edge-tts is not installed`.
+- No Telegram delivery was confirmed.
+
+**Recommended fix:** store a licensed, pre-recorded slogan MP3 as a stable project asset, or install and test `edge-tts` as a deterministic fallback. Do not require Gemini quota for a fixed brand slogan. Also make the Reel worker regenerate source context from the exact locked Sheet row or pass the producing workflow's explicit run ID/token; artifact names alone do not make artifacts available across different workflow runs.
+
+### Blogger demand publishing: exact current blockers
+
+The latest demand run confirms:
+- Gemini free-tier quota is exhausted across the configured model attempts.
+- Blogger REST API refresh fails with `invalid_grant: Token has been expired or revoked.`.
+- The UI fallback fills/verifies the title field and observes the publish dialog disappear, but cannot find a matching published dashboard row/permalink.
+- Google HTML search fallback receives a 429 rate-limit interstitial.
+- Therefore, **no new demand article was verified as publicly published** by this run.
+
+The primary fix is to re-authorize Blogger OAuth securely and update GitHub Secret `BLOGGER_OAUTH_JSON`. The hypothesis that the token expired because the consent screen is External + Testing and tokens expire after seven days must be confirmed in the actual Google Cloud Console; it is not proven by `invalid_grant` alone. Keep token payloads out of chat and the repository.
+
+Use the Blogger REST API's returned post ID/permalink or Blogger feed/Atom verification where available. Do not use Google Search HTML as the primary verification path. A dialog closing is not publication success. Retry logic must be idempotent, and existing drafts/duplicates should be inspected by post ID and body before cleanup.
+
+### Blogger brand identity workflow
+
+The scheduled run's Blogger Brand Identity + Description job failed with:
+`Blogger Layout: Add a Gadget control not found and public navigation is incomplete.`
+The log says the header gadget was updated through a visual keyboard fallback, but the worker still could not verify the navigation state. Fix with DOM evidence and safe checks; avoid blind coordinate clicks or claiming success based only on partial changes.
+
+### Evaluation of the proposed repair plan
+
+1. **OAuth:** External + Testing can cause a seven-day refresh-token lifetime, but first verify the consent-screen publishing status. Securely re-authorize and update the secret. Blogger email publishing is only an optional alternative if configured; it is not automatically more reliable.
+2. **Provider chain:** Groq, OpenRouter free models, and Cloudflare Workers AI are candidate providers, not a working fallback until access, quotas, terms, required secrets, adapters, and legal-source quality are tested. Do not promise permanently free capacity.
+3. **Brand slogan:** a fixed checked-in MP3 is the most deterministic low-cost route if the asset is licensed and tested.
+4. **Artifacts:** use durable committed context or an explicit cross-workflow run ID/token; do not assume artifact visibility across runs.
+5. **Pharaonic images:** the current image QA already has a contemporary-Egypt rule. Trace the exact final image through brief, provider/model, cache, QA, and uploaded URL; prompt changes alone are not enough.
+6. **Blogger verification:** public permalink plus post ID is a hard acceptance gate. Keep external-publication state separate from artifact persistence or a green workflow.
+
+### Next actions, in order
+
+1. Re-authorize Blogger OAuth and update `BLOGGER_OAUTH_JSON` without exposing credentials; publish one uniquely titled test article and capture its post ID and public URL.
+2. Fix Blogger idempotency and permalink verification; do not create another draft if the same post already exists.
+3. Add the stable spoken-slogan asset and fix the Reel source-context artifact contract; rerun row 23 and verify Telegram delivery.
+4. Repair the Blogger Layout navigation worker using DOM evidence.
+5. Audit the image provider/cache/final-asset path and add a hard QA rejection for ancient-Egypt motifs in modern legal posts.
+6. Add alternate AI providers only after tests for access, quotas, timeouts, source-grounded legal accuracy, and provider provenance.
