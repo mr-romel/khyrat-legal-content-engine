@@ -426,8 +426,11 @@ def main() -> int:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for the daily Blogger search-demand article.")
-    if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
-        raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required; this worker publishes through the existing authenticated Blogger UI.")
+    if not os.getenv("BLOGGER_OAUTH_JSON", "").strip() and not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
+        raise RuntimeError(
+            "Publishing requires either valid BLOGGER_OAUTH_JSON or BLOGGER_UI_STORAGE_STATE_B64. "
+            "The saved UI session is only needed when the REST API is unavailable."
+        )
 
     cairo_now = datetime.now(ZoneInfo("Africa/Cairo"))
     # This worker is scheduled independently from social publishing and runs once
@@ -561,7 +564,22 @@ def main() -> int:
     history.append(history_entry)
     _save_map(keyword_map)
 
-    if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+    existing_public = next(
+        (
+            item for item in _public_titles()
+            if _norm(item.get("title", "")) == _norm(title) and item.get("url")
+        ),
+        None,
+    )
+    if existing_public:
+        result = {
+            "post_id": "",
+            "post_url": existing_public["url"],
+            "title": title,
+            "publisher": "EXISTING_PUBLIC_POST",
+        }
+        print(f"Demand article idempotency: exact public title already exists; reusing {existing_public['url']}")
+    elif os.getenv("BLOGGER_OAUTH_JSON", "").strip():
         try:
             blogger_api = blogger_rest_service()
             target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
