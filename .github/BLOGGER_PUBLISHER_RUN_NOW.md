@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Retry with optimized dashboard DOM scanning, draft reuse, explicit CONFIRM handling, and exact-title permalink verification.
-Trigger nonce: 2026-10-10T15:46+03:00
+Retry under publication lock v3 with exact-title permalink verification, matching-draft reuse, and explicit CONFIRM handling.
+Trigger nonce: 2026-10-10T15:56+03:00
