@@ -254,3 +254,60 @@ The log says the header gadget was updated through a visual keyboard fallback, b
 4. Repair the Blogger Layout navigation worker using DOM evidence.
 5. Audit the image provider/cache/final-asset path and add a hard QA rejection for ancient-Egypt motifs in modern legal posts.
 6. Add alternate AI providers only after tests for access, quotas, timeouts, source-grounded legal accuracy, and provider provenance.
+
+
+## Remediation update — 2026-10-10
+
+This section supersedes older snapshot statements above when they conflict with the changes and evidence below.
+
+### Image prompt changes now committed
+- `src/gemini.py`: the image-brief instructions now positively describe a single modern, post-specific scene. They no longer list named ancient/historical motifs as things to avoid.
+- `src/image_generator.py`: the Cloudflare/Gemini image prompt is now centered on the supplied scene, present-day everyday objects and documentary composition. Explicit Egypt/Egyptian and named ancient-motif tokens were removed from both prompt and negative prompt.
+- `src/image_qa.py`: the QA prompt checks whether the image depicts the concrete present-day action and setting, without repeating a list of historical motifs.
+- `src/reel_pipeline.py`: stock-search terms and the Reel brief now describe the actual people/action/evidence in modern settings. Named historical-style terms were removed from the visual prompt/search descriptions.
+- Regression test `tests/test_image_generator_prompt.py` was added and is now part of the image tests in `.github/workflows/quality-check.yml`. It captures the request body and asserts that the post-derived scene is present and the known trigger terms are absent.
+
+### Reel root cause and code fix
+The failed scheduled run `38050498346` confirmed:
+- Main narration succeeded.
+- Gemini quota was exhausted with HTTP 429.
+- The fixed brand slogan fallback failed with `edge-tts is not installed`, even though the package is part of the Reel requirements. The function used `shutil.which("edge-tts")`; the scheduled workflow invokes the script through a virtualenv Python, so the executable was not necessarily on global PATH.
+- The renderer fell back to FFmpeg because MoneyPrinterTurbo was unavailable; Openverse returned zero assets.
+- Telegram delivery was not reached.
+
+Fixes committed:
+- `generate_local_short_neural_tts` now invokes `sys.executable -m edge_tts`, checks the output file and validates its duration.
+- The fixed slogan tries Edge Neural TTS first and calls Gemini only if Edge TTS fails, reducing avoidable Gemini quota use.
+- `.github/workflows/publish-scheduled.yml` now exports whether the core publishing run created a locked Reel source file. The scheduled Reel job is skipped when no new source file exists, instead of downloading a nonexistent artifact and attempting to recover an older row. Explicit retries remain in `reel-now.yml`.
+
+**Not yet verified:** a successful final MP4 after the new TTS path, correct logo/end-card/slogan, and actual Telegram delivery. A green syntax test alone is not sufficient.
+
+### Blogger publication state and fixes
+- `src/blogger_demand_worker.py` now allows REST API-only configuration to start without requiring a browser storage-state secret. The UI session is needed only as a fallback.
+- It now checks the public Blogger feed for an exact existing title before publication and reuses that post rather than creating another duplicate.
+- The primary Blogger publisher's job in run `38050498346` logged a verified public permalink and duplicate-prevention reuse:
+  [Existing public article](https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html)
+  Title: **ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟**
+  This proves a public post exists. The run reused the existing article, so it does **not** prove a new article was created by that particular run.
+- OAuth refresh still returned `invalid_grant: Token has been expired or revoked` in earlier demand-worker runs. This is not fixable in repository code: the account owner must check the Google Cloud OAuth consent screen status, re-authorize using the correct Blogger scope, and replace `BLOGGER_OAUTH_JSON` in GitHub Secrets. Do not share token JSON, cookies, or storage state in chat.
+- Gemini 429 remains a provider quota issue. The cautious legal-source article fallback is in code, but the demand worker must be re-run and a genuinely new public permalink verified before calling it fixed.
+- The Blogger Brand Identity/Layout job also failed because its expected “Add a Gadget” control was not found. This is a separate cosmetic/layout worker and should not be confused with article publication.
+
+### Current remaining blockers
+1. **Manual OAuth reauthorization:** update `BLOGGER_OAUTH_JSON` securely after changing/checking the consent-screen publishing status. Code cannot resurrect a revoked refresh token.
+2. **Verify new demand article:** run `blogger-demand-daily.yml`; inspect its exact job logs; require a new public URL, not just a closed dialog or a reused old permalink.
+3. **Verify Reel:** run the explicit row-23 retry only after quality check passes; require playable MP4, slogan audio, logo/end card, and Telegram delivery confirmation.
+4. **Inspect real generated images:** compare the exact uploaded file and logged provider/prompt against the legal post. Prompt cleanup is committed but visual output has not yet been revalidated after the change.
+5. **Do not delete Blogger drafts blindly:** inspect exact IDs and bodies before cleaning up “Untitled” drafts.
+
+### Latest relevant Actions evidence
+- Scheduled run with the confirmed slogan-path and prompt root causes: [38050498346](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38050498346)
+- Quality run for the demand publisher guard/idempotency change: [38053820070](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38053820070) — succeeded for that commit.
+- Final prompt/workflow regression quality run started by the latest changes: [38053898614](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38053898614) — was in progress at the time of this note. Re-check it after the final documentation/test commits.
+
+### Acceptance gates
+- Blogger: newly created article ID and canonical public permalink verified; retry is idempotent.
+- Reel: MP4 playable and within duration cap, narration and spoken slogan present, logo/end card present, Telegram delivery confirmed.
+- Images: prompt derived from the final post; no ancient/historical visual leakage for routine legal topics; inspect the exact final image asset.
+- Scheduling: exactly one deterministic variable slot per day in Cairo time between 10:00 and 22:00; no even/odd-day restriction.
+- Security: no secret values, OAuth JSON, access tokens, cookies, or browser storage-state payloads in repository/docs/logs.
