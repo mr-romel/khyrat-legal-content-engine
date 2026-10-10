@@ -442,10 +442,10 @@ def _click_publish(page) -> None:
             ])
             if still_visible:
                 try:
-                    remaining = re.sub(r"\\s+", " ", still_visible.inner_text(timeout=1000)).strip()
+                    remaining = re.sub(r"\s+", " ", still_visible.inner_text(timeout=1000)).strip()
                 except Exception:
                     remaining = ""
-                if re.search(r"publish post\\?|this will publish this post|تأكيد النشر", remaining, re.I):
+                if re.search(r"publish post\?|this will publish this post|تأكيد النشر", remaining, re.I):
                     retry_confirm = _first_visible(still_visible, [
                         'button:has-text("CONFIRM")',
                         '[role="button"]:has-text("CONFIRM")',
@@ -467,10 +467,10 @@ def _click_publish(page) -> None:
             ])
             if remaining_dialog:
                 try:
-                    remaining_text = re.sub(r"\\s+", " ", remaining_dialog.inner_text(timeout=1000)).strip()
+                    remaining_text = re.sub(r"\s+", " ", remaining_dialog.inner_text(timeout=1000)).strip()
                 except Exception:
                     remaining_text = ""
-                if re.search(r"publish post\\?|this will publish this post|تأكيد النشر", remaining_text, re.I):
+                if re.search(r"publish post\?|this will publish this post|تأكيد النشر", remaining_text, re.I):
                     raise BloggerUIPublishError(
                         "Blogger Publish confirmation remained open after CONFIRM click; refusing to report success. "
                         + remaining_text[:250]
