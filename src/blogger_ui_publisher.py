@@ -730,7 +730,7 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
         expected_host = urlparse(blog_url).netloc
         for row in rows:
             row_text = str(row.get("text", "")).casefold()
-            if not re.search(r"\\bpublished\\b|منشور", row_text):
+            if not re.search(r"\bpublished\b|منشور", row_text):
                 continue
             if not re.search(r"\bdraft\b|مسودة|scheduled|مجدول", row_text):
                 continue
@@ -761,7 +761,7 @@ def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
-                if re.search(r"/blog/post/edit/\\d+/\\d+", href):
+                if re.search(r"/blog/post/edit/\d+/\d+", href):
                     print("Reusing existing Blogger draft: " + json.dumps({"title": title, "edit_url": href}, ensure_ascii=False))
                     return href
         print(f"No exact matching Blogger draft found for title: {title[:160]}")
