@@ -112,3 +112,33 @@ ACCEPTANCE
 - Images: no pharaonic imagery for current legal topics; QA inspects the exact uploaded file.
 - Schedule: one deterministic variable slot per day, Cairo 10:00–22:00, no parity filter.
 - Security: no secret values/session state in docs, logs, prompts, or repository.
+
+
+LATEST REMEDIATION UPDATE — 2026-10-10 (supersedes earlier "still unproven" notes where stated)
+
+IMAGE PROMPTS:
+- Updated src/gemini.py so image_brief guidance describes one concrete contemporary scene positively instead of listing named ancient/historical motifs.
+- Updated src/image_generator.py to use a positive, post-specific scene prompt. Removed explicit Egypt/Egyptian and named historical motifs from both the generation prompt and negative prompt; the negative prompt now focuses on generic image defects and unrelated stock props.
+- Updated src/image_qa.py to judge present-day scene relevance without seeding a list of named historical motifs.
+- Added tests/test_image_generator_prompt.py and wired it into quality-check.yml. The test asserts that the actual Cloudflare prompt and negative prompt contain the supplied post-derived scene and none of the known style-trigger terms.
+- Updated src/reel_pipeline.py visual searches and make_brief prompt to describe modern everyday scenes tied to each sentence, without the named historical-style terms.
+
+REEL:
+- Confirmed exact root cause from run 38050498346: the narration succeeded, but the fixed slogan failed because Gemini returned 429 and the fallback looked for the edge-tts executable on global PATH, although the package can be installed in the workflow virtualenv.
+- Updated generate_local_short_neural_tts to invoke edge_tts through sys.executable -m edge_tts, validate the produced file and duration, and use this quota-free route first for the fixed brand slogan. Gemini is only a fallback.
+- Updated publish-scheduled.yml: downstream Reel generation now runs only when the publishing job created a non-empty generated/reel_source.json. This prevents a missing cross-job artifact from triggering a guessed/recovered older row in the scheduled path. Explicit row retries remain available through reel-now.yml.
+- The previous scheduled failure also had Openverse return zero assets and MoneyPrinterTurbo missing, so the local FFmpeg renderer remains the expected fallback. Successful Telegram delivery is NOT yet verified after these changes.
+
+BLOGGER:
+- Updated src/blogger_demand_worker.py so a valid Blogger REST API configuration no longer requires the UI storage-state secret just to start. UI state is required only when REST OAuth is not configured; if OAuth is revoked and no UI session exists, publication must fail clearly.
+- Added exact-title public-feed idempotency to the demand worker to reuse an already published article rather than create duplicates.
+- Run 38050498346 logs show the primary Blogger publisher verified and reused the existing public URL https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html for "ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟". This is proof that a public article exists and its permalink was found; that run specifically reused an existing post and is NOT proof it created a new article in that run.
+- OAuth invalid_grant cannot be repaired by code or a workflow. The Google OAuth app owner must check consent-screen publishing status, re-authorize with the correct Blogger scope, and replace the GitHub secret BLOGGER_OAUTH_JSON securely. Never paste the token JSON into chat or commit it.
+- Gemini 429 remains an external quota constraint. The demand worker has a source-grounded fallback, but the newest demand-worker run after these edits still needs to be triggered and checked for a genuinely new public permalink.
+
+QUALITY / RUN STATUS:
+- Each code change triggers Khyrat Engine Quality Check. Check the latest run after all commits; canceled intermediate quality runs are expected when several quick commits are pushed. Only the last completed run for the final commit is authoritative.
+- Do not claim the image prompt fix works until the generated image itself is inspected. Do not claim Reel success until a final MP4 and Telegram delivery are confirmed. Do not claim a new Blogger article until its new post ID/permalink is verified.
+
+MANUAL BLOCKER:
+- Re-authorize Blogger OAuth and update BLOGGER_OAUTH_JSON in GitHub repository secrets. This is the only step that cannot be completed from repository code alone; no secret values should be shared in chat.
