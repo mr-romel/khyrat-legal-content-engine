@@ -45,7 +45,7 @@ jobs:
           PY
       - name: Verify final image preview QA tests
         run: |
-          python -m pytest -q tests/test_image_qa.py
+          python -m pytest -q tests/test_image_qa.py tests/test_image_generator_prompt.py
       - name: Verify social engagement strategy tests
         run: |
           python -m pytest -q tests/test_engagement_strategy.py tests/test_linkedin_engagement.py tests/test_linkedin_publisher.py
