@@ -37,11 +37,12 @@ SYSTEM_PROMPT = """
 - لا تجعل الفقرات متساوية الطول أو الإيقاع. غيّر طول الجمل، واسمح بانتقالات بشرية طبيعية، مع الحفاظ على الدقة القانونية.
 - LinkedIn يجب أن ينتهي قبل الهاشتاجات بفكرة مكتملة، ثم يضاف إليه لاحقًا من النظام عدد محدود من الهاشتاجات العربية المرتبطة فعليًا بالموضوع
 
-image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا، واقعيًا، سينمائيًا، تحريريًا، مرتبطًا مباشرة بمضمون الموضوع والمنشور، وبدون نص أو شعار أو علامة مائية داخل الصورة.
-- الصور لمحتوى قانوني معاصر في مصر: المقصود مصر الحديثة اليوم، وليس مصر القديمة.
-- ممنوع تمامًا الستايل الفرعوني أو التاريخي: الأهرامات، المعابد، التوابيت، الهيروغليفية، التماثيل القديمة، الأزياء الفرعونية، الآثار أو أي رموز مصر القديمة، إلا إذا كان موضوع المنشور نفسه عن الآثار أو التاريخ المصري القديم.
-- اختر مشهدًا واقعيًا معاصرًا تدعمه الوقائع القانونية المذكورة: شارع أو شركة أو منزل أو متجر أو جهة عمل أو هاتف أو مستندات حديثة بحسب الموضوع، ولا تضف محكمة أو محاميًا أو ميزان عدالة تلقائيًا.
-- اجعل الصورة وثائقية تحريرية حديثة، بتفاصيل بشرية ومكانية منطقية، ومن دون أي كتابة مقروءة داخل الصورة.
+image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا وواقعيًا، مرتبطًا مباشرة بواقعة المنشور، وبدون كتابة أو شعار أو علامة مائية داخل الصورة.
+- صف مشهدًا من الحياة اليومية المعاصرة تدعمه الوقائع: شخص يتعامل مع هاتف، مستندات حديثة، مكتب شركة، منزل، متجر، مكان عمل أو تفاعل بين أطراف، حسب الموضوع.
+- اجعل المشهد محددًا: من يفعل ماذا، وأين، وما الدليل أو الشيء المهم الظاهر، مع زاوية كاميرا وإضاءة طبيعية.
+- استخدم تصميمًا واقعيًا حديثًا وبيئة مألوفة، ولا تضف رموزًا أو ديكورات أو عناصر غير مذكورة في الواقعة.
+- لا تضف محكمة أو محاميًا أو ميزان عدالة أو كتب قانون لمجرد أن الموضوع قانوني؛ يجب أن يبررها مضمون المنشور نفسه.
+- لا تجعل الصورة ملصقًا أو إنفوجرافيك؛ صورة تحريرية واحدة واضحة بلا نص مقروء.
 image_mode يجب أن يكون CONTEXT_ONLY افتراضيًا، ويُستخدم REFERENCE_SUBJECT فقط عندما تكون هناك صورة مرجعية فعلية ومتاحة ومطلوبة للمشهد.
 الأولوية هي دقة المشهد وارتباطه المباشر بالموضوع، وليس إجبار المحامي على الظهور في كل صورة.
 إذا كان ظهور المحامي طبيعيًا ومفيدًا للمشهد وكان مرجع الشخصية متاحًا، يمكن استخدام REFERENCE_SUBJECT.
@@ -189,8 +190,9 @@ STRICT RULES:
 - Extract the specific situation, people, actions, setting, and visible evidence described by the post.
 - Convert abstract legal explanations into the closest direct visual representation supported by the post.
 - Never add a generic courtroom, lawyer, law books, justice scales, office, contract, police scene, or other legal stock imagery unless the post itself supports it.
-- This is contemporary Egypt, not ancient Egypt. Explicitly exclude pharaonic or historical Egyptian styling: pyramids, temples, hieroglyphs, sarcophagi, ancient statues, ancient costumes, archaeological ruins, papyrus, and ancient motifs. Only include these when the post is specifically about ancient Egyptian history or antiquities.
-- Prefer a plausible present-day Egyptian setting and modern objects only when the post supports them; depict the exact legal situation rather than stereotypical national symbols.
+- Use a contemporary everyday setting and current objects that are directly supported by the post.
+- Depict the exact legal situation, not national symbols, historical decoration, monuments, or period styling.
+- Keep every visual detail tied to the described people, action, place, or evidence; do not add unsupported scenery.
 - Never invent people, actions, documents, locations, events, numbers, logos, or facts.
 - Use one scene only, not a collage or multiple panels.
 - Describe subject, action, setting, important visual evidence, composition, camera angle, and lighting.
