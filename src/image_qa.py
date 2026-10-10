@@ -92,7 +92,7 @@ No character-reference images are supplied or required. Evaluate the generated s
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 CONTEMPORARY SCENE RULE:
-For current legal topics, assess whether the image shows a believable present-day setting and the exact action or evidence described in the brief. Historical or ceremonial set dressing is appropriate only when the legal topic itself concerns that period. Prefer ordinary contemporary locations, people, devices, and documents when supported by the brief.
+For current legal topics, assess whether the image shows a believable present-day setting and the exact action or evidence described in the brief. Use only the time period, locations, people, devices, and documents directly supported by the legal topic and visual brief. Prefer ordinary contemporary settings for current legal situations.
 
 BRAND OVERLAY RULE:
 A small bottom-right overlay reading "{ALLOWED_BRAND_TEXT}" plus the Facebook "f" badge is intentionally
