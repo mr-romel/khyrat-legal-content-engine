@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article, service as blogger_service
+from blogger_publisher import BloggerPublishError, blog_id, publish_article, upload_blogger_image, build_article_html, prepare_article, _article_copy, _fallback_article, normalize_blogger_labels, service as blogger_service
 from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui, _public_post_permalink
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
@@ -337,11 +337,12 @@ def main() -> int:
             article = _article_copy(article or {})
             title = str(article.get("title") or topic).strip()[:110]
             content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
-            labels = list(dict.fromkeys([
+            labels = normalize_blogger_labels([
                 "قانون مصر",
                 "اسأل محمود",
                 *[str(x).strip() for x in article.get("keywords", []) if str(x).strip()],
-            ]))[:10]
+            ])
+            print(f"Blogger labels normalized: count={len(labels)} combined_chars={len(', '.join(labels))}")
             # Idempotency guard: a previous retry may already have published this
             # title even if the Sheet/artifact commit failed. Never create another
             # Blogger post when the public feed can verify an existing permalink.
