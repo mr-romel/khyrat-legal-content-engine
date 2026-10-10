@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Retry daily search-demand article only after verifying a real public permalink. Recover any false PUBLISHED marker from dashboard-only URLs.
-Trigger nonce: 2026-10-10T13:40+03:00
+Run with browser-based public permalink verification, strict publication status, and the shared Blogger writer lock.
+Trigger nonce: 2026-10-10T14:05+03:00
