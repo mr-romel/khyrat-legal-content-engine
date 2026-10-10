@@ -462,7 +462,7 @@ def add_motion_graphics_layer(
     subprocess.run([
         "ffmpeg", "-y", "-loop", "1", "-i", str(end_png), "-i", str(slogan_audio),
         "-t", "5.5", "-vf",
-        "scale=1080:1920,zoompan=z='min(zoom+0.0007,1.035)':d=1:s=1080x1920:fps=30,fade=t=in:st=0:d=0.35",
+        "scale=720:1280,zoompan=z='min(zoom+0.0007,1.035)':d=1:s=720x1280:fps=15,fade=t=in:st=0:d=0.35",
         "-af", "apad=pad_dur=5.5,atrim=duration=5.5,afade=t=out:st=4.8:d=0.6",
         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "18", "-c:a", "aac", "-b:a", "160k", "-shortest", str(endcard)
@@ -514,13 +514,13 @@ def add_motion_graphics_layer(
         overlay_inputs.extend(["-loop", "1", "-framerate", "1", "-i", str(path)])
 
     base = work_dir / "whiteboard_base.mp4"
-    vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.04:saturation=1.06"
+    vf = "scale=780:1386:force_original_aspect_ratio=increase,crop=720:1280:x='30+10*sin(t*0.22)':y='45+12*cos(t*0.18)',fps=15,eq=contrast=1.03:saturation=1.04"
     subprocess.run(["ffmpeg", "-y", "-i", str(input_video), "-vf", vf, "-c:v", "libx264",
                     "-preset", "veryfast", "-crf", "19", "-c:a", "copy", "-movflags", "+faststart", str(base)],
                    check=True, timeout=900)
     duration = _media_duration(base)
-    filter_parts = []
-    previous = "[0:v]"
+    filter_parts = ["[0:v]fps=15,scale=720:1280[base]"]
+    previous = "[base]"
     for i in range(4):
         idx = i + 1
         start = max(2.0, duration * (0.10 + i * 0.19))
@@ -531,13 +531,15 @@ def add_motion_graphics_layer(
         # Four source-derived whiteboard cards slide in on a simple four-node
         # graph. The previous hand+drawbox chain timed out even with low-fps
         # still inputs, so the marker underline is now drawn into each card.
+        card_label = f"[card{i}]"
+        filter_parts.append(f"[{idx}:v]scale=720:312{card_label}")
         filter_parts.append(
-            f"{previous}[{idx}:v]overlay=x='if(lt(t,{start+0.40:.3f}),-930+(t-{start:.3f})*2512.5,75)':"
-            f"y=760:eval=frame:enable='between(t,{start:.3f},{end:.3f})'{out}"
+            f"{previous}{card_label}overlay=x='if(lt(t,{start+0.40:.3f}),-720+(t-{start:.3f})*1950,60)':"
+            f"y=500:eval=frame:enable='between(t,{start:.3f},{end:.3f})'{out}"
         )
         previous = out
-    if not filter_parts:
-        filter_parts = ["[0:v]null[wbfinal]"]
+    if len(filter_parts) == 1:
+        filter_parts.append("[base]null[wbfinal]")
         previous = "[wbfinal]"
     filter_complex = ";".join(filter_parts).replace(",", r"\,")
     styled = work_dir / "whiteboard_motion.mp4"
@@ -547,7 +549,7 @@ def add_motion_graphics_layer(
              "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
              "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
              "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
-            check=True, timeout=300,
+            check=True, timeout=120,
         )
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
         # Branded, motion-card fallback: one whiteboard card overlays the base
@@ -555,8 +557,9 @@ def add_motion_graphics_layer(
         print(f"REEL_STAGE whiteboard_simplified_fallback reason={exc}")
         styled.unlink(missing_ok=True)
         fallback_filter = (
-            "[0:v][1:v]overlay=x='if(lt(t,2.4),-930+(t-2.0)*2512.5,75)':"
-            "y=760:eval=frame:enable='between(t,2.0,8.0)'[wb]"
+            "[0:v]fps=15,scale=720:1280[base];[1:v]scale=720:312[card];"
+            "[base][card]overlay=x='if(lt(t,2.4),-720+(t-2.0)*1950,60)':"
+            "y=500:eval=frame:enable='between(t,2.0,8.0)'[wb]"
         ).replace(",", r"\,")
         subprocess.run(
             ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base),
@@ -564,14 +567,15 @@ def add_motion_graphics_layer(
              "-filter_complex", fallback_filter, "-map", "[wb]", "-map", "0:a:0?",
              "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
              "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
-            check=True, timeout=180,
+            check=True, timeout=120,
         )
     concat_list = work_dir / "concat.txt"
     concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                    "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-crf", "21",
-                    "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
-                   check=True, timeout=600)
+                    "-vf", "fps=15,scale=720:1280", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-threads", "4", "-crf", "24", "-c:a", "aac", "-b:a", "128k",
+                    "-movflags", "+faststart", str(output_video)],
+                   check=True, timeout=300)
     return output_video
 
 def post_visual_terms(post: str, topic: str) -> list[str]:
