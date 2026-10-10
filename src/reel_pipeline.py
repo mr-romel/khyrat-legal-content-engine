@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -254,11 +255,21 @@ def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) 
     return path
 
 def generate_local_short_neural_tts(script: str, output_path: Path) -> Path:
+    """Generate the brand sting through the active Python environment."""
     clean = prepare_neural_tts_script(script)
-    edge = shutil.which("edge-tts")
-    if not edge:
-        raise RuntimeError("edge-tts is not installed.")
-    subprocess.run([edge, "--voice", os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"), "--rate", os.getenv("REEL_EDGE_TTS_RATE", "+10%"), "--text", clean, "--write-media", str(output_path)], check=True, timeout=120, capture_output=True, text=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.unlink(missing_ok=True)
+    # The executable may be absent from global PATH while edge-tts is installed
+    # inside the workflow virtual environment. Invoke the module with this Python.
+    subprocess.run(
+        [sys.executable, "-m", "edge_tts",
+         "--voice", os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"),
+         "--rate", os.getenv("REEL_EDGE_TTS_RATE", "+10%"),
+         "--text", clean, "--write-media", str(output_path)],
+        check=True, timeout=120, capture_output=True, text=True,
+    )
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        raise RuntimeError("Edge TTS returned without creating the brand-sting audio.")
     duration = _media_duration(output_path)
     if duration < 1.0 or duration > 10.0:
         raise RuntimeError(f"Short neural TTS duration invalid: {duration:.1f}s")
@@ -567,12 +578,12 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
     """Build visual searches from the actual post first; topic is only a fallback."""
     text = " ".join(str(post or "").split()).lower()
     groups = [
-        (("عقد", "توقيع", "اتفاق"), ["Egypt contract signing close up realistic office", "business contract document review Egypt", "two people discussing contract paperwork office", "legal document signature close up", "company legal department contract review", "contract dispute evidence documents"]),
-        (("إيجار", "مؤجر", "مستأجر", "شقة"), ["Egypt apartment lease signing landlord tenant", "rental contract document close up", "tenant landlord dispute apartment Egypt", "apartment keys lease agreement", "rental notice document close up", "Egypt lawyer rental dispute consultation"]),
-        (("عمل", "موظف", "فصل", "مرتب", "راتب"), ["Egypt workplace employment dispute realistic office", "employee employment contract review", "termination letter workplace document", "salary dispute documents office", "HR legal review employment file Egypt", "workplace meeting employment issue"]),
-        (("شيك", "إيصال", "دفع", "تحويل", "فلوس", "مبلغ"), ["bank payment dispute Egypt realistic", "cheque financial document close up", "payment receipt evidence close up", "bank transfer smartphone evidence", "financial dispute paperwork office", "Egypt lawyer reviewing payment documents"]),
-        (("رسالة", "واتساب", "موبايل", "دليل", "إثبات"), ["smartphone message evidence close up realistic", "digital evidence phone screen unreadable", "person preserving phone evidence Egypt", "legal evidence documents smartphone", "complaint evidence collection realistic", "lawyer reviewing digital evidence"]),
-        (("طلاق", "نفقة", "حضانة", "أسرة", "زوج", "زوجة"), ["Egyptian family legal consultation realistic", "family legal documents close up", "divorce paperwork Egypt office", "child custody documents legal consultation", "family dispute discussion realistic Egypt", "alimony financial documents consultation"]),
+        (("عقد", "توقيع", "اتفاق"), ["two people signing a business agreement at a modern office desk", "hands reviewing a printed contract beside a laptop", "two colleagues discussing contract clauses at a meeting table", "legal document signature close up", "modern company department reviewing a file at a desk", "contract dispute evidence documents"]),
+        (("إيجار", "مؤجر", "مستأجر", "شقة"), ["landlord and tenant reviewing a lease at a modern apartment table", "rental contract document close up", "tenant and landlord discussing a property issue in a contemporary apartment", "apartment keys lease agreement", "rental notice document close up", "legal adviser reviewing a rental dispute file in a modern office"]),
+        (("عمل", "موظف", "فصل", "مرتب", "راتب"), ["two coworkers discussing an employment issue in a modern workplace", "employee employment contract review", "termination letter workplace document", "salary dispute documents office", "HR reviewing a personnel file in a contemporary office", "workplace meeting employment issue"]),
+        (("شيك", "إيصال", "دفع", "تحويل", "فلوس", "مبلغ"), ["customer reviewing a bank payment record at a modern desk", "cheque financial document close up", "payment receipt evidence close up", "bank transfer smartphone evidence", "financial dispute paperwork office", "legal adviser reviewing payment documents in a contemporary office"]),
+        (("رسالة", "واتساب", "موبايل", "دليل", "إثبات"), ["smartphone message evidence close up realistic", "digital evidence phone screen unreadable", "person preserving phone evidence in a contemporary setting", "legal evidence documents smartphone", "complaint evidence collection realistic", "lawyer reviewing digital evidence"]),
+        (("طلاق", "نفقة", "حضانة", "أسرة", "زوج", "زوجة"), ["family members discussing a sensitive issue at a modern home table", "family legal documents close up", "family-related paperwork on a desk in a modern office", "child custody documents legal consultation", "two adults discussing a family matter in a contemporary private setting", "alimony financial documents consultation"]),
     ]
     for keys, terms in groups:
         if any(k in text for k in keys):
@@ -582,15 +593,15 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
 def topic_visual_terms(topic: str) -> list[str]:
     t = (topic or "").lower()
     groups = [
-        (("تحرش", "تحرش جنسي"), ["Egyptian street harassment victim phone evidence","woman documenting harassment on smartphone","security camera footage street evidence","police report desk Egypt legal complaint","lawyer explaining harassment case to client","digital messages evidence smartphone close up"]),
-        (("طلاق", "خلع", "نفقة", "حضانة"), ["Egyptian family law consultation divorce documents","divorce papers legal documents close up","Egyptian family lawyer meeting client","child custody legal documents family court","alimony financial documents legal consultation","lawyer explaining family court procedure"]),
-        (("إيجار", "طرد", "عقد إيجار"), ["Egypt rental apartment lease contract signing","tenant landlord lease documents close up","rental contract legal dispute lawyer","apartment keys lease agreement close up","Egyptian lawyer reviewing rental contract","eviction legal notice document close up"]),
+        (("تحرش", "تحرش جنسي"), ["person preserving smartphone messages in a public place","woman documenting harassment on smartphone","security camera footage street evidence","official complaint paperwork on a contemporary desk","lawyer explaining harassment case to client","digital messages evidence smartphone close up"]),
+        (("طلاق", "خلع", "نفقة", "حضانة"), ["family law consultation in a modern office","divorce papers legal documents close up","legal adviser meeting a client in a contemporary office","child custody legal documents family court","alimony financial documents legal consultation","lawyer explaining family court procedure"]),
+        (("إيجار", "طرد", "عقد إيجار"), ["rental agreement signing in a modern apartment","tenant landlord lease documents close up","rental contract legal dispute lawyer","apartment keys lease agreement close up","legal adviser reviewing a rental contract","eviction legal notice document close up"]),
         (("شيك", "نصب", "احتيال", "خيانة أمانة"), ["bank cheque legal dispute close up","fraud evidence smartphone financial transaction","financial documents lawyer investigation","police complaint financial fraud paperwork","lawyer explaining fraud case documents","court evidence financial dispute"]),
-        (("عمل", "فصل", "موظف", "عمال", "مرتب"), ["employee employment contract office close up","worker reviewing employment documents","termination letter legal document close up","salary dispute paperwork lawyer consultation","Egyptian employment lawyer meeting employee","workplace rights legal consultation"]),
+        (("عمل", "فصل", "موظف", "عمال", "مرتب"), ["employee employment contract office close up","worker reviewing employment documents","termination letter legal document close up","salary dispute paperwork lawyer consultation","employment-law adviser meeting an employee in a modern office","workplace rights legal consultation"]),
     ]
     for keys, terms in groups:
         if any(k in t for k in keys): return terms
-    return [f"{topic} legal documents close up", f"{topic} lawyer consultation Egypt", f"{topic} evidence smartphone documents", f"{topic} legal notice paperwork", f"{topic} Egyptian court legal case", f"{topic} lawyer explaining case to client", "legal evidence close up documents", "Egyptian lawyer legal consultation"]
+    return [f"modern everyday scene showing {topic}", f"{topic} evidence on a contemporary desk", f"person handling {topic} paperwork in a modern setting", f"{topic} smartphone or document evidence", f"contemporary workplace scene related to {topic}", f"two people discussing {topic} in an ordinary modern setting", "close-up of relevant evidence and documents", "realistic contemporary legal situation"]
 
 
 def add_motion_graphics(video_path: Path, topic: str, work_dir: Path) -> Path:
@@ -673,12 +684,12 @@ def _bound_reel_script(script: str, max_words: int = 140) -> str:
 def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
     prompt = (
-        "Create one Arabic legal short-video package for an Egyptian lawyer brand. "
+        "Create one Arabic legal short-video package for a modern legal advisory brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
         "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 90–105 seconds and 115–140 Arabic words maximum. Use concise sentences; the script must contain at most 140 whitespace-separated words. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
-        "video_terms must be 8 highly specific English visual searches, one per scene, directly tied to the exact reviewed post and sentence. Visuals must depict the concrete event, people, documents, workplace, home, phone, or evidence described in the post. STRICTLY FORBIDDEN: pharaohs, pyramids, ancient Egypt, hieroglyphics, temples, mummies, ancient costumes, gold-and-sandstone pharaonic aesthetics, fantasy/history visuals, or any unrelated stock imagery. Use contemporary realistic Egyptian settings only when supported by the post. Never use generic courtroom/lawyer imagery when the sentence is about a different concrete event. "
+        "video_terms must be 8 highly specific English visual searches, one per scene, tied to the exact reviewed post and sentence. Describe only the concrete action, people, modern objects, documents, workplace, home, phone, or evidence stated in that sentence. Use ordinary contemporary settings and documentary realism. Do not add historical decoration, monuments, ceremonial costumes, or generic legal stock scenes. Never add a courtroom or lawyer unless the reviewed post actually describes one. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
         "Choose delivery emotions that fit the legal subject and sentence function, such as calm_authority, warning, empathy, urgency, reassurance, clarification, or strong_cta. "
         "The voice must sound like a confident Egyptian male lawyer in his late 30s: natural Egyptian Arabic, clear diction, measured pace, never a newsreader or generic MSA narrator. "
