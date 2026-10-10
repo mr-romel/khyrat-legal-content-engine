@@ -345,10 +345,14 @@ def _set_editor_html(page, content: str) -> None:
 
 
 def _set_labels(page, labels: list[str]) -> None:
-    labels = normalize_blogger_labels(labels)
+    # The Blogger UI can retain stale label chips and enforce a stricter limit
+    # than the API. Keep UI labels deliberately short so optional SEO labels
+    # cannot block publication of the article itself.
+    labels = normalize_blogger_labels(labels, max_total_chars=100, max_labels=5)
     labels_text = ", ".join(labels)
-    if len(labels_text) > 180:
-        raise BloggerUIPublishError("Blogger labels exceed the safe combined character limit after normalization.")
+    if len(labels_text) > 100:
+        print("Blogger UI labels skipped: combined label text exceeds the conservative 100-character limit.")
+        return
     if not labels_text:
         return
     try:
