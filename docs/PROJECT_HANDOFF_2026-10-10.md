@@ -327,3 +327,16 @@ Follow-up runs:
 - [Blogger SEO GEO Publisher 38054641111](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054641111) succeeded, but it reused the already-public article [“ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟”](https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html). It does **not** prove that a new article was created by that run.
 - [Blogger Daily Search Demand Article 38054744408](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054744408) was triggered after the label fix; inspect its final logs for a newly created public permalink.
 - [Reel Now row-23 retry 38054152090](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054152090) was still in progress at the latest check. This run started before the unused `voicetut-tts`/OmniVoice setup was removed from `reel-now.yml`; future retries should install fewer unnecessary dependencies.
+
+
+## Verified new Blogger article — 2026-10-10
+
+The label-limit fix allowed the demand worker to publish a new article despite Gemini quota exhaustion and the revoked OAuth refresh token. Run [38054744408](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054744408) completed successfully.
+
+- Title: **كيفية التعامل مع الابتزاز الإلكتروني في مصر: الأدلة والخطوات القانونية التي يجب مراجعتها**
+- Public permalink: [Open the published article](https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_314.html)
+- The worker used the cautious fallback article from the verified legal research packet after Gemini returned HTTP 429.
+- Labels were normalized to 6 labels / 114 combined characters, below Blogger's 200-character limit.
+- The authenticated dashboard showed the exact title as **Published • 10 Oct**, and the public Blogger feed verified the permalink.
+
+This proves a new demand article was published. The OAuth refresh token is still revoked/expired, but the saved authenticated UI session completed this publication after the label issue was fixed. OAuth reauthorization is still recommended to restore the REST API path and reduce reliance on the UI fallback.
