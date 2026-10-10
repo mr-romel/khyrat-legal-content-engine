@@ -311,3 +311,19 @@ Fixes committed:
 - Images: prompt derived from the final post; no ancient/historical visual leakage for routine legal topics; inspect the exact final image asset.
 - Scheduling: exactly one deterministic variable slot per day in Cairo time between 10:00 and 22:00; no even/odd-day restriction.
 - Security: no secret values, OAuth JSON, access tokens, cookies, or browser storage-state payloads in repository/docs/logs.
+
+
+## Additional production finding: Blogger label validation
+
+The scheduled run [38054198942](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054198942) exposed a concrete blocker beyond OAuth: Blogger displayed **“The combined length of all the labels must be at most 200 characters.”** The UI flow then closed the confirmation dialog, but the exact title did not appear as a Published dashboard row and no public permalink was verified. The run failed correctly rather than reporting success.
+
+Fix committed:
+- Added shared `normalize_blogger_labels()` in `src/blogger_publisher.py`.
+- All Blogger workers and the UI fallback now deduplicate labels, remove commas/newlines inside individual labels, limit each label to 40 characters, use at most 10 labels, and keep the joined label string at 180 characters (below Blogger's 200-character combined limit).
+- Added `tests/test_blogger_labels.py` and wired it into the quality workflow.
+- Quality run [38054573571](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054573571) succeeded with the Blogger label regression tests passing.
+
+Follow-up runs:
+- [Blogger SEO GEO Publisher 38054641111](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054641111) succeeded, but it reused the already-public article [“ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟”](https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html). It does **not** prove that a new article was created by that run.
+- [Blogger Daily Search Demand Article 38054744408](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054744408) was triggered after the label fix; inspect its final logs for a newly created public permalink.
+- [Reel Now row-23 retry 38054152090](https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054152090) was still in progress at the latest check. This run started before the unused `voicetut-tts`/OmniVoice setup was removed from `reel-now.yml`; future retries should install fewer unnecessary dependencies.
