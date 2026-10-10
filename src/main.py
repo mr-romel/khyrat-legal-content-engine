@@ -322,10 +322,17 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             )
             image_qa_summary = summarize_qa(image_qa)
             image_qa_score = str(image_qa.get("overall_score", ""))
-            image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_WARNING_NON_BLOCKING"
+            image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_REJECTED"
         except Exception as qa_exc:
             image_qa_summary = f"Image QA unavailable (non-blocking): {qa_exc}"
             image_qa_status = "QA_UNAVAILABLE_NON_BLOCKING"
+        if image_qa_status == "QA_REJECTED":
+            # Never publish an image that the final-image QA explicitly rejected.
+            # The outer image handler clears its URL and continues text-only.
+            image_path.unlink(missing_ok=True)
+            raise ImageGenerationError(
+                f"Final image QA rejected this visual; refusing to publish it: {image_qa_summary}"
+            )
         print(f"IMAGE SEMANTIC QA: {image_qa_status} | {image_qa_summary}")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
