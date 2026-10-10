@@ -391,7 +391,14 @@ def _click_publish(page) -> None:
             dialog_text = re.sub(r"\s+", " ", dialog.inner_text(timeout=1200)).strip()
         except Exception:
             dialog_text = ""
+        # Current Blogger confirmation dialog labels its affirmative action
+        # "CONFIRM", not "Publish". Match that explicit action only inside the
+        # dialog that says the post is about to be published.
         confirm = _first_visible(dialog, [
+            'button:has-text("Confirm")',
+            '[role="button"]:has-text("Confirm")',
+            'button:has-text("تأكيد")',
+            '[role="button"]:has-text("تأكيد")',
             'button:has-text("Publish")',
             '[role="button"]:has-text("Publish")',
             'button:has-text("نشر")',
