@@ -710,6 +710,14 @@ def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
     return result.get("candidate_rows", []) if isinstance(result, dict) else []
 
 
+def _is_published_dashboard_row(row_text: str) -> bool:
+    """Accept only published posts, never drafts or scheduled posts."""
+    status = str(row_text or "").casefold()
+    if re.search(r"\bdraft\b|مسودة|scheduled|مجدول", status):
+        return False
+    return bool(re.search(r"\bpublished\b|منشور", status))
+
+
 def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
     """Resolve a public permalink only from the exact matching Published dashboard row."""
     if not blog_id:
@@ -734,13 +742,7 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
         expected_host = urlparse(blog_url).netloc
         for row in rows:
             row_text = str(row.get("text", "")).casefold()
-            # A row is publishable only when its status is Published and it is
-            # not a draft or scheduled item. The old second condition was
-            # inverted: it required Draft/Scheduled text to be present, so a
-            # correctly published row could never yield its public permalink.
-            if not re.search(r"\bpublished\b|منشور", row_text):
-                continue
-            if re.search(r"\bdraft\b|مسودة|scheduled|مجدول", row_text):
+            if not _is_published_dashboard_row(row_text):
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
