@@ -183,7 +183,7 @@ jobs:
 
   blogger:
     concurrency:
-      group: blogger-publication-v2
+      group: blogger-publication-v3
       cancel-in-progress: false
     name: 3. Blogger Publisher
     needs: publish
@@ -225,7 +225,7 @@ jobs:
 
   blogger_seo:
     concurrency:
-      group: blogger-publication-v2
+      group: blogger-publication-v3
       cancel-in-progress: false
     name: 3b. Blogger SEO Search Description
     needs: blogger
@@ -261,7 +261,7 @@ jobs:
         run: PYTHONPATH=src python src/blogger_seo_worker.py
   blogger_site_setup:
     concurrency:
-      group: blogger-publication-v2
+      group: blogger-publication-v3
       cancel-in-progress: false
     name: 3c. Blogger Site Identity + Pages
     needs: blogger_seo
@@ -291,7 +291,7 @@ jobs:
 
   blogger_identity_setup:
     concurrency:
-      group: blogger-publication-v2
+      group: blogger-publication-v3
       cancel-in-progress: false
     name: 3d. Blogger Brand Identity + Description
     needs: blogger_site_setup
