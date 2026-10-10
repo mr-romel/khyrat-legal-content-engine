@@ -47,6 +47,47 @@ def _normalized_topic(value: str) -> str:
     return " ".join(chars.split())
 
 
+def _is_ancient_history_topic(topic: str) -> bool:
+    value = str(topic or "").casefold()
+    markers = (
+        "الآثار", "الاثار", "الفراعنة", "فرعوني", "فرعونية", "مصر القديمة",
+        "الحضارة المصرية القديمة", "تاريخ مصر القديم", "ancient egypt", "pharaoh",
+        "pyramid", "hieroglyph", "antiquit", "archaeolog",
+    )
+    return any(marker in value for marker in markers)
+
+
+def _has_pharaonic_visual_terms(description: str) -> bool:
+    value = str(description or "").casefold()
+    markers = (
+        "pharaonic", "ancient egypt", "egyptian temple", "pyramid", "sphinx",
+        "hieroglyph", "sarcophagus", "pharaoh", "ancient statue", "ancient costume",
+        "archaeological ruin", "papyrus", "فرعوني", "فرعونية", "الأهرامات", "الاهرامات",
+        "الهيروغليفية", "هيروغليفية", "الفرعون", "الفراعنة", "توت عنخ", "معبد فرعوني",
+        "آثار مصر القديمة", "تمثال فرعوني",
+    )
+    return any(marker in value for marker in markers)
+
+
+def _ensure_contemporary_visual_brief(
+    *, topic: str, post: str, brief: str, api_key: str, model: str
+) -> str:
+    """Reject stale pharaonic prompts for modern legal posts and derive a fresh scene."""
+    if _is_ancient_history_topic(topic):
+        return brief or generate_image_scene_from_post(api_key=api_key, model=model, post=post)
+    candidate = str(brief or "").strip()
+    if candidate and _has_pharaonic_visual_terms(candidate):
+        print("Discarding stale pharaonic image brief for a contemporary legal topic.")
+        candidate = ""
+    if not candidate:
+        candidate = generate_image_scene_from_post(api_key=api_key, model=model, post=post)
+    if _has_pharaonic_visual_terms(candidate):
+        raise ImageGenerationError(
+            "Generated visual description still contains ancient-Egypt imagery for a modern legal topic."
+        )
+    return candidate
+
+
 def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float, str]:
     normalized = _normalized_topic(topic)
     best_score, best_topic = 0.0, ""
@@ -244,13 +285,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     image_url = ""
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
     try:
-        visual_description = image_brief
-        if not visual_description:
-            visual_description = generate_image_scene_from_post(
-                api_key=config["gemini_api_key"],
-                model=config["gemini_model"],
-                post=post,
-            )
+        visual_description = _ensure_contemporary_visual_brief(
+            topic=topic,
+            post=post,
+            brief=image_brief,
+            api_key=config["gemini_api_key"],
+            model=config["gemini_model"],
+        )
         print(f"POST-ALIGNED IMAGE BRIEF: {visual_description}")
         create_legal_image(
             topic=topic,
@@ -401,10 +442,12 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         "وقت آخر تشغيل": current.isoformat(),
     })
     try:
-        visual_description = generate_image_scene_from_post(
+        visual_description = _ensure_contemporary_visual_brief(
+            topic=topic,
+            post=post,
+            brief="",
             api_key=config["gemini_api_key"],
             model=config["gemini_model"],
-            post=post,
         )
         print(f"POST-DERIVED IMAGE REPAIR SCENE: {visual_description}")
         create_legal_image(
