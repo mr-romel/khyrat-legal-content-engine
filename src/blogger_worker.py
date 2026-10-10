@@ -308,11 +308,14 @@ def main() -> int:
             article = None
             editorial_errors = []
             api_key = os.getenv("GEMINI_API_KEY", "").strip()
-            model_candidates = list(dict.fromkeys([
-                os.getenv("GEMINI_MODEL", "").strip(),
-                os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
-                "gemini-3.8-flash",
-            ]))
+            model_candidates = list(dict.fromkeys(
+                candidate for candidate in [
+                    os.getenv("GEMINI_MODEL", "").strip(),
+                    os.getenv("GEMINI_FALLBACK_MODEL", "").strip(),
+                    "gemini-3.8-flash",
+                ]
+                if candidate and candidate.casefold().removeprefix("models/") != "gemini-2.5-flash"
+            ))
             if api_key:
                 for candidate_model in (x for x in model_candidates if x):
                     try:
@@ -419,7 +422,7 @@ def main() -> int:
             "Blogger Last Error": error,
         })
         print(f"Blogger UI publication failed (retryable); REST fallback intentionally disabled when UI session is configured: {error}")
-        return 0
+        return 1
     except BloggerPublishError as exc:
         error = str(exc)[:1500]
         update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -427,7 +430,7 @@ def main() -> int:
             "Blogger Last Error": error,
         })
         print(f"Blogger publication failed (retryable): {error}")
-        return 0
+        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())
