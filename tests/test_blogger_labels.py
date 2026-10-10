@@ -18,3 +18,13 @@ def test_blogger_labels_stay_under_combined_character_limit():
 def test_blogger_labels_remove_commas_and_newlines():
     labels = normalize_blogger_labels(["عقد, عمل\nشركات", "عقد, عمل شركات"])
     assert labels == ["عقد عمل شركات"]
+
+def test_blogger_dashboard_verifier_accepts_published_but_rejects_draft_or_scheduled():
+    from blogger_ui_publisher import _is_published_dashboard_row
+
+    assert _is_published_dashboard_row("Post title Published")
+    assert _is_published_dashboard_row("عنوان المقال منشور")
+    assert not _is_published_dashboard_row("Post title Draft")
+    assert not _is_published_dashboard_row("Post title Scheduled")
+    assert not _is_published_dashboard_row("Post title Published Draft")
+
