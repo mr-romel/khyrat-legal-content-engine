@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 import requests
 from google import genai
 
-from blogger_publisher import build_article_html, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id
+from blogger_publisher import build_article_html, normalize_blogger_labels, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id
 from blogger_ui_publisher import publish_article_ui, _public_post_permalink
 from legal_research import research_legal_topic
 
@@ -540,7 +540,8 @@ def main() -> int:
     if not title or len(description) < 40:
         raise RuntimeError("SEO article title or search description is missing; refusing to publish incomplete metadata.")
     keywords = [ _clean(x) for x in article.get("keywords", []) if _clean(x) ]
-    labels = list(dict.fromkeys(["قانون مصر", "اسأل محمود", *keywords]))[:10]
+    labels = normalize_blogger_labels(["قانون مصر", "اسأل محمود", *keywords])
+    print(f"Demand Blogger labels normalized: count={len(labels)} combined_chars={len(', '.join(labels))}")
     html = build_article_html(
         title=title,
         topic=query,
