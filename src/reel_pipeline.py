@@ -528,7 +528,7 @@ def add_motion_graphics_layer(
     if not filter_parts:
         filter_parts = ["[0:v]null[wbfinal]"]
         previous = "[wbfinal]"
-    filter_complex = ";".join(filter_parts).replace(",", r"\\,")
+    filter_complex = ";".join(filter_parts).replace(",", r"\,")
     styled = work_dir / "whiteboard_motion.mp4"
     try:
         subprocess.run(
@@ -546,7 +546,7 @@ def add_motion_graphics_layer(
         fallback_filter = (
             "[0:v][1:v]overlay=x='if(lt(t,2.4),-930+(t-2.0)*2512.5,75)':"
             "y=760:eval=frame:enable='between(t,2.0,8.0)'[wb]"
-        ).replace(",", r"\\,")
+        ).replace(",", r"\,)
         subprocess.run(
             ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base),
              "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
@@ -556,7 +556,7 @@ def add_motion_graphics_layer(
             check=True, timeout=180,
         )
     concat_list = work_dir / "concat.txt"
-    concat_list.write_text(f"file '{styled.resolve()}'\\nfile '{endcard.resolve()}'\\n", encoding="utf-8")
+    concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
                     "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-crf", "21",
                     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
