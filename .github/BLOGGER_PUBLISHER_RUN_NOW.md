@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Verify idempotency: if today's scheduled title already has a public permalink, reuse it instead of creating another post. Persist generated artifacts with reset-and-push retries.
-Trigger nonce: 2026-10-10T16:25+03:00
+Retry today's Blogger publication with normalized labels under the 200-character limit, exact-title public-post idempotency, and verified public permalink checks.
+Trigger nonce: 2026-10-10T16:15+03:00
