@@ -497,7 +497,7 @@ def add_motion_graphics_layer(
             cd.line((icon_x+26, icon_y+5, icon_x+43, icon_y+22), fill=(10, 87, 129, 255), width=5)
         path = work_dir / f"whiteboard_card_{i+1}.png"
         card.save(path)
-        overlay_inputs.extend(["-loop", "1", "-i", str(path)])
+        overlay_inputs.extend(["-loop", "1", "-framerate", "1", "-i", str(path)])
 
     # A hand holding a marker travels along each underline while it is revealed.
     hand = Image.new("RGBA", (150, 170), (0, 0, 0, 0))
@@ -511,7 +511,7 @@ def add_motion_graphics_layer(
     hand_path = work_dir / "whiteboard_hand_marker.png"
     hand.save(hand_path)
     for _ in range(4):
-        overlay_inputs.extend(["-loop", "1", "-i", str(hand_path)])
+        overlay_inputs.extend(["-loop", "1", "-framerate", "10", "-i", str(hand_path)])
 
     base = work_dir / "whiteboard_base.mp4"
     vf = "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920:x='40+20*sin(t*0.22)':y='70+24*cos(t*0.18)',eq=contrast=1.04:saturation=1.06"
@@ -564,16 +564,20 @@ def add_motion_graphics_layer(
     # values. Escape them before invoking subprocess (shell quoting is not involved).
     filter_complex = ";".join(filter_parts).replace(",", r"\,")
     styled = work_dir / "whiteboard_motion.mp4"
-    subprocess.run(["ffmpeg", "-y", "-i", str(base), *overlay_inputs, "-filter_complex", filter_complex,
-                    "-map", previous, "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
-                    "-crf", "19", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
-                   check=True, timeout=900)
+    # Keep still-card inputs at 1 fps and the marker at 10 fps; the base
+    # video supplies the 30 fps timeline. This avoids decoding nine infinite
+    # 25-fps image streams, which previously made branding exceed 15 minutes.
+    subprocess.run(["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base), *overlay_inputs,
+                    "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+                    "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+                   check=True, timeout=600)
     concat_list = work_dir / "concat.txt"
     concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-c:a", "aac",
-                    "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
-                   check=True, timeout=900)
+                    "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-crf", "21",
+                    "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output_video)],
+                   check=True, timeout=600)
     return output_video
 
 def post_visual_terms(post: str, topic: str) -> list[str]:
