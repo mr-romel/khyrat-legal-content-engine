@@ -30,8 +30,8 @@ def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, m
     seen: set[str] = set()
     total = 0
     for raw in values or []:
-        label = re.sub(r"[\\r\\n,]+", " ", _clean(raw))
-        label = re.sub(r"\\s+", " ", label).strip()[:40].strip()
+        label = re.sub(r"[\r\n,]+", " ", _clean(raw))
+        label = re.sub(r"\s+", " ", label).strip()[:40].strip()
         key = label.casefold()
         if not label or key in seen:
             continue
