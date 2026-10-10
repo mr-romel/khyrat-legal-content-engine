@@ -555,25 +555,36 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
         if "accounts.google.com" in page.url or "signin" in page.url.lower():
             print("Blogger dashboard permalink lookup skipped: authenticated session expired.")
             return ""
-        rows = page.locator("a[href]").evaluate_all(
-            """els => {
+        rows = page.locator("body").evaluate(
+            """body => {
               const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+              const wanted = norm(TITLE);
               const out = [];
-              for (const a of els) {
-                const txt = norm(a.innerText || a.textContent || a.getAttribute('aria-label') || '');
-                if (!txt || !(txt === norm(TITLE) || txt.includes(norm(TITLE)))) continue;
-                let node = a;
-                for (let depth = 0; depth < 7 && node; depth++, node = node.parentElement) {
+              const seen = new Set();
+              for (const el of body.querySelectorAll('a, span, div, td')) {
+                const txt = norm(el.innerText || el.textContent || '');
+                if (!txt || !(txt === wanted || (wanted.length > 18 && txt.includes(wanted)))) continue;
+                let node = el;
+                for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
                   const links = Array.from(node.querySelectorAll('a[href]')).map(x => ({
                     href: x.href || x.getAttribute('href') || '',
-                    text: (x.innerText || x.textContent || x.getAttribute('aria-label') || '').trim()
+                    text: (x.innerText || x.textContent || x.getAttribute('aria-label') || '').trim(),
+                    title: x.getAttribute('title') || '',
+                    aria: x.getAttribute('aria-label') || ''
                   }));
-                  if (links.length > 1) { out.push(...links); break; }
+                  for (const link of links) {
+                    const key = link.href + '|' + link.text;
+                    if (!seen.has(key)) { seen.add(key); out.push(link); }
+                  }
+                  if (links.length > 1) break;
                 }
               }
-              return out;
+              return {matches: out.length, links: out.slice(0, 80),
+                body: (body.innerText || '').replace(/\\s+/g, ' ').slice(0, 1000)};
             }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
         )
+        print("Blogger authenticated dashboard permalink diagnostics: " + json.dumps(rows, ensure_ascii=False)[:7000])
+        rows = rows.get("links", []) if isinstance(rows, dict) else rows
         expected_host = urlparse(blog_url).netloc
         for item in rows:
             href = str(item.get("href", "")).strip()
@@ -719,16 +730,9 @@ def publish_article_ui(
     except Exception as exc:
         raise BloggerUIPublishError(f"Blogger UI publication failed: {exc}") from exc
     finally:
-        try:
-            if context is not None:
-                context.close()
-        except Exception as exc:
-            print(f"Blogger browser context cleanup warning: {exc}")
-        try:
-            if browser is not None:
-                browser.close()
-        except Exception as exc:
-            print(f"Blogger browser cleanup warning: {exc}")
+        # The enclosing sync_playwright() context owns browser shutdown. Closing
+        # these objects here runs after Playwright stops and caused noisy
+        # "Event loop is closed" cleanup warnings on every failed publish.
         try:
             Path(state_path).unlink(missing_ok=True)
         except Exception:
