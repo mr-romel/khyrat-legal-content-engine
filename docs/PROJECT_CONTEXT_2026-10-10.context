@@ -142,3 +142,13 @@ QUALITY / RUN STATUS:
 
 MANUAL BLOCKER:
 - Re-authorize Blogger OAuth and update BLOGGER_OAUTH_JSON in GitHub repository secrets. This is the only step that cannot be completed from repository code alone; no secret values should be shared in chat.
+
+
+LATEST BLOGGER LABEL FIX — 2026-10-10
+- Scheduled run 38054198942 exposed an additional concrete UI blocker: Blogger showed "The combined length of all the labels must be at most 200 characters." The UI still attempted to confirm publication, but the dashboard did not show the requested exact title as Published, so the worker correctly failed verification.
+- Added shared normalize_blogger_labels() in src/blogger_publisher.py. It deduplicates labels, strips commas/newlines, limits individual labels to 40 characters, caps count at 10, and keeps the combined comma-separated string at 180 characters for safety.
+- Applied the same guard in src/blogger_worker.py, src/blogger_demand_worker.py, and src/blogger_ui_publisher.py.
+- Added tests/test_blogger_labels.py and included it in quality-check.yml. Quality run 38054573571 passed; its logs show the label tests passed.
+- Blogger Publisher run 38054641111 completed successfully, but reused the existing public article at https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html. This run does NOT establish that a new article was created.
+- Blogger demand worker retry run 38054744408 was triggered after the label fix and must be checked for a genuinely new, publicly verified article.
+- Explicit Reel row-23 retry run 38054152090 remains in progress in the latest check. It was started before removal of unused voicetut/OmniVoice setup from reel-now.yml, so it still uses the older, slower dependency-install step. The next retry will use the cleaned workflow.
