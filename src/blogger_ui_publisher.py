@@ -734,9 +734,13 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
         expected_host = urlparse(blog_url).netloc
         for row in rows:
             row_text = str(row.get("text", "")).casefold()
+            # A row is publishable only when its status is Published and it is
+            # not a draft or scheduled item. The old second condition was
+            # inverted: it required Draft/Scheduled text to be present, so a
+            # correctly published row could never yield its public permalink.
             if not re.search(r"\bpublished\b|منشور", row_text):
                 continue
-            if not re.search(r"\bdraft\b|مسودة|scheduled|مجدول", row_text):
+            if re.search(r"\bdraft\b|مسودة|scheduled|مجدول", row_text):
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
