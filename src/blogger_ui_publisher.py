@@ -5,9 +5,11 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
+import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -397,6 +399,46 @@ def _published_url(page, title: str, blog_url: str) -> str:
     return ""
 
 
+def _public_post_permalink(blog_url: str, title: str, attempts: int = 5) -> tuple[str, str]:
+    """Resolve a real public permalink and post ID from Blogger's public JSON feed."""
+    feed_url = blog_url.rstrip("/") + "/feeds/posts/default"
+    wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
+    for attempt in range(max(1, attempts)):
+        try:
+            response = requests.get(
+                feed_url,
+                params={"alt": "json", "max-results": "100"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPublisher/1.0)"},
+                timeout=12,
+            )
+            response.raise_for_status()
+            entries = response.json().get("feed", {}).get("entry", []) or []
+            for entry in entries:
+                entry_title = re.sub(
+                    r"\s+", " ", str((entry.get("title") or {}).get("$t", "") or "")
+                ).strip().casefold()
+                if entry_title != wanted:
+                    continue
+                links = entry.get("link", []) or []
+                permalink = next(
+                    (str(link.get("href", "")).strip() for link in links
+                     if link.get("rel") == "alternate" and str(link.get("href", "")).startswith("http")),
+                    "",
+                )
+                raw_id = str((entry.get("id") or {}).get("$t", "") or "")
+                match = re.search(r"(?:post-|\.post-)(\d+)$", raw_id)
+                post_id = match.group(1) if match else ""
+                if permalink:
+                    print(f"Blogger public permalink verified from feed: {permalink}")
+                    return permalink, post_id
+            print(f"Blogger public feed has not exposed the new post yet (attempt {attempt + 1}/{attempts}).")
+        except Exception as exc:
+            print(f"Blogger public permalink lookup attempt {attempt + 1}/{attempts} failed: {exc}")
+        if attempt + 1 < attempts:
+            time.sleep(2)
+    return "", ""
+
+
 def publish_article_ui(
     *,
     title: str,
@@ -492,10 +534,19 @@ def publish_article_ui(
             if match:
                 post_id = match.group(2)
 
-            # The browser must leave a verifiable post/editor URL after publication.
-            if not post_id and not published_url:
+            # Prefer a real public permalink from the feed over Blogger's private
+            # dashboard/edit URL or the non-canonical ?postId= fallback.
+            public_permalink, public_post_id = _public_post_permalink(blog_url, title)
+            if public_permalink:
+                published_url = public_permalink
+                post_id = public_post_id or post_id
+
+            # Do not report a successful publish unless the post identity can be
+            # verified. The feed lookup is retried before this gate.
+            if not post_id or not published_url:
                 raise BloggerUIPublishError(
-                    f"Blogger UI publish did not expose a post URL after clicking Publish. Current URL: {page.url}"
+                    f"Blogger UI publish could not verify the post ID and URL. Current URL: {page.url}; "
+                    f"public permalink found={bool(public_permalink)}"
                 )
 
             context.close()
