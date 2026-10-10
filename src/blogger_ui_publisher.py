@@ -703,7 +703,7 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
         print("Blogger exact-title dashboard rows: " + json.dumps(rows, ensure_ascii=False)[:5000])
         if not rows:
             try:
-                excerpt = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500)).strip()[:1600]
+                excerpt = re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500)).strip()[:1600]
             except Exception as exc:
                 excerpt = f"dashboard body diagnostic failed: {exc}"
             print("Blogger dashboard had no exact title match; visible posts excerpt: " + excerpt)
