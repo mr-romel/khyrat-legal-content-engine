@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import json
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -352,7 +354,34 @@ def create_legal_image(
         raise ImageGenerationError("Generated image file is empty.")
 
     brand_published_image(str(output))
-    print(f"Fresh post-derived editorial image generated: provider={provider} path={output}")
+    image_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
+    prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    provider_model = (
+        os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+        if provider == "GEMINI_IMAGE_GENERATION"
+        else CLOUDFLARE_IMAGE_MODEL
+    )
+    provenance = {
+        "topic": str(topic or ""),
+        "provider": provider,
+        "model": provider_model,
+        "prompt": prompt,
+        "prompt_sha256": prompt_sha256,
+        "image_sha256": image_sha256,
+        "image_path": str(output),
+        "visual_description": visual_description,
+        "qa_decision": "PENDING",
+    }
+    provenance_path = output.with_suffix(output.suffix + ".provenance.json")
+    provenance_path.write_text(
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n",
+        encoding="utf-8",
+    )
+    print(
+        f"Fresh post-derived editorial image generated: provider={provider} "
+        f"model={provider_model} image_sha256={image_sha256} path={output}"
+    )
+    print(f"Image provenance saved: {provenance_path}")
     print(f"Generated image size: {output.stat().st_size} bytes")
     return str(output)
 
