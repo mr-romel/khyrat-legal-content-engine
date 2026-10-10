@@ -44,3 +44,10 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     for trigger in ("egypt", "egyptian", "pharaoh", "pyramid", "hieroglyph", "sarcophagus", "ancient egypt"):
         assert trigger not in prompt
         assert trigger not in negative
+
+    import json
+    provenance = json.loads((tmp_path / "legal.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["provider"] == "DIRECT_CLOUDFLARE"
+    assert provenance["prompt_sha256"]
+    assert provenance["image_sha256"]
+    assert provenance["qa_decision"] == "PENDING"
