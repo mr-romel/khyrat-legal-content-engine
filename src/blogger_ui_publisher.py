@@ -351,34 +351,60 @@ def _set_labels(page, labels: list[str]) -> None:
 
 
 def _click_publish(page) -> None:
-    button = _first_visible(page, [
+    publish_selectors = [
         'button:has-text("Publish")',
         '[role="button"]:has-text("Publish")',
         'button:has-text("نشر")',
         '[role="button"]:has-text("نشر")',
-    ])
+    ]
+    button = _first_visible(page, publish_selectors)
     if not button:
         raise BloggerUIPublishError("Blogger UI Publish button was not found.")
-    _click_robust(button, "Publish")
-    page.wait_for_timeout(1000)
 
-    # Only click a second Publish action when Blogger actually opened a
-    # confirmation dialog; otherwise this may click the same editor button twice.
+    _click_robust(button, "Publish")
+    page.wait_for_timeout(1200)
+
+    # Blogger sometimes opens a confirmation dialog. Never click a second
+    # generic Publish control in the editor/sidebar: that previously produced
+    # dashboard-only ?postId= URLs falsely reported as published.
     dialog = _first_visible(page, [
         '[role="dialog"]',
         '[aria-modal="true"]',
         '.modal-dialog',
     ])
     if dialog:
+        try:
+            dialog_text = re.sub(r"\\s+", " ", dialog.inner_text(timeout=1200)).strip()
+        except Exception:
+            dialog_text = ""
         confirm = _first_visible(dialog, [
             'button:has-text("Publish")',
             '[role="button"]:has-text("Publish")',
             'button:has-text("نشر")',
             '[role="button"]:has-text("نشر")',
         ])
-        if confirm:
-            _click_robust(confirm, "Publish confirmation")
-            page.wait_for_timeout(900)
+        cancel = _first_visible(dialog, [
+            'button:has-text("Cancel")',
+            '[role="button"]:has-text("Cancel")',
+            'button:has-text("إلغاء")',
+            '[role="button"]:has-text("إلغاء")',
+        ])
+        has_publish_confirmation = bool(
+            confirm and cancel and re.search(r"publish|نشر", dialog_text, re.I)
+            and len(dialog_text) < 900
+        )
+        print(
+            "Blogger publish dialog inspection: "
+            + json.dumps({
+                "text": dialog_text[:350],
+                "confirm_button": bool(confirm),
+                "cancel_button": bool(cancel),
+                "recognized_confirmation": has_publish_confirmation,
+            }, ensure_ascii=False)
+        )
+        if has_publish_confirmation:
+            _click_robust(confirm, "actual Publish confirmation")
+            page.wait_for_timeout(1500)
 
 
 def _published_url(page, title: str, blog_url: str) -> str:
