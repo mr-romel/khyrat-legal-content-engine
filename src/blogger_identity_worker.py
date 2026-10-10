@@ -412,7 +412,7 @@ def _update_page_header_from_layout(page, title: str, description: str) -> bool:
 
     return False
 
-def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
+def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
     page.goto(url, wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(2200)
@@ -427,15 +427,39 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
         for marker in ("قائمة الصفحات", "Pages gadget", "PageList", "Page List")
     )
 
+    def public_navigation_visible() -> bool:
+        try:
+            page.goto(BLOG_URL, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(900)
+            public_body = _clean(page.locator("body").inner_text())
+            missing = [title for title in PAGE_TITLES if title not in public_body]
+            print(f"Blogger public navigation check: missing={missing}")
+            return not missing
+        except Exception as exc:
+            print(f"Blogger public navigation check unavailable: {exc}")
+            return False
+
+    # Prefer verifying the real public site over mutating Blogger's layout UI,
+    # which no longer exposes the old gadget editor consistently.
+    if has_pages_gadget and public_navigation_visible():
+        print("Blogger public navigation already exposes every required static page; no layout mutation needed.")
+        return False
+
     if not has_pages_gadget:
         added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"), role="button")
         if not added:
             added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"))
         if not added:
-            raise RuntimeError("Blogger Layout: Add a Gadget control not found.")
+            if public_navigation_visible():
+                print("Blogger Add a Gadget control is unavailable, but public navigation is already correct.")
+                return False
+            raise RuntimeError("Blogger Layout: Add a Gadget control not found and public navigation is incomplete.")
 
         if not _click_first(page, (r"الصفحات", r"Pages"), role="button"):
             if not _click_first(page, (r"الصفحات", r"Pages")):
+                if public_navigation_visible():
+                    print("Blogger Pages gadget picker unavailable, but public navigation is already correct.")
+                    return False
                 raise RuntimeError("Blogger Layout: Pages gadget was not found in the gadget picker.")
 
         page.wait_for_timeout(1200)
@@ -451,6 +475,7 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> None:
     except Exception as exc:
         print(f"Blogger layout screenshot failed: {exc}")
     print("Blogger Pages navigation configured and layout save attempted.")
+    return True
 
 def _verify_layout_state(page, bid: str, expected_title: str) -> None:
     """Verify Blogger configuration from the authenticated editor, not public headless traffic."""
@@ -526,7 +551,10 @@ def _verify_public(page, expected_title: str, expected_description: str) -> None
     body = _clean(page.locator("body").inner_text())
     print(f"Blogger public title: {actual_title!r}")
     print(f"Blogger public description: {actual_description!r}")
-    print(f"Blogger public page navigation visible: {all(t in body for t in PAGE_TITLES[:2])}")
+    navigation_visible = all(t in body for t in PAGE_TITLES)
+    print(f"Blogger public page navigation visible for all required pages: {navigation_visible}")
+    if not navigation_visible:
+        raise RuntimeError("Public Blogger navigation does not expose all required static pages.")
     status = response.status if response else None
     if status == 429 or "google.com/sorry" in page.url:
         print("Blogger public verification skipped: Google returned anti-bot HTTP 429.")
@@ -565,8 +593,11 @@ def main() -> int:
                 print(f"Blogger Layout body read failed: {exc}")
             if not _update_page_header_from_layout(page, title, description):
                 print("Blogger Page Header gadget was not updated; continuing with navigation setup.")
-            _ensure_pages_gadget_on_layout(page, bid)
-            _verify_layout_state(page, bid, title)
+            layout_controls_verified = _ensure_pages_gadget_on_layout(page, bid)
+            if layout_controls_verified:
+                _verify_layout_state(page, bid, title)
+            else:
+                print("Skipping legacy PageList checkbox verification because public navigation was verified directly.")
             _verify_public(page, title, description)
         finally:
             browser.close()
