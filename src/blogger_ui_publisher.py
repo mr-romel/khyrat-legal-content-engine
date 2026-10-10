@@ -186,6 +186,28 @@ def _fill_title(page, title: str) -> None:
         except Exception as exc:
             raise BloggerUIPublishError(f"Blogger UI title field could not be populated: {exc}") from exc
 
+    # Verify the editor accepted the exact title; a silent field mismatch creates
+    # "Untitled" drafts that cannot be matched or safely resumed on the next run.
+    try:
+        actual_title = loc.input_value(timeout=1200) if loc.evaluate("(el) => el.tagName === 'INPUT'") else loc.inner_text(timeout=1200)
+    except Exception:
+        actual_title = ""
+    normalize = lambda value: re.sub(r"\\s+", " ", str(value or "")).strip()
+    if normalize(actual_title) != normalize(title):
+        try:
+            loc.click(timeout=1500)
+            page.keyboard.press("Control+A")
+            page.keyboard.insert_text(title)
+            page.wait_for_timeout(300)
+            actual_title = loc.input_value(timeout=1200) if loc.evaluate("(el) => el.tagName === 'INPUT'") else loc.inner_text(timeout=1200)
+        except Exception as exc:
+            raise BloggerUIPublishError(f"Blogger title field did not retain the requested title: {exc}") from exc
+    if normalize(actual_title) != normalize(title):
+        raise BloggerUIPublishError(
+            f"Blogger title mismatch after filling. expected={title[:140]!r}; actual={actual_title[:140]!r}"
+        )
+    print(f"Blogger title field verified: {actual_title[:140]}")
+
 
 def _set_editor_html(page, content: str) -> None:
     # Blogger can remember HTML mode. Prefer a visible code editor if it is already active.
@@ -432,7 +454,7 @@ def _click_publish(page) -> None:
         )
         if has_publish_confirmation:
             _click_robust(confirm, "actual Blogger CONFIRM action")
-            page.wait_for_timeout(1800)
+            page.wait_for_timeout(3200)
             still_visible = _first_visible(page, [
                 '[role="dialog"]',
                 '[role="alertdialog"]',
@@ -455,7 +477,7 @@ def _click_publish(page) -> None:
                     if retry_confirm:
                         try:
                             retry_confirm.evaluate("(el) => el.click()")
-                            page.wait_for_timeout(1800)
+                            page.wait_for_timeout(2500)
                         except Exception as exc:
                             print(f"Blogger DOM-confirm retry failed: {exc}")
             remaining_dialog = _first_visible(page, [
