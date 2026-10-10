@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Retry one legal search-demand article using the corrected authenticated-dashboard permalink verifier. Do not mark dashboard-only URLs as published.
-Trigger nonce: 2026-10-10T14:55+03:00
+Final retry with explicit publish-confirmation diagnostics, dashboard permalink diagnostics, and corrected browser cleanup. Never mark unverified URLs as published.
+Trigger nonce: 2026-10-10T15:05+03:00
