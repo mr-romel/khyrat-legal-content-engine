@@ -772,9 +772,20 @@ def publish_article_ui(
             if browser_permalink:
                 published_url = browser_permalink
 
-            # Prefer a real public permalink from the feed over Blogger's private
-            # dashboard/edit URL or the non-canonical ?postId= fallback.
-            public_permalink, public_post_id = _public_post_permalink(blog_url, title, attempts=2)
+            # The authenticated dashboard row is the preferred verifier when it
+            # exposes a public View link for this exact title. Only call public
+            # feeds/HTML when the dashboard did not produce a canonical permalink.
+            parsed_published = urlparse(published_url)
+            if (
+                published_url
+                and "?postId=" not in published_url
+                and parsed_published.netloc == urlparse(blog_url).netloc
+                and re.search(r"/\d{4}/\d{2}/", parsed_published.path)
+                and "/p/" not in parsed_published.path
+            ):
+                public_permalink, public_post_id = published_url, ""
+            else:
+                public_permalink, public_post_id = _public_post_permalink(blog_url, title, attempts=2)
             if public_permalink:
                 published_url = public_permalink
                 post_id = public_post_id or post_id
