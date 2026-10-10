@@ -572,7 +572,8 @@ def add_motion_graphics_layer(
              "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
              "-filter_complex", fallback_filter, "-map", "[wb]", "-map", "0:a:0?",
              "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
-             "-crf", "25", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+             "-crf", "25", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
+             "-t", f"{duration:.3f}", "-shortest", str(styled)],
             check=True, timeout=120,
         )
     concat_list = work_dir / "concat.txt"
