@@ -16,7 +16,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPages/1.0)"}
 
 
 def _clean(value: object) -> str:
-    return re.sub(r"\\s+", " ", str(value or "")).strip()
+    return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
 def _public_pages() -> list[dict[str, str]]:
@@ -30,7 +30,7 @@ def _public_pages() -> list[dict[str, str]]:
     for entry in entries:
         title = _clean(entry.get("title", {}).get("$t", ""))
         raw_id = _clean(entry.get("id", {}).get("$t", ""))
-        match = re.search(r"\\.page-(\\d+)$", raw_id)
+        match = re.search(r"\.page-(\d+)$", raw_id)
         page_id = match.group(1) if match else ""
         content = str(entry.get("content", {}).get("$t", "") or "")
         links = entry.get("link", []) or []
@@ -56,7 +56,7 @@ def main() -> int:
         title = _clean(page.get("title", ""))
         content = str(page.get("content", "") or "")
         existing = by_title.get(title.casefold())
-        if existing and re.sub(r"\\s+", " ", existing.get("content", "")).strip() == re.sub(r"\\s+", " ", content).strip():
+        if existing and re.sub(r"\s+", " ", existing.get("content", "")).strip() == re.sub(r"\s+", " ", content).strip():
             print(f"Blogger static page already current: {title} -> {existing.get('url', '')}")
             continue
         page_id = existing.get("page_id", "") if existing else ""
