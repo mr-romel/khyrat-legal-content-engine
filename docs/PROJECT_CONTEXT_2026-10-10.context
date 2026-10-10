@@ -1,147 +1,114 @@
 PROJECT CONTEXT — KHYRAT LEGAL CONTENT ENGINE
-Snapshot date: 2026-10-10
+Snapshot: 2026-10-10
 Repository: https://github.com/mr-romel/khyrat-legal-content-engine
 Branch: main
-Purpose: multi-workflow Egyptian legal-content generation, social publishing, Blogger SEO/search-demand articles, engagement automation, branded Reels with Telegram review, plus marketplace/opportunity tooling.
 
-IMPORTANT RESPONSE/ENGINEERING RULES
-- User expects direct execution in the repository, not just generic advice.
-- Speak Egyptian Arabic when responding to the user.
-- Be direct about failures; never call a run successful unless the external publishing outcome is verified.
-- Never expose credentials. Never ask user to paste OAuth/token/storage-state secrets into chat.
-- Do not delete code as “unused” without checking imports, workflow references, script entrypoints and tests.
-- Separate confirmed evidence from hypotheses.
-- A green workflow/job is not proof of public publication.
-- Idempotency is required: retries must not create duplicates.
+MISSION
+Automate Egyptian legal-content planning, writing, research, image generation, social publishing and engagement, short-form Reel creation, Telegram review, Blogger SEO/search-demand publishing, and marketplace operations.
 
-PUBLISHING SCHEDULE CONTRACT
-- Exactly one slot every calendar day.
-- Cairo timezone.
-- Variable but deterministic daily time, 10:00–22:00 inclusive.
-- No even/odd-day restriction.
-- Do not introduce duplicate scheduling logic in runtime wrappers.
-- Acceptance: every calendar date exactly once; times in allowed range; deterministic per date; variable across dates.
+NON-NEGOTIABLE SAFETY / CHANGE RULES
+- Never put secret values, OAuth JSON, refresh tokens, browser cookies/storage state, service-account JSON, or API keys in docs, logs, prompts, or commits. Secret names only.
+- Inspect current code, callers, workflows, and tests before changing/deleting files. Don't blindly remove code that may be workflow-invoked.
+- A green Actions job is not proof of publication. Require a public permalink, platform post ID, or Telegram delivery confirmation.
+- Make retries idempotent; look for an existing public post before creating another.
+- Never bulk-delete Blogger drafts/posts without reviewing exact IDs, titles, bodies, and status.
+- Free-tier quotas and provider availability change. Don't describe a provider as guaranteed free/reliable without current tests.
 
-CURRENT P0 BLOCKER — BLOGGER
-Evidence from 2026-10-10 demand run:
-- Gemini API returned 429 RESOURCE_EXHAUSTED due to free-tier quota; reported retry delay approximately 13 hours at that time.
-- Blogger REST API OAuth refresh returned invalid_grant: token expired/revoked.
-- UI fallback filled and verified the article title; publish-confirmation dialog disappeared.
-- Dashboard showed multiple “(Untitled)” drafts and repeated article rows.
-- Exact title did not have a verifiable published permalink.
-- Google public HTML/search fallback returned 429 rate-limit interstitial.
-- Workflow exited with code 1. Keyword map persisted afterwards, but this is not publishing success.
-Action:
-1. Refresh/reconnect Blogger OAuth securely; update GitHub secret BLOGGER_OAUTH_JSON.
-2. Verify BLOGGER_UI_STORAGE_STATE_B64 if UI fallback remains enabled.
-3. Use Blogger REST API post ID/permalink or Blogger feed/authenticated dashboard for verification; don't rely on Google search HTML.
-4. Verify editor body/title autosave, confirmation, published status and canonical permalink.
-5. Safely inspect/clean existing Untitled drafts/duplicates only after verifying IDs and content.
-6. Require a real public permalink before marking PUBLISHED.
-Relevant files:
-- src/blogger_publisher.py
-- src/blogger_ui_publisher.py
-- src/blogger_worker.py
-- src/blogger_demand_worker.py
-- .github/workflows/blogger-publisher.yml
-- .github/workflows/blogger-demand-daily.yml
-- .github/workflows/blogger-oauth-check.yml
-Run refs:
-- https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046557377 (demand article failed)
-- https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046292110 (demand article failed)
-- https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046030551 (publisher workflow said success, but do not infer new public article from that alone)
-- https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167 (scheduled run was in progress at snapshot; recheck it)
+SCHEDULING CONTRACT
+- Exactly one publishing slot per calendar day.
+- Timezone Africa/Cairo; deterministic but variable hour per date, between 10:00 and 22:00 inclusive.
+- No even/odd day filtering.
+- Recycling means reusing a subject with a genuinely new angle, objective, hook, examples, or practical treatment—not copying old content.
+- Key files: src/daily_schedule.py, src/recycler_rules.py, src/monthly_recycler.py, src/content_system_runtime.py, src/run_main.py.
+- Acceptance: all dates represented once, no missing/duplicate dates, each hour within 10–22 Cairo, times vary, tests pass.
 
-CURRENT P0 BLOCKER — REEL ROW 23
-User's Telegram failure:
-“REEL_STAGE fallback_branding_failed; refusing unbranded delivery” while FFmpeg composed whiteboard_base.mp4 with four whiteboard_card PNG overlays and repeated whiteboard_hand_marker.png inputs.
-Previous graph was complex and apparently failed during render/fallback, before Telegram delivery.
-A simplified overlay chain and one-card branded fallback have been committed to src/reel_pipeline.py, but end-to-end success is NOT verified yet.
-Run:
-https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167 (scheduled run was in progress at snapshot)
-Relevant:
-- src/reel_pipeline.py
-- src/reel_publishers.py
-- src/video_module/whiteboard.py
-- .github/workflows/reel-now.yml
-Acceptance: playable branded output, whiteboard cards, logo/end-card, slogan audio, valid duration/audio, successful Telegram delivery message/video reference. Do not send unbranded fallback.
+ARCHITECTURE MAP
+GitHub Actions:
+- publish-scheduled.yml: primary scheduled publisher.
+- quality-check.yml: quality/architecture tests.
+- blogger-publisher.yml: Blogger publication from the content source.
+- blogger-demand-daily.yml: daily search-demand research and additional Blogger article.
+- blogger-intelligence.yml, blogger-oauth-check.yml, blogger-pages.yml: Blogger diagnostics, intelligence, pages.
+- reel-now.yml, reel-daily-generator.yml, reel-production.yml, reel-publish-approved.yml: Reel generation/review/production.
+- Facebook engagement/reply/private-reply workflows and LinkedIn engagement/CI/dry-run/token diagnostics.
+- Other workflows cover content intelligence, SEO/GEO, token health, Telegram control, video pilot/layers, deployment, and marketplace operations.
 
-CURRENT P1 BLOCKER — PHARAONIC IMAGES
-src/image_generator.py already explicitly bans pharaonic/ancient Egypt imagery and includes negative prompt terms for pyramids, sphinx, temples, hieroglyphs, pharaoh, papyrus and ruins unless topic is antiquities.
-Therefore do not assume the prompt simply lacks a ban. Trace actual flow:
-post → visual_description creation → selected provider/model → output/cache path/hash → image QA exact final file → uploaded asset.
-Hypotheses to test: visual_description is generic/wrong, another image path/provider is used, cached asset bypasses QA, QA prompt/result fails to hard-block the motif, or the uploaded image is not the file inspected.
-Add safe diagnostics (row ID, description, provider/model, image SHA-256, QA score/decision/reasons, final URL; no credentials). Hard-reject ancient-Egypt imagery in final QA except when topic explicitly concerns antiquities.
-Relevant:
-- src/image_generator.py
-- src/image_qa.py
-- src/free_media.py
-- src/blogger_worker.py
-- .github/workflows/publish-scheduled.yml
+Core content:
+- src/run_main.py, src/main.py, src/content_system.py, src/content_system_runtime.py.
+- Planning/style/bank: src/content_planner.py, src/social_content.py, src/content_style.py, src/content_style_v3.py, src/post_bank.py, src/topic_bank*.py.
+- Quality/intelligence: src/content_intelligence*.py, src/content_diversity.py, src/content_similarity.py, src/editorial_review.py, src/decision_engine.py, src/analytics.py, src/performance.py.
+- Scheduling: src/daily_schedule.py, src/recycler_rules.py, src/monthly_recycler.py.
 
-GEMINI QUOTA
-The demand article worker has a legal-source-based fallback, but fallback generation does not fix Blogger OAuth or permalink verification. A model rename may not fix project-wide quota. Use billing/raised quota or a separately configured provider, and require verified legal sources.
+IMAGES / LEGAL RESEARCH
+- src/image_generator.py: Cloudflare image generation path, brand overlay.
+- src/image_qa.py: final visual QA; already includes a contemporary-Egypt rule and pharaonic rejection except for antiquities topics.
+- src/free_media.py: media sources/fallbacks.
+- src/legal_research.py, src/legal_reference_registry.py, src/search_console_intelligence.py, src/search_geo.py.
+- Pharaonic image symptom persists, root cause unproven. Trace article text -> visual brief -> provider/model -> cache/file -> QA decision -> exact uploaded asset. Log provider/model, visual brief, SHA-256, QA outcome, final asset URL; never log secrets. Make final QA hard-reject pharaonic motifs for ordinary current-law topics and re-check cached assets.
 
-PROJECT MAP
-Scheduling/content bank:
-src/daily_schedule.py, src/recycler_rules.py, src/monthly_recycler.py, src/post_bank.py, src/topic_bank.py, src/topic_bank_500.py, src/topic_bank_expanded.py.
-Core content/publishing:
-src/run_main.py, src/main.py, src/content_system.py, src/content_system_runtime.py, src/content_planner.py, src/social_content.py, src/content_style.py, src/content_style_v3.py.
-Intelligence/QA:
-src/content_intelligence.py, src/content_intelligence_engine.py, src/content_diversity.py, src/content_similarity.py, src/editorial_review.py, src/decision_engine.py, src/analytics.py, src/performance.py.
-Legal sources:
-src/legal_research.py, src/legal_reference_registry.py, src/search_console_intelligence.py, src/search_geo.py.
-Image:
-src/image_generator.py, src/image_qa.py, src/free_media.py.
-Blogger:
-src/blogger_worker.py, src/blogger_demand_worker.py, src/blogger_publisher.py, src/blogger_ui_publisher.py, src/blogger_editor.py, src/blogger_seo_worker.py, src/blogger_intelligence.py, src/blogger_identity_worker.py, src/blogger_pages.py, src/blogger_pages_ui_worker.py, src/blogger_site_setup.py.
-Reels/video:
-src/reel_pipeline.py, src/reel_publishers.py, src/video_layer.py, src/video_module/ (brand, captions, script, scene planner, render, queue, reservation, validation, TTS, whiteboard).
-Social and engagement:
-src/facebook_publisher.py, src/facebook_engagement_worker.py, src/facebook_private_reply_worker.py, src/linkedin_publisher.py, src/linkedin_engagement_worker.py, src/linkedin_comment_engine.py, src/engagement_strategy.py.
-Integrations:
-src/config.py, src/sheets.py, src/gemini.py, src/gemini_runtime.py, src/gemini_resilience.py, src/token_manager.py, src/telegram_bot.py, src/telegram_publication.py, src/telegram_control.py, src/utils.py.
-Marketplace:
-src/marketplace.py, src/marketplace_daily.py, src/marketplace_mvp.py, src/marketplace/, api/index.py, android/, marketplace_data/.
-Tests:
-tests/core_architecture_acceptance.py, tests/final_architecture_acceptance.py, tests/test_blogger_engine.py, tests/test_content_intelligence_upgrade.py, tests/test_content_system.py, tests/test_decision_engine.py, tests/test_engagement_strategy.py, tests/test_image_qa.py, tests/test_legal_research.py, tests/test_linkedin_engagement.py, tests/test_linkedin_publisher.py, plus marketplace tests.
+BLOGGER
+- src/blogger_worker.py: publish from content/sheet.
+- src/blogger_demand_worker.py: search-demand article research and publication.
+- src/blogger_publisher.py: Blogger REST API/OAuth, HTML preparation, image upload.
+- src/blogger_ui_publisher.py: Playwright UI fallback and permalink verification.
+- Related modules: blogger_editor.py, blogger_seo_worker.py, blogger_intelligence.py, blogger_identity_worker.py, blogger_pages.py, blogger_pages_ui_worker.py, blogger_site_setup.py.
+- State/artifacts: data/blogger_keyword_map.json, generated/blogger/.
+- Secret names referenced by workflows include BLOGGER_OAUTH_JSON, BLOGGER_UI_STORAGE_STATE_B64, BLOGGER_BLOG_ID, BLOGGER_URL, BLOGGER_ENABLED, GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_CREDENTIALS, GOOGLE_SHEET_URL/ID/RANGE, GEMINI_API_KEY. Never copy values.
+- New demand article publishing remains unverified. OAuth refresh returns invalid_grant; UI fallback fills a title and the publish dialog closes, but a public permalink is not proven. Google HTML search verification received 429. Use authorized Blogger REST API returning post ID/url, public Blogger feed/Atom, or authenticated dashboard post ID/permalink. Dialog dismissal is not success.
+- Dashboard excerpts show multiple '(Untitled)' drafts and repeated rows. Review by exact ID/content before cleanup.
+- Gemini free-tier quota returned 429 RESOURCE_EXHAUSTED across configured models. A cautious legal-source fallback exists, but successful authentication and public permalink verification are still required.
+- A Blogger Publisher run reused an existing verified post: https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html (title: 'ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟'). This is an existing public post, NOT evidence a new demand article was published in that run.
 
-WORKFLOW MAP (verify YAML before modifying triggers)
-- publish-scheduled.yml — scheduled production publishing.
-- quality-check.yml — architecture/quality tests.
-- blogger-publisher.yml — Blogger existing-content publisher.
-- blogger-demand-daily.yml — search-demand article.
-- blogger-intelligence.yml, blogger-oauth-check.yml, blogger-pages.yml — Blogger support.
-- reel-now.yml, reel-daily-generator.yml, reel-production.yml, reel-publish-approved.yml — Reels.
-- Facebook/LinkedIn engagement, reply/private-reply, diagnostics, token-health, content-intelligence, SEO/GEO, Telegram controls, video pilot/layers, deployment and marketplace workflows are also present.
-Marker files such as .github/BLOGGER_DEMAND_RUN_NOW.md and .reel-now-trigger may trigger runs; check workflow path filters and avoid accidental trigger loops.
+REELS / TELEGRAM
+- src/reel_pipeline.py, src/reel_publishers.py, src/video_layer.py, src/video_module/ (brand, captions, scene planning, renderers, whiteboard, TTS, queue, validation).
+- Row 23 topic: 'الادعاء المباشر — زاوية جديدة: Checklist عملية قبل بدء أي إجراء'.
+- Latest scheduled run failed in the slogan stage, not in the simplified FFmpeg card overlay: Gemini quota was exhausted and fallback logged 'edge-tts is not installed', then 'Spoken brand slogan generation failed; refusing delivery'. No Telegram delivery was confirmed.
+- Same run: cross-workflow artifact 'reel-source-context' was not found; main Egyptian narration succeeded through Edge TTS (~64.4 sec); Openverse returned zero assets; MoneyPrinterTurbo path was missing so FFmpeg fallback ran.
+- Fix slogan dependency deterministically: add a checked-in, licensed pre-recorded slogan MP3 or install/test edge-tts and retain a static fallback. Validate the asset before render; never send unbranded video.
+- Fix artifact contract using durable committed source context or explicit run-id/token; do not assume artifacts are shared across separate workflow runs.
+- Acceptance: playable final MP4, proper duration, narration, slogan audio, logo/end card, and confirmed Telegram message/video ID.
 
-SECURITY
-Do not store secret values in this context or MD: BLOGGER_OAUTH_JSON, BLOGGER_UI_STORAGE_STATE_B64, GEMINI_API_KEY, Cloudflare, Meta, LinkedIn, Telegram credentials, service-account JSON, etc.
-Do not include private reference photo assets in the handoff.
+PROMPT / IMAGE AUDIT
+- For normal legal content use positive contemporary descriptions: present-day workplace/home, contract review, smartphone evidence, police-report preparation, modern law office/court corridor only when relevant; clean editorial photography or modern flat vector.
+- Don't introduce ancient-history references into the positive prompt for routine legal content.
+- Prompt edits alone are insufficient without checking provider, cache, and exact uploaded asset. QA must inspect the final output that will be published.
 
-PRIORITY ORDER
-1. Recheck scheduled run 38046936167 after completion and read failed job logs.
-2. Securely refresh Blogger OAuth, then run one unique article test and verify public permalink.
-3. Fix title/body autosave and duplicate prevention based on actual Blogger dashboard evidence.
-4. Trace image path/provider/QA on one pharaonic output; block it in final QA.
-5. Validate row 23 Reel end-to-end including Telegram delivery.
-6. Run quality tests and verify external outcomes, not only CI green status.
+AI QUOTA / FALLBACKS
+- src/gemini_resilience.py retries transient errors but intentionally fails fast on quota exhaustion.
+- Changing model names may not avoid project-wide quota limits.
+- Groq/OpenRouter free models/Cloudflare Workers AI are proposals until implemented and tested. Verify current access, limits, terms, required secrets, timeouts, provider provenance, and legal accuracy.
+- Never fabricate statute numbers, case citations, or legal procedure when using fallback generation; ground substantive claims in verified legal sources.
 
+LATEST VERIFIED ACTIONS EVIDENCE (2026-10-10)
+- Scheduled run 38046936167 failed overall: core social publishing succeeded; Reel failed; Blogger Publisher succeeded; Blogger SEO description and site pages succeeded; Blogger Brand Identity + Description failed; engagement jobs succeeded.
+  https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167
+- Reel job 114198374546: artifact 'reel-source-context' missing; Gemini quota exhausted; main narration used Edge TTS; FFmpeg fallback ran; slogan failed because Gemini was exhausted and edge-tts was not installed. No Telegram delivery confirmed.
+- Blogger demand run 38046557377 failed: Gemini quota exhausted; OAuth refresh invalid_grant; UI could not verify an exact published permalink; Google HTML search returned 429. No new demand article verified.
+  https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046557377
+- Quality check 38047154627 succeeded. This validates the suite executed, not external publishing.
+  https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38047154627
+- Blogger Brand Identity + Description failure: Layout 'Add a Gadget' control not found and public navigation incomplete.
 
-LATEST RUN UPDATE — 2026-10-10 14:04 CAIRO
-Scheduled run https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167:
-- Blogger Publisher succeeded and feed-verified existing public URL:
-  https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html
-  Title: “ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟”
-  Logs explicitly say duplicate prevention reused an existing public post. This does NOT prove a new demand article was published today.
-- Blogger SEO description, Facebook/LinkedIn engagement and Facebook comment replies succeeded.
-- Reel job failed. Exact new evidence:
-  1. Artifact download failed: “Artifact not found for name: reel-source-context”.
-  2. Gemini script and slogan calls hit 429 RESOURCE_EXHAUSTED.
-  3. Edge Egyptian Neural TTS worked (~64.4s narration).
-  4. Openverse yielded 0 assets.
-  5. MoneyPrinterTurbo directory was missing, so pipeline used FFmpeg fallback.
-  6. Final blocker: “Spoken brand slogan generation failed; refusing delivery”. No Telegram delivery.
-Reel priorities: fix the workflow artifact producer/consumer name and add graceful rebuild from locked Sheet row; make branded spoken slogan independent of Gemini quota using pre-recorded or deterministic local TTS; rerun row 23 and verify Telegram message/video reference. The latest run does not prove FFmpeg renderer still fails; it failed at missing artifact and slogan generation.
-Blogger demand article and OAuth remain separate issues; one verified existing post permalink is not proof a new demand article was published.
+EVALUATION OF THE PROPOSED FIX PLAN
+1. OAuth Testing-mode 7-day refresh-token expiry is plausible only if OAuth consent is External + Testing; verify actual Cloud Console configuration. Re-authorize securely and update BLOGGER_OAUTH_JSON. Never share token JSON. Blogger email publishing is an optional route only if configured; it is not automatically more reliable.
+2. A multi-provider chain is not implemented by listing provider names. Check current free-tier limits/terms, model access, credentials, and add adapter tests before switching.
+3. A checked-in pre-recorded slogan is a strong low-cost fix; confirm rights/voice/pronunciation and test inclusion in every Reel.
+4. Artifacts are scoped to workflow runs; use explicit run IDs/tokens or durable committed context.
+5. Image prompt changes need end-to-end provider/cache/final-image QA.
+6. Permalink verification is a hard acceptance criterion.
+
+P0 WORK ORDER
+1. Re-authorize Blogger OAuth securely and update the GitHub secret; publish one uniquely titled test article and capture post ID + canonical URL.
+2. Make Blogger publication idempotent; verify title/body saved, published state, post ID/permalink; replace Google search scraping as primary verifier.
+3. Fix the Reel slogan without Gemini dependency and repair reel-source-context contract; re-run row 23 through Telegram.
+4. Fix Blogger brand identity Layout worker using DOM evidence, not arbitrary coordinates.
+5. Audit image path end-to-end and hard-reject pharaonic visuals for modern legal topics.
+6. Add provider fallbacks only after live quota/access checks and tests.
+7. Run quality tests, then verify external outcomes.
+
+ACCEPTANCE
+- Blogger: new article has post ID + verified public permalink; retry does not duplicate; no false-positive success.
+- Reel: row 23 branded playable MP4 + slogan audio + Telegram delivery confirmation.
+- Images: no pharaonic imagery for current legal topics; QA inspects the exact uploaded file.
+- Schedule: one deterministic variable slot per day, Cairo 10:00–22:00, no parity filter.
+- Security: no secret values/session state in docs, logs, prompts, or repository.
