@@ -550,7 +550,9 @@ def add_motion_graphics_layer(
             ["ffmpeg", "-y", "-filter_complex_threads", "2", "-i", str(base), *overlay_inputs,
              "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
              "-c:v", "libx264", "-preset", "ultrafast", "-threads", "4",
-             "-crf", "24", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+             "-crf", "24", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
+             # Looped still-card inputs can keep FFmpeg alive forever without an output cap.
+             "-t", f"{duration:.3f}", "-shortest", str(styled)],
             check=True, timeout=120,
         )
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
