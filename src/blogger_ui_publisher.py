@@ -502,7 +502,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
                 self._href = None
                 self._parts = []
 
-    wanted = re.sub(r"\\s+", " ", str(title or "")).strip().casefold()
+    wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
     parsed_blog = urlparse(blog_url)
     public_pages = [
         blog_url.rstrip("/") + "/",
@@ -535,36 +535,58 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
     return "", ""
 
 
-def _public_permalink_in_browser(page, blog_url: str, title: str) -> str:
-    """Resolve the post in a real browser session; GitHub runner HTTP requests may be bot-blocked."""
+def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
+    """Find the public View link from Blogger's authenticated posts dashboard.
+
+    Do not navigate the authenticated publisher to the public blog first: GitHub
+    runners are sometimes challenged by Google and redirected to /sorry, which
+    loses the editor state and does not prove whether the post was published.
+    """
     wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
-    for target in (
-        blog_url.rstrip("/") + "/",
-        blog_url.rstrip("/") + "/search?q=" + quote(title),
-    ):
-        try:
-            page.goto(target, wait_until="domcontentloaded", timeout=20000)
-            page.wait_for_timeout(900)
-            anchors = page.locator("a[href]").evaluate_all(
-                """els => els.map(a => ({
-                    href: a.href || a.getAttribute('href') || '',
-                    text: (a.innerText || a.textContent || '').replace(/\\s+/g, ' ').trim(),
-                    aria: a.getAttribute('aria-label') || ''
-                }))"""
-            )
-            for item in anchors:
-                href = str(item.get("href", "")).strip()
-                parsed = urlparse(href)
-                if parsed.netloc != urlparse(blog_url).netloc or parsed.query or "/p/" in parsed.path:
-                    continue
-                if not re.search(r"/\d{4}/\d{2}/", parsed.path):
-                    continue
-                anchor_text = re.sub(r"\s+", " ", str(item.get("text", "") or item.get("aria", ""))).strip().casefold()
-                if anchor_text == wanted or (wanted and wanted in anchor_text):
-                    print(f"Blogger public permalink verified in authenticated browser: {href}")
-                    return href
-        except Exception as exc:
-            print(f"Blogger browser permalink lookup failed for {target}: {exc}")
+    if not blog_id:
+        match = re.search(r"/blog/post/edit/([0-9]+)/", page.url)
+        blog_id = match.group(1) if match else ""
+    if not blog_id:
+        return ""
+    dashboard_url = f"https://www.blogger.com/blog/posts/{blog_id}"
+    try:
+        page.goto(dashboard_url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1400)
+        if "accounts.google.com" in page.url or "signin" in page.url.lower():
+            print("Blogger dashboard permalink lookup skipped: authenticated session expired.")
+            return ""
+        rows = page.locator("a[href]").evaluate_all(
+            """els => {
+              const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+              const out = [];
+              for (const a of els) {
+                const txt = norm(a.innerText || a.textContent || a.getAttribute('aria-label') || '');
+                if (!txt || !(txt === norm(TITLE) || txt.includes(norm(TITLE)))) continue;
+                let node = a;
+                for (let depth = 0; depth < 7 && node; depth++, node = node.parentElement) {
+                  const links = Array.from(node.querySelectorAll('a[href]')).map(x => ({
+                    href: x.href || x.getAttribute('href') || '',
+                    text: (x.innerText || x.textContent || x.getAttribute('aria-label') || '').trim()
+                  }));
+                  if (links.length > 1) { out.push(...links); break; }
+                }
+              }
+              return out;
+            }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
+        )
+        expected_host = urlparse(blog_url).netloc
+        for item in rows:
+            href = str(item.get("href", "")).strip()
+            parsed = urlparse(href)
+            if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
+                continue
+            if parsed.query or "/p/" in parsed.path or not re.search(r"/\\d{4}/\\d{2}/", parsed.path):
+                continue
+            print(f"Blogger public permalink verified from authenticated posts dashboard: {href}")
+            return href
+        print("Blogger posts dashboard did not expose a public View permalink for the new title.")
+    except Exception as exc:
+        print(f"Blogger dashboard permalink lookup failed: {exc}")
     return ""
 
 
@@ -661,7 +683,7 @@ def publish_article_ui(
             match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", editor_url)
             if match:
                 post_id = match.group(2)
-            browser_permalink = _public_permalink_in_browser(page, blog_url, title)
+            browser_permalink = _public_permalink_in_browser(page, blog_url, title, target_blog_id)
             if browser_permalink:
                 published_url = browser_permalink
 
