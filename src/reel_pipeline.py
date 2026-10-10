@@ -558,8 +558,8 @@ def add_motion_graphics_layer(
         # for a short window, then the branded end card is still appended.
         print(f"REEL_STAGE whiteboard_simplified_fallback reason={exc}")
         styled.unlink(missing_ok=True)
-        fallback_x = "if(lt(t,2.4),-720+(t-2.0)*1950,60)".replace(",", r"\\,")
-        fallback_enable = "between(t,2.0,8.0)".replace(",", r"\\,")
+        fallback_x = "if(lt(t,2.4),-720+(t-2.0)*1950,60)".replace(",", r"\,")
+        fallback_enable = "between(t,2.0,8.0)".replace(",", r"\,")
         fallback_filter = (
             "[0:v]null[base];[1:v]scale=720:312[card];"
             f"[base][card]overlay=x='{fallback_x}':y=500:eval=frame:"
