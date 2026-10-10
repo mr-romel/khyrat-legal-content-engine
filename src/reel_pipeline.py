@@ -519,7 +519,7 @@ def add_motion_graphics_layer(
                     "-preset", "veryfast", "-crf", "19", "-c:a", "copy", "-movflags", "+faststart", str(base)],
                    check=True, timeout=900)
     duration = _media_duration(base)
-    filter_parts = ["[0:v]fps=15,scale=720:1280[base]"]
+    filter_parts = ["[0:v]null[base]"]
     previous = "[base]"
     for i in range(4):
         idx = i + 1
@@ -532,23 +532,25 @@ def add_motion_graphics_layer(
         # graph. The previous hand+drawbox chain timed out even with low-fps
         # still inputs, so the marker underline is now drawn into each card.
         card_label = f"[card{i}]"
+        x_expr = f"if(lt(t,{start+0.40:.3f}),-720+(t-{start:.3f})*1950,60)".replace(",", r"\,")
+        enable_expr = f"between(t,{start:.3f},{end:.3f})".replace(",", r"\,")
         filter_parts.append(f"[{idx}:v]scale=720:312{card_label}")
         filter_parts.append(
-            f"{previous}{card_label}overlay=x='if(lt(t,{start+0.40:.3f}),-720+(t-{start:.3f})*1950,60)':"
-            f"y=500:eval=frame:enable='between(t,{start:.3f},{end:.3f})'{out}"
+            f"{previous}{card_label}overlay=x='{x_expr}':"
+            f"y=500:eval=frame:enable='{enable_expr}'{out}"
         )
         previous = out
     if len(filter_parts) == 1:
         filter_parts.append("[base]null[wbfinal]")
         previous = "[wbfinal]"
-    filter_complex = ";".join(filter_parts).replace(",", r"\,")
+    filter_complex = ";".join(filter_parts)
     styled = work_dir / "whiteboard_motion.mp4"
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base), *overlay_inputs,
+            ["ffmpeg", "-y", "-filter_complex_threads", "2", "-i", str(base), *overlay_inputs,
              "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
-             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
-             "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "4",
+             "-crf", "24", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
             check=True, timeout=120,
         )
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
@@ -556,17 +558,19 @@ def add_motion_graphics_layer(
         # for a short window, then the branded end card is still appended.
         print(f"REEL_STAGE whiteboard_simplified_fallback reason={exc}")
         styled.unlink(missing_ok=True)
+        fallback_x = "if(lt(t,2.4),-720+(t-2.0)*1950,60)".replace(",", r"\\,")
+        fallback_enable = "between(t,2.0,8.0)".replace(",", r"\\,")
         fallback_filter = (
-            "[0:v]fps=15,scale=720:1280[base];[1:v]scale=720:312[card];"
-            "[base][card]overlay=x='if(lt(t,2.4),-720+(t-2.0)*1950,60)':"
-            "y=500:eval=frame:enable='between(t,2.0,8.0)'[wb]"
-        ).replace(",", r"\,")
+            "[0:v]null[base];[1:v]scale=720:312[card];"
+            f"[base][card]overlay=x='{fallback_x}':y=500:eval=frame:"
+            f"enable='{fallback_enable}'[wb]"
+        )
         subprocess.run(
-            ["ffmpeg", "-y", "-filter_complex_threads", "1", "-i", str(base),
+            ["ffmpeg", "-y", "-filter_complex_threads", "2", "-i", str(base),
              "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
              "-filter_complex", fallback_filter, "-map", "[wb]", "-map", "0:a:0?",
              "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
-             "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
+             "-crf", "25", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(styled)],
             check=True, timeout=120,
         )
     concat_list = work_dir / "concat.txt"
