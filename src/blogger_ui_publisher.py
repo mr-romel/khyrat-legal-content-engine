@@ -251,7 +251,27 @@ def _set_editor_html(page, content: str) -> None:
         except Exception:
             continue
 
-    raise BloggerUIPublishError("Blogger UI post editor was not found.")
+    try:
+        page_title = page.title()
+    except Exception:
+        page_title = ""
+    try:
+        editor_diagnostics = {
+            "url": page.url,
+            "title": page_title[:160],
+            "contenteditable": page.locator('[contenteditable="true"]').count(),
+            "textboxes": page.locator('[role="textbox"]').count(),
+            "textareas": page.locator("textarea").count(),
+            "iframes": page.locator("iframe").count(),
+            "body_excerpt": re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500))[:500],
+        }
+    except Exception as diagnostic_exc:
+        editor_diagnostics = {"diagnostic_error": str(diagnostic_exc)[:240], "url": page.url}
+    print("Blogger editor DOM diagnostics: " + json.dumps(editor_diagnostics, ensure_ascii=False))
+    raise BloggerUIPublishError(
+        "Blogger UI post editor was not found. DOM diagnostics: "
+        + json.dumps(editor_diagnostics, ensure_ascii=False)[:1200]
+    )
 
 
 def _set_labels(page, labels: list[str]) -> None:
