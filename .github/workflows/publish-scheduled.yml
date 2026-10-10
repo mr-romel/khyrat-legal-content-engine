@@ -26,6 +26,8 @@ env:
 
 jobs:
   publish:
+    outputs:
+      reel_source_available: ${{ steps.detect-reel-source.outputs.available }}
     if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
@@ -79,13 +81,26 @@ jobs:
           KHYRAT_FORCE_REPUBLISH: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'FIX_IMAGE_RUN') && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
+      - name: Detect whether this run published a row for Reel generation
+        id: detect-reel-source
+        if: ${{ always() }}
+        run: |
+          if [ -s generated/reel_source.json ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "A locked, post-published Reel source is available."
+            cat generated/reel_source.json
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No new social-publication source was produced. The scheduled Reel job will be skipped instead of guessing an older row."
+          fi
+
       - name: Lock Reel source context for downstream worker
-        if: ${{ success() }}
+        if: ${{ success() && steps.detect-reel-source.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: reel-source-context
           path: generated/reel_source.json
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 2
 
       - name: Persist generated publishing assets
@@ -124,7 +139,7 @@ jobs:
   reel:
     name: 2. Reel Generator + Telegram Review
     needs: publish
-    if: ${{ needs.publish.result == 'success' }}
+    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.reel_source_available == 'true' }}
     continue-on-error: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
