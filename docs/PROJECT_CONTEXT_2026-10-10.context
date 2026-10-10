@@ -127,3 +127,21 @@ PRIORITY ORDER
 4. Trace image path/provider/QA on one pharaonic output; block it in final QA.
 5. Validate row 23 Reel end-to-end including Telegram delivery.
 6. Run quality tests and verify external outcomes, not only CI green status.
+
+
+LATEST RUN UPDATE — 2026-10-10 14:04 CAIRO
+Scheduled run https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38046936167:
+- Blogger Publisher succeeded and feed-verified existing public URL:
+  https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html
+  Title: “ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟”
+  Logs explicitly say duplicate prevention reused an existing public post. This does NOT prove a new demand article was published today.
+- Blogger SEO description, Facebook/LinkedIn engagement and Facebook comment replies succeeded.
+- Reel job failed. Exact new evidence:
+  1. Artifact download failed: “Artifact not found for name: reel-source-context”.
+  2. Gemini script and slogan calls hit 429 RESOURCE_EXHAUSTED.
+  3. Edge Egyptian Neural TTS worked (~64.4s narration).
+  4. Openverse yielded 0 assets.
+  5. MoneyPrinterTurbo directory was missing, so pipeline used FFmpeg fallback.
+  6. Final blocker: “Spoken brand slogan generation failed; refusing delivery”. No Telegram delivery.
+Reel priorities: fix the workflow artifact producer/consumer name and add graceful rebuild from locked Sheet row; make branded spoken slogan independent of Gemini quota using pre-recorded or deterministic local TTS; rerun row 23 and verify Telegram message/video reference. The latest run does not prove FFmpeg renderer still fails; it failed at missing artifact and slogan generation.
+Blogger demand article and OAuth remain separate issues; one verified existing post permalink is not proof a new demand article was published.
