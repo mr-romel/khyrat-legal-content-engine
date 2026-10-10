@@ -93,6 +93,7 @@ The generated scene must be new and directly communicate the legal situation wit
 
 CONTEMPORARY SCENE RULE:
 For current legal topics, assess whether the image shows a believable present-day setting and the exact action or evidence described in the brief. Use only the time period, locations, people, devices, and documents directly supported by the legal topic and visual brief. Prefer ordinary contemporary settings for current legal situations.
+For ordinary present-day legal topics, reject period-drama styling, monumental ancient architecture, royal costume, carved historical symbols, papyrus-like materials, or antiquity-inspired decoration unless the legal topic explicitly concerns historical artifacts or heritage. A generic legal topic is never a reason to introduce a historical visual style.
 
 BRAND OVERLAY RULE:
 A small bottom-right overlay reading "{ALLOWED_BRAND_TEXT}" plus the Facebook "f" badge is intentionally
@@ -247,6 +248,25 @@ def qa_image(
     data["issues"] = critical_failures + data["issues"]
     if data["decision"] == "REGENERATE" and not data["regeneration_prompt"]:
         data["regeneration_prompt"] = "Fix every listed visual defect while preserving the exact legal story and the identity reference."
+
+    # Attach QA outcome to the generation sidecar so a bad image can be traced
+    # to the exact provider, prompt hash, and final file hash.
+    provenance_path = path.with_suffix(path.suffix + ".provenance.json")
+    if provenance_path.is_file():
+        try:
+            provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+            provenance["qa_decision"] = data["decision"]
+            provenance["qa_model"] = (model or DEFAULT_QA_MODEL).strip() or DEFAULT_QA_MODEL
+            provenance["qa_overall_score"] = data["overall_score"]
+            provenance["qa_relevance_score"] = data["relevance_score"]
+            provenance["qa_issues"] = data["issues"]
+            provenance["qa_checked_image_sha256"] = __import__("hashlib").sha256(path.read_bytes()).hexdigest()
+            provenance_path.write_text(
+                json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            print(f"Image provenance QA update warning: {exc}")
 
     return data
 
