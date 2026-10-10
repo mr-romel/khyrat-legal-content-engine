@@ -243,9 +243,8 @@ def create_legal_image(
     negative_prompt = (
         "text, letters, captions, subtitles, watermark, logo, readable signage, "
         "infographic, poster, user interface, chart, generic courtroom, justice scales, "
-        "generic lawyer stock photo, law books, unrelated office scene, historical costume, "
-        "archaeological setting, ornate stone monument, desert monument, ceremonial robe, "
-        "distorted hands, extra fingers, duplicate people, blurry faces, "
+        "generic lawyer stock photo, law books, unrelated office scene, cluttered background, "
+        "unrelated props, distorted hands, extra fingers, duplicate people, blurry faces, "
         "cartoon, illustration, 3D render, fantasy, surrealism, low quality"
     )
 
