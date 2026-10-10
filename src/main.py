@@ -324,8 +324,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_qa_score = str(image_qa.get("overall_score", ""))
             image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_REJECTED"
         except Exception as qa_exc:
-            image_qa_summary = f"Image QA unavailable (non-blocking): {qa_exc}"
-            image_qa_status = "QA_UNAVAILABLE_NON_BLOCKING"
+            image_qa_summary = f"Image QA unavailable: {qa_exc}"
+            image_qa_status = "QA_UNAVAILABLE_TEXT_ONLY"
+        if image_qa_status == "QA_UNAVAILABLE_TEXT_ONLY":
+            # If visual verification is unavailable, keep the legal post but do not attach an unverified image.
+            raise ImageGenerationError(
+                f"Final image QA unavailable; refusing to publish an unverified image: {image_qa_summary}"
+            )
         if image_qa_status == "QA_REJECTED":
             # Never publish an image that the final-image QA explicitly rejected.
             # The outer image handler clears its URL and continues text-only.
