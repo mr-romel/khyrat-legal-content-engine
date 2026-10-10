@@ -1,3 +1,3 @@
 # Blogger demand recovery
-Retry with verified confirmation-dialog completion: if Blogger's CONFIRM action does not close the dialog, use a DOM click retry and fail safely. Exact-title public permalink required.
-Trigger nonce: 2026-10-10T16:05+03:00
+Publish the search-demand article using the verified Blogger CONFIRM click, exact-title public permalink check, existing-draft reuse, and conflict-safe keyword-map persistence.
+Trigger nonce: 2026-10-10T16:35+03:00
