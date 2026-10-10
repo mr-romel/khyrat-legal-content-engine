@@ -363,14 +363,28 @@ def _click_publish(page) -> None:
 
     _click_robust(button, "Publish")
     page.wait_for_timeout(1200)
+    try:
+        after_click_body = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1800)).strip()
+    except Exception:
+        after_click_body = ""
+    print(
+        "Blogger state immediately after first Publish click: "
+        + json.dumps({
+            "url": page.url,
+            "title": page.title()[:160],
+            "body_excerpt": after_click_body[:900],
+        }, ensure_ascii=False)
+    )
 
     # Blogger sometimes opens a confirmation dialog. Never click a second
     # generic Publish control in the editor/sidebar: that previously produced
     # dashboard-only ?postId= URLs falsely reported as published.
     dialog = _first_visible(page, [
         '[role="dialog"]',
+        '[role="alertdialog"]',
         '[aria-modal="true"]',
         '.modal-dialog',
+        '[data-dialog]',
     ])
     if dialog:
         try:
@@ -405,6 +419,20 @@ def _click_publish(page) -> None:
         if has_publish_confirmation:
             _click_robust(confirm, "actual Publish confirmation")
             page.wait_for_timeout(1500)
+    else:
+        # Some Blogger builds render a confirmation sheet without dialog roles.
+        # Click a second Publish button only when the visible copy explicitly asks
+        # to confirm publication, never just because a Publish label exists.
+        if re.search(r"publish (this|your) post|ready to publish|publish post now|هل تريد نشر|تأكيد النشر", after_click_body, re.I):
+            confirm = _first_visible(page, [
+                'button:has-text("Publish")',
+                '[role="button"]:has-text("Publish")',
+                'button:has-text("نشر")',
+                '[role="button"]:has-text("نشر")',
+            ])
+            if confirm:
+                _click_robust(confirm, "Publish confirmation prompt")
+                page.wait_for_timeout(1500)
 
 
 def _published_url(page, title: str, blog_url: str) -> str:
