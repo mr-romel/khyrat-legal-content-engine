@@ -527,6 +527,39 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
     return "", ""
 
 
+def _public_permalink_in_browser(page, blog_url: str, title: str) -> str:
+    """Resolve the post in a real browser session; GitHub runner HTTP requests may be bot-blocked."""
+    wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
+    for target in (
+        blog_url.rstrip("/") + "/",
+        blog_url.rstrip("/") + "/search?q=" + quote(title),
+    ):
+        try:
+            page.goto(target, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(900)
+            anchors = page.locator("a[href]").evaluate_all(
+                """els => els.map(a => ({
+                    href: a.href || a.getAttribute('href') || '',
+                    text: (a.innerText || a.textContent || '').replace(/\\s+/g, ' ').trim(),
+                    aria: a.getAttribute('aria-label') || ''
+                }))"""
+            )
+            for item in anchors:
+                href = str(item.get("href", "")).strip()
+                parsed = urlparse(href)
+                if parsed.netloc != urlparse(blog_url).netloc or parsed.query or "/p/" in parsed.path:
+                    continue
+                if not re.search(r"/\d{4}/\d{2}/", parsed.path):
+                    continue
+                anchor_text = re.sub(r"\s+", " ", str(item.get("text", "") or item.get("aria", ""))).strip().casefold()
+                if anchor_text == wanted or (wanted and wanted in anchor_text):
+                    print(f"Blogger public permalink verified in authenticated browser: {href}")
+                    return href
+        except Exception as exc:
+            print(f"Blogger browser permalink lookup failed for {target}: {exc}")
+    return ""
+
+
 def publish_article_ui(
     *,
     title: str,
@@ -606,17 +639,16 @@ def publish_article_ui(
             _set_editor_html(page, content_html)
             _set_labels(page, labels or [])
             if search_description.strip():
-                # SEO metadata is important, but a changed Blogger sidebar must
-                # never prevent the article itself from being published.
-                try:
-                    from blogger_seo_worker import _fill_description
-                    _fill_description(page, search_description.strip()[:180])
-                except Exception as exc:
-                    print(f"Blogger Search Description could not be set before publish (non-blocking): {exc}")
+                # Do not open the unstable Blogger settings sidebar before publishing.
+                # It can leave hidden controls over the editor and block the Publish action.
+                print("Blogger Search Description deferred; publishing the article takes priority.")
             _click_publish(page)
 
             page.wait_for_timeout(1200)
             published_url = _published_url(page, title, blog_url)
+            browser_permalink = _public_permalink_in_browser(page, blog_url, title)
+            if browser_permalink:
+                published_url = browser_permalink
             post_id = ""
             match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", page.url)
             if match:
