@@ -96,6 +96,9 @@ Depending on workflow: `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, `BL
 ## Recent implementation commits
 
 - `74634632f17129b316271bd5bd694a8e5eee6941` — cap Reel whiteboard output duration and stop looped overlay inputs.
+- `821af6533a6a2bea569ebd92aa63c89e70cc63f7` — apply the same duration cap to the emergency whiteboard fallback.
+- `0546843eee8aa20b36a9e0f94a7c6c07db4517aa` — add a regression test requiring both overlay paths to be duration-bounded.
+- `e9f2e096cca7cdd81c79bf7d4f11ada28cce00eb` — run the Reel duration-cap regression test in Quality Check.
 - `1e53aa926239973288a581ce0daca491684323e4` — allow Blogger demand article fallback without Gemini key and stop retrying shared 429 quota.
 - `e551664c4ad280ddc7dc7994714689d9e076847f` — image provider/prompt/file provenance.
 - `7b313780fd7796b09ea9d6c74f74baf0559ddd64` — hard QA guidance against anachronistic imagery and record QA outcome.
