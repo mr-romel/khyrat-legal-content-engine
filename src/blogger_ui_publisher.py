@@ -8,6 +8,8 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from html.parser import HTMLParser
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -441,6 +443,61 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 5) -> tupl
             print(f"Blogger public permalink lookup attempt {attempt + 1}/{attempts} failed: {exc}")
         if attempt + 1 < attempts:
             time.sleep(2)
+    # Some Blogger blogs disable the Atom/JSON feed. In that case, verify the
+    # post through public HTML (home page and Blogger search) instead of treating
+    # the private dashboard ?postId= URL as a public link.
+    class _AnchorParser(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.anchors = []
+            self._href = None
+            self._parts = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() == "a":
+                self._href = dict(attrs).get("href", "")
+                self._parts = []
+
+        def handle_data(self, data):
+            if self._href is not None:
+                self._parts.append(data)
+
+        def handle_endtag(self, tag):
+            if tag.lower() == "a" and self._href is not None:
+                self.anchors.append((self._href, " ".join(" ".join(self._parts).split())))
+                self._href = None
+                self._parts = []
+
+    wanted = re.sub(r"\\s+", " ", str(title or "")).strip().casefold()
+    parsed_blog = urlparse(blog_url)
+    public_pages = [
+        blog_url.rstrip("/") + "/",
+        blog_url.rstrip("/") + "/search?q=" + quote(title),
+    ]
+    for page_url in public_pages:
+        try:
+            response = requests.get(
+                page_url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPublisher/1.0)"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            parser = _AnchorParser()
+            parser.feed(response.text)
+            for href, anchor_text in parser.anchors:
+                absolute = urljoin(page_url, href)
+                parsed = urlparse(absolute)
+                if parsed.netloc != parsed_blog.netloc or parsed.query or "/p/" in parsed.path:
+                    continue
+                if not re.search(r"/\\d{4}/\\d{2}/", parsed.path):
+                    continue
+                normalized_text = re.sub(r"\\s+", " ", anchor_text).strip().casefold()
+                if normalized_text == wanted:
+                    print(f"Blogger public permalink verified from public HTML: {absolute}")
+                    return absolute, ""
+        except Exception as exc:
+            print(f"Blogger public HTML permalink lookup failed for {page_url}: {exc}")
+    print("No public permalink verified by Blogger feed or public HTML.")
     return "", ""
 
 
