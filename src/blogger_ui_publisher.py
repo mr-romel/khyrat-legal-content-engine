@@ -372,6 +372,26 @@ def _set_labels(page, labels: list[str]) -> None:
         print(f"Blogger UI labels were not applied: {exc}")
 
 
+def _wait_for_editor_save(page) -> None:
+    """Give Blogger's asynchronous draft creation/autosave time before publishing."""
+    page.wait_for_timeout(1200)
+    try:
+        page.wait_for_function(
+            """() => !/(creating new post|saving( post)?[.…]*|جارٍ الحفظ|جاري الحفظ)/i.test(
+                (document.body && document.body.innerText) || ''
+            )""",
+            timeout=12000,
+        )
+        print("Blogger draft creation/autosave indicator cleared before Publish.")
+    except PlaywrightTimeoutError:
+        try:
+            excerpt = re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500)).strip()[:700]
+        except Exception:
+            excerpt = ""
+        print("Blogger autosave indicator remained after 12s; waiting once more before Publish: " + excerpt)
+        page.wait_for_timeout(3000)
+
+
 def _click_publish(page) -> None:
     publish_selectors = [
         'button:has-text("Publish")',
@@ -836,6 +856,7 @@ def publish_article_ui(
             _fill_title(page, title)
             _set_editor_html(page, content_html)
             _set_labels(page, labels or [])
+            _wait_for_editor_save(page)
             if search_description.strip():
                 # Do not open the unstable Blogger settings sidebar before publishing.
                 # It can leave hidden controls over the editor and block the Publish action.
