@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   # All Blogger writers share one lock; the UI session must never publish concurrently.
-  group: blogger-publication-v2
+  group: blogger-publication-v3
   cancel-in-progress: false
 
 jobs:
