@@ -570,104 +570,100 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
     return "", ""
 
 
-def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
-    """Find the public View link from Blogger's authenticated posts dashboard.
+def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
+    """Return only links from the specific Blogger row that contains this title."""
+    result = page.locator("body").evaluate(
+        """body => {
+          const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+          const wanted = norm(TITLE);
+          const rows = [];
+          const seen = new Set();
+          const nodes = Array.from(body.querySelectorAll('a, span, div, td'))
+            .filter(el => {
+              const t = norm(el.innerText || el.textContent || '');
+              return t && t.length <= wanted.length + 12 &&
+                (t === wanted || t.endsWith(wanted) || (el.children.length === 0 && t.includes(wanted)));
+            });
+          for (const el of nodes) {
+            let node = el;
+            for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
+              const text = norm(node.innerText || node.textContent || '');
+              if (!text || text.length > 1200 || !text.includes(wanted)) continue;
+              const links = Array.from(node.querySelectorAll('a[href]')).map(a => ({
+                href: a.href || a.getAttribute('href') || '',
+                text: (a.innerText || a.textContent || a.getAttribute('aria-label') || '').trim(),
+                aria: a.getAttribute('aria-label') || '',
+                title: a.getAttribute('title') || ''
+              }));
+              const edit = links.some(x => /\\/blog\\/post\\/edit\\/\\d+\\/\\d+/.test(x.href));
+              if (!edit || links.length > 12) continue;
+              const key = text + '|' + links.map(x => x.href).join('|');
+              if (!seen.has(key)) {
+                seen.add(key);
+                rows.push({text: text.slice(0, 500), links});
+              }
+              if (/(draft|published|scheduled|مسودة|منشور|مجدول)/i.test(text)) break;
+            }
+          }
+          return {candidate_rows: rows.slice(0, 12), body_excerpt: (body.innerText || '').replace(/\\s+/g, ' ').slice(0, 700)};
+        }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
+    )
+    return result.get("candidate_rows", []) if isinstance(result, dict) else []
 
-    Do not navigate the authenticated publisher to the public blog first: GitHub
-    runners are sometimes challenged by Google and redirected to /sorry, which
-    loses the editor state and does not prove whether the post was published.
-    """
-    wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
+
+def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
+    """Resolve a public permalink only from the exact matching Published dashboard row."""
     if not blog_id:
         match = re.search(r"/blog/post/edit/([0-9]+)/", page.url)
         blog_id = match.group(1) if match else ""
     if not blog_id:
         return ""
-    dashboard_url = f"https://www.blogger.com/blog/posts/{blog_id}"
     try:
-        page.goto(dashboard_url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(1400)
+        page.goto(f"https://www.blogger.com/blog/posts/{blog_id}", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1100)
         if "accounts.google.com" in page.url or "signin" in page.url.lower():
             print("Blogger dashboard permalink lookup skipped: authenticated session expired.")
             return ""
-        rows = page.locator("body").evaluate(
-            """body => {
-              const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
-              const wanted = norm(TITLE);
-              const out = [];
-              const seen = new Set();
-              for (const el of body.querySelectorAll('a, span, div, td')) {
-                const txt = norm(el.innerText || el.textContent || '');
-                if (!txt || !(txt === wanted || (wanted.length > 18 && txt.includes(wanted)))) continue;
-                let node = el;
-                for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
-                  const links = Array.from(node.querySelectorAll('a[href]')).map(x => ({
-                    href: x.href || x.getAttribute('href') || '',
-                    text: (x.innerText || x.textContent || x.getAttribute('aria-label') || '').trim(),
-                    title: x.getAttribute('title') || '',
-                    aria: x.getAttribute('aria-label') || ''
-                  }));
-                  for (const link of links) {
-                    const key = link.href + '|' + link.text;
-                    if (!seen.has(key)) { seen.add(key); out.push(link); }
-                  }
-                  if (links.length > 1) break;
-                }
-              }
-              return {matches: out.length, links: out.slice(0, 80),
-                body: (body.innerText || '').replace(/\\s+/g, ' ').slice(0, 1000)};
-            }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
-        )
-        print("Blogger authenticated dashboard permalink diagnostics: " + json.dumps(rows, ensure_ascii=False)[:7000])
-        rows = rows.get("links", []) if isinstance(rows, dict) else rows
+        rows = _dashboard_title_rows(page, title)
+        print("Blogger exact-title dashboard rows: " + json.dumps(rows, ensure_ascii=False)[:5000])
         expected_host = urlparse(blog_url).netloc
-        for item in rows:
-            href = str(item.get("href", "")).strip()
-            parsed = urlparse(href)
-            if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
+        for row in rows:
+            row_text = str(row.get("text", "")).casefold()
+            if not re.search(r"\\bpublished\\b|منشور", row_text):
                 continue
-            if parsed.query or "/p/" in parsed.path or not re.search(r"/\d{4}/\d{2}/", parsed.path):
+            if re.search(r"\\bdraft\\b|مسودة|scheduled|مجدول", row_text):
                 continue
-            print(f"Blogger public permalink verified from authenticated posts dashboard: {href}")
-            return href
-        print("Blogger posts dashboard did not expose a public View permalink for the new title.")
+            for item in row.get("links", []):
+                href = str(item.get("href", "")).strip()
+                parsed = urlparse(href)
+                if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
+                    continue
+                if parsed.query or "/p/" in parsed.path or not re.search(r"/\\d{4}/\\d{2}/", parsed.path):
+                    continue
+                print(f"Blogger public permalink verified from matching Published dashboard row: {href}")
+                return href
+        print("No public permalink found in the exact matching Published dashboard row.")
     except Exception as exc:
         print(f"Blogger dashboard permalink lookup failed: {exc}")
     return ""
 
 
 def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
-    """Reuse a matching Blogger draft instead of creating another duplicate on retry."""
+    """Reuse the matching draft's edit URL instead of creating another duplicate."""
     try:
         page.goto(f"https://www.blogger.com/blog/posts/{blog_id}", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(900)
-        result = page.locator("body").evaluate(
-            """body => {
-              const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
-              const wanted = norm(TITLE);
-              const nodes = Array.from(body.querySelectorAll('a, span, div, td'))
-                .filter(el => {
-                  const t = norm(el.innerText || el.textContent || '');
-                  return t && (t === wanted || (wanted.length > 18 && t.includes(wanted)));
-                });
-              for (const el of nodes) {
-                let node = el;
-                for (let depth = 0; depth < 8 && node; depth++, node = node.parentElement) {
-                  const rowText = norm(node.innerText || node.textContent || '');
-                  if (!rowText || rowText.length > 1800 || !/(draft|مسودة)/i.test(rowText)) continue;
-                  const edit = Array.from(node.querySelectorAll('a[href]'))
-                    .map(a => a.href || a.getAttribute('href') || '')
-                    .find(href => /\\/blog\\/post\\/edit\\/\\d+\\/\\d+/.test(href));
-                  if (edit) return {url: edit, row: rowText.slice(0, 500)};
-                }
-              }
-              return null;
-            }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
-        )
-        if isinstance(result, dict) and result.get("url"):
-            print("Reusing existing Blogger draft for retry: " + json.dumps(result, ensure_ascii=False))
-            return str(result["url"])
-        print(f"No matching Blogger draft found for title: {title[:160]}")
+        rows = _dashboard_title_rows(page, title)
+        for row in rows:
+            row_text = str(row.get("text", "")).casefold()
+            if not re.search(r"\\bdraft\\b|مسودة", row_text):
+                continue
+            for item in row.get("links", []):
+                href = str(item.get("href", "")).strip()
+                if re.search(r"/blog/post/edit/\\d+/\\d+", href):
+                    print("Reusing existing Blogger draft: " + json.dumps({"title": title, "edit_url": href}, ensure_ascii=False))
+                    return href
+        print(f"No exact matching Blogger draft found for title: {title[:160]}")
     except Exception as exc:
         print(f"Blogger existing-draft lookup failed; will use new-post route: {exc}")
     return ""
