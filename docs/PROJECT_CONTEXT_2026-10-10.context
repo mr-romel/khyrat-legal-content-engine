@@ -152,3 +152,12 @@ LATEST BLOGGER LABEL FIX — 2026-10-10
 - Blogger Publisher run 38054641111 completed successfully, but reused the existing public article at https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html. This run does NOT establish that a new article was created.
 - Blogger demand worker retry run 38054744408 was triggered after the label fix and must be checked for a genuinely new, publicly verified article.
 - Explicit Reel row-23 retry run 38054152090 remains in progress in the latest check. It was started before removal of unused voicetut/OmniVoice setup from reel-now.yml, so it still uses the older, slower dependency-install step. The next retry will use the cleaned workflow.
+
+
+VERIFIED NEW BLOGGER DEMAND ARTICLE — 2026-10-10
+- Demand worker run 38054744408 completed successfully after the Blogger label normalization fix: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38054744408
+- Gemini remained quota-limited (429), but the worker built its cautious article from the verified legal research packet.
+- Labels were normalized to 6 labels / 114 combined characters.
+- The UI created/published the exact title "كيفية التعامل مع الابتزاز الإلكتروني في مصر: الأدلة والخطوات القانونية التي يجب مراجعتها". The authenticated Blogger dashboard showed Published • 10 Oct and the public feed then verified the post permalink path /2026/10/blog-post_314.html.
+- Public article URL: https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_314.html
+- This is verified evidence of a newly published demand article. OAuth invalid_grant remains unresolved, but the saved UI session successfully published this article after label normalization.
