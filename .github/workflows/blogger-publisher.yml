@@ -61,23 +61,23 @@ jobs:
         run: |
           git config user.name "Khyrat Legal Content Engine"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add generated/blogger/
-          if git diff --cached --quiet; then
-            echo "No Blogger artifacts to commit."
-          else
+          for attempt in 1 2 3 4; do
+            git fetch origin "${GITHUB_REF_NAME}"
+            # Move HEAD/index to the latest remote commit but preserve this
+            # runner's generated files in the working tree; avoid rebase conflicts
+            # when two runs generated the same row artifact.
+            git reset --mixed "origin/${GITHUB_REF_NAME}"
+            git add generated/blogger/
+            if git diff --cached --quiet; then
+              echo "Blogger artifacts are already present on the remote."
+              exit 0
+            fi
             git commit -m "Store generated Blogger article"
-            for attempt in 1 2 3; do
-              git fetch origin "${GITHUB_REF_NAME}"
-              if git rebase "origin/${GITHUB_REF_NAME}"; then
-                if git push origin "HEAD:${GITHUB_REF_NAME}"; then
-                  echo "Blogger artifacts persisted."
-                  exit 0
-                fi
-              else
-                git rebase --abort
-              fi
-              echo "Retrying Blogger artifact persistence (${attempt}/3)."
-            done
-            echo "Blogger artifact persistence failed after retries."
-            exit 1
-          fi
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "Blogger artifacts persisted."
+              exit 0
+            fi
+            echo "Retrying Blogger artifact persistence (${attempt}/4)."
+          done
+          echo "Blogger artifact persistence failed after retries."
+          exit 1
