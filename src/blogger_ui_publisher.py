@@ -739,7 +739,7 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
                 parsed = urlparse(href)
                 if parsed.scheme not in {"http", "https"} or parsed.netloc != expected_host:
                     continue
-            if parsed.query or "/p/" in parsed.path or not re.search(r"/\d{4}/\d{2}/", parsed.path):
+                if parsed.query or "/p/" in parsed.path or not re.search(r"/\d{4}/\d{2}/", parsed.path):
                     continue
                 print(f"Blogger public permalink verified from matching Published dashboard row: {href}")
                 return href
