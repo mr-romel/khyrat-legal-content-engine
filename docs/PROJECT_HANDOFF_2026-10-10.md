@@ -159,3 +159,33 @@ Do not put values for `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, Goog
 - **Hypothesis:** a likely cause to test, not a proven diagnosis.
 - **Not verified:** no successful external outcome was observed.
 - Update this file after a successful permalink-verified Blogger publication and a successful branded Reel Telegram delivery.
+
+
+## Addendum — latest scheduled run evidence (checked 2026-10-10 14:04 Cairo)
+
+The previously in-progress scheduled run `38046936167` advanced:
+- Core Social Publisher: success.
+- Blogger Publisher: success.
+- Blogger SEO Search Description: success.
+- Facebook engagement, Facebook comment replies and LinkedIn engagement: success.
+- Reel Generator + Telegram Review: **failed**.
+- Blogger Site Identity + Pages was still in progress at the last check.
+
+Blogger Publisher's logs now provide a verified public feed permalink:
+https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_595.html
+The title is `ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟`. The worker explicitly logged `Blogger duplicate prevention: reusing existing public post`; therefore this is a verified existing public post reused by the run, **not proof that a new demand article was created today**. Gemini quota remained exhausted, and the worker used the structured fallback before finding/reusing that public post. This is meaningful progress: at least one public Blogger permalink is now verified by the publisher's feed lookup, while the demand-article workflow and OAuth refresh issue remain separate blockers.
+
+The same scheduled run's Reel job has a newer and more specific failure:
+- Artifact download failed: `Artifact not found for name: reel-source-context`.
+- The worker then recovered/locked row 23 and built a deterministic script fallback because Gemini returned 429 quota errors.
+- Edge Egyptian Neural TTS succeeded and produced about 64.4 seconds of narration.
+- Openverse returned zero assets.
+- MoneyPrinterTurbo fallback could not find its cloned directory and switched to the FFmpeg fallback.
+- The final blocking error was `Spoken brand slogan generation failed; refusing delivery`, because Gemini was unavailable for slogan generation. This occurred before Telegram delivery.
+- Therefore, the latest run did **not** establish that the simplified whiteboard FFmpeg renderer itself still fails; the run failed earlier at missing artifact and then at slogan generation. Fix the missing `reel-source-context` artifact contract and make the branded end-card slogan use a deterministic pre-recorded/local fallback that does not depend on Gemini quota. Continue to refuse unbranded delivery.
+
+Updated immediate priority:
+1. Fix Reel artifact production/consumption so the consumer can gracefully regenerate context from the locked sheet row if the artifact is absent.
+2. Store or generate the branded spoken slogan independently of Gemini (for example, a checked-in/non-secret audio asset or the already configured Edge Neural TTS path) and validate it before rendering.
+3. Re-run row 23 end-to-end and verify Telegram delivery.
+4. Continue Blogger demand-article OAuth and quota work; do not confuse the verified existing post permalink with a new demand article.
