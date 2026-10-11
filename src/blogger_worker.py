@@ -278,9 +278,29 @@ def main() -> int:
     source_id = str(row.get("ID", "")).strip()
     image_path = resolve_image_path(image_url, source_id, row_number)
     if not image_path:
-        # Article publication is independent from social-image availability.
-        # Keep the article moving; an image is an enhancement, never a blocker.
-        print("Blogger: no row-owned image available; continuing with a text-first article.")
+        # Create a topic-derived hero image instead of silently publishing a text-only article.
+        try:
+            from image_generator import create_legal_image
+            generated_image = Path(BLOGGER_ARTIFACT_DIR) / ("row_" + str(row_number)) / "blogger-hero.jpg"
+            create_legal_image(
+                topic=topic,
+                image_brief=post[:1200],
+                visual_description=post[:1200],
+                post_context=post,
+                output_path=str(generated_image),
+                api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+                cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
+                cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+            )
+            image_path = str(generated_image)
+            try:
+                image_url = upload_blogger_image(image_path)
+                print("Blogger: generated hero image uploaded to Blogger storage.")
+            except Exception as upload_exc:
+                print(f"Blogger: generated image upload failed; publisher will attempt its normal image path: {upload_exc}")
+        except Exception as image_exc:
+            # Preserve the established no-cancel publishing policy if every image provider is unavailable.
+            print(f"Blogger: hero image generation unavailable; continuing article publication: {image_exc}")
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
