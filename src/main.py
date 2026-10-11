@@ -391,7 +391,8 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
     latest = published[-COMMENT_BACKFILL_LIMIT:]
     if not latest:
         return
-    for row_number, row in latest:
+    first_rank = max(1, len(published) - len(latest) + 1)
+    for publication_rank, (row_number, row) in enumerate(latest, start=first_rank):
         fb_queue = str(row.get("Facebook Comment Queue", "") or "").strip()
         li_queue = str(row.get("LinkedIn Comment Queue", "") or "").strip()
         if fb_queue or li_queue:
@@ -402,10 +403,6 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
             continue
         try:
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-            publication_rank = sum(
-                1 for published_row in rows
-                if str(published_row.get("الحالة", "")).strip().upper() == "PUBLISHED"
-            )
             if blog_cta_due(publication_rank):
                 # Backfill CTA only on every third published item, replacing one
                 # existing comment so the per-post count remains in the 3–7 range.
