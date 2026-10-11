@@ -8,7 +8,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from blogger_ui_publisher import resolve_blog_id_ui
+from blogger_ui_publisher import publish_page_ui, resolve_blog_id_ui
 from config import load_blogger_config
 
 BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
@@ -23,6 +23,36 @@ PAGE_TITLES = (
     "سياسة الخصوصية",
     "فهرس الموضوعات القانونية",
 )
+
+PAGE_CONTENT = {
+    "من نحن": """<h2>من نحن</h2>
+<p>«اسأل محمود» منصة توعوية تقدم محتوى قانونيًا عمليًا يساعد الشركات وأصحاب الأعمال والإدارة والموارد البشرية على فهم المسائل القانونية الشائعة في مصر.</p>
+<p>نهدف إلى تبسيط المفاهيم والإجراءات القانونية، وشرح المخاطر العملية، وتقديم نقاط مراجعة تساعد القارئ على طرح الأسئلة الصحيحة قبل اتخاذ القرار.</p>
+<p>المحتوى المنشور عام وتثقيفي، ولا يُعد بديلًا عن مراجعة المستندات والوقائع الخاصة بكل حالة مع محامٍ مختص.</p>""",
+    "تواصل معنا": """<h2>تواصل معنا</h2>
+<p>للاستفسارات أو الملاحظات المتعلقة بالمحتوى المنشور، يُرجى استخدام نموذج التواصل أو وسائل الاتصال الرسمية المعروضة على الموقع إن كانت متاحة.</p>
+<p>يرجى عدم إرسال مستندات سرية أو بيانات شخصية حساسة قبل الاتفاق على وسيلة تواصل مناسبة. إرسال رسالة لا ينشئ وحده علاقة محامٍ وموكل ولا يضمن تقديم استشارة قانونية.</p>
+<p>عند مراسلتنا، وضّح عنوان الموضوع بإيجاز وتجنّب إرفاق بيانات غير لازمة.</p>""",
+    "إخلاء المسؤولية القانونية": """<h2>إخلاء المسؤولية القانونية</h2>
+<p>المقالات والمواد المنشورة على هذا الموقع لأغراض المعلومات والتوعية العامة فقط، ولا تُعد استشارة قانونية أو فتوى أو رأيًا مهنيًا مخصصًا لحالة بعينها.</p>
+<p>قد تتغير القوانين واللوائح والأحكام والتفسيرات الإدارية بمرور الوقت. نبذل جهدًا معقولًا لتقديم معلومات واضحة، لكننا لا نضمن اكتمال كل مادة أو حداثتها أو انطباقها على جميع الوقائع.</p>
+<p>لا تتخذ قرارًا قانونيًا اعتمادًا على المحتوى وحده. راجع النصوص الرسمية واستعن بمحامٍ مختص بعد فحص المستندات والوقائع ذات الصلة. استخدام الموقع لا ينشئ علاقة محامٍ وموكل.</p>""",
+    "سياسة الخصوصية": """<h2>سياسة الخصوصية</h2>
+<p>تحترم هذه المنصة خصوصية الزوار. قد تُعالج البيانات التقنية المعتادة التي يوفرها المتصفح أو مزود الاستضافة، مثل نوع المتصفح ووقت الزيارة، لأغراض تشغيل الموقع وأمنه وتحسينه.</p>
+<p>قد تستخدم خدمات Google أو أدوات القياس والإعلانات المرتبطة بالمنصة ملفات تعريف الارتباط وتقنيات مشابهة وفق سياساتها وإعدادات المستخدم. يُرجى مراجعة سياسات الجهات الخارجية ذات الصلة لمعرفة تفاصيل المعالجة والاختيارات المتاحة.</p>
+<p>لا ترسل عبر الموقع بيانات شخصية أو مستندات سرية لا يلزم تقديمها. إذا أرسلت رسالة طوعًا، فقد نستخدم بيانات الاتصال التي تتضمنها للرد على الرسالة وإدارة التواصل المرتبط بها.</p>
+<p>قد تُحدّث هذه السياسة عند تغير الخدمات أو المتطلبات القانونية. استمرار استخدام الموقع بعد نشر التحديث يعني الاطلاع على النسخة المنشورة، دون الإخلال بالحقوق المقررة قانونًا.</p>""",
+    "فهرس الموضوعات القانونية": """<h2>فهرس الموضوعات القانونية</h2>
+<p>يمكنك استكشاف الموضوعات القانونية المنشورة عبر أقسام البحث التالية، ثم استخدام البحث داخل الموقع للوصول إلى المقالات ذات الصلة.</p>
+<ul>
+<li><a href="/search/label/قانون%20العمل">قانون العمل وعلاقات العمل</a></li>
+<li><a href="/search/label/الشركات">الشركات والإدارة والحوكمة</a></li>
+<li><a href="/search/label/العقود">العقود والالتزامات</a></li>
+<li><a href="/search/label/المنازعات">المنازعات والإجراءات القانونية</a></li>
+<li><a href="/search/label/الموارد%20البشرية">الموارد البشرية والامتثال</a></li>
+</ul>
+<p>هذا الفهرس إرشادي؛ وقد تختلف تسميات المقالات ووسومها. لا يُغني أي مقال عن مراجعة النص القانوني الساري والوقائع الخاصة بالحالة.</p>""",
+}
 
 
 def _storage_state() -> dict:
@@ -442,6 +472,70 @@ def _update_page_header_from_layout(page, title: str, description: str) -> bool:
         print(f"Blogger Header DOM update failed: {exc}")
         return False
 
+def _ensure_static_pages(page, bid: str) -> int:
+    """Create only missing required static pages; never overwrite existing page content."""
+    dashboard_url = f"https://www.blogger.com/blog/pages/{bid}?hl=ar"
+    page.goto(dashboard_url, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1200)
+    if "accounts.google.com" in page.url or "signin" in page.url.lower():
+        raise RuntimeError("Blogger UI session is not authenticated while checking static pages.")
+
+    body = _clean(page.locator("body").inner_text())
+    existing_titles = set()
+    links = page.locator('a[href*="/blog/page/edit/"]')
+    for i in range(min(links.count(), 300)):
+        link = links.nth(i)
+        try:
+            href = str(link.get_attribute("href") or "")
+            text = _clean(link.inner_text())
+            context_text = text
+            for level in range(1, 5):
+                try:
+                    candidate = link.locator("xpath=" + "/.." * level)
+                    candidate_text = _clean(candidate.inner_text())
+                    if candidate_text and len(candidate_text) < 1200:
+                        context_text = candidate_text
+                        if any(title in candidate_text for title in PAGE_TITLES):
+                            break
+                except Exception:
+                    pass
+            for title in PAGE_TITLES:
+                if title in text or title in context_text:
+                    existing_titles.add(title)
+        except Exception:
+            continue
+
+    # A title visible in the dashboard is also evidence that the page already
+    # exists, even when Blogger renders its row without an editable anchor.
+    for title in PAGE_TITLES:
+        if title in body:
+            existing_titles.add(title)
+
+    missing = [title for title in PAGE_TITLES if title not in existing_titles]
+    print(f"Blogger static-page audit: existing={sorted(existing_titles)} missing={missing}")
+    created = 0
+    for title in missing:
+        result = publish_page_ui(
+            title=title,
+            content_html=PAGE_CONTENT[title],
+            blog_id=bid,
+        )
+        if not result.get("page_id"):
+            raise RuntimeError(f"Blogger static page was not assigned an ID after publication: {title}")
+        created += 1
+        print(f"Blogger static page created: {title} -> {result.get('editor_url', '')}")
+
+    # Reload and verify that every required page is now represented in the page list.
+    page.goto(dashboard_url, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1000)
+    verified_body = _clean(page.locator("body").inner_text())
+    missing_after = [title for title in PAGE_TITLES if title not in verified_body]
+    if missing_after:
+        raise RuntimeError("Blogger static-page verification failed; missing from dashboard: " + ", ".join(missing_after))
+    print(f"Blogger static-page verification passed: count={len(PAGE_TITLES)} created={created}")
+    return created
+
+
 def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
     page.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -628,6 +722,7 @@ def main() -> int:
 
         try:
             _set_brand_identity(page, bid, title, description)
+            _ensure_static_pages(page, bid)
             layout_url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
             response = page.goto(layout_url, wait_until="domcontentloaded", timeout=60000)
             print(f"Blogger layout navigation: url={page.url} title={page.title()!r} status={(response.status if response else None)}")
