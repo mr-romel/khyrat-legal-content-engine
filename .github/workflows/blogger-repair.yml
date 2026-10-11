@@ -51,4 +51,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
-        run: PYTHONPATH=src python src/blogger_worker.py
+        run: |
+          PYTHONPATH=src python src/blogger_worker.py
+          PYTHONPATH=src python src/blogger_identity_worker.py
