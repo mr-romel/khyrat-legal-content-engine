@@ -445,7 +445,15 @@ def add_motion_graphics_layer(
     ]
     font_path = next((p for p in font_candidates if Path(p).is_file()), "")
     def font(size: int):
-        return ImageFont.truetype(font_path, size) if font_path else ImageFont.load_default()
+        if not font_path:
+            return ImageFont.load_default()
+        # Text is already Arabic-shaped and reordered by rtl(); BASIC prevents
+        # Pillow/RAQM from shaping the same string a second time (the source of
+        # mirrored/reversed glyph order on some runner images).
+        try:
+            return ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.BASIC)
+        except (AttributeError, TypeError):
+            return ImageFont.truetype(font_path, size)
 
     # Never silently ship an unbranded/silent end card.
     if slogan_audio is None or not slogan_audio.is_file():
