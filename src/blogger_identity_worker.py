@@ -131,14 +131,10 @@ def _edit_current_setting(page, section_label: str, next_label: str, value: str)
     if not current:
         return False
     if not _click_current_setting_value(page, current):
-        try:
-            if section_label == "العنوان":
-                page.mouse.click(930, 202)
-            else:
-                page.mouse.click(900, 275)
-            page.wait_for_timeout(700)
-        except Exception:
-            return False
+        # The settings UI is responsive and may move between runs. Never guess
+        # coordinates: if DOM-grounded clicking fails, leave the setting intact.
+        print(f"Blogger setting {section_label}: current value could not be opened through DOM selectors.")
+        return False
     page.wait_for_timeout(600)
 
     controls = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
