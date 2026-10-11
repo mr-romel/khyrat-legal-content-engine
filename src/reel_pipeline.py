@@ -333,7 +333,7 @@ def generate_gemini_tts_audio_unbounded(
 
 
 def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[str, Any]], output_path: Path) -> Path:
-    """Generate the Reel narration with Gemini 3.8 Flash TTS, not Edge TTS."""
+    """Generate the Reel narration with Gemini 3.8 Flash TTS."""
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for Reel narration.")
     clean = prepare_tts_script(script)
