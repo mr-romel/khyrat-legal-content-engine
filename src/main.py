@@ -427,8 +427,9 @@ def _is_bad_published_image(row: dict[str, str]) -> bool:
         return False
     source_id = str(row.get("ID", "") or "").strip()
     image_url = str(row.get("رابط الصورة", "") or "").strip()
+    missing_image = not image_url
     stale_source = bool(source_id and image_url and source_id not in image_url)
-    return "FALLBACK" in mode or "FALLBACK" in qa or mode in {"IMAGE_REQUIRED", "NONE"} or stale_source
+    return missing_image or "FALLBACK" in mode or "FALLBACK" in qa or mode in {"IMAGE_REQUIRED", "NONE"} or stale_source
 
 
 def _repair_published_bad_image(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
