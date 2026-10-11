@@ -362,12 +362,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
                 "Image QA Attempt": "1",
-                "Image QA Status": "IMAGE_GENERATION_FAILED_NON_BLOCKING",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_REQUIRED",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "TEXT_ONLY_FALLBACK",
+                "Image Mode": "IMAGE_GENERATION_FAILED_REQUIRED",
                 "المحتوى": post,
                 "وقت آخر تشغيل": current.isoformat(),
-                "آخر خطأ": f"Image generation failed; text publication continues: {image_exc}"[:1500],
+                "الحالة": "FAILED",
+                "آخر خطأ": f"Required image generation failed; social publication blocked: {image_exc}"[:1500],
             })
         except Exception as state_exc:
             print(f"Image failure state update also failed; text publication still continues: {state_exc}")
@@ -629,7 +630,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file())
         if not image_available:
-            print("Image unavailable; publication will continue as text-only on supported platforms.")
+            raise ImageGenerationError(
+                "Required post image is missing after generation; refusing text-only social publication."
+            )
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
