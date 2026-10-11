@@ -1097,15 +1097,40 @@ def main() -> int:
         (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
         scene_dir = output_dir / "scenes"
-        print("REEL_STAGE media=fetch_openverse")
-        scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
-        print(f"REEL_STAGE openverse_count={len(scenes)}")
+        scene_dir.mkdir(parents=True, exist_ok=True)
+        # Generate eight distinct scene images from the eight scene-specific prompts.
+        # Existing credentials are reused; if image generation is unavailable, use
+        # only topic-matched openly licensed photos, never generic placeholder cards.
+        scenes = []
+        try:
+            from image_generator import create_legal_image
+            cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+            cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+            for scene_index, scene_prompt in enumerate(brief["video_terms"][:8], start=1):
+                image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
+                create_legal_image(
+                    topic=topic,
+                    image_brief=str(scene_prompt),
+                    visual_description=str(scene_prompt),
+                    post_context=post,
+                    output_path=str(image_path),
+                    api_key=cfg["gemini_api_key"],
+                    cloudflare_account_id=cloudflare_account,
+                    cloudflare_api_token=cloudflare_token,
+                )
+                scenes.append(image_path)
+                print(f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true")
+        except Exception as image_exc:
+            print(f"REEL_STAGE ai_scene_generation_unavailable reason={image_exc}")
+            scenes = []
         if len(scenes) < 8:
-            needed = 8 - len(scenes)
-            scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
+            print("REEL_STAGE media=fetch_openverse_topic_matched_fallback")
+            scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
+            if len(scenes) < 8:
+                scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=8-len(scenes)))
         # Never recycle unrelated cached imagery or generic legal cards into a Reel.
         if len(scenes) < 8:
-            raise RuntimeError(f"لم يتم العثور على 8 صور مرخصة ومطابقة للمشاهد؛ المتاح {len(scenes)}. لن أملأ النقص بكروت عامة مضللة.")
+            raise RuntimeError(f"لم يتم إنشاء أو العثور على 8 مشاهد مرخصة ومطابقة للموضوع؛ المتاح {len(scenes)}. لن أملأ النقص بكروت عامة مضللة.")
 
         # Normalize externally sourced WebP assets to JPEG because the current
         # MPT local-material validator accepts JPG/PNG but not WebP.
