@@ -2,20 +2,20 @@
   "topic": "التحقيق الإداري — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
   "provider": "DIRECT_CLOUDFLARE",
   "model": "@cf/bytedance/stable-diffusion-xl-lightning",
-  "prompt": "Create one realistic contemporary editorial photograph based only on the scene below. Match the exact people, action, everyday setting, and visible evidence described in the final post. Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. Show one clear focal action, believable human expressions, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. Keep the background ordinary and contemporary. Do not invent symbols, scenery, props, or events. Do not substitute a generic legal stock photo for the described event. No readable text, letters, captions, numbers, logos, watermarks, interface elements, infographics, posters, signage, cartoon styling, illustration, 3D rendering, fantasy, or surreal effects.\n\nEXACT SCENE FROM THE FINAL POST:\nA professional manager sitting at a clean, modern wooden desk in an office, reviewing a thick physical folder of documents with a focused and serious expression. Sunlight streams through a large window, illuminating the office space. Close-up shot capturing the manager's hands pointing at a specific document page, emphasizing the analytical process, natural office lighting, cinematic depth of field, high-quality photography.\n\nRender only this scene.",
-  "prompt_sha256": "53f8fd99c5ba49137ef162b79c228e91fc6a160775ebf91cb15fe2d3742b1ab3",
-  "image_sha256": "65a9e50e337e2ccc0db34bae03db2ecb6efc50ab999bfbf0749f240abf9b55ab",
+  "prompt": "Create one realistic contemporary editorial photograph based only on the scene below. Match the exact people, action, everyday setting, and visible evidence described in the final post. Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. Show one clear focal action, believable human expressions, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. Keep the background ordinary and contemporary. Do not invent symbols, scenery, props, or events. Do not substitute a generic legal stock photo for the described event. No readable text, letters, captions, numbers, logos, watermarks, interface elements, infographics, posters, signage, cartoon styling, illustration, 3D rendering, fantasy, or surreal effects.\n\nEXACT SCENE FROM THE FINAL POST:\nA close-up, high-angle shot focusing on a pair of hands reviewing a thick paper personnel file spread across a modern wooden desk. The hands are holding a red pen, hovering over a document with highlighted sections. The file contains printed transcripts and typed investigative reports. The scene is lit by a single bright desk lamp, casting focused light on the documents, creating a professional and analytical atmosphere. The background is slightly blurred, showing only the edge of a minimalist office workspace with no identifiable logos, symbols, or extra props, keeping the focus entirely on the review of the evidence and the specific procedural documents mentioned in the text.\n\nRender only this scene.",
+  "prompt_sha256": "3c9cdb70b033d1cf143b0a83a028a5bab94ecc131c44a008b5224977f8df6fb9",
+  "image_sha256": "a0946f37d3001a687d10d65344f00cd26de083ddaf20cbd268fea5acdfa7696b",
   "image_path": "generated/20261011-1900-R011.jpg",
-  "visual_description": "A professional manager sitting at a clean, modern wooden desk in an office, reviewing a thick physical folder of documents with a focused and serious expression. Sunlight streams through a large window, illuminating the office space. Close-up shot capturing the manager's hands pointing at a specific document page, emphasizing the analytical process, natural office lighting, cinematic depth of field, high-quality photography.",
+  "visual_description": "A close-up, high-angle shot focusing on a pair of hands reviewing a thick paper personnel file spread across a modern wooden desk. The hands are holding a red pen, hovering over a document with highlighted sections. The file contains printed transcripts and typed investigative reports. The scene is lit by a single bright desk lamp, casting focused light on the documents, creating a professional and analytical atmosphere. The background is slightly blurred, showing only the edge of a minimalist office workspace with no identifiable logos, symbols, or extra props, keeping the focus entirely on the review of the evidence and the specific procedural documents mentioned in the text.",
   "qa_decision": "REGENERATE",
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 9,
-  "qa_relevance_score": 8,
+  "qa_overall_score": 3,
+  "qa_relevance_score": 3,
   "qa_issues": [
-    "Legal relevance is critically low (8).",
-    "Overall usability is critically low (9).",
-    "Minor gibberish text detected on the desk surface (very faint/blurred). It is negligible and does not distract from the main subject.",
-    "The subject is using a laptop instead of the requested physical folder, but this remains a high-quality, professional, and relevant asset."
+    "Legal relevance is critically low (3).",
+    "Overall usability is critically low (3).",
+    "The image ignores the core composition instructions regarding the camera angle (close-up/high-angle) and the subject matter (hands/documents only).",
+    "The presence of a person changes the focus from the legal investigation documents to a lifestyle portrait."
   ],
-  "qa_checked_image_sha256": "65a9e50e337e2ccc0db34bae03db2ecb6efc50ab999bfbf0749f240abf9b55ab"
+  "qa_checked_image_sha256": "a0946f37d3001a687d10d65344f00cd26de083ddaf20cbd268fea5acdfa7696b"
 }
