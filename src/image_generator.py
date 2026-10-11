@@ -333,7 +333,14 @@ def create_legal_image(
                     timeout=(20, 180),
                 )
                 if response.ok:
-                    image_bytes = _extract_image_bytes(response)
+                    try:
+                        image_bytes = _extract_image_bytes(response)
+                    except ImageGenerationError as exc:
+                        cloudflare_error = str(exc)
+                    if image_bytes is not None:
+                        break
+                    # Invalid/non-image responses fall through to the Gemini
+                    # provider below rather than aborting image generation.
                     break
                 try:
                     error_payload = response.json()
