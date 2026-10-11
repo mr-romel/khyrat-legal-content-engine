@@ -36,6 +36,11 @@ jobs:
           pip install -r requirements-browser.txt
           python -m playwright install --with-deps chromium
 
+      - name: Validate Blogger worker syntax and regression tests
+        run: |
+          python -m compileall -q src
+          PYTHONPATH=src pytest -q tests/test_blogger_labels.py
+
       - name: Publish Blogger without running social publishers
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
