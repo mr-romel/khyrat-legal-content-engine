@@ -596,9 +596,9 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
                 if entry_title != wanted:
                     continue
                 entry_html = str((entry.get("content") or {}).get("$t", "") or "")
-                entry_text = re.sub(r"<script\\b[^>]*>.*?</script>", " ", entry_html, flags=re.I | re.S)
+                entry_text = re.sub("<script.*?</script>", " ", entry_html, flags=re.I | re.S)
                 entry_text = re.sub(r"<[^>]+>", " ", entry_text)
-                entry_text = re.sub(r"\\s+", " ", entry_text).strip()
+                entry_text = " ".join(entry_text.split())
                 if len(entry_text) < 500:
                     print("Blogger public feed found the title but the article body is missing/too short; not treating it as a successful publication.")
                     continue
