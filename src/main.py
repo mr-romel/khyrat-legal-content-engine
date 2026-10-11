@@ -401,7 +401,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
         if not topic or not post:
             continue
         try:
-            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
             publication_rank = sum(
                 1 for published_row in rows
                 if str(published_row.get("الحالة", "")).strip().upper() == "PUBLISHED"
