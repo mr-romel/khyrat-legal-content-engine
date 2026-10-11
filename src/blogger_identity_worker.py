@@ -328,6 +328,7 @@ def _configure_pages_gadget(page) -> bool:
     print("Blogger Pages checkbox diagnostics:", json.dumps(result[:80], ensure_ascii=False))
 
     changed = False
+    checkbox_matched: set[str] = set()
     if checkbox_count:
         for title in PAGE_TITLES:
             matched = root.locator('input[type="checkbox"]').evaluate(
@@ -348,15 +349,19 @@ def _configure_pages_gadget(page) -> bool:
             )
             if matched:
                 changed = True
-                print(f"Blogger Pages selected: {title}")
+                checkbox_matched.add(title)
+                print(f"Blogger Pages selected and verified: {title}")
             else:
-                print(f"Blogger Pages target not found: {title}")
+                print(f"Blogger Pages checkbox target not found: {title}")
     else:
         print("Blogger Pages editor has no native checkboxes; using exact visible labels only.")
 
-    # Some versions render custom rows without native checkbox elements.
-    # Click the exact page label as a secondary path, without toggling arbitrary rows.
+    # Critical: do not click labels for checkboxes already handled above. On the
+    # current Blogger UI, clicking a selected row toggles it OFF; the previous
+    # fallback undid the successful checkbox selection for every matched page.
     for title in PAGE_TITLES:
+        if title in checkbox_matched:
+            continue
         try:
             label = root.get_by_text(re.compile(rf"^{re.escape(title)}$", re.I))
             for i in range(label.count()):
@@ -365,7 +370,7 @@ def _configure_pages_gadget(page) -> bool:
                     if item.is_visible():
                         item.click(force=True)
                         changed = True
-                        print(f"Blogger Pages label clicked: {title}")
+                        print(f"Blogger Pages label fallback used for unmatched checkbox row: {title}")
                         break
                 except Exception:
                     pass
@@ -378,35 +383,68 @@ def _configure_pages_gadget(page) -> bool:
     return changed
 
 def _update_page_header_from_layout(page, title: str, description: str) -> bool:
-    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\\(رأس الصفحة\\).*Ask-Mahmoud|Ask-Mahmoud"):
-        _click_layout_edit_fallback(page, "header")
+    # Never use fixed screen coordinates for Blogger's responsive editor: a click
+    # at the old coordinates can change an unrelated gadget or silently do nothing.
+    if not _open_gadget_editor_by_text(page, r"Page Header gadget|\\(رأس الصفحة\\).*Ask-Mahmoud|Ask-Mahmoud|رأس الصفحة"):
+        if not _click_layout_edit_fallback(page, "header"):
+            print("Blogger Header editor could not be opened through a grounded DOM control.")
+            return False
 
-    page.wait_for_timeout(900)
+    page.wait_for_timeout(700)
     try:
         Path("generated").mkdir(parents=True, exist_ok=True)
         page.screenshot(path="generated/blogger-header-editor.png", full_page=True)
     except Exception:
         pass
 
-    # Current Blogger Material UI can render the Header editor fields through
-    # a visual layer that Playwright does not expose as normal form controls.
-    # The editor is stable enough to use its visible coordinates as a fallback.
+    dialogs = page.locator('[role="dialog"], .modal-dialog, .dialog, [aria-modal="true"]')
+    root = page
+    for i in range(min(dialogs.count(), 12)):
+        candidate = dialogs.nth(i)
+        try:
+            if candidate.is_visible():
+                root = candidate
+                break
+        except Exception:
+            pass
+
+    controls = root.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
+    visible = []
+    for i in range(min(controls.count(), 30)):
+        candidate = controls.nth(i)
+        try:
+            if candidate.is_visible() and candidate.is_enabled():
+                visible.append(candidate)
+        except Exception:
+            pass
+    if not visible:
+        print("Blogger Header editor has no visible editable DOM controls; no blind coordinate clicks attempted.")
+        return False
+
+    def field_score(control, tokens: tuple[str, ...]) -> int:
+        metadata = " ".join(
+            str(control.get_attribute(attr) or "")
+            for attr in ("aria-label", "placeholder", "name", "title", "id")
+        ).casefold()
+        return sum(3 for token in tokens if token.casefold() in metadata)
+
+    title_field = max(visible, key=lambda x: field_score(x, ("title", "العنوان")))
+    desc_candidates = [x for x in visible if x != title_field]
+    description_field = max(desc_candidates, key=lambda x: field_score(x, ("description", "الوصف"))) if desc_candidates else None
     try:
-        # Screenshot coordinates are 1280x720 in the runner.
-        page.mouse.click(640, 218)
-        page.keyboard.press("Control+A")
-        page.keyboard.type(title)
-        page.mouse.click(640, 334)
-        page.keyboard.press("Control+A")
-        page.keyboard.type(description)
-        page.mouse.click(488, 627)
-        page.wait_for_timeout(1400)
-        print("Blogger Header gadget updated via visual keyboard fallback.")
+        title_field.fill(title)
+        if description_field:
+            description_field.fill(description)
+        if not _click_first(root, (r"Save", r"حفظ", r"تطبيق"), role="button"):
+            if not _click_first(root, (r"Save", r"حفظ", r"تطبيق")):
+                print("Blogger Header editor Save button not found.")
+                return False
+        page.wait_for_timeout(1200)
+        print("Blogger Header gadget updated through visible DOM fields.")
         return True
     except Exception as exc:
-        print(f"Blogger Header visual fallback failed: {exc}")
-
-    return False
+        print(f"Blogger Header DOM update failed: {exc}")
+        return False
 
 def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
