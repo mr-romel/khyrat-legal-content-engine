@@ -37,8 +37,18 @@ def test_edge_tts_is_not_a_dependency_or_fallback():
     assert "edge-tts" not in requirements
 
 
-def test_transient_image_qa_outage_does_not_downgrade_post_to_text_only():
+def test_image_qa_rejection_is_advisory_and_keeps_the_image():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert 'image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"' in main_source
-    assert "Required image generation failed; social publication blocked" in main_source
-    assert "refusing text-only social publication" in main_source
+    assert 'image_qa_status = "QA_WARNING_RETAINED"' in main_source
+    assert "image_path.unlink(missing_ok=True)" not in main_source[
+        main_source.find('if image_qa_status == "QA_REJECTED"'):
+        main_source.find('print(f"IMAGE SEMANTIC QA:')
+    ]
+
+
+def test_image_generation_failure_never_blocks_social_publication():
+    main_source = Path("src/main.py").read_text(encoding="utf-8")
+    assert 'image_qa_status = "IMAGE_GENERATION_FAILED_TEXT_FALLBACK"' in main_source
+    assert "continuing with text publication fallback" in main_source
+    assert "publishing text to both platforms instead of cancelling the post" in main_source
+    assert "refusing text-only social publication" not in main_source
