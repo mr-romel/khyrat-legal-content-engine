@@ -325,14 +325,14 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_REJECTED"
         except Exception as qa_exc:
             image_qa_summary = f"Image QA unavailable: {qa_exc}"
-            image_qa_status = "QA_UNAVAILABLE_TEXT_ONLY"
-        if image_qa_status == "QA_UNAVAILABLE_TEXT_ONLY":
+            image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
+        if image_qa_status == "QA_UNAVAILABLE_IMAGE_RETAINED":
             # The image bytes were generated and branded successfully. A transient
             # QA/TLS outage must not silently downgrade a visual post to text-only.
             image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
         if image_qa_status == "QA_REJECTED":
             # Never publish an image that the final-image QA explicitly rejected.
-            # The outer image handler clears its URL and continues text-only.
+            # The outer image handler records rejection and blocks publication.
             image_path.unlink(missing_ok=True)
             raise ImageGenerationError(
                 f"Final image QA rejected this visual; refusing to publish it: {image_qa_summary}"
