@@ -156,6 +156,27 @@ def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
     raise RuntimeError(f"External TLS/network request failed after {attempts} attempts: {last_error}") from last_error
 
 
+def _refresh_google_credentials_with_retry(credentials, attempts: int = 3) -> None:
+    from google.auth.transport.requests import Request
+    import time
+
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            credentials.refresh(Request())
+            if not credentials.token:
+                raise RuntimeError("Google Cloud credentials refresh returned no token.")
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            delay = min(attempt * 2, 6)
+            print(f"Google credential refresh failed; retry {attempt + 1}/{attempts} in {delay}s: {exc}")
+            time.sleep(delay)
+    raise RuntimeError(f"Google Cloud credentials refresh failed after {attempts} attempts: {last_error}") from last_error
+
+
 def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
     """High-quality Arabic fallback using the existing Google service account."""
     from google.oauth2 import service_account
@@ -165,9 +186,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         service_account_info,
         scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
-    credentials.refresh(Request())
-    if not credentials.token:
-        raise RuntimeError("Google Cloud TTS access token was not obtained.")
+    _refresh_google_credentials_with_retry(credentials)
 
     clean = prepare_tts_script(script)
     payload = {
@@ -237,13 +256,11 @@ def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) 
 def generate_google_cloud_short_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
     """Generate a short brand sign-off using the existing Google Cloud TTS credentials."""
     from google.oauth2 import service_account
-    from google.auth.transport.requests import Request
-
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
-    credentials.refresh(Request())
+    _refresh_google_credentials_with_retry(credentials)
     clean = prepare_tts_script(script)
     payload = {
         "input": {"text": clean},
