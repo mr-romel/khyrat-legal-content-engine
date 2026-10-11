@@ -579,6 +579,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
     """Resolve a real public permalink and post ID from Blogger's public JSON feed."""
     feed_url = blog_url.rstrip("/") + "/feeds/posts/default"
     wanted = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
+    incomplete_title_match = False
     for attempt in range(max(1, attempts)):
         try:
             response = requests.get(
@@ -600,6 +601,7 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
                 entry_text = re.sub(r"<[^>]+>", " ", entry_text)
                 entry_text = " ".join(entry_text.split())
                 if len(entry_text) < 500:
+                    incomplete_title_match = True
                     print("Blogger public feed found the title but the article body is missing/too short; not treating it as a successful publication.")
                     continue
                 links = entry.get("link", []) or []
@@ -619,6 +621,9 @@ def _public_post_permalink(blog_url: str, title: str, attempts: int = 3) -> tupl
             print(f"Blogger public permalink lookup attempt {attempt + 1}/{attempts} failed: {exc}")
         if attempt + 1 < attempts:
             time.sleep(2)
+    # A title-only feed match must not fall through to title-only HTML permalink discovery.
+    if incomplete_title_match:
+        return "", ""
     # Some Blogger blogs disable the Atom/JSON feed. In that case, verify the
     # post through public HTML (home page and Blogger search) instead of treating
     # the private dashboard ?postId= URL as a public link.
