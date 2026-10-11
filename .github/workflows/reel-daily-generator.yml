@@ -29,6 +29,8 @@ jobs:
       GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
       KHYRAT_DRY_RUN: "false"
       REEL_SKIP_GEMINI: "false"
+      REEL_RECOVERY: "true"
+      REEL_MAX_DURATION_SECONDS: "180"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
