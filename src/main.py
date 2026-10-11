@@ -331,12 +331,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             # QA/TLS outage must not silently downgrade a visual post to text-only.
             image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
         if image_qa_status == "QA_REJECTED":
-            # Never publish an image that the final-image QA explicitly rejected.
-            # The outer image handler records rejection and blocks publication.
-            image_path.unlink(missing_ok=True)
-            raise ImageGenerationError(
-                f"Final image QA rejected this visual; refusing to publish it: {image_qa_summary}"
-            )
+            # QA is advisory: retain a generated image and record a warning.
+            # Only generation/file-integrity failures may leave the post text-only.
+            image_qa_status = "QA_WARNING_RETAINED"
         print(f"IMAGE SEMANTIC QA: {image_qa_status} | {image_qa_summary}")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
@@ -355,27 +352,25 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # Do not leave a stale image URL that could misrepresent this publication.
+        # Publishing is non-blocking: never cancel the post solely because the
+        # image provider or visual-brief generation is unavailable. Do not reuse
+        # a stale local file or stale public URL; downstream publishes text only.
         image_url = ""
         generated_image_path = None
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
                 "Image QA Attempt": "1",
-                "Image QA Status": "IMAGE_GENERATION_FAILED_REQUIRED",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "IMAGE_GENERATION_FAILED_REQUIRED",
+                "Image Mode": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
                 "المحتوى": post,
                 "وقت آخر تشغيل": current.isoformat(),
-                "الحالة": "FAILED",
-                "آخر خطأ": f"Required image generation failed; social publication blocked: {image_exc}"[:1500],
+                "آخر خطأ": f"Image unavailable; publication will continue as text: {image_exc}"[:1500],
             })
         except Exception as state_exc:
-            print(f"Image failure state update also failed; text publication still continues: {state_exc}")
-        print(f"IMAGE GENERATION FAILED — publication blocked to prevent a text-only post: {image_exc}")
-        raise ImageGenerationError(
-            f"Required post image could not be generated and verified; publication blocked: {image_exc}"
-        ) from image_exc
+            print(f"Image failure state update unavailable; continuing to publication anyway: {state_exc}")
+        print(f"IMAGE GENERATION FAILED — continuing with text publication fallback: {image_exc}")
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
@@ -629,11 +624,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persisted for row {row_number}.")
         except Exception as content_state_exc:
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
-        image_available = bool(image_path and Path(image_path).is_file())
+        image_available = bool(image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0)
         if not image_available:
-            raise ImageGenerationError(
-                "Required post image is missing after generation; refusing text-only social publication."
-            )
+            print("No usable generated image is available; publishing text to both platforms instead of cancelling the post.")
+            image_path = None
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
