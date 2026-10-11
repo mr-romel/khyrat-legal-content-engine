@@ -1055,9 +1055,16 @@ def main() -> int:
             if fallback_candidates:
                 row_number, candidate = fallback_candidates[-1]
                 recovered.append((row_number, candidate))
+                source_context = {
+                    "row_number": row_number,
+                    "source_id": str(candidate.get("ID", "") or "").strip(),
+                    "topic": str(candidate.get("الموضوع", "") or "").strip(),
+                }
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                source_path.write_text(json.dumps(source_context, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(
                     f"Reel recovery fallback: today's social post is not published yet; "
-                    f"using newest undelivered eligible social row {row_number}."
+                    f"locked newest undelivered eligible social row {row_number}."
                 )
             else:
                 print("Reel recovery: no eligible published row today or in the undelivered recovery queue.")
