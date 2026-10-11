@@ -78,7 +78,14 @@ jobs:
           REEL_FORCE_TELEGRAM_REVIEW: ${{ contains(fromJSON('["REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: PYTHONPATH=src python src/reel_pipeline.py
+        run: |
+          # Prevent a stale committed video from making a no-op run look successful.
+          rm -rf generated/reels
+          PYTHONPATH=src python src/reel_pipeline.py
+          if ! find generated/reels -maxdepth 2 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+            echo "::error::Reel pipeline finished without creating a new MP4. Check the source-lock and Telegram delivery logs."
+            exit 1
+          fi
       - name: Upload Reel review artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
