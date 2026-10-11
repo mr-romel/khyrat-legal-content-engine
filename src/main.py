@@ -475,19 +475,25 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
             raise ImageGenerationError("Replacement image file was empty.")
-        image_qa = qa_image(
-            api_key=config["gemini_api_key"],
-            image_path=str(image_path),
-            topic=topic,
-            image_brief=visual_description,
-        )
-        image_qa_summary = summarize_qa(image_qa)
-        print(f"IMAGE REPAIR SEMANTIC QA: {image_qa_summary}")
-        if str(image_qa.get("decision", "")).upper() != "PASS":
-            raise ImageGenerationError(
-                "Replacement image failed visual relevance/text QA; refusing to republish. "
-                + image_qa_summary
+        try:
+            image_qa = qa_image(
+                api_key=config["gemini_api_key"],
+                image_path=str(image_path),
+                topic=topic,
+                image_brief=visual_description,
             )
+            image_qa_summary = summarize_qa(image_qa)
+            print(f"IMAGE REPAIR SEMANTIC QA: {image_qa_summary}")
+            if str(image_qa.get("decision", "")).upper() != "PASS":
+                raise ImageGenerationError(
+                    "Replacement image failed visual relevance/text QA; refusing to republish. "
+                    + image_qa_summary
+                )
+        except ImageGenerationError:
+            raise
+        except Exception as qa_exc:
+            image_qa_summary = f"Image QA unavailable after successful image generation: {qa_exc}"
+            print(f"IMAGE REPAIR QA TRANSIENT FAILURE: {image_qa_summary}; retaining generated image for delivery.")
         brand_published_image(str(image_path))
     except ImageGenerationError as exc:
         update_row(service, config["sheet_id"], sheet_name, row_number, {
