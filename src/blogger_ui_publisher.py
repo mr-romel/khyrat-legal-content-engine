@@ -903,6 +903,33 @@ def publish_article_ui(
 
             _fill_title(page, title)
             _set_editor_html(page, content_html)
+            # Refuse to publish if the visible editor did not retain a substantial body.
+            editor_lengths = []
+            for selector in ['textarea', '[contenteditable="true"]', '[role="textbox"]']:
+                try:
+                    locator = page.locator(selector)
+                    for index in range(min(locator.count(), 12)):
+                        item = locator.nth(index)
+                        if not item.is_visible(timeout=300):
+                            continue
+                        value = ""
+                        try:
+                            value = item.input_value(timeout=500) if selector == 'textarea' else item.inner_text(timeout=500)
+                        except Exception:
+                            try:
+                                value = item.get_attribute("value") or item.get_attribute("innerHTML") or ""
+                            except Exception:
+                                value = ""
+                        if value:
+                            editor_lengths.append(len(value))
+                except Exception:
+                    continue
+            if len(content_html) < 500 or not editor_lengths or max(editor_lengths) < 500:
+                raise BloggerUIPublishError(
+                    "Blogger editor body verification failed before Publish; refusing to publish a title-only post. "
+                    + json.dumps({"expected_html_chars": len(content_html), "visible_editor_lengths": editor_lengths}, ensure_ascii=False)
+                )
+            print("Blogger editor body verified before Publish: expected_chars=%d editor_lengths=%s" % (len(content_html), editor_lengths))
             _set_labels(page, labels or [])
             _wait_for_editor_save(page)
             if search_description.strip():
