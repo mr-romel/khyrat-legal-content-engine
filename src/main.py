@@ -327,10 +327,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_qa_summary = f"Image QA unavailable: {qa_exc}"
             image_qa_status = "QA_UNAVAILABLE_TEXT_ONLY"
         if image_qa_status == "QA_UNAVAILABLE_TEXT_ONLY":
-            # If visual verification is unavailable, keep the legal post but do not attach an unverified image.
-            raise ImageGenerationError(
-                f"Final image QA unavailable; refusing to publish an unverified image: {image_qa_summary}"
-            )
+            # The image bytes were generated and branded successfully. A transient
+            # QA/TLS outage must not silently downgrade a visual post to text-only.
+            image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
         if image_qa_status == "QA_REJECTED":
             # Never publish an image that the final-image QA explicitly rejected.
             # The outer image handler clears its URL and continues text-only.
@@ -372,7 +371,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             })
         except Exception as state_exc:
             print(f"Image failure state update also failed; text publication still continues: {state_exc}")
-        print(f"IMAGE GENERATION FAILED — continuing with text-only publication: {image_exc}")
+        print(f"IMAGE GENERATION FAILED — publication blocked to prevent a text-only post: {image_exc}")
+        raise ImageGenerationError(
+            f"Required post image could not be generated and verified; publication blocked: {image_exc}"
+        ) from image_exc
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
