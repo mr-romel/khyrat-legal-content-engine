@@ -772,8 +772,15 @@ def _published_dashboard_post(page, blog_url: str, title: str, blog_id: str = ""
                 ):
                     public_url = href
             if public_url and edit_post_id:
-                print(f"Blogger public permalink verified from matching Published dashboard row: {public_url}")
-                return public_url, edit_post_id
+                # A matching title is not enough: older broken runs sometimes
+                # published a title-only post. Reuse it only if the public feed
+                # confirms that a substantive article body exists.
+                verified_url, verified_id = _public_post_permalink(blog_url, title, attempts=1)
+                if not verified_url:
+                    print("Blogger dashboard title match has no verified article body; refusing idempotent success.")
+                    continue
+                print(f"Blogger public permalink and article body verified: {verified_url}")
+                return verified_url, verified_id or edit_post_id
         print("No public permalink found in an exact matching Published dashboard row.")
     except Exception as exc:
         print(f"Blogger dashboard permalink lookup failed: {exc}")
