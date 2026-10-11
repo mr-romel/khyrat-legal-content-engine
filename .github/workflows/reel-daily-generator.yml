@@ -48,7 +48,14 @@ jobs:
           python -m pip install uv
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Generate daily reel
-        run: PYTHONPATH=src python src/reel_pipeline.py
+        run: |
+          # Remove any checkout-restored video so this run cannot pass on stale output.
+          rm -rf generated/reels
+          PYTHONPATH=src python src/reel_pipeline.py
+          if ! find generated/reels -maxdepth 3 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+            echo "::error::Daily Reel worker completed without producing a new MP4; treating this run as failed."
+            exit 1
+          fi
       - name: Persist reel package
         if: ${{ success() }}
         run: |
