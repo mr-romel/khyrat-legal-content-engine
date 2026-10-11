@@ -135,32 +135,25 @@ def prepare_tts_script(text: str) -> str:
 def prepare_neural_tts_script(text: str) -> str:
     return _clean_tts_text(text)
 
-def generate_edge_egyptian_tts_audio(script: str, output_path: Path) -> Path:
-    """Natural Egyptian Arabic Microsoft Neural voice fallback."""
-    import asyncio
-    import edge_tts
+def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
+    """Retry transient TLS disconnects without repeating downstream Telegram actions."""
+    import time
+    import ssl
+    import socket
+    from urllib.error import URLError
 
-    clean = prepare_neural_tts_script(script)
-    voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("EDGE_TTS_RATE", "+0%")
-    pitch = os.getenv("EDGE_TTS_PITCH", "+0Hz")
-
-    async def _save() -> None:
-        await edge_tts.Communicate(clean, voice=voice, rate=rate, pitch=pitch).save(str(output_path))
-
-    asyncio.run(_save())
-    if not output_path.is_file():
-        raise RuntimeError("Edge TTS produced no audio file.")
-    probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
-        capture_output=True, text=True, check=True, timeout=30,
-    )
-    duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Edge Egyptian TTS duration outside production range: {duration:.1f}s")
-    print(f"Edge Egyptian Neural TTS succeeded: voice={voice} duration={duration:.1f}s")
-    return output_path
+    last_error = None
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except (URLError, ssl.SSLError, socket.timeout, TimeoutError, EOFError, ConnectionError) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            delay = min(2 ** (attempt - 1), 8)
+            print(f"Transient TLS/network failure ({type(exc).__name__}); retry {attempt + 1}/{attempts} in {delay}s: {exc}")
+            time.sleep(delay)
+    raise RuntimeError(f"External TLS/network request failed after {attempts} attempts: {last_error}") from last_error
 
 
 def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
@@ -195,7 +188,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as response:
+    with _urlopen_with_retry(req, timeout=120, attempts=3) as response:
         data = json.loads(response.read().decode("utf-8"))
     encoded = str(data.get("audioContent") or "")
     if not encoded:
@@ -212,19 +205,6 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
 
-
-def generate_local_egyptian_tts_audio(script: str, output_path: Path, emotion_map: list[dict[str, Any]] | None = None) -> Path:
-    """Egyptian Arabic neural fallback; never use robotic espeak for production Reels."""
-    clean = prepare_neural_tts_script(script)
-    voice = os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("REEL_EDGE_TTS_RATE", "+0%")
-    edge = shutil.which("edge-tts")
-    if not edge:
-        raise RuntimeError("edge-tts is not installed; refusing robotic espeak fallback.")
-    subprocess.run([edge, "--voice", voice, "--rate", rate, "--text", clean, "--write-media", str(output_path)], check=True, timeout=180, capture_output=True, text=True)
-    if not output_path.is_file():
-        raise RuntimeError("Egyptian Neural TTS fallback produced no audio file.")
-    return _normalize_reel_audio_duration(output_path)
 
 def _media_duration(path: Path) -> float:
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)], capture_output=True, text=True, check=True, timeout=30)
@@ -254,26 +234,47 @@ def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) 
     print("Egyptian Neural TTS ready without speed change: duration=%.1fs" % duration)
     return path
 
-def generate_local_short_neural_tts(script: str, output_path: Path) -> Path:
-    """Generate the brand sting through the active Python environment."""
-    clean = prepare_neural_tts_script(script)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.unlink(missing_ok=True)
-    # The executable may be absent from global PATH while edge-tts is installed
-    # inside the workflow virtual environment. Invoke the module with this Python.
-    subprocess.run(
-        [sys.executable, "-m", "edge_tts",
-         "--voice", os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"),
-         "--rate", os.getenv("REEL_EDGE_TTS_RATE", "+10%"),
-         "--text", clean, "--write-media", str(output_path)],
-        check=True, timeout=120, capture_output=True, text=True,
+def generate_google_cloud_short_arabic_tts_audio(service_account_info: dict[str, Any], script: str, output_path: Path) -> Path:
+    """Generate a short brand sign-off using the existing Google Cloud TTS credentials."""
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
-    if not output_path.is_file() or output_path.stat().st_size == 0:
-        raise RuntimeError("Edge TTS returned without creating the brand-sting audio.")
+    credentials.refresh(Request())
+    clean = prepare_tts_script(script)
+    payload = {
+        "input": {"text": clean},
+        "voice": {
+            "languageCode": os.getenv("GOOGLE_TTS_LANGUAGE", "ar-XA"),
+            "name": os.getenv("GOOGLE_TTS_VOICE", "ar-XA-Wavenet-D"),
+        },
+        "audioConfig": {
+            "audioEncoding": "LINEAR16",
+            "speakingRate": float(os.getenv("GOOGLE_TTS_SPEAKING_RATE", "0.96")),
+            "pitch": float(os.getenv("GOOGLE_TTS_PITCH", "0.0")),
+        },
+    }
+    req = urllib.request.Request(
+        "https://texttospeech.googleapis.com/v1/text:synthesize",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with _urlopen_with_retry(req, timeout=120, attempts=3) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    encoded = str(data.get("audioContent") or "")
+    if not encoded:
+        raise RuntimeError(f"Google Cloud TTS returned no short audio: {str(data)[:800]}")
+    output_path.write_bytes(base64.b64decode(encoded))
     duration = _media_duration(output_path)
     if duration < 1.0 or duration > 10.0:
-        raise RuntimeError(f"Short neural TTS duration invalid: {duration:.1f}s")
+        raise RuntimeError(f"Google Cloud short TTS duration invalid: {duration:.1f}s")
     return output_path
+
+
 def generate_gemini_tts_audio_unbounded(
     api_key: str,
     script: str,
@@ -306,7 +307,7 @@ def generate_gemini_tts_audio_unbounded(
         headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=180) as response:
+    with _urlopen_with_retry(req, timeout=180, attempts=3) as response:
         data = json.loads(response.read().decode("utf-8"))
     encoded = ((data.get("interaction") or {}).get("output_audio") or {}).get("data")
     if not encoded:
@@ -373,7 +374,7 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=300) as response:
+        with _urlopen_with_retry(req, timeout=300, attempts=3) as response:
             data = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         raise RuntimeError(f"Gemini TTS request failed: {exc}") from exc
@@ -1128,22 +1129,15 @@ def main() -> int:
             print("REEL_STAGE tts=gemini_ok")
         except Exception as gemini_tts_exc:
             print(f"REEL_STAGE tts=gemini_unavailable reason={gemini_tts_exc}")
-            # Use a real Egyptian Neural voice, never espeak/local robotic synthesis.
-            tts_audio = output_dir / "voice-egyptian-neural.mp3"
+            tts_audio = output_dir / "voice-google-cloud.wav"
             try:
-                generate_edge_egyptian_tts_audio(brief["script"], tts_audio)
-                print("REEL_STAGE tts=edge_egyptian_ok")
-            except Exception as edge_tts_exc:
-                print(f"REEL_STAGE tts=edge_unavailable reason={edge_tts_exc}")
-                tts_audio = output_dir / "voice-google-cloud.wav"
-                try:
-                    generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
-                    print("REEL_STAGE tts=google_cloud_ok")
-                except Exception as cloud_tts_exc:
-                    raise RuntimeError(
-                        "No acceptable production Arabic TTS is available; refusing Telegram delivery. "
-                        f"Gemini={gemini_tts_exc}; Edge Egyptian={edge_tts_exc}; Google Cloud={cloud_tts_exc}"
-                    ) from cloud_tts_exc
+                generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
+                print("REEL_STAGE tts=google_cloud_ok")
+            except Exception as cloud_tts_exc:
+                raise RuntimeError(
+                    "Gemini TTS failed and Google Cloud TTS fallback failed; refusing Telegram delivery. "
+                    f"Gemini={gemini_tts_exc}; Google Cloud={cloud_tts_exc}"
+                ) from cloud_tts_exc
 
         fit_reel_narration_duration(tts_audio, target_seconds=62.0)
         print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
@@ -1221,18 +1215,17 @@ def main() -> int:
                             slogan_ready = False
                             clean_slogan = prepare_tts_script(slogan_text)
                             try:
-                                # The brand sting is fixed copy. Use Edge Neural TTS first
-                                # so Gemini's daily text/audio quota is reserved for legal content.
-                                generate_local_short_neural_tts(clean_slogan, slogan_audio)
+                                generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                                 slogan_ready = slogan_audio.is_file()
-                                print("REEL_STAGE slogan=edge_tts_ok")
-                            except Exception as slogan_local_exc:
-                                print(f"Reel slogan Edge TTS unavailable: {slogan_local_exc}")
+                                print("REEL_STAGE slogan=gemini_tts_ok")
+                            except Exception as slogan_gemini_exc:
+                                print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
                                 try:
-                                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
+                                    generate_google_cloud_short_arabic_tts_audio(cfg["service_account_info"], clean_slogan, slogan_audio)
                                     slogan_ready = slogan_audio.is_file()
-                                except Exception as slogan_gemini_exc:
-                                    print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
+                                    print("REEL_STAGE slogan=google_cloud_tts_ok")
+                                except Exception as slogan_cloud_exc:
+                                    print(f"Reel slogan Google Cloud TTS unavailable: {slogan_cloud_exc}")
                             try:
                                 if not slogan_ready:
                                     raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
@@ -1260,17 +1253,17 @@ def main() -> int:
                 slogan_ready = False
                 clean_slogan = prepare_tts_script(slogan_text)
                 try:
-                    # Avoid a Gemini call for a fixed, repeatable brand phrase.
-                    generate_local_short_neural_tts(clean_slogan, slogan_audio)
+                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
                     slogan_ready = slogan_audio.is_file()
-                    print("REEL_STAGE fallback_slogan=edge_tts_ok")
-                except Exception as local_slogan_exc:
-                    print(f"Reel fallback slogan Edge TTS unavailable: {local_slogan_exc}")
+                    print("REEL_STAGE fallback_slogan=gemini_tts_ok")
+                except Exception as slogan_exc:
+                    print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
                     try:
-                        generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
+                        generate_google_cloud_short_arabic_tts_audio(cfg["service_account_info"], clean_slogan, slogan_audio)
                         slogan_ready = slogan_audio.is_file()
-                    except Exception as slogan_exc:
-                        print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
+                        print("REEL_STAGE fallback_slogan=google_cloud_tts_ok")
+                    except Exception as cloud_slogan_exc:
+                        print(f"Reel fallback slogan Google Cloud TTS unavailable: {cloud_slogan_exc}")
                 branded = output_dir / "branded-fallback.mp4"
                 try:
                     if not slogan_ready:
