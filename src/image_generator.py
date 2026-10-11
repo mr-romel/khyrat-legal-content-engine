@@ -258,21 +258,32 @@ def create_legal_image(
             from google.genai import types
             client = genai.Client(api_key=gemini_key)
             model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
-            response = client.models.generate_content(
-                model=model,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
-                ),
-            )
-            for part in getattr(response, "parts", []) or []:
-                image = part.as_image() if hasattr(part, "as_image") else None
-                if image is not None:
-                    import io
-                    buf = io.BytesIO()
-                    image.save(buf, format="PNG")
-                    return buf.getvalue()
-            raise ImageGenerationError("Gemini image response contained no image data.")
+            import time
+            last_error = None
+            for attempt in range(1, 4):
+                try:
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=[prompt],
+                        config=types.GenerateContentConfig(
+                            response_modalities=["IMAGE"],
+                        ),
+                    )
+                    for part in getattr(response, "parts", []) or []:
+                        image = part.as_image() if hasattr(part, "as_image") else None
+                        if image is not None:
+                            import io
+                            buf = io.BytesIO()
+                            image.save(buf, format="PNG")
+                            return buf.getvalue()
+                    raise ImageGenerationError("Gemini image response contained no image data.")
+                except Exception as exc:
+                    last_error = exc
+                    if attempt < 3:
+                        delay = attempt * 2
+                        print(f"Transient image-generation failure; retry {attempt + 1}/3 in {delay}s: {exc}")
+                        time.sleep(delay)
+            raise ImageGenerationError(f"Gemini image generation failed after 3 attempts: {last_error}") from last_error
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
@@ -312,23 +323,31 @@ def create_legal_image(
     if not endpoint:
         cloudflare_error = "Cloudflare credentials unavailable."
     else:
-        try:
-            response = requests.post(
-                endpoint,
-                headers=headers,
-                json=request_body,
-                timeout=180,
-            )
-            if response.ok:
-                image_bytes = _extract_image_bytes(response)
-            else:
+        import time
+        for attempt in range(1, 4):
+            try:
+                response = requests.post(
+                    endpoint,
+                    headers=headers,
+                    json=request_body,
+                    timeout=(20, 180),
+                )
+                if response.ok:
+                    image_bytes = _extract_image_bytes(response)
+                    break
                 try:
                     error_payload = response.json()
                 except ValueError:
                     error_payload = response.text
                 cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
-        except requests.RequestException as exc:
-            cloudflare_error = str(exc)
+                if response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
+                    break
+            except requests.RequestException as exc:
+                cloudflare_error = str(exc)
+            if attempt < 3:
+                delay = attempt * 2
+                print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
+                time.sleep(delay)
 
     if image_bytes is None:
         print(
