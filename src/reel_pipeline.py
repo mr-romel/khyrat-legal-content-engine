@@ -787,10 +787,10 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         "وبعدها راجع الإجراء المناسب للوقائع نفسها، لأن خطوة واحدة غلط ممكن تغيّر موقف قانوني كامل. "
         "الخلاصة: ما تستعجلش القرار، ثبّت اللي حصل الأول، وبعدها اختار الإجراء على أساس المستندات والتفاصيل."
     )
-    script = _bound_reel_script(script, max_words=140)
-    if len(script.split()) < 115:
-        script += " وخلي بالك، نفس القاعدة ممكن تختلف نتيجتها من واقعة للتانية حسب التفاصيل وإيه اللي تقدر تثبته."
-    script = _bound_reel_script(script, max_words=140)
+    script = _bound_reel_script(script, max_words=210)
+    if len(script.split()) < 170:
+        script += " وقبل ما تتحرك، اسأل نفسك: هل كل واقعة عندك عليها دليل واضح؟ هل التواريخ مرتبة؟ وهل الرسائل والمستندات محفوظة في صورتها الأصلية؟ التفاصيل دي مش شكلية؛ أحيانًا هي اللي بتوضح تسلسل الأحداث وتساعدك تختار التصرف المناسب بدل ما تدخل في خطوة متسرعة. ولو في نقطة مش واضحة، ما تبنيش قرارك على توقع أو كلام منقول، راجع المستندات كاملة وخد رأي قانوني يناسب ظروف الواقعة نفسها."
+    script = _bound_reel_script(script, max_words=210)
     sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(sentences, start=1):
