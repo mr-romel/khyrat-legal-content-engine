@@ -204,11 +204,25 @@ FINAL POST:
 
 Return only the English visual scene description.
 """
-    response = client.models.generate_content(
-        model=selected_model,
-        contents=prompt,
-        config={"max_output_tokens": 1200},
-    )
+    import time
+    last_error = None
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=prompt,
+                config={"max_output_tokens": 1200},
+            )
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt < 3:
+                delay = attempt * 2
+                print(f"Image scene request failed; retry {attempt + 1}/3 in {delay}s: {exc}")
+                time.sleep(delay)
+    if response is None:
+        raise RuntimeError(f"Image scene generation failed after 3 attempts: {last_error}") from last_error
     scene = " ".join(str(getattr(response, "text", "") or "").split()).strip()
     if len(scene) < 80:
         raise RuntimeError("Visual scene description is too short.")
