@@ -1,0 +1,21 @@
+{
+  "topic": "التحقيق الإداري — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "Create one realistic contemporary editorial photograph based only on the scene below. Match the exact people, action, everyday setting, and visible evidence described in the final post. Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. Show one clear focal action, believable human expressions, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. Keep the background ordinary and contemporary. Do not invent symbols, scenery, props, or events. Do not substitute a generic legal stock photo for the described event. No readable text, letters, captions, numbers, logos, watermarks, interface elements, infographics, posters, signage, cartoon styling, illustration, 3D rendering, fantasy, or surreal effects.\n\nEXACT SCENE FROM THE FINAL POST:\nA professional manager sitting at a clean, modern wooden desk in an office, reviewing a thick physical folder of documents with a focused and serious expression. Sunlight streams through a large window, illuminating the office space. Close-up shot capturing the manager's hands pointing at a specific document page, emphasizing the analytical process, natural office lighting, cinematic depth of field, high-quality photography.\n\nRender only this scene.",
+  "prompt_sha256": "53f8fd99c5ba49137ef162b79c228e91fc6a160775ebf91cb15fe2d3742b1ab3",
+  "image_sha256": "65a9e50e337e2ccc0db34bae03db2ecb6efc50ab999bfbf0749f240abf9b55ab",
+  "image_path": "generated/20261011-1900-R011.jpg",
+  "visual_description": "A professional manager sitting at a clean, modern wooden desk in an office, reviewing a thick physical folder of documents with a focused and serious expression. Sunlight streams through a large window, illuminating the office space. Close-up shot capturing the manager's hands pointing at a specific document page, emphasizing the analytical process, natural office lighting, cinematic depth of field, high-quality photography.",
+  "qa_decision": "REGENERATE",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 9,
+  "qa_relevance_score": 8,
+  "qa_issues": [
+    "Legal relevance is critically low (8).",
+    "Overall usability is critically low (9).",
+    "Minor gibberish text detected on the desk surface (very faint/blurred). It is negligible and does not distract from the main subject.",
+    "The subject is using a laptop instead of the requested physical folder, but this remains a high-quality, professional, and relevant asset."
+  ],
+  "qa_checked_image_sha256": "65a9e50e337e2ccc0db34bae03db2ecb6efc50ab999bfbf0749f240abf9b55ab"
+}
