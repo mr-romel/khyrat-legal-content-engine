@@ -23,9 +23,9 @@ from utils import now_cairo, parse_date
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
-REEL_MAX_DURATION_SECONDS = 120  # hard production cap: never exceed two minutes
+REEL_MAX_DURATION_SECONDS = 180  # requested maximum: three minutes including brand end-card
 REEL_MIN_DURATION_SECONDS = min(30, REEL_MAX_DURATION_SECONDS)
-REEL_CONTENT_MAX_SECONDS = 110  # reserve 10s for intro/outro and rendering overhead
+REEL_CONTENT_MAX_SECONDS = 170  # reserve 10s for branded ending and rendering overhead
 
 
 def choose_row(
@@ -486,7 +486,7 @@ def add_motion_graphics_layer(
         "-crf", "18", "-c:a", "aac", "-b:a", "160k", "-shortest", str(endcard)
     ], check=True, timeout=180)
 
-    # Build four explainer cards from actual narration sentences, not generic stock labels.
+    # Build up to eight explainer cards from actual narration sentences, not generic stock labels.
     sentences = [v.strip() for v in re.split(r"(?<=[؟!.])\s+", prepare_tts_script(script or topic)) if v.strip()]
     if not sentences:
         sentences = [topic.strip() or "راجع الوقائع", "اجمع المستندات", "راجع التفاصيل", "اختار الإجراء المناسب"]
@@ -496,9 +496,9 @@ def add_motion_graphics_layer(
         phrase = " ".join(words[:8]).strip(" ،؛:.-")
         if phrase and phrase not in selected:
             selected.append(phrase)
-        if len(selected) == 4:
+        if len(selected) == 8:
             break
-    while len(selected) < 4:
+    while len(selected) < 8:
         selected.append(selected[-1] if selected else (topic or "راجع التفاصيل"))
 
     overlay_inputs = []
@@ -539,7 +539,7 @@ def add_motion_graphics_layer(
     duration = _media_duration(base)
     filter_parts = ["[0:v]null[base]"]
     previous = "[base]"
-    for i in range(4):
+    for i in range(8):
         idx = i + 1
         start = max(2.0, duration * (0.10 + i * 0.19))
         end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
@@ -716,7 +716,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for a modern legal advisory brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 90–105 seconds and 115–140 Arabic words maximum. Use concise sentences; the script must contain at most 140 whitespace-separated words. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
+        "Build a real narrative: open with a truthful high-tension situation from the REVIEWED POST, create a question/problem, escalate through 3-5 concrete beats from the post, reveal the practical legal point, give one concrete action, and finish with a memorable takeaway. Do not announce the topic or say the Sheet title. " + f"Target 130–165 seconds and 170–210 Arabic words maximum. Use concise sentences; the script must contain 170–210 whitespace-separated words. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, tied to the exact reviewed post and sentence. Describe only the concrete action, people, modern objects, documents, workplace, home, phone, or evidence stated in that sentence. Use ordinary present-day settings and documentary realism. Keep backgrounds simple and use only modern props supported by the post. Never add a courtroom or lawyer unless the reviewed post actually describes one. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -753,10 +753,10 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     except json.JSONDecodeError as exc:
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
-    script = _bound_reel_script(str(data.get("script", "")).strip(), max_words=140)
+    script = _bound_reel_script(str(data.get("script", "")).strip(), max_words=210)
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
-    if len(terms) < 6: terms = topic_visual_terms(" ".join(str(post or "").split())[:900])
-    if not 115 <= len(script.split()) <= 140 or len(terms) < 6:
+    if len(terms) < 8: terms = post_visual_terms(post, topic)
+    if not 170 <= len(script.split()) <= 210 or len(terms) < 8:
         raise RuntimeError("Reel package is incomplete.")
     return {
         "script": script,
@@ -1100,15 +1100,14 @@ def main() -> int:
         print("REEL_STAGE media=fetch_openverse")
         scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
         print(f"REEL_STAGE openverse_count={len(scenes)}")
-        if len(scenes) < 4:
-            needed = max(4, 8 - len(scenes))
+        if len(scenes) < 8:
+            needed = 8 - len(scenes)
             scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
         # Never recycle unrelated cached imagery into a new legal Reel.
         # Fill missing slots with original topic-labeled graphics instead.
         if len(scenes) < 8:
-            scenes.extend(generate_legal_cards(scene_dir, topic, count=8 - len(scenes)))
-        if len(scenes) < 8:
-            raise RuntimeError("لم يتم توفير 8 مشاهد مرتبطة بالموضوع لهذا الريل.")
+            if len(scenes) < 8:
+            raise RuntimeError(f"لم يتم العثور على 8 صور مرخصة ومطابقة للمشاهد؛ المتاح {len(scenes)}. لن أملأ النقص بكروت عامة مضللة.")
 
         # Normalize externally sourced WebP assets to JPEG because the current
         # MPT local-material validator accepts JPG/PNG but not WebP.
