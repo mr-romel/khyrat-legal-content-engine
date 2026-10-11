@@ -78,7 +78,7 @@ def dedupe_blogger_topics(svc, bid: str, rows: list[dict[str, str]]) -> int:
     import re
     def key(value: str) -> str:
         text = re.sub(r"<[^>]+>", " ", str(value or ""))
-        text = re.sub(r"\\s+", " ", text).strip().casefold()
+        text = re.sub(r"\s+", " ", text).strip().casefold()
         return text
 
     canonical_titles = set()
@@ -331,6 +331,10 @@ def main() -> int:
                     except Exception as exc:
                         editorial_errors.append(f"{candidate_model}: {exc}")
                         print(f"Blogger editorial generation failed with {candidate_model}: {exc}")
+                        error_text = str(exc).casefold()
+                        if "resource_exhausted" in error_text or "quota" in error_text or "429" in error_text:
+                            print("Blogger editorial quota/rate limit detected; skipping further model retries and using the local structured fallback.")
+                            break
             if not isinstance(article, dict):
                 print("Blogger editorial layer unavailable; using structured fallback: " + " | ".join(editorial_errors))
                 article = _fallback_article(topic, post, legal_sources)
