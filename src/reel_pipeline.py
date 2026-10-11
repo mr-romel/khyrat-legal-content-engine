@@ -541,7 +541,7 @@ def add_motion_graphics_layer(
     previous = "[base]"
     for i in range(8):
         idx = i + 1
-        start = max(2.0, duration * (0.10 + i * 0.19))
+        start = max(2.0, duration * (0.08 + i * 0.105))
         end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
         if end <= start:
             continue
@@ -1103,10 +1103,8 @@ def main() -> int:
         if len(scenes) < 8:
             needed = 8 - len(scenes)
             scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=needed))
-        # Never recycle unrelated cached imagery into a new legal Reel.
-        # Fill missing slots with original topic-labeled graphics instead.
+        # Never recycle unrelated cached imagery or generic legal cards into a Reel.
         if len(scenes) < 8:
-            if len(scenes) < 8:
             raise RuntimeError(f"لم يتم العثور على 8 صور مرخصة ومطابقة للمشاهد؛ المتاح {len(scenes)}. لن أملأ النقص بكروت عامة مضللة.")
 
         # Normalize externally sourced WebP assets to JPEG because the current
