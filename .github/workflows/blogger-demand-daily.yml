@@ -77,7 +77,10 @@ jobs:
             # Preserve this run's updated map while resetting the index to the
             # latest remote state; the shared Blogger lock serializes writers.
             git reset --mixed origin/main
-            git add data/blogger_keyword_map.json generated/blogger/demand/
+            git add data/blogger_keyword_map.json
+            if [ -d generated/blogger/demand ]; then
+              git add generated/blogger/demand/
+            fi
             if git diff --cached --quiet; then
               echo "Keyword map is already current on the remote."
               exit 0
