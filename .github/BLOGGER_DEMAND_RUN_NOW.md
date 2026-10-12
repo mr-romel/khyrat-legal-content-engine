@@ -1,3 +1,3 @@
-# Blogger demand recovery
-Retry a new search-demand article after enforcing Blogger's 200-character combined label limit, reusing existing public titles, and verifying the resulting public permalink.
-Trigger nonce: 2026-10-10T16:25+03:00
+# Blogger search demand recovery
+Research and publish a full article based on current search demand, attach a topic-specific hero image when image generation is available, and verify a public permalink.
+Trigger nonce: 1791808821761
