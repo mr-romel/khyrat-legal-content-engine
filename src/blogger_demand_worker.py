@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 import requests
 from google import genai
 
-from blogger_publisher import build_article_html, normalize_blogger_labels, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id
+from blogger_publisher import build_article_html, normalize_blogger_labels, prepare_article, service as blogger_rest_service, blog_id as resolve_blog_id, upload_blogger_image
 from blogger_ui_publisher import publish_article_ui, _public_post_permalink
 from legal_research import research_legal_topic
 
@@ -550,11 +550,40 @@ def main() -> int:
     keywords = [ _clean(x) for x in article.get("keywords", []) if _clean(x) ]
     labels = normalize_blogger_labels(["قانون مصر", "اسأل محمود", *keywords])
     print(f"Demand Blogger labels normalized: count={len(labels)} combined_chars={len(', '.join(labels))}")
+    # Generate and upload a topic-specific hero image for search-demand articles.
+    # Image failure is logged but must never prevent publication of the full article.
+    demand_image_url = ""
+    try:
+        from image_generator import create_legal_image
+        image_path = Path("generated/blogger/demand") / (re.sub(r"[^A-Za-z0-9_-]+", "-", today + "-" + query)[:90] + ".jpg")
+        image_brief = (
+            "A realistic contemporary Egyptian setting directly illustrating this legal search query: "
+            + query + ". Show only objects and people that logically fit this exact issue: " + query
+            + ". Documentary editorial photography, natural lighting, no text, no logos, no scales of justice, no generic courtroom."
+        )
+        create_legal_image(
+            topic=query,
+            image_brief=image_brief,
+            visual_description=image_brief,
+            post_context=str(article.get("lead", "") or search_brief),
+            output_path=str(image_path),
+            api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+            cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
+            cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+        )
+        if image_path.is_file() and image_path.stat().st_size > 0:
+            demand_image_url = upload_blogger_image(str(image_path))
+            print(f"Demand article image uploaded: {demand_image_url}")
+        else:
+            print("Demand article image generation produced no file; continuing publication without image.")
+    except Exception as image_exc:
+        print(f"Demand article image unavailable; continuing article publication: {image_exc}")
+
     html = build_article_html(
         title=title,
         topic=query,
         post=str(article.get("lead", "") or search_brief),
-        image_url="",
+        image_url=demand_image_url,
         legal_sources=packet,
         related=_related_public_posts(published, query),
         article=article,
