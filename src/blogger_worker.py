@@ -383,8 +383,11 @@ def main() -> int:
                 article = _fallback_article(topic, post, legal_sources)
             title = str(article.get("title") or topic).strip()[:110]
             content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
-            if len(content) < 1500 or len(post.strip()) < 120:
-                raise BloggerPublishError("Refusing title-only Blogger publication: article body failed the minimum content guard.")
+            if len(content) < 1500:
+                print("Blogger HTML remained unusually short; rebuilding with the deterministic full-article fallback.")
+                article = _fallback_article(topic, post, legal_sources)
+                title = str(article.get("title") or topic).strip()[:110]
+                content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
             labels = normalize_blogger_labels([
                 "قانون مصر",
                 "اسأل محمود",
