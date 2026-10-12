@@ -1,3 +1,3 @@
 # Blogger search-demand recovery
-Force a new search-demand publication after fixing title-only dedupe and preserving Arabic image filenames.
-Trigger nonce: 1791809572808
+Run one demand-based Blogger article after the title-only dedupe and in-place repair fixes; attach the generated topic-specific image.
+Trigger nonce: 1791809649464
