@@ -68,6 +68,9 @@ def sanitize_social_copy(post: str) -> str:
     """Normalize human-style social copy without changing its substantive meaning."""
     text = str(post or "").replace("\r\n", "\n").replace("\r", "\n")
     text = text.translate(QUOTE_CHARS)
+    # Strip editorial planning labels that must never appear in audience-facing copy.
+    text = re.sub(r"(?im)^.*\\b(?:check[ -]?list|زاوية\\s*(?:أخرى|جديدة)|زاوية\\s*المحتوى|content angle|editorial angle)\\b.*(?:\\n|$)", "", text)
+    text = re.sub(r"(?i)\\bcheck[ -]?list\\b", "", text)
     for marker in AI_SIGNAL_PATTERNS:
         text = re.sub(re.escape(marker), "", text, flags=re.IGNORECASE)
     # Remove sentence-final full stops while preserving question/exclamation punctuation,
