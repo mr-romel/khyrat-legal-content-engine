@@ -20,7 +20,7 @@ from gemini import generate_post, generate_image_scene_from_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic
-from social_content import append_hashtags, sanitize_social_copy, split_hashtags
+from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
 from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
@@ -398,7 +398,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
         li_queue = str(row.get("LinkedIn Comment Queue", "") or "").strip()
         if fb_queue or li_queue:
             continue
-        topic = str(row.get("الموضوع", "") or "").strip()
+        topic = sanitize_topic(str(row.get("الموضوع", "") or ""))
         post = str(row.get("المحتوى", "") or "").strip()
         if not topic or not post:
             continue

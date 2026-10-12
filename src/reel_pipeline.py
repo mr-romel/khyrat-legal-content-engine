@@ -19,7 +19,7 @@ from post_bank import get_bank_rows
 from telegram_bot import send_video, send_message
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from utils import now_cairo, parse_date
-from social_content import sanitize_social_copy
+from social_content import sanitize_social_copy, sanitize_topic
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
@@ -1088,8 +1088,8 @@ def main() -> int:
     if stored_review.startswith("TELEGRAM_DELIVERED") and not stored_file_valid:
         stale_delivery_lock = True
         print(f"Reel row {row_number}: stale Telegram delivery lock detected before generation; new final video will be delivered.")
-    topic = str(row.get("الموضوع", "")).strip()
-    post = str(row.get("المحتوى", "")).strip()
+    topic = sanitize_topic(str(row.get("الموضوع", "")).strip())
+    post = sanitize_social_copy(str(row.get("المحتوى", "")).strip())
     output_dir = OUTPUT_ROOT / ("row_" + str(row_number))
     output_dir.mkdir(parents=True, exist_ok=True)
     # Never trust an MP4 left by a previous run; it may be a partial 7-second
