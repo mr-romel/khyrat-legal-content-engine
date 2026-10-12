@@ -302,6 +302,15 @@ def main() -> int:
             # Preserve the established no-cancel publishing policy if every image provider is unavailable.
             print(f"Blogger: hero image generation unavailable; continuing article publication: {image_exc}")
 
+    # If image generation succeeded but the first Blogger upload attempt failed,
+    # retry once before composing the article. Image failure must never cancel publication.
+    if image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0 and not image_url:
+        try:
+            image_url = upload_blogger_image(image_path)
+            print("Blogger: generated image upload retry succeeded.")
+        except Exception as retry_exc:
+            print(f"Blogger: image upload retry failed; publishing article without image: {retry_exc}")
+
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
