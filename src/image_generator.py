@@ -243,8 +243,8 @@ def create_legal_image(
         f"Final post text: {str(post_context or '')[:1800]}\n"
         f"Scene brief: {visual_description}\n\n"
         "Every visible person, object, and action must directly illustrate this exact legal issue. "
-        "Do not substitute generic legal imagery, unrelated people, unrelated office scenes, pyramids, "
-        "scales of justice, gavels, law books, or courtrooms unless the final post explicitly concerns those objects. "
+        "Do not substitute generic legal imagery, unrelated people, unrelated office scenes, historical scenery, "
+        "legal symbols, gavels, books, or courtrooms unless the final post explicitly concerns those objects. "
         "Render only this scene."
     )
     negative_prompt = (
