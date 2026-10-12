@@ -209,7 +209,9 @@ def main() -> int:
     from datetime import datetime
     from zoneinfo import ZoneInfo
     today_cairo = datetime.now(ZoneInfo("Africa/Cairo")).date()
-    use_ui = bool(config.get("blogger_ui_storage_state_b64"))
+    # Prefer Blogger REST API when OAuth is configured. The browser editor has
+    # intermittently saved only the title; use UI only as a fallback when API OAuth is absent.
+    use_ui = bool(config.get("blogger_ui_storage_state_b64")) and not bool(os.getenv("BLOGGER_OAUTH_JSON", "").strip())
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
         blogger_api = blogger_service()
