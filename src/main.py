@@ -40,7 +40,7 @@ def github_raw_url(relative_path: str) -> str:
     branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
     if not repository:
         return ""
-    return f"https://raw.githubusercontent.com/{repository}/{relative_path.replace(chr(92), '/').lstrip('/')}"
+    return f"https://raw.githubusercontent.com/{repository}/{branch}/{relative_path.replace(chr(92), '/').lstrip('/')}"
 
 
 def _normalized_topic(value: str) -> str:
