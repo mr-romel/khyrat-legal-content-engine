@@ -19,6 +19,7 @@ from post_bank import get_bank_rows
 from telegram_bot import send_video, send_message
 from free_media import cached_fallback_assets, fetch_openverse_images, fetch_wikimedia_images, generate_legal_cards
 from utils import now_cairo, parse_date
+from social_content import sanitize_social_copy
 
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
@@ -761,7 +762,8 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     except json.JSONDecodeError as exc:
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
-    script = _bound_reel_script(str(data.get("script", "")).strip(), max_words=210)
+    script = sanitize_social_copy(str(data.get("script", "")).strip())
+    script = _bound_reel_script(script, max_words=210)
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 8: terms = post_visual_terms(post, topic)
     if not 170 <= len(script.split()) <= 210 or len(terms) < 8:
@@ -1104,6 +1106,7 @@ def main() -> int:
     try:
         print(f"REEL_STAGE start row={row_number} topic={topic!r}")
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
+        brief["script"] = sanitize_social_copy(brief["script"])
         print("REEL_STAGE brief=ok")
         output_dir.mkdir(parents=True, exist_ok=True)
         brief["script"] = prepare_tts_script(brief["script"])

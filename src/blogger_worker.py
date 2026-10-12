@@ -504,12 +504,79 @@ def main() -> int:
         return 0
     except BloggerUIPublishError as ui_exc:
         error = f"UI: {ui_exc}"[:1500]
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Blogger Status": "FAILED",
-            "Blogger Last Error": error,
-        })
-        print(f"Blogger UI publication failed (retryable); REST fallback intentionally disabled when UI session is configured: {error}")
-        return 1
+        # Browser autosave is unreliable in this Blogger account. If OAuth is repaired,
+        # use the REST API to patch a title-only post in place or publish the prepared body.
+        try:
+            if not os.getenv("BLOGGER_OAUTH_JSON", "").strip() or "content" not in locals():
+                raise BloggerPublishError("Blogger REST fallback requires a valid BLOGGER_OAUTH_JSON token and prepared article HTML.")
+            import re
+            blogger_api = blogger_service()
+            target_blog_id = bid or blog_id(blogger_api, config["blogger_url"])
+            page_token = None
+            existing = None
+            while True:
+                kwargs = {"blogId": target_blog_id, "maxResults": 500, "fetchBodies": True}
+                if page_token:
+                    kwargs["pageToken"] = page_token
+                batch = blogger_api.posts().list(**kwargs).execute()
+                for item in batch.get("items", []) or []:
+                    if str(item.get("title", "")).strip().casefold() == title.strip().casefold():
+                        existing = item
+                        break
+                if existing or not batch.get("nextPageToken"):
+                    break
+                page_token = batch.get("nextPageToken")
+            if existing:
+                existing_id = str(existing.get("id", "")).strip()
+                existing_html = str(existing.get("content", "") or "")
+                visible_text = " ".join(re.sub(r"<[^>]+>", " ", existing_html).split())
+                expected_image = str(locals().get("blogger_image_url", "") or "")
+                if len(visible_text) < 900 or (expected_image and expected_image not in existing_html):
+                    saved = blogger_api.posts().patch(blogId=target_blog_id, postId=existing_id, body={"content": content}).execute()
+                else:
+                    saved = existing
+            else:
+                saved = blogger_api.posts().insert(
+                    blogId=target_blog_id,
+                    body={"kind": "blogger#post", "title": title, "content": content, "labels": labels},
+                    isDraft=False,
+                ).execute()
+            saved_id = str(saved.get("id", "") or (existing or {}).get("id", "")).strip()
+            saved_post = blogger_api.posts().get(blogId=target_blog_id, postId=saved_id).execute()
+            saved_html = str(saved_post.get("content", "") or "")
+            saved_text = " ".join(re.sub(r"<[^>]+>", " ", saved_html).split())
+            if not saved_id or len(saved_text) < 900:
+                raise BloggerPublishError("REST verification failed: Blogger article body is still incomplete.")
+            expected_image = str(locals().get("blogger_image_url", "") or "")
+            if expected_image and expected_image not in saved_html:
+                raise BloggerPublishError("REST verification failed: generated article image is not embedded.")
+            result = {
+                "post_id": saved_id,
+                "post_url": str(saved_post.get("url", "") or saved.get("url", "")),
+                "title": str(saved_post.get("title", "") or title),
+                "publisher": "BLOGGER_REST_REPAIR",
+                "search_query": title,
+                "search_candidates": json.dumps([title, *labels], ensure_ascii=False),
+                "meta_description": str(article.get("meta_description", "")).strip()[:180],
+            }
+            if not result["post_url"]:
+                raise BloggerPublishError("REST verification did not return a public post URL.")
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Blogger Status": "PUBLISHED", "Blogger Post ID": result["post_id"],
+                "Blogger URL": result["post_url"], "Blogger Search Title": result["title"],
+                "Blogger Search Query": result["search_query"], "Blogger Search Candidates": result["search_candidates"],
+                "Blogger Meta Description": result["meta_description"], "Blogger SEO Status": "PENDING",
+                "Blogger SEO Error": "", "Blogger Last Error": "",
+            })
+            print(f"Blogger REST fallback verified full article: {result['post_url']}")
+            return 0
+        except Exception as rest_exc:
+            error = f"UI failed: {ui_exc}; REST repair failed: {rest_exc}"[:1500]
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Blogger Status": "FAILED", "Blogger Last Error": error,
+            })
+            print(f"Blogger publication remains retryable; neither UI nor REST verified a complete article: {error}")
+            return 1
     except BloggerPublishError as exc:
         error = str(exc)[:1500]
         update_row(service, config["sheet_id"], sheet_name, row_number, {

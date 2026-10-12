@@ -68,10 +68,15 @@ def sanitize_social_copy(post: str) -> str:
     """Normalize human-style social copy without changing its substantive meaning."""
     text = str(post or "").replace("\r\n", "\n").replace("\r", "\n")
     text = text.translate(QUOTE_CHARS)
-    # Strip editorial planning labels that must never appear in audience-facing copy.
-    text = re.sub(r"(?im)^.*\b(?:check[ -]?list|زاوية\s*(?:أخرى|جديدة)|زاوية\s*المحتوى|content angle|editorial angle)\b.*(?:\n|$)", "", text)
-    text = re.sub(r"(?i)\bcheck[ -]?list\b", "", text)
-    text = re.sub(r"(?i)\bزاوية\s*(?:أخرى|جديدة|المحتوى)\b", "", text)
+    # Strip internal editorial labels in Arabic/English before any public post or comment is sent.
+    planning_terms = (
+        r"check\s*[-_ ]?\s*list|checklist|زاوية\s*(?:أخرى|اخري|اخرى|جديدة|مختلفة|المحتوى)|"
+        r"الزاوية\s*(?:الأخرى|الاخرى|الجديدة|المختلفة)|content\s*angle|editorial\s*angle|"
+        r"hook\s*pattern|content\s*plan|خطة\s*المحتوى|عنوان\s*(?:بديل|الخطة)|"
+        r"زاوية\s*المنشور|صيغة\s*المحتوى|ملاحظة\s*تحريرية"
+    )
+    text = re.sub(r"(?im)^.*(?:%s).*?(?:\n|$)" % planning_terms, "", text)
+    text = re.sub(r"(?i)(?:%s)" % planning_terms, "", text)
     for marker in AI_SIGNAL_PATTERNS:
         text = re.sub(re.escape(marker), "", text, flags=re.IGNORECASE)
     # Remove sentence-final full stops while preserving question/exclamation punctuation,

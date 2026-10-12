@@ -179,7 +179,10 @@ def _public_titles() -> list[dict[str, str]]:
             links = item.get("link", [])
             href = next((x.get("href", "") for x in links if x.get("rel") == "alternate"), "")
             if title and href:
-                out.append({"title": title, "url": href})
+                out.append({
+                    "title": title, "url": href, "body_chars": len(content_text),
+                    "has_image": bool(re.search(r"<img\b[^>]*\bsrc\s*=", content_html, re.I)),
+                })
         return out
     except Exception as exc:
         print(f"Blogger public feed unavailable; keyword-map history remains active: {exc}")
@@ -507,7 +510,13 @@ def main() -> int:
     if not candidates:
         raise RuntimeError("No distinct legal search-demand candidate found after deduplication.")
     selected = candidates[0]
-    query = selected["query"]
+    query = _clean(selected.get("query", ""))
+    if not query:
+        recent_norms = {_norm(str(item.get("query", ""))) for item in history[-45:]}
+        query = next((seed for seed in SEEDS if _norm(seed) not in recent_norms), SEEDS[0])
+        selected["query"] = query
+        selected["seed"] = query
+        print(f"Demand query was empty; selected a concrete legal fallback query: {query}")
     print(f"Selected search-demand query: {query}")
     print(f"Directional demand score: {selected['demand_score']} (not a search-volume estimate)")
     print(f"Autocomplete suggestions: {selected['suggestions']}")
@@ -633,14 +642,52 @@ def main() -> int:
         ),
         None,
     )
-    if existing_public:
+    if existing_public and int(existing_public.get("body_chars", 0) or 0) >= 900 and existing_public.get("has_image"):
         result = {
-            "post_id": "",
-            "post_url": existing_public["url"],
-            "title": title,
-            "publisher": "EXISTING_PUBLIC_POST",
+            "post_id": "", "post_url": existing_public["url"], "title": title,
+            "publisher": "EXISTING_PUBLIC_POST_VERIFIED_BODY_AND_IMAGE",
         }
-        print(f"Demand article idempotency: exact public title already exists; reusing {existing_public['url']}")
+        print(f"Demand article idempotency: existing public article has a substantial body and image; reusing {existing_public['url']}")
+    elif existing_public:
+        print(f"Demand article repair required: body_chars={existing_public.get('body_chars', 0)} has_image={existing_public.get('has_image')}; updating existing post.")
+        try:
+            if not os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+                raise RuntimeError("BLOGGER_OAUTH_JSON is required to repair an existing Blogger post through REST API.")
+            blogger_api = blogger_rest_service()
+            target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
+            page_token = None
+            existing_api = None
+            while True:
+                kwargs = {"blogId": target_blog_id, "maxResults": 500, "fetchBodies": True}
+                if page_token:
+                    kwargs["pageToken"] = page_token
+                batch = blogger_api.posts().list(**kwargs).execute()
+                for item in batch.get("items", []) or []:
+                    if _norm(str(item.get("title", ""))) == _norm(title):
+                        existing_api = item
+                        break
+                if existing_api or not batch.get("nextPageToken"):
+                    break
+                page_token = batch.get("nextPageToken")
+            if not existing_api or not str(existing_api.get("id", "")).strip():
+                raise RuntimeError("Exact existing Blogger post could not be located through the API.")
+            existing_id = str(existing_api["id"])
+            blogger_api.posts().patch(blogId=target_blog_id, postId=existing_id, body={"content": html}).execute()
+            verified = blogger_api.posts().get(blogId=target_blog_id, postId=existing_id).execute()
+            verified_html = str(verified.get("content", "") or "")
+            verified_text = " ".join(re.sub(r"<[^>]+>", " ", verified_html).split())
+            if len(verified_text) < 900:
+                raise RuntimeError("Existing Blogger article body is still incomplete after repair.")
+            if demand_image_url and not re.search(r"<img\b[^>]*\bsrc\s*=", verified_html, re.I):
+                raise RuntimeError("Existing Blogger article image is not embedded after repair.")
+            result = {"post_id": existing_id, "post_url": str(verified.get("url", "") or existing_public["url"]), "title": title, "publisher": "BLOGGER_REST_REPAIR"}
+            print(f"Demand article body/image repaired in place: {result['post_url']}")
+        except Exception as repair_exc:
+            print(f"Demand REST repair unavailable; trying authenticated UI in-place update: {repair_exc}")
+            result = publish_article_ui(
+                title=title, content_html=html, labels=labels, blog_id=BLOG_ID,
+                blog_url=BLOG_URL, search_description=description, force_update=True,
+            )
     elif os.getenv("BLOGGER_OAUTH_JSON", "").strip():
         try:
             blogger_api = blogger_rest_service()
@@ -697,6 +744,18 @@ def main() -> int:
             "Blogger UI returned no public permalink. The article is NOT marked PUBLISHED; "
             "the next run will retry instead of silently skipping."
         )
+    verified_public = next(
+        (item for item in _public_titles() if _norm(item.get("title", "")) == _norm(title) and item.get("url") == public_url),
+        None,
+    )
+    if not verified_public or int(verified_public.get("body_chars", 0) or 0) < 900:
+        history_entry.update({"status": "PUBLISH_UNVERIFIED", "post_id": result.get("post_id", ""), "post_url": ""})
+        _save_map(keyword_map)
+        raise RuntimeError("Blogger article was not verified with a substantial public body; it will be retried.")
+    if demand_image_url and not verified_public.get("has_image"):
+        history_entry.update({"status": "PUBLISH_UNVERIFIED", "post_id": result.get("post_id", ""), "post_url": ""})
+        _save_map(keyword_map)
+        raise RuntimeError("Blogger article was not verified with its generated image embedded; it will be retried.")
     history_entry.update({
         "status": "PUBLISHED",
         "post_id": result.get("post_id", ""),

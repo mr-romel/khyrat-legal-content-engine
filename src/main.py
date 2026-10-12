@@ -258,7 +258,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         legal_sources = sheet_legal_sources
         print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
 
-    image_brief = str(row.get("وصف الصورة", "") or "").strip()
+    # Never reuse a prior row's image brief for a new legal post: it can produce a visually unrelated image.
+    image_brief = ""
     try:
         result = generate_post(
             api_key=config["gemini_api_key"],
@@ -657,6 +658,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
+        editorial["facebook_comments"] = [sanitize_social_copy(x) for x in editorial.get("facebook_comments", []) if sanitize_social_copy(x)]
+        editorial["linkedin_comments"] = [sanitize_social_copy(x) for x in editorial.get("linkedin_comments", []) if sanitize_social_copy(x)]
         facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(editorial["facebook_post"])), topic)
         linkedin_body, _ = split_hashtags(editorial.get("linkedin_post", ""))
         linkedin_post = append_hashtags(sanitize_social_copy(linkedin_body), topic)

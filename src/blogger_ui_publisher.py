@@ -381,23 +381,25 @@ def _set_labels(page, labels: list[str]) -> None:
 
 
 def _wait_for_editor_save(page) -> None:
-    """Give Blogger's asynchronous draft creation/autosave time before publishing."""
-    page.wait_for_timeout(1200)
+    """Never publish while Blogger still reports draft creation or autosave."""
+    page.wait_for_timeout(1500)
     try:
         page.wait_for_function(
             """() => !/(creating new post|saving( post)?[.…]*|جارٍ الحفظ|جاري الحفظ)/i.test(
                 (document.body && document.body.innerText) || ''
             )""",
-            timeout=12000,
+            timeout=45000,
         )
         print("Blogger draft creation/autosave indicator cleared before Publish.")
-    except PlaywrightTimeoutError:
+    except PlaywrightTimeoutError as exc:
         try:
             excerpt = re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500)).strip()[:700]
         except Exception:
             excerpt = ""
-        print("Blogger autosave indicator remained after 12s; waiting once more before Publish: " + excerpt)
-        page.wait_for_timeout(3000)
+        raise BloggerUIPublishError(
+            "Blogger autosave remained active after 45 seconds; refusing title-only publication. "
+            + excerpt
+        ) from exc
 
 
 def _click_publish(page) -> None:
@@ -852,6 +854,7 @@ def publish_article_ui(
     blog_id: str = "",
     blog_url: str = "https://askmahmoudkhyrat.blogspot.com/",
     search_description: str = "",
+    force_update: bool = False,
 ) -> dict[str, str]:
     state_path = _storage_state_path()
     browser = None
@@ -879,7 +882,7 @@ def publish_article_ui(
             existing_public_url, existing_public_id = _published_dashboard_post(
                 page, blog_url, title, target_blog_id
             )
-            if existing_public_url and existing_public_id:
+            if existing_public_url and existing_public_id and not force_update:
                 context.close()
                 browser.close()
                 print(f"Blogger idempotency: reusing existing published post {existing_public_url}")
