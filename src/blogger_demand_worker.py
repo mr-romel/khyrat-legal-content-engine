@@ -19,6 +19,14 @@ from blogger_ui_publisher import publish_article_ui, _public_post_permalink
 from legal_research import research_legal_topic
 
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip()
+
+
+def _github_raw_url(relative_path: str) -> str:
+    repository = os.getenv("GITHUB_REPOSITORY", "").strip()
+    branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
+    if not repository:
+        return ""
+    return f"https://raw.githubusercontent.com/{repository}/{branch}/{relative_path.replace(chr(92), '/').lstrip('/')}"
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID", "").strip()
 MAP_PATH = Path(os.getenv("BLOGGER_KEYWORD_MAP_PATH", "data/blogger_keyword_map.json"))
 TIMEOUT = 18
@@ -577,7 +585,14 @@ def main() -> int:
         else:
             print("Demand article image generation produced no file; continuing publication without image.")
     except Exception as image_exc:
-        print(f"Demand article image unavailable; continuing article publication: {image_exc}")
+        # Keep the generated file and use its branch-aware public URL; the workflow
+        # persists generated/blogger/demand/ after publishing.
+        try:
+            if "image_path" in locals() and image_path.is_file() and image_path.stat().st_size > 0:
+                demand_image_url = _github_raw_url(str(image_path))
+        except Exception:
+            demand_image_url = ""
+        print(f"Demand article image upload unavailable; continuing publication with generated URL fallback: {image_exc}; url={demand_image_url or 'unavailable'}")
 
     html = build_article_html(
         title=title,
