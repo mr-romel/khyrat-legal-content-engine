@@ -1,3 +1,3 @@
 # Blogger search-demand recovery
-Force retry after filtering title-only public entries from dedupe. Repair the matching incomplete post and publish a full article with the generated hero image.
-Trigger nonce: 1791809388724
+Retry search-demand publication with title-only entries excluded from dedupe and repair existing article body in place.
+Trigger nonce: 1791809469954
