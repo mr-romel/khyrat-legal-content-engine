@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Repair today's incomplete article in place, publish full body, and correct the image URL to the branch-aware asset.
-Trigger nonce: 1791809567702
+Repair today's title-only Blogger entry in place, include the generated image URL with correct branch path, and verify the public article body.
+Trigger nonce: 1791809623017
