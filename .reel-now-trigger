@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Generate a fresh reel using configured Cloudflare credentials and send to Telegram.
-Trigger nonce: 1791809114651
+Generate a fresh legal reel with Cloudflare image generation configured and deliver the MP4 to Telegram.
+Trigger nonce: 1791809308806
