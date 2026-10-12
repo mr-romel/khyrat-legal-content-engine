@@ -14,6 +14,14 @@ from utils import parse_date
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
+def github_raw_url(relative_path: str) -> str:
+    repository = os.getenv("GITHUB_REPOSITORY", "").strip()
+    branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
+    if not repository:
+        return ""
+    return f"https://raw.githubusercontent.com/{repository}/{branch}/{relative_path.replace(chr(92), '/').lstrip('/')}"
+
+
 def resolve_image_path(image_url: str, source_id: str, row_number: int) -> str:
     """Resolve the exact published image, downloading the raw URL when needed."""
     candidates = []
@@ -211,7 +219,9 @@ def main() -> int:
     today_cairo = datetime.now(ZoneInfo("Africa/Cairo")).date()
     # Prefer Blogger REST API when OAuth is configured. The browser editor has
     # intermittently saved only the title; use UI only as a fallback when API OAuth is absent.
-    use_ui = bool(config.get("blogger_ui_storage_state_b64")) and not bool(os.getenv("BLOGGER_OAUTH_JSON", "").strip())
+    # OAuth refresh tokens can be revoked independently of the authenticated browser session.
+    # Prefer the saved UI session when present so a stale OAuth token does not block publishing.
+    use_ui = bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
         blogger_api = blogger_service()
@@ -299,7 +309,10 @@ def main() -> int:
                 image_url = upload_blogger_image(image_path)
                 print("Blogger: generated hero image uploaded to Blogger storage.")
             except Exception as upload_exc:
-                print(f"Blogger: generated image upload failed; publisher will attempt its normal image path: {upload_exc}")
+                # The workflow persists generated/blogger assets after publication. A stable
+                # branch-aware raw URL becomes available as soon as that commit lands.
+                image_url = github_raw_url(str(generated_image))
+                print(f"Blogger: upload failed ({upload_exc}); using persisted generated image URL as fallback: {image_url or 'unavailable'}")
         except Exception as image_exc:
             # Preserve the established no-cancel publishing policy if every image provider is unavailable.
             print(f"Blogger: hero image generation unavailable; continuing article publication: {image_exc}")
@@ -311,7 +324,8 @@ def main() -> int:
             image_url = upload_blogger_image(image_path)
             print("Blogger: generated image upload retry succeeded.")
         except Exception as retry_exc:
-            print(f"Blogger: image upload retry failed; publishing article without image: {retry_exc}")
+            image_url = github_raw_url(str(image_path))
+            print(f"Blogger: image upload retry failed ({retry_exc}); using persisted generated image URL fallback: {image_url or 'unavailable'}")
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
 
