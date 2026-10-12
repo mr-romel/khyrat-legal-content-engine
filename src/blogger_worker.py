@@ -368,8 +368,23 @@ def main() -> int:
                 print("Blogger editorial layer unavailable; using structured fallback: " + " | ".join(editorial_errors))
                 article = _fallback_article(topic, post, legal_sources)
             article = _article_copy(article or {})
+            # Reject title-only/near-empty model output before it reaches Blogger.
+            # The structured fallback expands the original Sheet content into a complete article.
+            article_text_parts = [str(article.get("lead", "")), str(article.get("meta_description", ""))]
+            for section in article.get("sections", []) if isinstance(article.get("sections"), list) else []:
+                if isinstance(section, dict):
+                    article_text_parts.extend([str(section.get("heading", "")), str(section.get("body", ""))])
+            for item in article.get("faq", []) if isinstance(article.get("faq"), list) else []:
+                if isinstance(item, dict):
+                    article_text_parts.extend([str(item.get("question", "")), str(item.get("answer", ""))])
+            article_text_length = len(" ".join(article_text_parts).strip())
+            if article_text_length < 900 or len(article.get("sections", [])) < 3:
+                print(f"Blogger editorial output too short/incomplete (chars={article_text_length}); switching to structured full-article fallback.")
+                article = _fallback_article(topic, post, legal_sources)
             title = str(article.get("title") or topic).strip()[:110]
             content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
+            if len(content) < 1500 or len(post.strip()) < 120:
+                raise BloggerPublishError("Refusing title-only Blogger publication: article body failed the minimum content guard.")
             labels = normalize_blogger_labels([
                 "قانون مصر",
                 "اسأل محمود",
