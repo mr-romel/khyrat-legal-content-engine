@@ -1,3 +1,3 @@
 # Blogger search-demand recovery
-Force one fresh demand-based article, full body, and topic-specific generated image.
-Trigger nonce: 1791809126584
+Retry today's search-demand article with full article body, in-place title-only repair, and generated image attachment.
+Trigger nonce: 1791809301065
