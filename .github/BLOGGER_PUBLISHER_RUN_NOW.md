@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Repair existing title-only post in place using the exact published dashboard edit URL; save full article and image.
-Trigger nonce: 1791809464702
+Repair today's incomplete article in place, publish full body, and correct the image URL to the branch-aware asset.
+Trigger nonce: 1791809567702
