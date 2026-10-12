@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Retry today's Blogger publication with normalized labels under the 200-character limit, exact-title public-post idempotency, and verified public permalink checks.
-Trigger nonce: 2026-10-10T16:15+03:00
+Publish today's scheduled article through Blogger REST API when OAuth is configured. Verify full body and attach a topic-specific uploaded hero image; do not duplicate an existing post.
+Trigger nonce: 1791808815770
