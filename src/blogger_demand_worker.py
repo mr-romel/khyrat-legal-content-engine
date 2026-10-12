@@ -701,7 +701,7 @@ def main() -> int:
                     kwargs["pageToken"] = page_token
                 batch = blogger_api.posts().list(**kwargs).execute()
                 for item in batch.get("items", []) or []:
-                    if _norm(str(item.get("title", "")) == _norm(title):
+                    if _norm(str(item.get("title", ""))) == _norm(title):
                         existing_api = item
                         break
                 if existing_api or not batch.get("nextPageToken"):
