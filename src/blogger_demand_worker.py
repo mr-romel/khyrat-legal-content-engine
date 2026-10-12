@@ -167,9 +167,18 @@ def _public_titles() -> list[dict[str, str]]:
         out = []
         for item in data:
             title = _clean(item.get("title", {}).get("$t", ""))
+            content_html = str((item.get("content") or {}).get("$t", "") or "")
+            content_text = re.sub(r"<script.*?</script>", " ", content_html, flags=re.I | re.S)
+            content_text = " ".join(re.sub(r"<[^>]+>", " ", content_text).split())
+            # Never let a title-only Blogger entry count as a published article or
+            # block a retry for the same search query.
+            if len(content_text) < 500:
+                if title:
+                    print(f"Blogger feed title has incomplete body and is excluded from published-title dedupe: {title[:100]}")
+                continue
             links = item.get("link", [])
             href = next((x.get("href", "") for x in links if x.get("rel") == "alternate"), "")
-            if title:
+            if title and href:
                 out.append({"title": title, "url": href})
         return out
     except Exception as exc:
@@ -563,7 +572,7 @@ def main() -> int:
     demand_image_url = ""
     try:
         from image_generator import create_legal_image
-        image_path = Path("generated/blogger/demand") / (re.sub(r"[^A-Za-z0-9_-]+", "-", today + "-" + query)[:90] + ".jpg")
+        image_path = Path("generated/blogger/demand") / (re.sub(r"[^A-Za-z0-9_\-\u0600-\u06FF]+", "-", today + "-" + query)[:90] + ".jpg")
         image_brief = (
             "A realistic contemporary Egyptian setting directly illustrating this legal search query: "
             + query + ". Show only objects and people that logically fit this exact issue: " + query
