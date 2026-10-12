@@ -1,0 +1,20 @@
+{
+  "topic": "الادعاء المدني — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "Create one realistic contemporary editorial photograph based only on the scene below. Match the exact people, action, everyday setting, and visible evidence described in the final post. Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. Show one clear focal action, believable human expressions, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. Keep the background ordinary and contemporary. Do not invent symbols, scenery, props, or events. Do not substitute a generic legal stock photo for the described event. No readable text, letters, captions, numbers, logos, watermarks, interface elements, infographics, posters, signage, cartoon styling, illustration, 3D rendering, fantasy, or surreal effects.\n\nEXACT SCENE FROM THE FINAL POST:\nA professional man in his late 30s sitting at a clean, modern desk in a well-lit home office, carefully organizing a stack of diverse documents and a digital tablet, looking thoughtful and focused on the task, shot from a slightly high side angle to show the arrangement of the paperwork, natural daylight streaming from a nearby window, no clutter, clean desk surface.\n\nRender only this scene.",
+  "prompt_sha256": "4f421b5440ac457045795351e2a07ad22b08e0979e4caa68e50966aa1939042a",
+  "image_sha256": "bfe79f306e28776dc3bfdd2e3686ce2158a6b873c4c3d25cabe411c97097b29f",
+  "image_path": "generated/20261012-1400-R012.jpg",
+  "visual_description": "A professional man in his late 30s sitting at a clean, modern desk in a well-lit home office, carefully organizing a stack of diverse documents and a digital tablet, looking thoughtful and focused on the task, shot from a slightly high side angle to show the arrangement of the paperwork, natural daylight streaming from a nearby window, no clutter, clean desk surface.",
+  "qa_decision": "REGENERATE",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "Legal relevance is critically low (1).",
+    "Overall usability is critically low (1).",
+    "The image is entirely unresponsive to the provided prompt."
+  ],
+  "qa_checked_image_sha256": "bfe79f306e28776dc3bfdd2e3686ce2158a6b873c4c3d25cabe411c97097b29f"
+}
