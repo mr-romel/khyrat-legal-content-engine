@@ -66,16 +66,16 @@ QUOTE_CHARS = str.maketrans({
 
 def sanitize_topic(topic: str) -> str:
     """Remove internal planning suffixes from topic labels before they reach any platform."""
-    text = str(topic or "").replace("\\r", " ").replace("\\n", " ").strip()
+    text = str(topic or "").replace("\r", " ").replace("\n", " ").strip()
     text = re.sub(
-        r"(?i)(?:\\s*[—–|:;,-]\\s*)?(?:زاوية\\s*(?:أخرى|اخري|اخرى|جديدة|مختلفة|المحتوى)|"
-        r"الزاوية\\s*(?:الأخرى|الاخرى|الجديدة|المختلفة)|check\\s*[-_ ]?\\s*list|checklist|"
-        r"content\\s*angle|editorial\\s*angle|hook\\s*pattern|خطة\\s*المحتوى).*$",
+        r"(?i)(?:\s*[—–|:;,-]\s*)?(?:زاوية\s*(?:أخرى|اخري|اخرى|جديدة|مختلفة|المحتوى)|"
+        r"الزاوية\s*(?:الأخرى|الاخرى|الجديدة|المختلفة)|check\s*[-_ ]?\s*list|checklist|"
+        r"content\s*angle|editorial\s*angle|hook\s*pattern|خطة\s*المحتوى).*$",
         "",
         text,
     )
-    text = re.sub(r"\\s{2,}", " ", text)
-    return text.strip(" \\t—–-:|،")
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip(" \t—–-:|،")
 
 
 def sanitize_social_copy(post: str) -> str:
