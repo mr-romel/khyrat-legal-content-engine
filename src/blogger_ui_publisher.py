@@ -813,7 +813,7 @@ def _existing_published_editor_url(page, blog_id: str, title: str) -> str:
                 continue
             for item in row.get("links", []):
                 href = str(item.get("href", "")).strip()
-                if re.search(r"/blog/post/edit/\\d+/\\d+", href):
+                if "/blog/post/edit/" in href and not href.rstrip("/").endswith("/new"):
                     # The caller only reaches this helper after public-feed verification
                     # failed for this exact title, so the matching row needs a body repair.
                     print("Blogger title-only/incomplete published post found; repairing existing post in place.")
