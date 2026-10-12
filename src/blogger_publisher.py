@@ -45,7 +45,7 @@ def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, m
             break
     return labels
 
-_EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال)?|زاوية\s*جديدة|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
+_EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال|أخرى|جديدة)?|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|check[ -]?list|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
 
 def _strip_editorial_metadata(text: str) -> str:
     value = str(text or "")
