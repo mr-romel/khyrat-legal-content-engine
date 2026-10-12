@@ -692,25 +692,43 @@ def main() -> int:
         try:
             blogger_api = blogger_rest_service()
             target_blog_id = BLOG_ID or resolve_blog_id(blogger_api, BLOG_URL)
-            response = blogger_api.posts().insert(
-                blogId=target_blog_id,
-                body={
-                    "kind": "blogger#post",
-                    "title": title,
-                    "content": html,
-                    "labels": labels,
-                },
-                isDraft=False,
-            ).execute()
+            # Search by exact title before inserting: prior runs may have left a title-only post.
+            page_token = None
+            existing_api = None
+            while True:
+                kwargs = {"blogId": target_blog_id, "maxResults": 500, "fetchBodies": True}
+                if page_token:
+                    kwargs["pageToken"] = page_token
+                batch = blogger_api.posts().list(**kwargs).execute()
+                for item in batch.get("items", []) or []:
+                    if _norm(str(item.get("title", "")) == _norm(title):
+                        existing_api = item
+                        break
+                if existing_api or not batch.get("nextPageToken"):
+                    break
+                page_token = batch.get("nextPageToken")
+            if existing_api:
+                existing_id = str(existing_api.get("id", "")).strip()
+                blogger_api.posts().patch(
+                    blogId=target_blog_id, postId=existing_id, body={"content": html}
+                ).execute()
+                response = blogger_api.posts().get(blogId=target_blog_id, postId=existing_id).execute()
+                print("Demand article repaired in place through Blogger REST API.")
+            else:
+                response = blogger_api.posts().insert(
+                    blogId=target_blog_id,
+                    body={"kind": "blogger#post", "title": title, "content": html, "labels": labels},
+                    isDraft=False,
+                ).execute()
+                print("Demand article published through Blogger REST API.")
             result = {
                 "post_id": str(response.get("id", "")),
                 "post_url": str(response.get("url", "")),
                 "title": str(response.get("title", title)),
-                "publisher": "BLOGGER_REST_API",
+                "publisher": "BLOGGER_REST_REPAIR" if existing_api else "BLOGGER_REST_API",
             }
             if not result["post_id"] or not result["post_url"]:
                 raise RuntimeError("Blogger REST API did not return a verifiable published post ID and URL.")
-            print("Demand article published through Blogger REST API.")
         except Exception as api_exc:
             print(f"Blogger REST API unavailable; trying the saved authenticated UI session: {api_exc}")
             result = publish_article_ui(
