@@ -289,6 +289,11 @@ def main() -> int:
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
     image_path = resolve_image_path(image_url, source_id, row_number)
+    if image_path:
+        # Repair legacy raw GitHub URLs that omitted the branch component.
+        corrected_public_image = github_raw_url(image_path)
+        if corrected_public_image:
+            image_url = corrected_public_image
     if not image_path:
         # Create a topic-derived hero image instead of silently publishing a text-only article.
         try:
