@@ -1,3 +1,3 @@
 # Blogger publisher recovery
-Publish today's scheduled article through Blogger REST API when OAuth is configured. Verify full body and attach a topic-specific uploaded hero image; do not duplicate an existing post.
-Trigger nonce: 1791808815770
+Retry today's Blogger article using the saved authenticated session if OAuth refresh is revoked. Preserve full article body and use the generated image URL fallback.
+Trigger nonce: 1791809012795
