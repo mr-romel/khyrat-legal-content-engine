@@ -404,6 +404,10 @@ def _click_publish(page) -> None:
     publish_selectors = [
         'button:has-text("Publish")',
         '[role="button"]:has-text("Publish")',
+        'button:has-text("Update")',
+        '[role="button"]:has-text("Update")',
+        'button:has-text("تحديث")',
+        '[role="button"]:has-text("تحديث")',
         'button:has-text("نشر")',
         '[role="button"]:has-text("نشر")',
     ]
@@ -798,6 +802,27 @@ def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str =
     return public_url
 
 
+def _existing_published_editor_url(page, blog_id: str, title: str) -> str:
+    """Find an exact-title published post whose public body is incomplete, so it can be repaired in place."""
+    try:
+        page.goto(f"https://www.blogger.com/blog/posts/{blog_id}", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(900)
+        for row in _dashboard_title_rows(page, title):
+            row_text = str(row.get("text", "")).casefold()
+            if not _is_published_dashboard_row(row_text):
+                continue
+            for item in row.get("links", []):
+                href = str(item.get("href", "")).strip()
+                if re.search(r"/blog/post/edit/\\d+/\\d+", href):
+                    # The caller only reaches this helper after public-feed verification
+                    # failed for this exact title, so the matching row needs a body repair.
+                    print("Blogger title-only/incomplete published post found; repairing existing post in place.")
+                    return href
+    except Exception as exc:
+        print(f"Blogger incomplete published-post lookup failed: {exc}")
+    return ""
+
+
 def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
     """Reuse the matching draft's edit URL instead of creating another duplicate."""
     try:
@@ -865,8 +890,13 @@ def publish_article_ui(
                     "publisher": "EXISTING_BLOGGER_UI",
                 }
 
-            existing_draft_url = _existing_draft_editor_url(page, target_blog_id, title)
-            if existing_draft_url:
+            existing_published_editor_url = _existing_published_editor_url(page, target_blog_id, title)
+            existing_draft_url = _existing_draft_editor_url(page, target_blog_id, title) if not existing_published_editor_url else ""
+            if existing_published_editor_url:
+                editor_url = existing_published_editor_url
+                page.goto(editor_url, wait_until="domcontentloaded")
+                print("Blogger publisher opened the existing title-only/incomplete post for in-place body repair.")
+            elif existing_draft_url:
                 editor_url = existing_draft_url
                 page.goto(editor_url, wait_until="domcontentloaded")
                 print("Blogger publisher opened the matching existing draft instead of creating a duplicate.")
