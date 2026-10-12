@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import html, json, os, re, hashlib
+import base64, html, json, os, re, hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,6 +9,7 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from nacl.public import PublicKey, SealedBox
 from blogger_editor import prepare_article
 
 BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
@@ -76,6 +77,42 @@ def _article_copy(article: dict[str, Any]) -> dict[str, Any]:
 def _safe_filename(v: str) -> str:
     return (re.sub(r"\s+", "_", re.sub(r"[^\w\-\u0600-\u06ff ]+", "", str(v or ""), flags=re.UNICODE).strip())[:90] or "legal_article")
 
+def _persist_refreshed_blogger_credentials(credentials: Credentials) -> None:
+    """Persist refreshed OAuth credentials to the repository secret, when configured."""
+    token = os.getenv("GH_SECRET_ROTATION_TOKEN", "").strip()
+    repository = os.getenv("GITHUB_REPOSITORY", "").strip()
+    if not token or not repository:
+        print("Blogger OAuth refreshed in this run; GitHub secret persistence is not configured.")
+        return
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        key_response = requests.get(
+            f"https://api.github.com/repos/{repository}/actions/secrets/public-key",
+            headers=headers, timeout=20,
+        )
+        key_response.raise_for_status()
+        key = key_response.json()
+        encrypted = SealedBox(PublicKey(base64.b64decode(key["key"]))).encrypt(
+            credentials.to_json().encode("utf-8")
+        )
+        response = requests.put(
+            f"https://api.github.com/repos/{repository}/actions/secrets/BLOGGER_OAUTH_JSON",
+            headers=headers,
+            json={"encrypted_value": base64.b64encode(encrypted).decode("ascii"), "key_id": key["key_id"]},
+            timeout=20,
+        )
+        response.raise_for_status()
+        print("Blogger OAuth credentials refreshed and saved to GitHub Actions secret.")
+    except Exception as exc:
+        # Publishing should not be discarded just because secret persistence failed.
+        # The next run will report the same issue if the refresh token itself is invalid.
+        print(f"WARNING: Blogger OAuth refreshed, but GitHub secret persistence failed: {exc}")
+
+
 def _credentials() -> Credentials:
     raw = os.getenv("BLOGGER_OAUTH_JSON", "").strip()
     if not raw: raise BloggerPublishError("BLOGGER_OAUTH_JSON is missing.")
@@ -84,8 +121,11 @@ def _credentials() -> Credentials:
     try: c = Credentials.from_authorized_user_info(info, scopes=[BLOGGER_SCOPE])
     except Exception as exc: raise BloggerPublishError(f"Invalid Blogger OAuth credentials: {exc}") from exc
     if c.expired and c.refresh_token:
-        try: c.refresh(Request())
-        except Exception as exc: raise BloggerPublishError(f"Blogger OAuth refresh failed: {exc}") from exc
+        try:
+            c.refresh(Request())
+            _persist_refreshed_blogger_credentials(c)
+        except Exception as exc:
+            raise BloggerPublishError(f"Blogger OAuth refresh failed: {exc}") from exc
     if not c.valid: raise BloggerPublishError("Blogger OAuth credentials are not valid.")
     return c
 
