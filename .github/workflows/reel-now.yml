@@ -74,8 +74,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
-          REEL_FORCE_REGENERATE: ${{ contains(fromJSON('["REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
-          REEL_FORCE_TELEGRAM_REVIEW: ${{ contains(fromJSON('["REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
+          REEL_FORCE_REGENERATE: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
+          REEL_FORCE_TELEGRAM_REVIEW: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
