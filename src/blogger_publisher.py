@@ -9,7 +9,6 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from nacl.public import PublicKey, SealedBox
 from blogger_editor import prepare_article
 
 BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
@@ -90,6 +89,8 @@ def _persist_refreshed_blogger_credentials(credentials: Credentials) -> None:
         "X-GitHub-Api-Version": "2022-11-28",
     }
     try:
+        from nacl.public import PublicKey, SealedBox
+
         key_response = requests.get(
             f"https://api.github.com/repos/{repository}/actions/secrets/public-key",
             headers=headers, timeout=20,
