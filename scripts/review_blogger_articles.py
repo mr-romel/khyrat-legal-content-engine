@@ -182,6 +182,10 @@ def main() -> int:
         except Exception as exc:
             failures.append({"id": post_id, "title": old_title, "error": str(exc)[:500]})
             print(f"FAILED (will retry): {old_title} | {exc}")
+            error_text = str(exc).upper()
+            if any(marker in error_text for marker in ("RESOURCE_EXHAUSTED", "QUOTA EXCEEDED", "429")):
+                print("Gemini quota/rate limit detected; stopping this batch immediately to avoid repeated doomed requests.")
+                break
     state["failed_ids"] = failures
     state["last_batch_success_count"] = succeeded
     save_state(state)
