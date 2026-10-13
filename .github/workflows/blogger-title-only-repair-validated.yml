@@ -1,0 +1,56 @@
+name: Blogger Title-Only Repair (Validated)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_TITLE_ONLY_REPAIR_RUN.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-title-only-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Validate and repair existing title-only Blogger posts
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
+      GH_SECRET_ROTATION_TOKEN: ${{ secrets.GH_SECRET_ROTATION_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      BLOGGER_REPAIR_MAX_POSTS: "100"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+          pip install -r requirements-browser.txt
+      - name: Validate repair worker syntax
+        run: python -m compileall -q src scripts/repair_blogger_title_only_posts.py
+      - name: Run Blogger regression tests before any live edits
+        run: PYTHONPATH=src pytest -q tests/test_blogger_labels.py
+      - name: Repair only live posts with title-only or nearly empty content
+        run: PYTHONPATH=src python scripts/repair_blogger_title_only_posts.py
