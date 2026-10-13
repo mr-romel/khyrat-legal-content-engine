@@ -151,12 +151,86 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
     return text
 
 
+def _linkedin_copy_similarity(left: str, right: str) -> float:
+    """Compare platform copy after removing whitespace and common punctuation."""
+    def normalize(value: str) -> str:
+        value = re.sub(r"#[\\w\\u0600-\\u06FF]+", " ", str(value or ""))
+        value = re.sub(r"[\\W_]+", " ", value, flags=re.UNICODE)
+        return " ".join(value.casefold().split())
+    a, b = normalize(left), normalize(right)
+    if not a or not b:
+        return 0.0
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def _make_distinct_linkedin_post(*, config: dict, topic: str, legal_sources: str, facebook_post: str, linkedin_post: str) -> str:
+    """Regenerate LinkedIn from a B2B angle when review returns Facebook-like copy."""
+    similarity = _linkedin_copy_similarity(facebook_post, linkedin_post)
+    if similarity < 0.58 and len(linkedin_post.strip()) >= 1200:
+        return linkedin_post
+    print(f"LinkedIn differentiation gate: triggered (FB/LI similarity={similarity:.2f}, LI chars={len(linkedin_post)}).")
+    prompt = (
+        "LINKEDIN MUST BE A DISTINCT PLATFORM ADAPTATION, NOT A REWRITE OF THE FACEBOOK CAPTION.\\n"
+        "Write a fresh standalone LinkedIn post in professional, natural Egyptian Arabic for company owners, management, HR, legal, compliance, and operations leaders.\\n"
+        "Use a different opening, structure, reasoning path, and practical example from Facebook.\\n"
+        "Focus on business exposure, decision-making, internal process, documents, accountability, and risk controls relevant to this topic.\\n"
+        "Do not reuse Facebook sentences or paragraph order. Do not address an individual as أنت/إنت/عندك.\\n"
+        "Keep legal claims limited to the provided source material; do not invent statutes, rulings, deadlines, or facts.\\n"
+        "Aim for 350-450 words, but prioritize useful, topic-specific analysis over padding. Return only the LinkedIn post.\\n\\n"
+        f"TOPIC: {topic}\\nLEGAL SOURCES: {legal_sources or 'none supplied'}\\n"
+        f"FACEBOOK COPY (meaning reference only; do not reuse wording):\\n{facebook_post}\\n\\n"
+        f"CURRENT LINKEDIN DRAFT TO REPLACE:\\n{linkedin_post}"
+    )
+    generated = _diverse_generate_post(
+        api_key=config.get("gemini_api_key", ""),
+        model=config.get("gemini_model", ""),
+        topic=topic,
+        legal_sources=legal_sources,
+        previous_context=prompt,
+    )
+    candidate = str(generated.get("post", "") or "").strip()
+    if not candidate:
+        raise RuntimeError("LinkedIn differentiation gate received an empty generated post.")
+    candidate = _clean_linkedin_ellipsis(candidate)
+    candidate_similarity = _linkedin_copy_similarity(facebook_post, candidate)
+    if candidate_similarity >= 0.68:
+        # One explicit second attempt, with a stronger instruction to change the
+        # point of entry and analysis rather than merely lengthen the same caption.
+        retry = prompt + (
+            "\\n\\nSECOND ATTEMPT: The previous result was still too similar. "
+            "Start from a company-level decision or operational consequence not used in Facebook. "
+            "Change the opening and paragraph sequence completely. Avoid any sentence that resembles Facebook."
+        )
+        generated = _diverse_generate_post(
+            api_key=config.get("gemini_api_key", ""),
+            model=config.get("gemini_model", ""),
+            topic=topic,
+            legal_sources=legal_sources,
+            previous_context=retry,
+        )
+        candidate = _clean_linkedin_ellipsis(str(generated.get("post", "") or "").strip())
+        candidate_similarity = _linkedin_copy_similarity(facebook_post, candidate)
+    if not candidate or candidate_similarity >= 0.68:
+        raise RuntimeError(
+            f"LinkedIn differentiation gate failed: similarity={candidate_similarity:.2f}; refusing to publish duplicated platform copy."
+        )
+    print(f"LinkedIn differentiation gate: PASS (FB/LI similarity={candidate_similarity:.2f}).")
+    return candidate
+
+
 def _capture_editorial_assets(*args, **kwargs):
     global _latest_editorial
     result = _original_prepare_editorial_assets(*args, **kwargs)
     config = kwargs.get("config") or {}
     topic = str(kwargs.get("topic", "") or "").strip()
     legal_sources = str(kwargs.get("legal_sources", "") or "").strip()
+    result["linkedin_post"] = _make_distinct_linkedin_post(
+        config=config,
+        topic=topic,
+        legal_sources=legal_sources,
+        facebook_post=str(result.get("facebook_post", "") or ""),
+        linkedin_post=str(result.get("linkedin_post", "") or ""),
+    )
     result["linkedin_post"] = _strengthen_linkedin_post(
         result.get("linkedin_post", ""),
         api_key=config.get("gemini_api_key", ""),
