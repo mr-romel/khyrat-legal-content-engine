@@ -14,6 +14,7 @@ from blogger_editor import prepare_article
 from blogger_publisher import (
     _clean,
     _related,
+    _fallback_article,
     blog_id as resolve_blog_id,
     build_article_html,
     service as blogger_service,
@@ -151,9 +152,6 @@ def main() -> int:
     config = load_blogger_config()
     if not config["enabled"]:
         raise RuntimeError("BLOGGER_ENABLED is false; refusing to run repair.")
-    if not os.getenv("GEMINI_API_KEY", "").strip():
-        raise RuntimeError("GEMINI_API_KEY is required to generate missing article bodies.")
-
     svc = blogger_service()
     bid = _clean(config.get("blogger_blog_id", "")) or resolve_blog_id(svc, config["blogger_url"])
     source_rows = _load_sheet_rows(config)
@@ -190,13 +188,24 @@ def main() -> int:
         )
         print(f"[{index}/{len(candidates)}] Repairing post id={pid} title={title!r}")
         try:
-            article = prepare_article(
-                api_key=os.environ["GEMINI_API_KEY"].strip(),
-                model=os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip() or "gemini-3.6-flash",
-                topic=topic,
-                post=editorial_input,
-                legal_sources=legal_sources,
-            )
+            article = None
+            api_key = os.getenv("GEMINI_API_KEY", "").strip()
+            if api_key:
+                try:
+                    article = prepare_article(
+                        api_key=api_key,
+                        model=os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip() or "gemini-3.6-flash",
+                        topic=topic,
+                        post=editorial_input,
+                        legal_sources=legal_sources,
+                    )
+                    print(f"Editorial article generated for post {pid}.")
+                except Exception as generation_exc:
+                    # A free-tier quota/rate limit must not leave existing live posts title-only.
+                    # Use the project's deterministic structured article builder as a no-API fallback.
+                    print(f"AI article generation unavailable for post {pid}; using local structured fallback: {str(generation_exc)[:500]}")
+            if not isinstance(article, dict):
+                article = _fallback_article(topic, editorial_input, legal_sources)
             # Preserve the existing public title and permalink; replace only the broken body.
             article["title"] = title
             image_url = _image_for_post(post, row, svc, bid)
