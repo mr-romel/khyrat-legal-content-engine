@@ -1,4 +1,4 @@
-from engagement_strategy import choose_comment_count, comment_schedule_offsets, normalize_comment
+from engagement_strategy import BLOGGER_URL, blog_cta_comment, choose_comment_count, comment_schedule_offsets, normalize_comment
 
 
 def test_shared_count_is_3_to_7_and_varies():
@@ -14,3 +14,12 @@ def test_shared_schedule_is_15_minutes_apart():
 def test_comment_normalization_removes_final_period():
     assert normalize_comment("جملة طبيعية.") == "جملة طبيعية"
     assert normalize_comment("جملة طبيعية") == "جملة طبيعية"
+
+
+def test_blog_cta_is_clear_and_platform_specific():
+    facebook = blog_cta_comment("facebook")
+    linkedin = blog_cta_comment("linkedin")
+    assert BLOGGER_URL in facebook and BLOGGER_URL in linkedin
+    assert "شارك" in facebook and "شارك" in linkedin
+    assert "قراءة المزيد" in facebook and "قراءة المزيد" in linkedin
+    assert facebook != linkedin
