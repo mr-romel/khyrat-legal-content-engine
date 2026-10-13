@@ -34,6 +34,24 @@ LINKEDIN_COMMENT_LIMIT = 7
 COMMENT_BACKFILL_LIMIT = 3
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
+BLOG_URL_MARKER = "https://askmahmoudkhyrat.blogspot.com/"
+
+
+def _ensure_blog_cta_comments(editorial: dict) -> dict:
+    """Guarantee one blog-reading/sharing CTA in each platform's comment queue."""
+    for key, platform in (("facebook_comments", "facebook"), ("linkedin_comments", "linkedin")):
+        comments = [str(item or "").strip() for item in editorial.get(key, []) if str(item or "").strip()]
+        has_blog_cta = any(BLOG_URL_MARKER in item for item in comments)
+        if not has_blog_cta:
+            cta = blog_cta_comment(platform)
+            if comments:
+                comments[-1] = cta
+            else:
+                comments = [cta]
+        editorial[key] = comments
+    return editorial
+
+
 
 def github_raw_url(relative_path: str) -> str:
     repository = os.getenv("GITHUB_REPOSITORY", "").strip()
@@ -404,15 +422,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
             continue
         try:
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-            if blog_cta_due(publication_rank):
-                # Backfill CTA only on every third published item, replacing one
-                # existing comment so the per-post count remains in the 3–7 range.
-                editorial["facebook_comments"] = list(editorial["facebook_comments"])
-                editorial["linkedin_comments"] = list(editorial["linkedin_comments"])
-                if editorial["facebook_comments"]:
-                    editorial["facebook_comments"][-1] = blog_cta_comment("facebook")
-                if editorial["linkedin_comments"]:
-                    editorial["linkedin_comments"][-1] = blog_cta_comment("linkedin")
+            editorial = _ensure_blog_cta_comments(editorial)
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
                 "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
@@ -644,17 +654,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-            publication_rank = sum(
-                1 for published_row in rows
-                if str(published_row.get("الحالة", "")).strip().upper() == "PUBLISHED"
-            ) + (0 if original_status == "PUBLISHED" else 1)
-            if blog_cta_due(publication_rank):
-                editorial["facebook_comments"] = list(editorial["facebook_comments"])
-                editorial["linkedin_comments"] = list(editorial["linkedin_comments"])
-                if editorial["facebook_comments"]:
-                    editorial["facebook_comments"][-1] = blog_cta_comment("facebook")
-                if editorial["linkedin_comments"]:
-                    editorial["linkedin_comments"][-1] = blog_cta_comment("linkedin")
+            editorial = _ensure_blog_cta_comments(editorial)
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
