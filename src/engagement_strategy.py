@@ -14,17 +14,18 @@ BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 
 
 def blog_cta_comment(platform: str = "facebook") -> str:
-    """A contextual, reader-first CTA used periodically as one queued comment."""
+    """A clear blog-reading and sharing CTA inserted into one comment per platform post."""
     if str(platform or "").strip().lower() == "linkedin":
         return (
-            "للتفاصيل والأمثلة العملية، اقرأ المقالات القانونية على مدونة «اسأل محمود»: "
+            "لقراءة المزيد من المقالات والمعلومات والشروحات القانونية والأمثلة العملية، "
+            "تفضل بزيارة مدونة «اسأل محمود»: "
             + BLOGGER_URL
-            + " ولو شايف إن المحتوى ممكن يفيد زميلًا أو شخصًا مهتمًا بالموضوع، شاركه معه"
+            + " وإذا كان المحتوى مفيدًا لزميل أو لفريق العمل، شارك معه رابط المدونة"
         )
     return (
-        "لو حابب تعرف تفاصيل أكتر وتقرأ مقالات وشروحات قانونية مرتبطة بالموضوع، "
-        "زور مدونة «اسأل محمود»: " + BLOGGER_URL
-        + " ولو المعلومة ممكن تفيد حد تعرفه، شارك معاه المنشور أو رابط المقال"
+        "لقراءة المزيد من المقالات والمعلومات والشروحات القانونية، زور مدونة «اسأل محمود»: "
+        + BLOGGER_URL
+        + " ولو المحتوى ممكن يفيد حد تعرفه، شارك معاه رابط المدونة أو المنشور"
     )
 
 
