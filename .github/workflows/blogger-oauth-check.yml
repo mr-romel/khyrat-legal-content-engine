@@ -1,4 +1,4 @@
-name: Blogger OAuth Configuration Check
+name: Blogger OAuth Read-only Check
 
 on:
   workflow_dispatch:
@@ -6,40 +6,30 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: blogger-oauth-readonly-check
+  cancel-in-progress: false
+
 jobs:
   check:
-    name: Validate Blogger OAuth secret
+    name: Verify Blogger OAuth without publishing
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      GH_SECRET_ROTATION_TOKEN: ${{ secrets.GH_SECRET_ROTATION_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Validate OAuth JSON shape
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
         run: |
-          python - <<'PY'
-          import json, os, sys
-          raw = os.environ.get("BLOGGER_OAUTH_JSON", "").strip()
-          if not raw:
-              print("BLOGGER_OAUTH_JSON: MISSING")
-              sys.exit(1)
-          try:
-              data = json.loads(raw)
-          except Exception:
-              print("BLOGGER_OAUTH_JSON: INVALID_JSON")
-              sys.exit(1)
-          if not isinstance(data, dict):
-              print("BLOGGER_OAUTH_JSON: NOT_OBJECT")
-              sys.exit(1)
-          keys = set(data)
-          required = {"client_id", "client_secret", "token_uri"}
-          missing = sorted(required - keys)
-          if missing:
-              print("BLOGGER_OAUTH_JSON: CLIENT_CREDENTIALS_MISSING " + ",".join(missing))
-              sys.exit(1)
-          if not data.get("refresh_token"):
-              print("BLOGGER_OAUTH_JSON: REFRESH_TOKEN_MISSING")
-              print("The current secret is a client-download JSON, not an authorized-user token JSON.")
-              sys.exit(2)
-          print("BLOGGER_OAUTH_JSON: AUTHORIZED_USER_TOKEN_READY")
-          print("refresh_token: PRESENT")
-          print("scope: " + str(data.get("scopes") or data.get("scope") or "not embedded"))
-          PY
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Check OAuth and read accessible blogs
+        run: PYTHONPATH=src python scripts/blogger_oauth_check.py
