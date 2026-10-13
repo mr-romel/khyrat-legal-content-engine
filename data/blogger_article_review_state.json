@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "reviewed_ids": [],
+  "failed_ids": [
+    {
+      "id": "826501311349267801",
+      "title": "عقوبة الابتزاز الإلكتروني في مصر: ما الذي يحدد التكييف القانوني؟",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m58.513539111s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "314815889487358465",
+      "title": "قبل توقيع أي عقد: نقاط قانونية يجب مراجعتها",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m57.986144932s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "2401147082375359066",
+      "title": "قبل توقيع أي عقد: نقاط قانونية يجب مراجعتها",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m57.534148758s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "7524229890254833148",
+      "title": "عقوبة الابتزاز الإلكتروني في مصر: ما الذي يحدد التكييف القانوني؟",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m57.081005862s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "5383378277794299616",
+      "title": "الحماية القانونية من الابتزاز الإلكتروني في مصر: الإجراءات والأدلة المطلوبة",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m56.638206071s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "6451033295859122213",
+      "title": "دليل إعداد الصحيفة والإجراءات التمهيدية قبل رفع الدعوى المدنية",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m56.200678408s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "8640255089753258368",
+      "title": "الابتزاز الإلكتروني في القانون المصري: المسار القانوني والإجراءات العملية للحماية والمواجهة",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m55.761167795s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "3243461853268957534",
+      "title": "قبل توقيع أي عقد: نقاط قانونية يجب مراجعتها",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m55.207755624s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "5296585923927650616",
+      "title": "في مسائل العمل: ما الذي يجب مراجعته قبل اتخاذ القرار؟",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m54.796857235s.', 'status': 'RESOURCE_EXHA"
+    },
+    {
+      "id": "1078959350641026296",
+      "title": "سلامة التحقيق الإداري وضوابط توقيع الجزاء: معايير حماية القرارات العمالية من البطلان",
+      "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 6h20m54.347543108s.', 'status': 'RESOURCE_EXHA"
+    }
+  ],
+  "last_batch_success_count": 0
+}
