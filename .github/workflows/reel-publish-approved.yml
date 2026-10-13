@@ -99,9 +99,9 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          from config import load_config
+          from config import load_video_config
           from sheets import create_service, get_values, row_to_dict
-          cfg=load_config()
+          cfg=load_video_config()
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
           values=get_values(svc,cfg["sheet_id"],cfg["sheet_range"])
