@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   # All Blogger writers share one lock; the UI session must never publish concurrently.
@@ -25,7 +26,7 @@ jobs:
       BLOGGER_DRY_RUN: "false"
       BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
-      GH_SECRET_ROTATION_TOKEN: ${{ secrets.GH_SECRET_ROTATION_TOKEN }}
+      GH_SECRET_ROTATION_TOKEN: ${{ secrets.GH_SECRET_ROTATION_TOKEN || github.token }}
       BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
       BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
       BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
