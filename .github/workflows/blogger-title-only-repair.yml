@@ -2,6 +2,11 @@ name: Blogger Title-Only Article Repair
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/repair_blogger_title_only_posts.py"
+      - ".github/workflows/blogger-title-only-repair.yml"
 
 permissions:
   contents: read
