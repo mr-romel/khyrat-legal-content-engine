@@ -46,9 +46,21 @@ def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, m
     return labels
 
 _EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال|أخرى|جديدة)?|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|check[ -]?list|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
+_AI_LEAK_RE = re.compile(
+    r"(?:المطلوب\s+مقال\s+توعوي|لا\s+تذكر\s+أرقام\s+مواد|ما\s+لم\s+تكن\s+موجودة\s+صراحة\s+في\s+المصادر|"
+    r"يتم\s+مراجعة\s+كل\s+المقالات|أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج)|"
+    r"اكتب\s+مقالًا?\s+توعويًا?)", re.IGNORECASE
+)
 
 def _strip_editorial_metadata(text: str) -> str:
     value = str(text or "")
+    # Drop leaked instruction sentences, not just their trigger words.
+    value = re.sub(
+        r"[^.!؟\n]*(?:المطلوب\s+مقال\s+توعوي|لا\s+تذكر\s+أرقام\s+مواد|"
+        r"ما\s+لم\s+تكن\s+موجودة\s+صراحة\s+في\s+المصادر|يتم\s+مراجعة\s+كل\s+المقالات|"
+        r"أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج)|اكتب\s+مقالًا?\s+توعويًا?)[^.!؟]*(?:[.!؟]|$)",
+        " ", value, flags=re.IGNORECASE
+    )
     value = _EDITORIAL_META_RE.sub("", value)
     value = re.sub(r"\s{2,}", " ", value)
     return value.strip()
