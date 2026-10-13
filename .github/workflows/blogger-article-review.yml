@@ -1,0 +1,69 @@
+name: Blogger Live Article Editorial Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Number of live articles to review in this run (1-25)"
+        required: false
+        default: "10"
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_REVIEW_RUN_NOW.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blogger-publication-v3
+  cancel-in-progress: false
+
+jobs:
+  review-live-articles:
+    name: Rewrite legacy articles and create one unique image per article
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BLOGGER_ENABLED: "true"
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      BLOGGER_REVIEW_LIMIT: ${{ github.event.inputs.batch_size || '10' }}
+      BLOGGER_REVIEW_STATE: data/blogger_article_review_state.json
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install worker dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Validate source and run editorial review batch
+        run: |
+          python -m compileall -q src scripts/review_blogger_articles.py
+          PYTHONPATH=src python scripts/review_blogger_articles.py
+      - name: Persist review state and unique article image assets
+        if: ${{ always() }}
+        run: |
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p data generated/blogger/reviewed
+          git add data/blogger_article_review_state.json generated/blogger/reviewed/
+          if git diff --cached --quiet; then
+            echo "No review state or generated image changes to persist."
+            exit 0
+          fi
+          git commit -m "Track Blogger article editorial review progress"
+          git push origin HEAD:main
