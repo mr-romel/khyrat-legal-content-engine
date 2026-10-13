@@ -41,6 +41,11 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     negative = captured["negative_prompt"].lower()
     assert "worker reviewing a modern employment document" in prompt
     assert "contemporary editorial photograph" in prompt
+    assert "directly illustrates the specific legal topic" in prompt
+    assert "adult men only" in prompt
+    assert "do not depict any women or girls" in prompt
+    assert "woman" in negative
+    assert "female face" in negative
     for trigger in ("egypt", "egyptian", "pharaoh", "pyramid", "hieroglyph", "sarcophagus", "ancient egypt"):
         assert trigger not in prompt
         assert trigger not in negative
