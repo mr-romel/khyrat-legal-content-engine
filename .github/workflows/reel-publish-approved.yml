@@ -74,10 +74,10 @@ jobs:
                   run_id=str(row.get("Reel Run ID","")).strip()
                   if run_id:
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                          out.write(f"row_number={n}\\nrun_id={run_id}\\n")
+                          out.write(f"row_number={n}\nrun_id={run_id}\n")
                       raise SystemExit(0)
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-              out.write("row_number=\\nrun_id=\\n")
+              out.write("row_number=\nrun_id=\n")
           PY
 
       - name: Stop when no approved Reel is waiting
