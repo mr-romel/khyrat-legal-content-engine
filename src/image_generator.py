@@ -235,7 +235,7 @@ def create_legal_image(
         "Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. "
         "Show one clear focal action, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. "
         "Prefer a scene with no people when objects, documents, devices, or the location can clearly explain the legal issue. "
-        "If a person is essential to understanding the exact scene, depict adult men only. Never depict women or girls, female-presenting "
+        "If a person is essential to understanding the exact scene, depict adult men only. Do not depict any women or girls. Never depict women or girls, female-presenting "
         "people, female faces or bodies, or women in backgrounds, reflections, photographs, screens, illustrations, or silhouettes. "
         "For topics involving women, harassment, family matters, or another situation where a woman would normally be central, "
         "show the relevant evidence, phone, documents, setting, or a non-identifying scene instead; do not substitute an unrelated male subject. "
