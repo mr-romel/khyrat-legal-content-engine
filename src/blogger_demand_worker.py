@@ -582,16 +582,26 @@ def main() -> int:
     try:
         from image_generator import create_legal_image
         image_path = Path("generated/blogger/demand") / (re.sub(r"[^A-Za-z0-9_\-\u0600-\u06FF]+", "-", today + "-" + query)[:90] + ".jpg")
+        # Derive a distinct visual concept from this article's actual answer and opening section,
+        # not from a generic keyword-only prompt or a shared fallback card.
+        first_section = article.get("sections", [{}])[0] if article.get("sections") else {}
+        scene_context = " ".join([
+            str(article.get("lead", "") or ""),
+            str(first_section.get("heading", "") if isinstance(first_section, dict) else ""),
+            str(first_section.get("body", "") if isinstance(first_section, dict) else ""),
+        ]).strip()[:1200]
         image_brief = (
-            "A realistic contemporary Egyptian setting directly illustrating this legal search query: "
-            + query + ". Show only objects and people that logically fit this exact issue: " + query
-            + ". Documentary editorial photography, natural lighting, no text, no logos, no scales of justice, no generic courtroom."
+            "Create a unique documentary editorial photograph for this specific article. "
+            "Show the concrete real-world situation described below, with one distinct focal action "
+            "and only relevant objects; avoid generic legal stock imagery. "
+            "Article question: " + query + ". Article-specific scene context: " + scene_context
+            + ". Natural contemporary setting, realistic lighting, no text, logos, scales of justice, or generic courtroom."
         )
         create_legal_image(
             topic=query,
             image_brief=image_brief,
             visual_description=image_brief,
-            post_context=str(article.get("lead", "") or search_brief),
+            post_context=(str(article.get("lead", "") or "") + "\n" + scene_context + "\n" + str(article.get("excerpt", "") or ""))[:1800],
             output_path=str(image_path),
             api_key=os.getenv("GEMINI_API_KEY", "").strip(),
             cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
