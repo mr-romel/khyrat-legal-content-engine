@@ -2,6 +2,10 @@ name: Blogger OAuth Read-only Check
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/blogger-oauth-check.yml'
 
 permissions:
   contents: read
