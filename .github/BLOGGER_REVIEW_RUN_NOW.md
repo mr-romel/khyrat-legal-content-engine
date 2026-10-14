@@ -3,3 +3,5 @@ Trigger the resumable live Blogger editorial review worker. Each run rewrites up
 تشغيل يدوي: راجع المقالات المنشورة على دفعات، صحح ضعف المحتوى وتسرب تعليمات التحرير، وحسّن SEO وGEO وCTA مع حفظ حالة كل مقال.
 
 Retry after wiring Gemini/Groq/Cerebras/OpenRouter failover — 2026-10-14T20:56Z
+
+Retry Blogger review after removing unsupported patch field — 2026-10-14T21:00Z
