@@ -203,17 +203,44 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
             })
             created += 1
 
+        # The fixed Blogger CTA is its own idempotent, immediate comment.
+        # It must not depend on whether the variable 3-7 comment bundle is complete.
+        cta_event_id = f"COMMENT_BLOG_CTA:{post_id}"
+        cta_event = next((x for x in existing if str(x.get("event_id", "")).strip() == cta_event_id), None)
+        has_blog_cta = any(
+            BLOGGER_URL in str(x.get("comment_text", ""))
+            and str(x.get("action", "")).upper() == "COMMENT"
+            for x in existing
+        )
+        if not has_blog_cta:
+            cta_text = blog_cta_comment("facebook")
+            append_event(service, spreadsheet_id, {
+                "event_id": cta_event_id, "source_row": str(source_row), "post_id": post_id,
+                "topic": row.get("الموضوع", ""), "post_text": row.get("المحتوى", ""),
+                "legal_sources": row.get("المصادر القانونية", ""), "action": "COMMENT",
+                "sequence": "0", "scheduled_at": iso(current), "status": "PENDING",
+                "comment_text": cta_text, "attempts": "0",
+                "fingerprint": fingerprint(post_id, cta_text), "created_at": iso(current),
+                "updated_at": iso(current), "dry_run": "true" if dry_run else "false",
+            })
+            created += 1
+            print(f"Queued fixed Blogger CTA comment for Facebook post {post_id}")
+        elif cta_event and str(cta_event.get("status", "")).upper() in {"PENDING", "RETRY"}:
+            scheduled_cta = parse_dt(cta_event.get("scheduled_at", ""))
+            if scheduled_cta is None or scheduled_cta > current:
+                update_event(service, spreadsheet_id, int(cta_event["_row_number"]), {
+                    "scheduled_at": iso(current), "updated_at": iso(current),
+                })
+
         target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
-        published_count = sum(
-            1 for x in existing
+        # Keep the variable 3-7 comments separate from the one fixed CTA comment.
+        variable_comments = [
+            x for x in existing
             if str(x.get("action", "")).upper() == "COMMENT"
-            and str(x.get("status", "")).upper() == "PUBLISHED"
-        )
-        queued_count = sum(
-            1 for x in existing
-            if str(x.get("action", "")).upper() == "COMMENT"
-            and str(x.get("status", "")).upper() in {"PENDING", "RETRY"}
-        )
+            and not str(x.get("event_id", "")).startswith("COMMENT_BLOG_CTA:")
+        ]
+        published_count = sum(1 for x in variable_comments if str(x.get("status", "")).upper() == "PUBLISHED")
+        queued_count = sum(1 for x in variable_comments if str(x.get("status", "")).upper() in {"PENDING", "RETRY"})
         missing = max(0, target_count - published_count - queued_count)
         if missing == 0:
             continue
@@ -233,14 +260,6 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         comments = generated.get("facebook_comments", [])
         if len(comments) != missing:
             raise RuntimeError(f"Facebook comment generation returned {len(comments)}; expected {missing}")
-        has_blog_cta = any(
-            BLOGGER_URL in str(x.get("comment_text", ""))
-            for x in existing
-            if str(x.get("action", "")).upper() == "COMMENT"
-        )
-        if add_blog_cta and not has_blog_cta and comments:
-            comments[-1] = blog_cta_comment("facebook")
-
         existing_sequences = {
             int(x.get("sequence", "0") or "0")
             for x in existing
