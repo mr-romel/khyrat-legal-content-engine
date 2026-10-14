@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-"""Small provider router for text generation.
+"""Text-generation router.
 
-Order: Gemini first, then Groq, Cerebras, and OpenRouter when their API keys
-are configured. Alternative providers are optional; their free quotas are
-controlled by each provider and are not guaranteed to be unlimited.
+Order: Gemini first, then Groq, Cerebras, and OpenRouter when configured.
+Fallback providers are OpenAI-compatible text APIs; they cannot reproduce
+Gemini-only tools such as Google Search grounding or multimodal image input.
+Their free quotas are provider-controlled and are not guaranteed unlimited.
 """
 import os
 import re
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,7 +37,7 @@ def _status(exc: Exception) -> int | None:
                     return int(value)
             except (TypeError, ValueError):
                 pass
-    match = re.search(r"\b(?:HTTP\s*)?(408|425|429|500|502|503|504)\b", str(exc))
+    match = re.search(r"\b(?:HTTP\s*)?(400|401|403|404|408|413|422|425|429|500|502|503|504)\b", str(exc))
     return int(match.group(1)) if match else None
 
 
@@ -135,31 +135,77 @@ class RoutedClient:
                 "https://openrouter.ai/api/v1/chat/completions",
             ),
         }
+        if provider not in settings:
+            raise RuntimeError(f"Unknown AI provider: {provider}")
         key, selected_model, endpoint = settings[provider]
         if not key:
             raise RuntimeError(f"{provider} API key is not configured.")
-        if provider == "openrouter" and os.getenv("OPENROUTER_MODEL", "").strip():
-            selected_model = os.getenv("OPENROUTER_MODEL", "").strip()
-        elif model and model.startswith(provider + "/"):
+        if model and model.startswith(provider + "/"):
             selected_model = model.split("/", 1)[1]
+
+        tools = self._config_value(config, "tools", None)
+        if tools:
+            # Do not silently drop provider-specific tools (notably Google Search).
+            raise RuntimeError(
+                f"{provider} fallback cannot preserve Gemini-only tools from this request; "
+                "retry with a provider that supports the required tool/grounding."
+            )
+
+        system_instruction = self._config_value(config, "system_instruction", None)
+        messages = []
+        if system_instruction:
+            system_text = _prompt_text(system_instruction)
+            if system_text.strip():
+                messages.append({"role": "system", "content": system_text})
+        messages.append({"role": "user", "content": prompt})
+
         max_tokens = self._config_value(config, "max_output_tokens", 4096)
-        if not isinstance(max_tokens, int):
+        try:
+            max_tokens = int(max_tokens)
+        except (TypeError, ValueError):
             max_tokens = 4096
-        payload = {
+        payload: dict[str, Any] = {
             "model": selected_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": max(256, min(max_tokens, 8192)),
-            "temperature": 0.6,
         }
+        temperature = self._config_value(config, "temperature", 0.6)
+        if temperature is not None:
+            try:
+                payload["temperature"] = float(temperature)
+            except (TypeError, ValueError):
+                pass
+        top_p = self._config_value(config, "top_p", None)
+        if top_p is not None:
+            try:
+                payload["top_p"] = float(top_p)
+            except (TypeError, ValueError):
+                pass
+        stop_sequences = self._config_value(config, "stop_sequences", None)
+        if isinstance(stop_sequences, (list, tuple)) and stop_sequences:
+            payload["stop"] = [str(value) for value in stop_sequences]
+
+        response_mime_type = str(self._config_value(config, "response_mime_type", "") or "").lower()
+        if response_mime_type == "application/json":
+            # All three services expose OpenAI-compatible JSON-object mode.
+            payload["response_format"] = {"type": "json_object"}
+
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         if provider == "openrouter":
             headers["HTTP-Referer"] = "https://github.com/mr-romel/khyrat-legal-content-engine"
             headers["X-Title"] = "Khyrat Legal Content Engine"
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=90)
+        try:
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=90)
+        except requests.RequestException:
+            raise
         if response.status_code >= 400:
-            detail = response.text[:600]
+            # Keep response details short; never include request headers or API keys.
+            detail = str(getattr(response, "text", "") or "")[:600]
             raise RuntimeError(f"{provider} HTTP {response.status_code}: {detail}")
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise RuntimeError(f"{provider} returned invalid JSON from its API.") from exc
         choices = data.get("choices") or []
         content = choices[0].get("message", {}).get("content", "") if choices else ""
         if isinstance(content, list):
@@ -176,9 +222,14 @@ class RoutedClient:
         if self.api_key and not _GEMINI_QUOTA_EXHAUSTED:
             providers.append(("Gemini", lambda: self._generate_gemini(prompt, model, config)))
         for provider in ("groq", "cerebras", "openrouter"):
-            key_name = {"groq": "GROQ_API_KEY", "cerebras": "CEREBRAS_API_KEY", "openrouter": "OPENROUTER_API_KEY"}[provider]
+            key_name = {
+                "groq": "GROQ_API_KEY",
+                "cerebras": "CEREBRAS_API_KEY",
+                "openrouter": "OPENROUTER_API_KEY",
+            }[provider]
             if os.getenv(key_name, "").strip():
                 providers.append((provider, lambda p=provider: self._generate_openai_compatible(p, prompt, model, config)))
+
         for name, call in providers:
             try:
                 result = call()
@@ -186,20 +237,20 @@ class RoutedClient:
                     print(f"AI provider fallback selected: {name}")
                 return result
             except Exception as exc:
-                failures.append(f"{name}: {type(exc).__name__} ({_status(exc) or 'no HTTP status'})")
+                status = _status(exc)
+                failures.append(f"{name}: {type(exc).__name__} ({status or 'no HTTP status'})")
                 if name == "Gemini" and _is_quota(exc):
                     _GEMINI_QUOTA_EXHAUSTED = True
                     print("Gemini quota/rate limit detected; switching to configured alternate AI providers for this worker run.")
-                    continue
-                if _status(exc) in _TRANSIENT or isinstance(exc, (requests.Timeout, requests.ConnectionError)):
+                elif name == "Gemini":
+                    print(f"Gemini request failed ({status or 'no HTTP status'}); trying configured alternate providers.")
+                else:
                     print(f"AI provider {name} unavailable; trying the next configured provider.")
-                    continue
-                # Authentication, model, and request errors should not be hidden by a silent cascade.
-                if name != "Gemini":
-                    print(f"AI provider {name} request failed; trying next configured provider.")
-                    continue
-                raise
-        raise RuntimeError("All configured text AI providers failed or are out of quota. " + " | ".join(failures))
+
+        raise RuntimeError(
+            "All configured text AI providers failed or could not support this request. "
+            + " | ".join(failures)
+        )
 
 
 def create_client(api_key: str = "") -> RoutedClient:
