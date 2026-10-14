@@ -90,8 +90,13 @@ class _Chats:
 
 
 class RoutedClient:
-    def __init__(self, api_key: str = ""):
+    # Core legal reasoning stays Gemini-first. Repetitive low-risk tasks use the
+    # configured economical providers first, then fall back to Gemini if needed.
+    AUXILIARY_TASKS = {"comments", "image_description", "metadata"}
+
+    def __init__(self, api_key: str = "", task: str = "core"):
         self.api_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
+        self.task = (task or "core").strip().casefold()
         self.models = _Models(self)
         self.chats = _Chats(self)
 
@@ -219,8 +224,7 @@ class RoutedClient:
         global _GEMINI_QUOTA_EXHAUSTED
         failures: list[str] = []
         providers = []
-        if self.api_key and not _GEMINI_QUOTA_EXHAUSTED:
-            providers.append(("Gemini", lambda: self._generate_gemini(prompt, model, config)))
+        configured_alternates = []
         for provider in ("groq", "cerebras", "openrouter"):
             key_name = {
                 "groq": "GROQ_API_KEY",
@@ -228,7 +232,22 @@ class RoutedClient:
                 "openrouter": "OPENROUTER_API_KEY",
             }[provider]
             if os.getenv(key_name, "").strip():
-                providers.append((provider, lambda p=provider: self._generate_openai_compatible(p, prompt, model, config)))
+                configured_alternates.append(
+                    (provider, lambda p=provider: self._generate_openai_compatible(p, prompt, model, config))
+                )
+
+        gemini = []
+        if self.api_key and not _GEMINI_QUOTA_EXHAUSTED:
+            gemini.append(("Gemini", lambda: self._generate_gemini(prompt, model, config)))
+
+        if self.task in self.AUXILIARY_TASKS:
+            # Preserve Gemini capacity for original legal drafting and legal review.
+            # Auxiliary providers are attempted first; Gemini remains a last resort.
+            providers.extend(configured_alternates)
+            providers.extend(gemini)
+        else:
+            providers.extend(gemini)
+            providers.extend(configured_alternates)
 
         for name, call in providers:
             try:
@@ -253,5 +272,10 @@ class RoutedClient:
         )
 
 
-def create_client(api_key: str = "") -> RoutedClient:
-    return RoutedClient(api_key=api_key)
+def create_client(api_key: str = "", *, task: str = "core") -> RoutedClient:
+    """Create a router with task-aware provider order.
+
+    core: Gemini -> Groq -> Cerebras -> OpenRouter
+    auxiliary tasks: Groq -> Cerebras -> OpenRouter -> Gemini
+    """
+    return RoutedClient(api_key=api_key, task=task)
