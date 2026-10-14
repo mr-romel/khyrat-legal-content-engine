@@ -77,10 +77,15 @@ def save_state(state: dict) -> None:
 
 def main() -> int:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required to review and rewrite existing articles.")
+    from ai_router import has_any_provider_key
+    if not has_any_provider_key():
+        raise RuntimeError(
+            "No text AI provider is configured. Set at least one of GEMINI_API_KEY, "
+            "GROQ_API_KEY, CEREBRAS_API_KEY, or OPENROUTER_API_KEY."
+        )
     max_posts = max(1, min(25, int(os.getenv("BLOGGER_REVIEW_LIMIT", "10"))))
     model = os.getenv("GEMINI_MODEL", "").strip() or os.getenv("GEMINI_FALLBACK_MODEL", "").strip() or "gemini-3.6-flash"
+    print("Text AI providers configured: " + ", ".join(name for name, env in [("Gemini", "GEMINI_API_KEY"), ("Groq", "GROQ_API_KEY"), ("Cerebras", "CEREBRAS_API_KEY"), ("OpenRouter", "OPENROUTER_API_KEY")] if os.getenv(env, "").strip()))
     svc = service()
     bid = blog_id(svc, os.getenv("BLOGGER_URL", DEFAULT_BLOG_URL).strip())
     state = load_state()
