@@ -105,3 +105,50 @@ def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
         router, "_generate_openai_compatible", lambda *args, **kwargs: "fallback result"
     )
     assert router.generate("prompt", model="gemini-invalid") == "fallback result"
+
+
+
+def test_auxiliary_task_uses_backups_before_gemini(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq")
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-cerebras")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
+    router = ai_router.RoutedClient(api_key="test-gemini", task="comments")
+    calls = []
+
+    def backup(provider, prompt, model, config):
+        calls.append(provider)
+        return "backup result"
+
+    def gemini(prompt, model, config):
+        calls.append("Gemini")
+        return "gemini result"
+
+    monkeypatch.setattr(router, "_generate_openai_compatible", backup)
+    monkeypatch.setattr(router, "_generate_gemini", gemini)
+    assert router.generate("comment prompt", model="gemini-test") == "backup result"
+    assert calls == ["groq"]
+
+
+def test_auxiliary_task_uses_gemini_only_after_all_backups_fail(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq")
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-cerebras")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
+    router = ai_router.RoutedClient(api_key="test-gemini", task="image_description")
+    calls = []
+
+    def backup(provider, prompt, model, config):
+        calls.append(provider)
+        raise RuntimeError(f"{provider} temporarily unavailable")
+
+    def gemini(prompt, model, config):
+        calls.append("Gemini")
+        return "gemini result"
+
+    monkeypatch.setattr(router, "_generate_openai_compatible", backup)
+    monkeypatch.setattr(router, "_generate_gemini", gemini)
+    assert router.generate("scene prompt", model="gemini-test") == "gemini result"
+    assert calls == ["groq", "cerebras", "openrouter", "Gemini"]
