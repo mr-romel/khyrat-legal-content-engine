@@ -676,28 +676,36 @@ def _smart_main() -> None:
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
     force_next_ready = os.getenv("KHYRAT_FORCE_NEXT_READY", "").strip().lower() in {"1", "true", "yes", "on"}
     if not candidates and force_next_ready:
-        # A manual workflow dispatch means an operator explicitly requested an
-        # immediate run. Select only today's non-terminal row; never republish a
-        # PUBLISHED row or touch a future date, and preserve normal due ordering
-        # whenever a due row already exists.
+        # SAFE_RUN_NOW/manual dispatch explicitly authorizes one immediate
+        # publication even when the next scheduled slot is in the future.
+        # Select exactly one earliest non-terminal row; never touch PUBLISHED
+        # or CANCELLED rows and never clear existing platform IDs.
         forced_ready = []
         for row_number, candidate_row in enumerate(rows, start=2):
-            if parse_date(candidate_row.get("تاريخ النشر", "")) != current.date():
-                continue
             status = str(candidate_row.get("الحالة", "")).strip().upper()
             if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
                 continue
             if not str(candidate_row.get("الموضوع", "")).strip():
                 continue
-            forced_ready.append((row_number, candidate_row))
+            target = _smart_target_datetime(candidate_row)
+            forced_ready.append((row_number, candidate_row, target))
+        forced_ready.sort(
+            key=lambda item: (
+                item[2] is None,
+                item[2] or current,
+                item[0],
+            )
+        )
         if forced_ready:
-            candidates = forced_ready
+            row_number, candidate_row, target = forced_ready[0]
+            candidates = [(row_number, candidate_row)]
             print(
-                "FORCE_NEXT_READY enabled by manual dispatch: bypassing the time gate "
-                f"for today's non-terminal row(s) only; candidates={[(n, r.get('ID', '')) for n, r in candidates]}."
+                "FORCE_NEXT_READY enabled by explicit manual run: publishing exactly one "
+                f"earliest non-terminal row ahead of schedule; row={row_number}, "
+                f"ID={candidate_row.get('ID', '')}, scheduled={target.isoformat() if target else 'unscheduled'}."
             )
         else:
-            print("FORCE_NEXT_READY enabled, but no eligible READY/FAILED row exists for today.")
+            print("FORCE_NEXT_READY enabled, but no eligible READY/FAILED row exists.")
     reel_recovery_row = None
     if not candidates and force_due:
         forced = []
