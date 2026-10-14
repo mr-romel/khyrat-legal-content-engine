@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import os
-
 import ai_router
 
 
 class _Response:
     status_code = 200
+    text = ""
 
-    def raise_for_status(self):
-        return None
+    def __init__(self, content="fallback answer"):
+        self.content = content
 
     def json(self):
-        return {"choices": [{"message": {"content": "fallback answer"}}]}
+        return {"choices": [{"message": {"content": self.content}}]}
 
 
 def test_gemini_quota_routes_to_groq(monkeypatch):
@@ -36,3 +35,73 @@ def test_no_fallback_key_does_not_claim_alternate_provider(monkeypatch):
     for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert ai_router.has_any_provider_key() is False
+
+
+def test_openai_compatible_request_preserves_json_and_generation_settings(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq")
+    captured = {}
+
+    def fake_post(endpoint, *, headers, json, timeout):
+        captured["endpoint"] = endpoint
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Response('{"answer": "ok"}')
+
+    monkeypatch.setattr(ai_router.requests, "post", fake_post)
+    router = ai_router.RoutedClient()
+    config = {
+        "system_instruction": "You are a careful editor.",
+        "response_mime_type": "application/json",
+        "max_output_tokens": 1800,
+        "temperature": 0.1,
+        "top_p": 0.8,
+    }
+    result = router._generate_openai_compatible(
+        "groq", "Make a JSON answer", "gemini-model", config
+    )
+
+    assert result == '{"answer": "ok"}'
+    payload = captured["json"]
+    assert payload["messages"] == [
+        {"role": "system", "content": "You are a careful editor."},
+        {"role": "user", "content": "Make a JSON answer"},
+    ]
+    assert payload["response_format"] == {"type": "json_object"}
+    assert payload["max_tokens"] == 1800
+    assert payload["temperature"] == 0.1
+    assert payload["top_p"] == 0.8
+
+
+def test_fallback_refuses_to_drop_google_search_tool(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq")
+    router = ai_router.RoutedClient()
+    try:
+        router._generate_openai_compatible(
+            "groq",
+            "Research this legal issue",
+            "gemini-model",
+            {"tools": [{"google_search": {}}]},
+        )
+    except RuntimeError as exc:
+        assert "cannot preserve Gemini-only tools" in str(exc)
+    else:
+        raise AssertionError("Fallback must not silently discard Google Search tools")
+
+
+def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq")
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
+    router = ai_router.RoutedClient(api_key="test-gemini")
+
+    def invalid_model(prompt, model, config):
+        raise RuntimeError("invalid model")
+
+    monkeypatch.setattr(router, "_generate_gemini", invalid_model)
+    monkeypatch.setattr(
+        router, "_generate_openai_compatible", lambda *args, **kwargs: "fallback result"
+    )
+    assert router.generate("prompt", model="gemini-invalid") == "fallback result"
