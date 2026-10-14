@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from google import genai
+from ai_router import create_client, has_any_provider_key
 
 from gemini import (
     DEFAULT_TEXT_MODEL,
@@ -50,8 +50,8 @@ def generate_post(
     legal_sources: str,
     previous_context: str = "",
 ) -> dict[str, Any]:
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
+    if not api_key and not has_any_provider_key():
+        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
 
     topic = (topic or "").strip()
     if not topic:
@@ -63,7 +63,7 @@ def generate_post(
     if not selected_model:
         selected_model = DEFAULT_TEXT_MODEL
 
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
 
     user_prompt = f"""
 الموضوع:
