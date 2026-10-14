@@ -745,7 +745,9 @@ def _is_published_dashboard_row(row_text: str) -> bool:
     return bool(re.search(r"\bpublished\b|منشور", status))
 
 
-def _published_dashboard_post(page, blog_url: str, title: str, blog_id: str = "") -> tuple[str, str]:
+def _published_dashboard_post(
+    page, blog_url: str, title: str, blog_id: str = "", *, require_public_body: bool = True
+) -> tuple[str, str]:
     """Resolve an existing published post from its exact Blogger dashboard row."""
     if not blog_id:
         match = re.search(r"/blog/post/edit/([0-9]+)/", page.url)
@@ -788,9 +790,15 @@ def _published_dashboard_post(page, blog_url: str, title: str, blog_id: str = ""
                 ):
                     public_url = href
             if public_url and edit_post_id:
-                # A matching title is not enough: older broken runs sometimes
-                # published a title-only post. Reuse it only if the public feed
-                # confirms that a substantive article body exists.
+                # Before a new publication, require body verification to avoid
+                # reusing legacy title-only drafts. After the UI has verified the
+                # complete editor body and clicked Publish, callers may accept the
+                # exact Published dashboard row + its public View link, then verify
+                # the saved body through Blogger REST posts.get (which avoids the
+                # rate-limited public feed).
+                if not require_public_body:
+                    print("Blogger dashboard confirms Published status and public permalink; REST body verification delegated to caller.")
+                    return public_url, edit_post_id
                 verified_url, verified_id = _public_post_permalink(blog_url, title, attempts=1)
                 if not verified_url:
                     print("Blogger dashboard title match has no verified article body; refusing idempotent success.")
@@ -803,9 +811,13 @@ def _published_dashboard_post(page, blog_url: str, title: str, blog_id: str = ""
     return "", ""
 
 
-def _public_permalink_in_browser(page, blog_url: str, title: str, blog_id: str = "") -> str:
-    """Compatibility wrapper returning only the verified public permalink."""
-    public_url, _post_id = _published_dashboard_post(page, blog_url, title, blog_id)
+def _public_permalink_in_browser(
+    page, blog_url: str, title: str, blog_id: str = "", *, require_public_body: bool = True
+) -> str:
+    """Compatibility wrapper returning a public permalink from the authenticated dashboard."""
+    public_url, _post_id = _published_dashboard_post(
+        page, blog_url, title, blog_id, require_public_body=require_public_body
+    )
     return public_url
 
 
@@ -860,6 +872,7 @@ def publish_article_ui(
     blog_url: str = "https://askmahmoudkhyrat.blogspot.com/",
     search_description: str = "",
     force_update: bool = False,
+    allow_dashboard_permalink_fallback: bool = False,
 ) -> dict[str, str]:
     state_path = _storage_state_path()
     browser = None
@@ -1002,7 +1015,10 @@ def publish_article_ui(
             match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", editor_url)
             if match:
                 post_id = match.group(2)
-            browser_permalink = _public_permalink_in_browser(page, blog_url, title, target_blog_id)
+            browser_permalink = _public_permalink_in_browser(
+                page, blog_url, title, target_blog_id,
+                require_public_body=not allow_dashboard_permalink_fallback,
+            )
             if browser_permalink:
                 published_url = browser_permalink
 
