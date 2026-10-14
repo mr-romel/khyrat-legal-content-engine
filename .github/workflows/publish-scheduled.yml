@@ -82,6 +82,7 @@ jobs:
           CLOUDFLARE_IMAGE_STEPS: "20"
           CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
           KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR') && 'true' || 'false' }}
+          KHYRAT_FORCE_NEXT_READY: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
           KHYRAT_FORCE_REPUBLISH: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'FIX_IMAGE_RUN') && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
