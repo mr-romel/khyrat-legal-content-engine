@@ -388,7 +388,7 @@ def _wait_for_editor_save(page) -> None:
             """() => !/(creating new post|saving( post)?[.…]*|جارٍ الحفظ|جاري الحفظ)/i.test(
                 (document.body && document.body.innerText) || ''
             )""",
-            timeout=45000,
+            timeout=90000,
         )
         print("Blogger draft creation/autosave indicator cleared before Publish.")
     except PlaywrightTimeoutError as exc:
@@ -397,7 +397,7 @@ def _wait_for_editor_save(page) -> None:
         except Exception:
             excerpt = ""
         raise BloggerUIPublishError(
-            "Blogger autosave remained active after 45 seconds; refusing title-only publication. "
+            "Blogger autosave remained active after 90 seconds; refusing title-only publication. "
             + excerpt
         ) from exc
 
