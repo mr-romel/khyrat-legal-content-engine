@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 from deduplicate_blogger_articles import fingerprint, normalize
 
 def test_arabic_diacritics_and_punctuation_do_not_change_fingerprint():
-    assert normalize("مُحَامٍ — قانوني") == normalize("محامي قانوني")
+    assert normalize("مُحَامِي — قانوني") == normalize("محامي قانوني")
 
 def test_short_content_is_not_eligible_for_deletion():
     assert fingerprint({"content":"قصير"}) == ""
