@@ -33,9 +33,7 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    environment: github-pages
     env:
       PYTHONPATH: .:src
       LEGAL_LEAD_LIMIT: ${{ github.event.inputs.limit || '100' }}
