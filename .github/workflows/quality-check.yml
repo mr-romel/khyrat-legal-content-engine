@@ -138,7 +138,9 @@ jobs:
               legal_sources="مصدر قانوني تجريبي",
               related=[],
           )
-          assert "BlogPosting" in html
+          # Blogger rejects inline JSON-LD scripts in this legacy-post patch path.
+          assert "<script" not in html.lower()
+          assert "khyrat-legal-article" in html
           assert "wa.me/201022718375" in html
           assert "facebook.com/AskMahmoudNow" in html
           assert "linkedin.com/in/mahmoud-khyrat" in html
