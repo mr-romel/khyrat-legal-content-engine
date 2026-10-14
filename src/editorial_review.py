@@ -5,7 +5,7 @@ import re
 import time
 from typing import Any
 
-from google import genai
+from ai_router import create_client, has_any_provider_key
 from google.genai import types
 
 from legal_reference_registry import build_reference_context, extract_grounding_sources, format_grounding_sources
@@ -251,14 +251,14 @@ def review_and_prepare(
     linkedin_comments: list[str],
     legal_sources: str = "",
 ) -> dict[str, Any]:
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
+    if not api_key and not has_any_provider_key():
+        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     if not facebook_post.strip():
         raise RuntimeError("Facebook post is empty.")
 
     primary_model = (model or "").strip() or DEFAULT_FALLBACK_MODEL
     fallback_model = DEFAULT_FALLBACK_MODEL
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
 
     research_available = True
     research = ""
