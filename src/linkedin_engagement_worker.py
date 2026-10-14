@@ -238,17 +238,43 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             })
             created += 1
 
+        # Queue one fixed Blogger CTA independently of the variable comment bundle.
+        cta_event_id = f"COMMENT_BLOG_CTA:{post_urn}"
+        cta_event = next((x for x in post_events if str(x.get("event_id", "")).strip() == cta_event_id), None)
+        has_blog_cta = any(
+            BLOGGER_URL in str(x.get("comment_text", ""))
+            and str(x.get("action", "")).upper() == "COMMENT"
+            for x in post_events
+        )
+        if not has_blog_cta:
+            cta_text = blog_cta_comment("linkedin")
+            append_event(service, spreadsheet_id, {
+                "event_id": cta_event_id, "source_row": str(source_row), "post_urn": post_urn,
+                "topic": row.get("الموضوع", ""), "post_text": row.get("المحتوى", ""),
+                "legal_sources": row.get("المصادر القانونية", ""), "action": "COMMENT",
+                "sequence": "0", "scheduled_at": iso(current), "status": "PENDING",
+                "comment_text": cta_text, "attempts": "0", "capability_status": "NOT_CHECKED",
+                "fingerprint": comment_fingerprint(post_urn, cta_text), "created_at": iso(current),
+                "updated_at": iso(current), "dry_run": "true" if DRY_RUN else "false",
+            })
+            created += 1
+            print(f"Queued fixed Blogger CTA comment for LinkedIn post {post_urn}")
+        elif cta_event and str(cta_event.get("status", "")).upper() in {"PENDING", "RETRY"}:
+            scheduled_cta = parse_dt(cta_event.get("scheduled_at", ""))
+            if scheduled_cta is None or scheduled_cta > current:
+                update_event(service, spreadsheet_id, int(cta_event["_row_number"]), {
+                    "scheduled_at": iso(current), "updated_at": iso(current),
+                })
+
         target_count = choose_comment_count("", row.get("المحتوى", ""))
-        published_count = sum(
-            1 for x in post_events
+        # Keep the variable 3-7 comments separate from the fixed CTA comment.
+        variable_comments = [
+            x for x in post_events
             if str(x.get("action", "")).upper() == "COMMENT"
-            and str(x.get("status", "")).upper() == "PUBLISHED"
-        )
-        queued_count = sum(
-            1 for x in post_events
-            if str(x.get("action", "")).upper() == "COMMENT"
-            and str(x.get("status", "")).upper() in {"PENDING", "RETRY"}
-        )
+            and not str(x.get("event_id", "")).startswith("COMMENT_BLOG_CTA:")
+        ]
+        published_count = sum(1 for x in variable_comments if str(x.get("status", "")).upper() == "PUBLISHED")
+        queued_count = sum(1 for x in variable_comments if str(x.get("status", "")).upper() in {"PENDING", "RETRY"})
         missing = max(0, target_count - published_count - queued_count)
         if missing == 0:
             continue
@@ -266,13 +292,6 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             count=missing,
         )
         generated_posts += 1
-        has_blog_cta = any(
-            BLOGGER_URL in str(x.get("comment_text", ""))
-            for x in post_events
-            if str(x.get("action", "")).upper() == "COMMENT"
-        )
-        if add_blog_cta and not has_blog_cta and comments:
-            comments[-1] = blog_cta_comment("linkedin")
         offsets = comment_schedule_offsets(missing)
         existing_sequences = {
             int(x.get("sequence", "0") or "0")
