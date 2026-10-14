@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/EMERGENCY_RUN_NOW.md"
+      - ".github/SAFE_RUN_NOW.md"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
   publish:
     outputs:
       reel_source_available: ${{ steps.detect-reel-source.outputs.available }}
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' }}
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'SAFE_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -82,6 +83,7 @@ jobs:
           CLOUDFLARE_IMAGE_STEPS: "20"
           CLOUDFLARE_IMAGE_GUIDANCE: "6.0"
           KHYRAT_FORCE_DUE: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR') && 'true' || 'false' }}
+          KHYRAT_FORCE_NEXT_READY: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'SAFE_RUN_NOW')) && 'true' || 'false' }}
           KHYRAT_FORCE_REPUBLISH: ${{ github.event_name == 'push' && (github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'FIX_IMAGE_RUN') && 'true' || 'false' }}
         run: timeout --signal=TERM --kill-after=30s 12m env PYTHONPATH=src python src/content_system_runtime.py
 
