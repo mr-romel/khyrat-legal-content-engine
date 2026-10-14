@@ -674,6 +674,30 @@ def _smart_main() -> None:
             candidates = [image_repairs[-1]]
             print(f"Today's published image repair selected: row={candidates[0][0]}.")
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
+    force_next_ready = os.getenv("KHYRAT_FORCE_NEXT_READY", "").strip().lower() in {"1", "true", "yes", "on"}
+    if not candidates and force_next_ready:
+        # A manual workflow dispatch means an operator explicitly requested an
+        # immediate run. Select only today's non-terminal row; never republish a
+        # PUBLISHED row or touch a future date, and preserve normal due ordering
+        # whenever a due row already exists.
+        forced_ready = []
+        for row_number, candidate_row in enumerate(rows, start=2):
+            if parse_date(candidate_row.get("تاريخ النشر", "")) != current.date():
+                continue
+            status = str(candidate_row.get("الحالة", "")).strip().upper()
+            if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
+                continue
+            if not str(candidate_row.get("الموضوع", "")).strip():
+                continue
+            forced_ready.append((row_number, candidate_row))
+        if forced_ready:
+            candidates = forced_ready
+            print(
+                "FORCE_NEXT_READY enabled by manual dispatch: bypassing the time gate "
+                f"for today's non-terminal row(s) only; candidates={[(n, r.get('ID', '')) for n, r in candidates]}."
+            )
+        else:
+            print("FORCE_NEXT_READY enabled, but no eligible READY/FAILED row exists for today.")
     reel_recovery_row = None
     if not candidates and force_due:
         forced = []
