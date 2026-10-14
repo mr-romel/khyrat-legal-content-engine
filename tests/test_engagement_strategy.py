@@ -1,4 +1,4 @@
-from engagement_strategy import BLOGGER_URL, blog_cta_comment, choose_comment_count, comment_schedule_offsets, normalize_comment
+from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due, choose_comment_count, comment_schedule_offsets, normalize_comment
 
 
 def test_shared_count_is_3_to_7_and_varies():
@@ -21,5 +21,12 @@ def test_blog_cta_is_clear_and_platform_specific():
     linkedin = blog_cta_comment("linkedin")
     assert BLOGGER_URL in facebook and BLOGGER_URL in linkedin
     assert "شارك" in facebook and "شارك" in linkedin
-    assert "قراءة المزيد" in facebook and "قراءة المزيد" in linkedin
+    assert "قراءة" in facebook and "اقرأ" in linkedin
+    assert "مزيد من المعلومات" in linkedin
     assert facebook != linkedin
+
+
+def test_blog_cta_is_due_for_every_published_post():
+    assert all(blog_cta_due(rank) for rank in range(1, 100))
+    assert not blog_cta_due(0)
+    assert not blog_cta_due("not-a-rank")
