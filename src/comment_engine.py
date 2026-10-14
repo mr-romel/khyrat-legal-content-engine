@@ -7,7 +7,7 @@ import re
 import time
 from typing import Any
 
-from google import genai
+from ai_router import create_client, has_any_provider_key
 
 from engagement_strategy import choose_comment_count, normalize_comment
 
@@ -324,8 +324,8 @@ def generate_comments(
     count: int | None = None,
 ) -> dict[str, list[str]]:
     primary_model = (model or "").strip()
-    if not api_key:
-        print("GEMINI_API_KEY is missing; using deterministic platform-specific comments.")
+    if not api_key and not has_any_provider_key():
+        print("No text AI provider key is configured; using deterministic platform-specific comments.")
         return _fallback_comments(topic=topic, post=post, count=count if count is not None else choose_comment_count(f"{topic}|{post}"))
     count = count if count is not None else choose_comment_count(f"{topic}|{post}")
     # 3-7 is the target bundle size; incremental refill may legitimately request 1-2 remaining comments\n    if count < 1 or count > 7:\n        raise ValueError("Comment count must be between 1 and 7.")
@@ -342,7 +342,7 @@ def generate_comments(
         print("Gemini quota already exhausted in this worker run; using deterministic comments without another API call.")
         return _fallback_comments(topic=topic, post=post, count=count)
 
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
     post_context = _build_post_context(client, primary_model, topic, post, legal_sources)
     if _GEMINI_QUOTA_EXHAUSTED:
         print("Gemini quota exhausted while building post context; using deterministic comments without another API call.")
