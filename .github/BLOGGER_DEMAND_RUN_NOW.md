@@ -1,3 +1,3 @@
 # Blogger search-demand recovery
-Run one demand-based Blogger article after the title-only dedupe and in-place repair fixes; attach the generated topic-specific image.
-Trigger nonce: 1791809649464
+Retry the failed demand article after repairing Blogger autosave detection. Prefer repairing the exact existing draft in place; verify the final public URL and body before marking success.
+Trigger nonce: 20261014-1855
