@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from google import genai
+from ai_router import create_client, has_any_provider_key
 
 
 DEFAULT_TEXT_MODEL = "gemini-3.6-flash"
@@ -176,13 +176,13 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
 
 def generate_image_scene_from_post(api_key: str, model: str, post: str) -> str:
     """Derive one concrete visual scene from the final post only."""
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
+    if not api_key and not has_any_provider_key():
+        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     post = " ".join(str(post or "").split()).strip()
     if not post:
         raise RuntimeError("Final post content is required.")
     selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
     prompt = f"""
 Transform the FINAL POST below into one concrete, image-ready scene description.
 
@@ -241,13 +241,13 @@ def generate_post(
     legal_sources: str,
     previous_context: str = "",
 ) -> dict[str, Any]:
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
+    if not api_key and not has_any_provider_key():
+        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     topic = (topic or "").strip()
     if not topic:
         raise RuntimeError("Topic is empty.")
     selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
 
     base_prompt = f"""
 الموضوع:
