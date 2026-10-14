@@ -392,7 +392,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                 sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
         else:
             sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
-    return f'<article class="khyrat-legal-article"><script type="application/ld+json">{schema}</script>{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
+    return f'<article class="khyrat-legal-article">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
     """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
