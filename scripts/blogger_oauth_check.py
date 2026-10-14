@@ -12,6 +12,10 @@ from blogger_publisher import (
 
 
 def main() -> int:
+    if not __import__("os").environ.get("GH_SECRET_ROTATION_TOKEN", "").strip():
+        print("Blogger OAuth check cannot safely rotate the secret: GH_SECRET_ROTATION_TOKEN is missing.")
+        print("Create a fine-grained GitHub token with repository Actions secrets read/write access, then save it as GH_SECRET_ROTATION_TOKEN.")
+        return 2
     try:
         credentials = _credentials()
         if not credentials.refresh_token:
