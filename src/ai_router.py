@@ -121,12 +121,12 @@ class RoutedClient:
         settings = {
             "groq": (
                 os.getenv("GROQ_API_KEY", "").strip(),
-                os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip(),
+                os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip(),
                 "https://api.groq.com/openai/v1/chat/completions",
             ),
             "cerebras": (
                 os.getenv("CEREBRAS_API_KEY", "").strip(),
-                os.getenv("CEREBRAS_MODEL", "llama-3.3-70b").strip(),
+                os.getenv("CEREBRAS_MODEL", "gpt-oss-120b").strip(),
                 "https://api.cerebras.ai/v1/chat/completions",
             ),
             "openrouter": (
