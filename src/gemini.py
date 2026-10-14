@@ -182,7 +182,7 @@ def generate_image_scene_from_post(api_key: str, model: str, post: str) -> str:
     if not post:
         raise RuntimeError("Final post content is required.")
     selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
-    client = create_client(api_key=api_key)
+    client = create_client(api_key=api_key, task="image_description")
     prompt = f"""
 Transform the FINAL POST below into one concrete, image-ready scene description.
 
