@@ -368,6 +368,17 @@ def _smart_is_due(row: dict[str, str], current) -> bool:
     if target is None or current < target:
         return False
 
+    # Never publish an old backlog item just because its scheduled slot passed.
+    # The 20-minute grace window tolerates a delayed 15-minute scheduler cycle,
+    # while stale READY/FAILED rows remain untouched for an explicit reschedule.
+    if current - target > timedelta(minutes=20):
+        print(
+            "Skipping stale scheduled row: "
+            f"ID={row.get('ID', '')}, scheduled={target.isoformat()}, "
+            f"now={current.isoformat()}. Reschedule it explicitly to publish."
+        )
+        return False
+
     if status == "PROCESSING":
         last_run_raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
         try:
