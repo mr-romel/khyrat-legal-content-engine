@@ -21,8 +21,6 @@ concurrency:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   discover:
@@ -153,9 +151,6 @@ jobs:
           python src/marketplace_daily.py --output marketplace_data/daily_plan.json
           python src/marketplace/static_dashboard.py
           test -s marketplace_data/dashboard.html
-          rm -rf marketplace_pages
-          mkdir -p marketplace_pages
-          cp marketplace_data/dashboard.html marketplace_pages/index.html
       - name: Commit changed discovery feed and marketplace queue
         run: |
           git config user.name 'Khyrat Marketplace Bot'
@@ -174,9 +169,3 @@ jobs:
           name: khyrat-marketplace-discovery
           path: marketplace_data/
           if-no-files-found: error
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: marketplace_pages/
-      - name: Deploy Marketplace dashboard to GitHub Pages
-        uses: actions/deploy-pages@v4
