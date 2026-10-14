@@ -167,7 +167,7 @@ def main() -> int:
             labels = normalize_blogger_labels(["قانون مصر", "اسأل محمود", *(article.get("keywords") or [])])
             svc.posts().patch(
                 blogId=bid, postId=post_id,
-                body={"title": title, "content": article_html, "labels": labels},
+                body={"title": title, "content": article_html},
             ).execute()
             verify = svc.posts().get(blogId=bid, postId=post_id, fetchBody=True).execute()
             verify_html = str(verify.get("content", "") or "")
