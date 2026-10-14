@@ -760,6 +760,7 @@ def main() -> int:
             blog_id=BLOG_ID,
             blog_url=BLOG_URL,
             search_description=description,
+            allow_dashboard_permalink_fallback=True,
         )
     public_url = ""
     verified_public = None
@@ -777,7 +778,7 @@ def main() -> int:
             saved_html = str(saved_post.get("content", "") or "")
             saved_text = " ".join(re.sub(r"<[^>]+>", " ", saved_html).split())
             saved_url = str(saved_post.get("url", "") or result.get("post_url", "")).strip()
-            saved_has_image = bool(re.search(r"<img\\b[^>]*\\bsrc\\s*=", saved_html, re.I))
+            saved_has_image = bool(re.search(r"<img\b[^>]*\bsrc\s*=", saved_html, re.I))
             if saved_url and len(saved_text) >= 900:
                 public_url = saved_url
                 verified_public = {
