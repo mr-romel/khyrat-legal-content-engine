@@ -5,7 +5,17 @@
     {
       "id": "4722231211091430444",
       "title": "ماذا تفعل إذا سُرقت محفظتك الإلكترونية؟ دليل خطوة بخطوة للمتضرر",
-      "error": "All configured text AI providers failed or could not support this request. Gemini: ClientError (429)"
+      "error": "<HttpError 400 when requesting https://blogger.googleapis.com/v3/blogs/4778471220497253678/posts/4722231211091430444?alt=json returned \"Request contains an invalid argument.\". Details: \"[{'message': 'Request contains an invalid argument.', 'domain': 'global', 'reason': 'badRequest'}]\">"
+    },
+    {
+      "id": "4082211399975633284",
+      "title": "العقوبة القانونية للابتزاز الإلكتروني في مصر: ما يترتب على المخالفين",
+      "error": "<HttpError 400 when requesting https://blogger.googleapis.com/v3/blogs/4778471220497253678/posts/4082211399975633284?alt=json returned \"Request contains an invalid argument.\". Details: \"[{'message': 'Request contains an invalid argument.', 'domain': 'global', 'reason': 'badRequest'}]\">"
+    },
+    {
+      "id": "2552616241019305008",
+      "title": "إزاي تتصرف لما تتسرق محفظتك الإلكترونية: دليل خطوة بخطوة للمتضررين",
+      "error": "All configured text AI providers failed or could not support this request. groq: RuntimeError (429) | cerebras: RuntimeError (401) | openrouter: RuntimeError (no HTTP status)"
     }
   ],
   "last_batch_success_count": 0
