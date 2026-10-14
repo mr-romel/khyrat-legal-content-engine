@@ -726,10 +726,12 @@ def main() -> int:
                 response = blogger_api.posts().get(blogId=target_blog_id, postId=existing_id).execute()
                 print("Demand article repaired in place through Blogger REST API.")
             else:
+                # Blogger API v3 publishes posts by default when isDraft is
+                # omitted. Sending isDraft=false has produced HTTP 400
+                # "Request contains an invalid argument" in production.
                 response = blogger_api.posts().insert(
                     blogId=target_blog_id,
                     body={"kind": "blogger#post", "title": title, "content": html, "labels": labels},
-                    isDraft=False,
                 ).execute()
                 print("Demand article published through Blogger REST API.")
             result = {

@@ -564,7 +564,11 @@ def _published_url(page, title: str, blog_url: str) -> str:
     if link:
         try:
             href = str(link.get_attribute("href") or "").strip()
-            parsed = urlparse(href)
+            # Blogger frequently renders its public "View" link as a path-only
+            # href (for example /2026/10/article.html). Resolve it against the
+            # configured blog URL before validating the host and permalink.
+            absolute_href = urljoin(blog_url.rstrip("/") + "/", href)
+            parsed = urlparse(absolute_href)
             expected_host = urlparse(blog_url).netloc
             if (
                 parsed.scheme in {"http", "https"}
@@ -573,7 +577,7 @@ def _published_url(page, title: str, blog_url: str) -> str:
                 and re.search(r"/\d{4}/\d{2}/", parsed.path)
                 and "/p/" not in parsed.path
             ):
-                return href
+                return absolute_href
         except Exception:
             pass
 
