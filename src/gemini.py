@@ -38,24 +38,11 @@ SYSTEM_PROMPT = """
 - ممنوع إدراج كلمات تخطيطية أو عناوين داخلية مثل Checklist أو check list أو زاوية أخرى أو زاوية جديدة أو زاوية المحتوى أو Hook أو CTA أو عنوان خطة المحتوى داخل المنشور النهائي. اكتب المحتوى النهائي مباشرة دون وصف استراتيجية الكتابة.
 - LinkedIn يجب أن ينتهي قبل الهاشتاجات بفكرة مكتملة، ثم يضاف إليه لاحقًا من النظام عدد محدود من الهاشتاجات العربية المرتبطة فعليًا بالموضوع
 
-image_brief يجب أن يكون بالإنجليزية فقط، مشهدًا واحدًا محددًا وواقعيًا، مرتبطًا مباشرة بواقعة المنشور، وبدون كتابة أو شعار أو علامة مائية داخل الصورة.
-- صف مشهدًا من الحياة اليومية المعاصرة تدعمه الوقائع: شخص يتعامل مع هاتف، مستندات حديثة، مكتب شركة، منزل، متجر، مكان عمل أو تفاعل بين أطراف، حسب الموضوع.
-- اجعل المشهد محددًا: من يفعل ماذا، وأين، وما الدليل أو الشيء المهم الظاهر، مع زاوية كاميرا وإضاءة طبيعية.
-- استخدم تصميمًا واقعيًا حديثًا وبيئة مألوفة، ولا تضف رموزًا أو ديكورات أو عناصر غير مذكورة في الواقعة.
-- لا تضف محكمة أو محاميًا أو ميزان عدالة أو كتب قانون لمجرد أن الموضوع قانوني؛ يجب أن يبررها مضمون المنشور نفسه.
-- لا تجعل الصورة ملصقًا أو إنفوجرافيك؛ صورة تحريرية واحدة واضحة بلا نص مقروء.
-image_mode يجب أن يكون CONTEXT_ONLY افتراضيًا، ويُستخدم REFERENCE_SUBJECT فقط عندما تكون هناك صورة مرجعية فعلية ومتاحة ومطلوبة للمشهد.
-الأولوية هي دقة المشهد وارتباطه المباشر بالموضوع، وليس إجبار المحامي على الظهور في كل صورة.
-إذا كان ظهور المحامي طبيعيًا ومفيدًا للمشهد وكان مرجع الشخصية متاحًا، يمكن استخدام REFERENCE_SUBJECT.
-إذا لم يكن ذلك ضروريًا، استخدم CONTEXT_ONLY ولا تعتبر غياب صورة المحامي مشكلة.
-لا تجعل المرجع يغيّر الواقعة القانونية أو يحول الصورة إلى بورتريه دعائي.
-إذا كان المشهد يتضمن الشخصية المرجعية، صمّم وضعية جديدة وبيئة جديدة وزاوية كاميرا جديدة وتكوينًا جديدًا وملابس مناسبة للسياق؛ لا تقلّد وضعية أو خلفية أو أثاث أو إضاءة أو framing الصور المرجعية.
+لا تنشئ وصف الصورة ضمن مهمة كتابة المنشور؛ سيُولّد وصف الصورة في مهمة مساعدة مستقلة بعد اكتمال المنشور، لتوفير حصة Gemini للكتابة القانونية.
 
 أعد JSON فقط بهذا الشكل:
 {
   "post": "...",
-  "image_brief": "...",
-  "image_mode": "CONTEXT_ONLY",
   "review_level": "CLEAR|REVIEW",
   "review_flags": [],
   "legal_sources_used": [],
@@ -141,12 +128,12 @@ def _soft_cta_present(post: str) -> bool:
 
 
 def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
-    for field in ("post", "image_brief", "image_mode", "review_level", "review_flags", "legal_sources_used", "hook_pattern"):
+    # The core model now produces legal copy only. Image scene descriptions are
+    # generated separately by the auxiliary-task router.
+    for field in ("post", "review_level", "review_flags", "legal_sources_used", "hook_pattern"):
         if field not in data:
             raise RuntimeError(f"Gemini JSON is missing required field: {field}")
-    data["image_mode"] = str(data.get("image_mode", "CONTEXT_ONLY")).strip().upper()
-    if data["image_mode"] not in {"CONTEXT_ONLY", "REFERENCE_SUBJECT"}:
-        data["image_mode"] = "CONTEXT_ONLY"
+    data["image_mode"] = "CONTEXT_ONLY"
     data["review_level"] = _normalize_review_level(data.get("review_level"))
     data["review_flags"] = _normalize_list(data.get("review_flags"))
     data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
@@ -155,10 +142,9 @@ def _validate_data(data: dict[str, Any]) -> dict[str, Any]:
     if data["hook_pattern"] not in allowed_hooks:
         raise RuntimeError("Gemini returned an invalid hook_pattern.")
     data["post"] = str(data.get("post", "")).strip()
-    data["image_brief"] = str(data.get("image_brief", "")).strip()
+    data["image_brief"] = ""
     if not data["post"]:
         raise RuntimeError("Gemini returned an empty post.")
-    _validate_image_brief(data["image_brief"])
     return data
 
 
