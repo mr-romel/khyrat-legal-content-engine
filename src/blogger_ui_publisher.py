@@ -385,9 +385,14 @@ def _wait_for_editor_save(page) -> None:
     page.wait_for_timeout(1500)
     try:
         page.wait_for_function(
-            """() => !/(creating new post|saving( post)?[.…]*|جارٍ الحفظ|جاري الحفظ)/i.test(
-                (document.body && document.body.innerText) || ''
-            )""",
+            """() => {
+                const bodyText = (document.body && document.body.innerText) || '';
+                // "Creating new post…" can remain in Blogger's application shell
+                // after the editor is ready; treating it as autosave made the
+                // worker wait forever and skip publication. Only block on active
+                // save indicators, after title/body verification has succeeded.
+                return !/(saving( post)?[.…]*|جارٍ الحفظ|جاري الحفظ)/i.test(bodyText);
+            }""",
             timeout=90000,
         )
         print("Blogger draft creation/autosave indicator cleared before Publish.")
