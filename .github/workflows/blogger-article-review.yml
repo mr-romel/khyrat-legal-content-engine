@@ -1,12 +1,15 @@
 name: Blogger Live Article Editorial Review
 
 on:
+  # Process live posts in batches until the review state covers the full blog.
+  schedule:
+    - cron: "17 */6 * * *"
   workflow_dispatch:
     inputs:
       batch_size:
         description: "Number of live articles to review in this run (1-25)"
         required: false
-        default: "10"
+        default: "25"
   push:
     branches: [main]
     paths:
@@ -34,7 +37,7 @@ jobs:
       GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      BLOGGER_REVIEW_LIMIT: ${{ github.event.inputs.batch_size || '10' }}
+      BLOGGER_REVIEW_LIMIT: ${{ github.event.inputs.batch_size || '25' }}
       BLOGGER_REVIEW_STATE: data/blogger_article_review_state.json
     steps:
       - name: Checkout main

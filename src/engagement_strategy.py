@@ -14,28 +14,28 @@ BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 
 
 def blog_cta_comment(platform: str = "facebook") -> str:
-    """A clear blog-reading and sharing CTA inserted into one comment per platform post."""
+    """A fixed blog-reading, further-information, and sharing CTA for every social post."""
     if str(platform or "").strip().lower() == "linkedin":
         return (
-            "لقراءة المزيد من المقالات والمعلومات والشروحات القانونية والأمثلة العملية، "
-            "تفضل بزيارة مدونة «اسأل محمود»: "
+            "للاطلاع على الشرح القانوني الكامل ومزيد من المعلومات والمقالات العملية، "
+            "اقرأ مدونة «اسأل محمود»: "
             + BLOGGER_URL
-            + " وإذا كان المحتوى مفيدًا لزميل أو لفريق العمل، شارك معه رابط المدونة"
+            + " لو المحتوى مفيد لزميل أو لفريق العمل، شارك معاه الرابط عشان يستفيدوا من التفاصيل والمصادر."
         )
     return (
-        "لقراءة المزيد من المقالات والمعلومات والشروحات القانونية، زور مدونة «اسأل محمود»: "
+        "عايز تعرف التفاصيل والمعلومات القانونية كاملة؟ لقراءة المزيد من الشروحات والمقالات العملية، زور مدونة «اسأل محمود»: "
         + BLOGGER_URL
-        + " ولو المحتوى ممكن يفيد حد تعرفه، شارك معاه رابط المدونة أو المنشور"
+        + " ولو المعلومة ممكن تفيد غيرك، شارك الرابط أو المنشور معاه."
     )
 
 
 def blog_cta_due(publication_rank: int) -> bool:
-    """Include the blog CTA on every third published post, not every post."""
+    """Include the fixed blog CTA in every eligible published post."""
     try:
         rank = int(publication_rank)
     except (TypeError, ValueError):
         return False
-    return rank > 0 and rank % 3 == 0
+    return rank > 0
 
 
 def choose_comment_count(post_key: str) -> int:
