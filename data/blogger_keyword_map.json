@@ -911,7 +911,7 @@
       "demand_score": 65,
       "demand_signal": "Google Autocomplete + public SERP context; optional Google Trends Egypt match",
       "date": "2026-10-14",
-      "status": "PROCESSING",
+      "status": "PUBLISHED",
       "title": "العقوبة القانونية للابتزاز الإلكتروني في مصر: ما يترتب على المخالفين",
       "keywords": [
         "عقوبة الابتزاز الإلكتروني في مصر",
@@ -923,7 +923,10 @@
       "meta_description": "تعرف على العقوبة المقررة للابتزاز الإلكتروني في القانون المصري، إجراءات تقديم الشكوى، والآثار القانونية على المتهمين.",
       "serp_titles": [],
       "serp_urls": [],
-      "research_date": "2026-10-14"
+      "research_date": "2026-10-14",
+      "post_id": "4082211399975633284",
+      "post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_253.html",
+      "published_at": "2026-10-14T21:57:40+03:00"
     }
   ],
   "keyword_frequency": {
@@ -947,5 +950,5 @@
     "مواجهة التهديد الرقمي": 1,
     "محضر مباحث الإنترنت": 1
   },
-  "updated_at": "2026-10-12T15:48:02.613639+03:00"
+  "updated_at": "2026-10-14T21:57:40+03:00"
 }
