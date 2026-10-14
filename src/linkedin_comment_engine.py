@@ -7,7 +7,7 @@ import re
 import time
 from typing import Any
 
-from google import genai
+from ai_router import create_client, has_any_provider_key
 
 from engagement_strategy import normalize_comment, comment_schedule_offsets as shared_schedule_offsets, choose_comment_count as shared_choose_comment_count
 
@@ -169,8 +169,8 @@ def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
 
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
     count = count if count is not None else choose_comment_count(topic, post)
-    if not api_key:
-        print("GEMINI_API_KEY is missing; using deterministic LinkedIn comments.")
+    if not api_key and not has_any_provider_key():
+        print("No text AI provider key is configured; using deterministic LinkedIn comments.")
         return _fallback_linkedin_comments(post, count)
     # 3-7 is the target bundle size; incremental refill may legitimately request 1-2 remaining comments
     if count < 1 or count > LINKEDIN_MAX_COMMENTS:
@@ -193,7 +193,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     if _GEMINI_QUOTA_EXHAUSTED:
         print("Gemini quota already exhausted in this worker run; using deterministic LinkedIn comments without another API call.")
         return _fallback_linkedin_comments(post, count)
-    client = genai.Client(api_key=api_key)
+    client = create_client(api_key=api_key)
     try:
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
     except Exception as primary_exc:
