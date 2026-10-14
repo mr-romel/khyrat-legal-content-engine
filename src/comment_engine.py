@@ -342,7 +342,7 @@ def generate_comments(
         print("Gemini quota already exhausted in this worker run; using deterministic comments without another API call.")
         return _fallback_comments(topic=topic, post=post, count=count)
 
-    client = create_client(api_key=api_key)
+    client = create_client(api_key=api_key, task="comments")
     post_context = _build_post_context(client, primary_model, topic, post, legal_sources)
     if _GEMINI_QUOTA_EXHAUSTED:
         print("Gemini quota exhausted while building post context; using deterministic comments without another API call.")
