@@ -1,0 +1,1 @@
+Safe immediate production run requested on 2026-10-14. This trigger processes only today's next eligible READY/FAILED row and does not force-republish existing social posts.
