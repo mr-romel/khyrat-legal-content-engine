@@ -697,6 +697,7 @@ def main() -> int:
             result = publish_article_ui(
                 title=title, content_html=html, labels=labels, blog_id=BLOG_ID,
                 blog_url=BLOG_URL, search_description=description, force_update=True,
+                allow_dashboard_permalink_fallback=True,
             )
     elif os.getenv("BLOGGER_OAUTH_JSON", "").strip():
         try:
@@ -748,6 +749,7 @@ def main() -> int:
                 blog_id=BLOG_ID,
                 blog_url=BLOG_URL,
                 search_description=description,
+                allow_dashboard_permalink_fallback=True,
             )
     else:
         print("BLOGGER_OAUTH_JSON is absent; using the authenticated Blogger UI publisher.")
@@ -759,7 +761,45 @@ def main() -> int:
             blog_url=BLOG_URL,
             search_description=description,
         )
-    public_url = _find_public_url(title, result.get("post_url", ""))
+    public_url = ""
+    verified_public = None
+
+    # The Blogger public feed can be rate-limited or briefly expose an empty
+    # cached body after the dashboard already confirms publication. Verify the
+    # saved post directly by its known ID before falling back to the public feed.
+    if result.get("post_id") and os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+        try:
+            verify_api = blogger_rest_service()
+            verify_blog_id = BLOG_ID or resolve_blog_id(verify_api, BLOG_URL)
+            saved_post = verify_api.posts().get(
+                blogId=verify_blog_id, postId=str(result["post_id"])
+            ).execute()
+            saved_html = str(saved_post.get("content", "") or "")
+            saved_text = " ".join(re.sub(r"<[^>]+>", " ", saved_html).split())
+            saved_url = str(saved_post.get("url", "") or result.get("post_url", "")).strip()
+            saved_has_image = bool(re.search(r"<img\\b[^>]*\\bsrc\\s*=", saved_html, re.I))
+            if saved_url and len(saved_text) >= 900:
+                public_url = saved_url
+                verified_public = {
+                    "title": str(saved_post.get("title", title)),
+                    "url": saved_url,
+                    "body_chars": len(saved_text),
+                    "has_image": saved_has_image,
+                }
+                print(
+                    "Blogger REST posts.get verified saved article: "
+                    f"url={public_url} body_chars={len(saved_text)} image={saved_has_image}"
+                )
+            else:
+                print(
+                    "Blogger REST posts.get returned an incomplete article: "
+                    f"url={bool(saved_url)} body_chars={len(saved_text)} image={saved_has_image}"
+                )
+        except Exception as verify_exc:
+            print(f"Blogger REST post-ID verification unavailable; trying public feed: {verify_exc}")
+
+    if not public_url:
+        public_url = _find_public_url(title, result.get("post_url", ""))
     if not public_url or "postId=" in public_url:
         history_entry.update({
             "status": "PUBLISH_UNVERIFIED",
@@ -769,13 +809,13 @@ def main() -> int:
         })
         _save_map(keyword_map)
         raise RuntimeError(
-            "Blogger UI returned no public permalink. The article is NOT marked PUBLISHED; "
-            "the next run will retry instead of silently skipping."
+            "Blogger returned no verifiable public permalink. The next run will retry instead of silently skipping."
         )
-    verified_public = next(
-        (item for item in _public_titles() if _norm(item.get("title", "")) == _norm(title) and item.get("url") == public_url),
-        None,
-    )
+    if verified_public is None:
+        verified_public = next(
+            (item for item in _public_titles() if _norm(item.get("title", "")) == _norm(title) and item.get("url") == public_url),
+            None,
+        )
     if not verified_public or int(verified_public.get("body_chars", 0) or 0) < 900:
         history_entry.update({"status": "PUBLISH_UNVERIFIED", "post_id": result.get("post_id", ""), "post_url": ""})
         _save_map(keyword_map)
