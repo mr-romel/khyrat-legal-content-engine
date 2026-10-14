@@ -193,7 +193,7 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     if _GEMINI_QUOTA_EXHAUSTED:
         print("Gemini quota already exhausted in this worker run; using deterministic LinkedIn comments without another API call.")
         return _fallback_linkedin_comments(post, count)
-    client = create_client(api_key=api_key)
+    client = create_client(api_key=api_key, task="comments")
     try:
         response = _generate(client=client, model=model.strip(), prompt=prompt, attempts=PRIMARY_RETRIES)
     except Exception as primary_exc:
