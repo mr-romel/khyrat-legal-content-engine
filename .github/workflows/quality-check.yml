@@ -197,3 +197,6 @@ jobs:
           assert config["cloudflare_api_token"] == ""
           print("Safe dry-run configuration check: OK")
           PY
+
+      - name: Run full offline regression suite
+        run: python -m pytest -q tests
