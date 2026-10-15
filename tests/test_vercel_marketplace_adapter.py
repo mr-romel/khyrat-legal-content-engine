@@ -24,9 +24,9 @@ def test_adapter_imports_without_starting_server():
 
 def test_vercel_config_exists():
     config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
-    assert config["version"] == 2
-    assert config["builds"][0]["use"] == "@vercel/python"
-    assert config["builds"][0]["src"] == "api/index.py"
+    assert config["$schema"] == "https://openapi.vercel.sh/vercel.json"
+    assert "api/index.py" in config["functions"]
+    assert "excludeFiles" in config["functions"]["api/index.py"]
     assert config["routes"][0]["dest"] == "/api/index.py"
 
 

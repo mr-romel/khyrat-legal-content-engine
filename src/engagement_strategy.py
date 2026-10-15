@@ -38,6 +38,21 @@ def blog_cta_due(publication_rank: int) -> bool:
     return rank > 0
 
 
+def find_cta_event(events: Iterable[dict], event_id: str) -> dict | None:
+    """Find the dedicated fixed-CTA event, not a variable comment that mentions the blog."""
+    wanted = str(event_id or "").strip()
+    if not wanted:
+        return None
+    return next(
+        (
+            event for event in events
+            if str(event.get("event_id", "")).strip() == wanted
+            and str(event.get("action", "")).strip().upper() == "COMMENT"
+        ),
+        None,
+    )
+
+
 def choose_comment_count(post_key: str) -> int:
     """Deterministically select 3-7 comments per post, varying by post."""
     key = str(post_key or "").strip().encode("utf-8")

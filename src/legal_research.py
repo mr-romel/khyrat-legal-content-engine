@@ -73,7 +73,8 @@ def _effective(t):
 
 def _quote(t,topic,max_words=24):
     terms=[x for x in re.findall(r"[\u0600-\u06ff]{4,}",topic) if x not in {"قانون","مصر","الموضوع"}]
-    ss=[s.strip() for s in re.split(r"(?<=[.!؟])\s+",t) if 8<=len(s.split())<=80]
+    # Short, complete sentences can still be meaningful source quotations.
+    ss=[s.strip() for s in re.split(r"(?<=[.!؟])\s+",t) if 5<=len(s.split())<=80]
     if not ss:return ""
     ss.sort(key=lambda s:sum(term in s for term in terms),reverse=True)
     return _clean(" ".join(ss[0].split()[:max_words]))

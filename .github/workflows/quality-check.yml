@@ -20,7 +20,7 @@ env:
 jobs:
   python-quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -197,3 +197,6 @@ jobs:
           assert config["cloudflare_api_token"] == ""
           print("Safe dry-run configuration check: OK")
           PY
+
+      - name: Run full offline regression suite
+        run: python -m pytest -q tests
