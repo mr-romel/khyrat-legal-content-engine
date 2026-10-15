@@ -235,7 +235,9 @@ def create_legal_image(
         "Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. "
         "Show one clear focal action, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. "
         "Prefer a scene with no people when objects, documents, devices, or the location can clearly explain the legal issue. "
-        "If a person is essential to understanding the exact scene, depict adult men only. Do not depict any women or girls. Never depict women or girls, female-presenting "
+        "Avoid close-up hands and faces; if a person is essential, show one adult man in a natural, anatomically plausible pose with hands partly out of frame. "
+        "Human anatomy must be photorealistic: exactly five natural fingers per visible hand, two arms maximum, natural joints, realistic eyes and teeth, no fused or duplicated body parts. "
+        "Do not depict any women or girls. Never depict women or girls, female-presenting "
         "people, female faces or bodies, or women in backgrounds, reflections, photographs, screens, illustrations, or silhouettes. "
         "For topics involving women, harassment, family matters, or another situation where a woman would normally be central, "
         "show the relevant evidence, phone, documents, setting, or a non-identifying scene instead; do not substitute an unrelated male subject. "
@@ -257,8 +259,9 @@ def create_legal_image(
         "text, letters, captions, subtitles, watermark, logo, readable signage, "
         "infographic, poster, user interface, chart, generic courtroom, justice scales, "
         "generic lawyer stock photo, law books, unrelated office scene, cluttered background, "
-        "unrelated props, distorted hands, extra fingers, duplicate people, blurry faces, "
-        "cartoon, illustration, 3D render, fantasy, surrealism, low quality"
+        "unrelated props, distorted hands, extra fingers, missing fingers, fused fingers, extra limbs, duplicated arms, malformed wrists, twisted joints, "
+        "warped faces, asymmetrical eyes, malformed teeth, duplicated people, duplicated objects, blurry faces, stretched anatomy, unnatural proportions, "
+        "cartoon, illustration, 3D render, fantasy, surrealism, low quality, deformed, disfigured"
     )
 
     def _generate_with_gemini() -> bytes:
