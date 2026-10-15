@@ -1,19 +1,18 @@
-# Alternate AI provider setup
+# Free-tier AI provider setup
 
-The text-generation router tries providers in this order:
+The text-generation router is configured to avoid Cerebras and any paid-model fallback:
 
-1. Gemini (GEMINI_API_KEY)
-2. Groq (GROQ_API_KEY)
-3. Cerebras (CEREBRAS_API_KEY)
-4. OpenRouter free-model router (OPENROUTER_API_KEY)
+1. Gemini API free tier (GEMINI_API_KEY) for core legal drafting/review.
+2. Groq developer free tier (GROQ_API_KEY) for fallback and auxiliary tasks.
+3. OpenRouter's free-model router (OPENROUTER_API_KEY, model defaults to openrouter/free).
 
-When Gemini reports quota exhaustion/rate limiting, it is skipped for the rest of that worker process and the next configured provider is attempted. Provider free quotas, model availability, and terms can change; this is best-effort failover, not a guarantee of unlimited free inference. The image-generation path is separate and still needs its configured image provider.
+When a provider reports quota exhaustion, an invalid key, or a connection failure, the router tries the next configured provider. Free-tier limits and model availability can change and are not unlimited. Keep each account on its free plan and do not enable billing if the requirement is a $0 ceiling. The image-generation path is separate and still needs its own provider; this text router does not make image generation free.
 
 ## Create keys
 
-- Groq: https://console.groq.com/keys
-- OpenRouter: https://openrouter.ai/settings/keys — the free tier currently documents a limited daily allowance for free models.
-- Cerebras: https://cloud.cerebras.ai/ — use only if your account dashboard confirms an available $0/free allowance; current plans and promotional credits may vary.
+- Gemini AI Studio: https://aistudio.google.com/apikey — select a model and project that show free-tier access; do not attach billing if you need a hard $0 ceiling.
+- Groq: https://console.groq.com/keys — use the free developer tier.
+- OpenRouter: https://openrouter.ai/settings/keys — use only free models; its published free plan currently documents 50 requests/day. See https://openrouter.ai/pricing/.
 
 Do not paste keys into source files, commits, issue comments, or chat.
 
@@ -23,15 +22,13 @@ Open https://github.com/mr-romel/khyrat-legal-content-engine/settings/secrets/ac
 
 - GROQ_API_KEY
 - OPENROUTER_API_KEY
-- CEREBRAS_API_KEY (optional)
 
 The workflows already map these secrets into the scheduled publisher, Blogger publisher, Facebook and LinkedIn engagement workers, daily Reel generator, and content-intelligence job. Missing provider keys are skipped automatically.
 
 ## Current default model IDs
 
-- Groq: openai/gpt-oss-120b (override with GROQ_MODEL)
-- Cerebras: gpt-oss-120b (override with CEREBRAS_MODEL)
-- OpenRouter: openrouter/free (override with OPENROUTER_MODEL)
+- Groq: openai/gpt-oss-120b (override with GROQ_MODEL; subject to the Groq free-plan limits)
+- OpenRouter: openrouter/free (do not override with a paid model if a $0 ceiling is required)
 
 ## Blogger OAuth check
 
