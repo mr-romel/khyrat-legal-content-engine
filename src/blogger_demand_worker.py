@@ -245,7 +245,7 @@ def collect_candidates(
     for row in search_console_rows or []:
         query = _clean(row.get("query", ""))
         norm = _norm(query)
-        if not norm or len(query) < 8 or norm in seen:
+        if not norm or len(query) < 8 or norm in seen or _is_foreign_jurisdiction_query(query):
             continue
         if not any(term in query for term in LEGAL_TERMS):
             continue
