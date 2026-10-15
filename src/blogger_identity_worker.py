@@ -538,12 +538,25 @@ def _ensure_static_pages(page, bid: str) -> int:
 
 def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
     url = f"https://www.blogger.com/blog/layout/{bid}?hl=ar"
-    page.goto(url, wait_until="domcontentloaded", timeout=60000)
-    page.wait_for_timeout(2200)
-    if "accounts.google.com" in page.url:
-        raise RuntimeError("Blogger UI session is not authenticated.")
 
-    body = _clean(page.locator("body").inner_text())
+    def open_layout_screen() -> str:
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(1800)
+        if "accounts.google.com" in page.url:
+            raise RuntimeError("Blogger UI session is not authenticated.")
+
+        # Blogger can redirect a direct Layout URL back to the posts dashboard
+        # in its current Arabic SPA. When that happens, use the grounded sidebar
+        # menu item rather than treating dashboard controls as Layout controls.
+        if "/blog/layout/" not in page.url:
+            if _click_first(page, (r"^التنسيق$", r"^Layout$"), role="menuitem"):
+                page.wait_for_timeout(1800)
+                print(f"Blogger Layout opened through sidebar navigation: {page.url}")
+            else:
+                print(f"Blogger direct Layout route redirected to {page.url}; sidebar Layout item was not found.")
+        return _clean(page.locator("body").inner_text())
+
+    body = open_layout_screen()
     # The Blogger sidebar always contains a generic "Pages" navigation item.
     # Do not confuse that sidebar item with an actual PageList gadget in the layout.
     has_pages_gadget = any(
@@ -571,8 +584,7 @@ def _ensure_pages_gadget_on_layout(page, bid: str) -> bool:
             return False
         # The public check navigates away from the layout screen; return before
         # attempting any further layout interaction.
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(1200)
+        body = open_layout_screen()
 
     if not has_pages_gadget:
         added = _click_first(page, (r"إضافة أداة", r"Add a Gadget"), role="button")
