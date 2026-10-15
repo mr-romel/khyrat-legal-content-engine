@@ -2,19 +2,27 @@
   "schema_version": 1,
   "reviewed_ids": [
     "1078959350641026296",
+    "1847876303224422176",
     "2401147082375359066",
     "2552616241019305008",
     "314815889487358465",
     "3243461853268957534",
+    "3477239502090414158",
     "4082211399975633284",
+    "4265768769258649312",
     "4722231211091430444",
+    "5174990096481834032",
     "5296585923927650616",
     "5383378277794299616",
+    "6288853778547110144",
     "6451033295859122213",
     "7104852392578229221",
     "7524229890254833148",
     "826501311349267801",
     "8640255089753258368",
+    "8645103961604060006",
+    "9149754378387030439",
+    "9173586986861106759",
     "961694497190134881"
   ],
   "failed_ids": [
@@ -24,12 +32,12 @@
       "error": "Article body is too short to safely rewrite (0 chars)."
     },
     {
-      "id": "9149754378387030439",
-      "title": "جريمة الابتزاز الإلكتروني في مصر: أركانها والخطوات العملية لإثباتها قانونًا",
-      "error": "All configured text AI providers failed or could not support this request. groq: RuntimeError (429) | cerebras: RuntimeError (401) | openrouter: RuntimeError (no HTTP status)"
+      "id": "3979360607138996457",
+      "title": "ما الذي يجب مراجعته قبل اتخاذ أي إجراء قانوني؟",
+      "error": "All configured text AI providers failed or could not support this request. groq: RuntimeError (429) | openrouter: ChunkedEncodingError (no HTTP status)"
     }
   ],
-  "last_batch_success_count": 12,
-  "last_title": "إزاي تحافظ على سلامة التحقيق الإداري وتتفادى الأخطاء اللي تبطل قرار الفصل",
-  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/3_01580166525.html"
+  "last_batch_success_count": 8,
+  "last_title": "ما الخطوات الأساسية لتثبيت الوقائع ومراجعة المستندات قبل اتخاذ أي إجراء قانوني في مصر",
+  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_886.html"
 }
