@@ -75,4 +75,22 @@ jobs:
             exit 0
           fi
           git commit -m "Track Blogger article editorial review progress"
-          git push origin HEAD:main
+          # Scheduled publisher, SEO worker, and demand worker may all update main
+          # while this long-running review batch is processing. Rebase before each
+          # push instead of failing the entire batch on a non-fast-forward race.
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "Review state/assets conflicted with a concurrent main update; leaving the commit for a safe manual retry."
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Review state and unique image assets persisted."
+              exit 0
+            fi
+            echo "Concurrent main update detected; retrying push ($attempt/4)."
+            sleep "$((attempt * 2))"
+          done
+          echo "Review state persistence failed after four push attempts."
+          exit 1
