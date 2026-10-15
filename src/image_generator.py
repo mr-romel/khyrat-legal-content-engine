@@ -235,7 +235,7 @@ def create_legal_image(
         "Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. "
         "Show one clear focal action, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. "
         "Prefer a scene with no people when objects, documents, devices, or the location can clearly explain the legal issue. "
-        "Avoid close-up hands and faces; if a person is essential, show one adult man in a natural, anatomically plausible pose with hands partly out of frame. "
+        "Avoid close-up hands and faces; adult men only if a person is essential, and show one adult man in a natural, anatomically plausible pose with hands partly out of frame. "
         "Human anatomy must be photorealistic: exactly five natural fingers per visible hand, two arms maximum, natural joints, realistic eyes and teeth, no fused or duplicated body parts. "
         "Do not depict any women or girls. Never depict women or girls, female-presenting "
         "people, female faces or bodies, or women in backgrounds, reflections, photographs, screens, illustrations, or silhouettes. "
