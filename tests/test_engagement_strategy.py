@@ -16,14 +16,15 @@ def test_comment_normalization_removes_final_period():
     assert normalize_comment("جملة طبيعية") == "جملة طبيعية"
 
 
-def test_blog_cta_is_clear_and_platform_specific():
-    facebook = blog_cta_comment("facebook")
-    linkedin = blog_cta_comment("linkedin")
+def test_blog_cta_is_relevant_and_varies_by_post():
+    facebook = blog_cta_comment("facebook", topic="قانون العمل", post_text="الفصل من العمل", post_key="post-1")
+    linkedin = blog_cta_comment("linkedin", topic="العقود", post_text="مراجعة العقد", post_key="post-2")
+    other = blog_cta_comment("facebook", topic="قانون العمل", post_text="الفصل من العمل", post_key="post-3")
     assert BLOGGER_URL in facebook and BLOGGER_URL in linkedin
-    assert "شارك" in facebook and "شارك" in linkedin
-    assert "قراءة" in facebook and "اقرأ" in linkedin
-    assert "مزيد من المعلومات" in linkedin
+    assert "شارك" in facebook and "مشاركة" in linkedin
+    assert "قانون العمل" in facebook
     assert facebook != linkedin
+    assert facebook != other
 
 
 def test_blog_cta_is_due_for_every_published_post():
