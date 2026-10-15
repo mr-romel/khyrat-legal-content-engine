@@ -231,15 +231,24 @@ def main() -> int:
         print(f"Blogger dedupe: removed {deduped} duplicate posts.")
     else:
         print("Blogger UI session detected: bypassing Blogger REST OAuth initialization.")
+    # Image repair must use the Blogger API service, never the Google Sheets
+    # service created above. In UI-session mode, skip API-only repair entirely.
+    repair_service = None
+    if not use_ui and os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+        try:
+            repair_service = blogger_service()
+        except Exception as exc:
+            print(f"Blogger image repair skipped: Blogger API service unavailable: {exc}")
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
-    for existing in rows:
-        if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
-            continue
-        mode = str(existing.get("Image Mode", "") or "").strip().upper()
-        qa = str(existing.get("Image QA Status", "") or "").strip().upper()
-        if "FALLBACK" in mode or "FALLBACK" in qa:
-            repair_published_image(service, bid, existing)
+    if repair_service is not None:
+        for existing in rows:
+            if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
+                continue
+            mode = str(existing.get("Image Mode", "") or "").strip().upper()
+            qa = str(existing.get("Image QA Status", "") or "").strip().upper()
+            if "FALLBACK" in mode or "FALLBACK" in qa:
+                repair_published_image(repair_service, bid, existing)
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":

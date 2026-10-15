@@ -71,6 +71,21 @@ AR_STOP = {
 }
 QUESTION_TERMS = ("ازاي", "كيف", "ماذا", "هل", "متى", "عقوبة", "حقوق", "إجراءات", "طريقة", "أعمل", "أفعل", "مستحقات")
 LEGAL_TERMS = ("قانون", "حقوق", "محكمة", "دعوى", "عقد", "إيجار", "عمل", "تعويض", "ورثة", "نفقة", "حضانة", "شيك", "أمانة", "ابتزاز", "فصل", "إخلاء", "شركة", "عقار", "ترخيص", "مخالفة", "تظلم", "مستحقات")
+FOREIGN_JURISDICTION_TERMS = (
+    "الجزائر", "الجزائري", "الجزائرية", "السعودية", "السعودي",
+    "الإمارات", "الإماراتي", "الإماراتية", "المغرب", "المغربي", "المغربية",
+    "الأردن", "الأردني", "الأردنية", "الكويت", "الكويتي", "الكويتية",
+    "قطر", "القطري", "القطرية", "العراق", "العراقي", "العراقية",
+    "لبنان", "اللبناني", "اللبنانية", "تونس", "التونسي", "التونسية",
+    "فرنسا", "الفرنسي", "الفرنسية", "أمريكا", "الأمريكي", "الأمريكية",
+    "بريطانيا", "البريطاني", "البريطانية", "ألمانيا", "الألماني", "الألمانية",
+)
+
+
+def _is_foreign_jurisdiction_query(query: str) -> bool:
+    """Reject demand candidates explicitly about a non-Egyptian jurisdiction."""
+    normalized = _clean(query).casefold()
+    return any(term.casefold() in normalized for term in FOREIGN_JURISDICTION_TERMS)
 
 
 def _clean(value: object) -> str:
@@ -230,7 +245,7 @@ def collect_candidates(
     for row in search_console_rows or []:
         query = _clean(row.get("query", ""))
         norm = _norm(query)
-        if not norm or len(query) < 8 or norm in seen:
+        if not norm or len(query) < 8 or norm in seen or _is_foreign_jurisdiction_query(query):
             continue
         if not any(term in query for term in LEGAL_TERMS):
             continue
@@ -269,7 +284,7 @@ def collect_candidates(
         for query in [seed, *seed_suggestions]:
             query = _clean(query)
             norm = _norm(query)
-            if not norm or len(query) < 10 or norm in seen:
+            if not norm or len(query) < 10 or norm in seen or _is_foreign_jurisdiction_query(query):
                 continue
             seen.add(norm)
             if not any(term in query for term in LEGAL_TERMS):
