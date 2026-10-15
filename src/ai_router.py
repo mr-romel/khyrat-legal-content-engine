@@ -130,7 +130,7 @@ class RoutedClient:
             ),
             "openrouter": (
                 os.getenv("OPENROUTER_API_KEY", "").strip(),
-                os.getenv("OPENROUTER_MODEL", "openrouter/free").strip(),
+                "openrouter/free",
                 "https://openrouter.ai/api/v1/chat/completions",
             ),
         }
@@ -139,7 +139,9 @@ class RoutedClient:
         key, selected_model, endpoint = settings[provider]
         if not key:
             raise RuntimeError(f"{provider} API key is not configured.")
-        if model and model.startswith(provider + "/"):
+        # OpenRouter is pinned to its free-model router to prevent a paid model
+        # from being selected by environment overrides or a caller's Gemini model ID.
+        if provider == "groq" and model and model.startswith("groq/"):
             selected_model = model.split("/", 1)[1]
 
         tools = self._config_value(config, "tools", None)
