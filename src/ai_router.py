@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Text-generation router.
 
-Order: Gemini first, then Groq, Cerebras, and OpenRouter when configured.
+Order: Gemini first, then Groq and OpenRouter's free-model router when configured.
 Fallback providers are OpenAI-compatible text APIs; they cannot reproduce
 Gemini-only tools such as Google Search grounding or multimodal image input.
 Their free quotas are provider-controlled and are not guaranteed unlimited.
@@ -16,13 +16,12 @@ import requests
 from google import genai
 
 
-_TRANSIENT = {408, 425, 429, 500, 502, 503, 504}
 _GEMINI_QUOTA_EXHAUSTED = False
 
 
 def has_any_provider_key() -> bool:
     return any(os.getenv(name, "").strip() for name in (
-        "GEMINI_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY"
+        "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"
     ))
 
 
@@ -129,11 +128,6 @@ class RoutedClient:
                 os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip(),
                 "https://api.groq.com/openai/v1/chat/completions",
             ),
-            "cerebras": (
-                os.getenv("CEREBRAS_API_KEY", "").strip(),
-                os.getenv("CEREBRAS_MODEL", "gpt-oss-120b").strip(),
-                "https://api.cerebras.ai/v1/chat/completions",
-            ),
             "openrouter": (
                 os.getenv("OPENROUTER_API_KEY", "").strip(),
                 os.getenv("OPENROUTER_MODEL", "openrouter/free").strip(),
@@ -225,10 +219,9 @@ class RoutedClient:
         failures: list[str] = []
         providers = []
         configured_alternates = []
-        for provider in ("groq", "cerebras", "openrouter"):
+        for provider in ("groq", "openrouter"):
             key_name = {
                 "groq": "GROQ_API_KEY",
-                "cerebras": "CEREBRAS_API_KEY",
                 "openrouter": "OPENROUTER_API_KEY",
             }[provider]
             if os.getenv(key_name, "").strip():
@@ -275,7 +268,7 @@ class RoutedClient:
 def create_client(api_key: str = "", *, task: str = "core") -> RoutedClient:
     """Create a router with task-aware provider order.
 
-    core: Gemini -> Groq -> Cerebras -> OpenRouter
-    auxiliary tasks: Groq -> Cerebras -> OpenRouter -> Gemini
+    core: Gemini -> Groq -> OpenRouter (free-model router)
+    auxiliary tasks: Groq -> OpenRouter (free-model router) -> Gemini
     """
     return RoutedClient(api_key=api_key, task=task)
