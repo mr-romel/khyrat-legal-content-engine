@@ -240,13 +240,10 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
 
         # Queue one fixed Blogger CTA independently of the variable comment bundle.
         cta_event_id = f"COMMENT_BLOG_CTA:{post_urn}"
-        cta_event = next((x for x in post_events if str(x.get("event_id", "")).strip() == cta_event_id), None)
-        has_blog_cta = any(
-            BLOGGER_URL in str(x.get("comment_text", ""))
-            and str(x.get("action", "")).upper() == "COMMENT"
-            for x in post_events
-        )
-        if not has_blog_cta:
+        cta_event = find_cta_event(post_events, cta_event_id)
+        # Do not mistake a variable comment containing the blog URL for the
+        # dedicated, idempotent CTA event required on every published post.
+        if not cta_event:
             cta_text = blog_cta_comment("linkedin")
             append_event(service, spreadsheet_id, {
                 "event_id": cta_event_id, "source_row": str(source_row), "post_urn": post_urn,
