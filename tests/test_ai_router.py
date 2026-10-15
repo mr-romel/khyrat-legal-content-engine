@@ -17,7 +17,6 @@ class _Response:
 def test_gemini_quota_routes_to_groq(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini")
@@ -32,7 +31,7 @@ def test_gemini_quota_routes_to_groq(monkeypatch):
 
 
 def test_no_fallback_key_does_not_claim_alternate_provider(monkeypatch):
-    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY"):
+    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert ai_router.has_any_provider_key() is False
 
@@ -73,6 +72,24 @@ def test_openai_compatible_request_preserves_json_and_generation_settings(monkey
     assert payload["top_p"] == 0.8
 
 
+def test_openrouter_is_pinned_to_free_model_even_if_overridden(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setenv("OPENROUTER_MODEL", "provider/paid-model")
+    captured = {}
+
+    def fake_post(endpoint, *, headers, json, timeout):
+        captured["endpoint"] = endpoint
+        captured["json"] = json
+        return _Response()
+
+    monkeypatch.setattr(ai_router.requests, "post", fake_post)
+    router = ai_router.RoutedClient()
+    assert router._generate_openai_compatible(
+        "openrouter", "test prompt", "openrouter/paid-model", None
+    ) == "fallback answer"
+    assert captured["json"]["model"] == "openrouter/free"
+
+
 def test_fallback_refuses_to_drop_google_search_tool(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
     router = ai_router.RoutedClient()
@@ -92,7 +109,6 @@ def test_fallback_refuses_to_drop_google_search_tool(monkeypatch):
 def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini")
@@ -111,7 +127,6 @@ def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
 def test_auxiliary_task_uses_backups_before_gemini(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.setenv("CEREBRAS_API_KEY", "test-cerebras")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini", task="comments")
@@ -134,7 +149,6 @@ def test_auxiliary_task_uses_backups_before_gemini(monkeypatch):
 def test_auxiliary_task_uses_gemini_only_after_all_backups_fail(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.setenv("CEREBRAS_API_KEY", "test-cerebras")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini", task="image_description")
@@ -151,4 +165,4 @@ def test_auxiliary_task_uses_gemini_only_after_all_backups_fail(monkeypatch):
     monkeypatch.setattr(router, "_generate_openai_compatible", backup)
     monkeypatch.setattr(router, "_generate_gemini", gemini)
     assert router.generate("scene prompt", model="gemini-test") == "gemini result"
-    assert calls == ["groq", "cerebras", "openrouter", "Gemini"]
+    assert calls == ["groq", "openrouter", "Gemini"]
