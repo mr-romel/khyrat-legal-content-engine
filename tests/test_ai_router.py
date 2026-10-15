@@ -111,7 +111,6 @@ def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
 def test_auxiliary_task_uses_backups_before_gemini(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.setenv("test-cerebras")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini", task="comments")
@@ -134,7 +133,6 @@ def test_auxiliary_task_uses_backups_before_gemini(monkeypatch):
 def test_auxiliary_task_uses_gemini_only_after_all_backups_fail(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.setenv("test-cerebras")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini", task="image_description")
