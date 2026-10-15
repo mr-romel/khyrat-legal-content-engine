@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
-from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due
+from engagement_strategy import blog_cta_comment, blog_cta_due, find_cta_event
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
 from linkedin_publisher import like_comment, like_post, resolve_member_urn, verify_comment
 from sheets import create_service, get_values
