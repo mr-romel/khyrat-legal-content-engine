@@ -36,16 +36,16 @@ def blog_cta_comment(
         subject = str(topic or "").strip()[:90] or "الموضوع القانوني"
 
     digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
+    # Keep the fixed link comment concise and directly related to the post.
+    # Repeated multi-part calls to read, visit, and share can look promotional;
+    # the comment should have one clear action and no extra engagement bait.
     variants = [
-        f"للتفاصيل العملية والمصادر المرتبطة بـ{subject}، تقدر تكمل القراءة في مدونة اسأل محمود: {BLOGGER_URL}",
-        f"لو محتاج تتوسع في {subject}، جمعنا شروحات ومعلومات إضافية على مدونة اسأل محمود: {BLOGGER_URL}",
-        f"الموضوع له تفاصيل مهمة؛ اقرأ الشرح الكامل عن {subject} على مدونة اسأل محمود: {BLOGGER_URL}",
-        f"للمزيد من المعلومات والأمثلة العملية في {subject}، زور مدونة اسأل محمود: {BLOGGER_URL}",
+        f"الشرح الموسع عن {subject} على مدونة اسأل محمود: {BLOGGER_URL}",
+        f"للاطلاع على تفاصيل {subject} والأمثلة العملية: {BLOGGER_URL}",
+        f"لو حابب تعرف تفاصيل أكثر عن {subject}، اقرأ هنا: {BLOGGER_URL}",
+        f"معلومات إضافية مرتبطة بـ{subject} في مدونة اسأل محمود: {BLOGGER_URL}",
     ]
-    chosen = variants[digest[0] % len(variants)]
-    if platform_name == "linkedin":
-        return chosen + " ويمكنك مشاركة الرابط مع زميل قد يستفيد منه"
-    return chosen + " ولو شايفه مفيد، شاركه مع حد ممكن يستفيد"
+    return variants[digest[0] % len(variants)]
 
 
 def blog_cta_due(publication_rank: int) -> bool:
