@@ -48,7 +48,7 @@ def test_image_qa_rejection_is_advisory_and_keeps_the_image():
 
 def test_image_generation_failure_never_blocks_social_publication():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert 'image_qa_status = "IMAGE_GENERATION_FAILED_TEXT_FALLBACK"' in main_source
+    assert '"Image QA Status": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK"' in main_source
     assert "continuing with text publication fallback" in main_source
     assert "publishing text to both platforms instead of cancelling the post" in main_source
     assert "refusing text-only social publication" not in main_source
