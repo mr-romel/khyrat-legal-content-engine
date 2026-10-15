@@ -73,6 +73,24 @@ def test_openai_compatible_request_preserves_json_and_generation_settings(monkey
     assert payload["top_p"] == 0.8
 
 
+def test_openrouter_is_pinned_to_free_model_even_if_overridden(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setenv("OPENROUTER_MODEL", "provider/paid-model")
+    captured = {}
+
+    def fake_post(endpoint, *, headers, json, timeout):
+        captured["endpoint"] = endpoint
+        captured["json"] = json
+        return _Response()
+
+    monkeypatch.setattr(ai_router.requests, "post", fake_post)
+    router = ai_router.RoutedClient()
+    assert router._generate_openai_compatible(
+        "openrouter", "test prompt", "openrouter/paid-model", None
+    ) == "fallback answer"
+    assert captured["json"]["model"] == "openrouter/free"
+
+
 def test_fallback_refuses_to_drop_google_search_tool(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
     router = ai_router.RoutedClient()
