@@ -30,3 +30,22 @@ def test_blog_cta_is_due_for_every_published_post():
     assert all(blog_cta_due(rank) for rank in range(1, 100))
     assert not blog_cta_due(0)
     assert not blog_cta_due("not-a-rank")
+
+
+def test_variable_comment_with_blog_url_does_not_replace_fixed_cta_event():
+    variable_comment = {
+        "event_id": "COMMENT_BUNDLE:post-123:1",
+        "action": "COMMENT",
+        "comment_text": f"Read more: {BLOGGER_URL}",
+    }
+    assert find_cta_event([variable_comment], "COMMENT_BLOG_CTA:post-123") is None
+
+
+def test_find_cta_event_requires_exact_id_and_comment_action():
+    reaction = {"event_id": "COMMENT_BLOG_CTA:post-123", "action": "REACTION"}
+    fixed_cta = {
+        "event_id": "COMMENT_BLOG_CTA:post-123",
+        "action": "COMMENT",
+        "comment_text": blog_cta_comment("facebook"),
+    }
+    assert find_cta_event([reaction, fixed_cta], "COMMENT_BLOG_CTA:post-123") is fixed_cta
