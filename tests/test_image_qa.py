@@ -39,3 +39,16 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "antiquity-inspired decoration" in prompt
     assert "no women or girls" in prompt.lower()
     assert "women_or_girls_detected=true" in prompt.lower()
+
+
+
+def test_qa_prompt_explicitly_requires_regeneration_for_anatomy_defects():
+    prompt = _build_prompt(
+        "نزاع حول توقيع عقد",
+        "A present-day contract review scene.",
+        {"width": 1024, "height": 1280, "aspect_ratio": 0.8, "aspect_ratio_ok": True},
+        0,
+        "CONTEXT_ONLY",
+    )
+    assert "Any clearly visible anatomy defect" in prompt
+    assert "mandatory REGENERATE signal" in prompt
