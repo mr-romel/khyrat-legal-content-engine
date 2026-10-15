@@ -1,4 +1,4 @@
-from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due, choose_comment_count, comment_schedule_offsets, normalize_comment
+from engagement_strategy import BLOGGER_URL, blog_cta_comment, blog_cta_due, choose_comment_count, comment_schedule_offsets, find_cta_event, normalize_comment
 
 
 def test_shared_count_is_3_to_7_and_varies():
