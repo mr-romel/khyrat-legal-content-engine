@@ -33,7 +33,7 @@ LINKEDIN_COMMENT_LIMIT = 7
 COMMENT_BACKFILL_LIMIT = 3
 DRY_RUN = os.getenv("KHYRAT_DRY_RUN", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-def _ensure_blog_cta_comments(editorial: dict) -> dict:
+def _keep_variable_comments_separate(editorial: dict) -> dict:
     """Keep variable comments separate; the engagement worker queues the fixed CTA event."""
     for key in ("facebook_comments", "linkedin_comments"):
         comments = [str(item or "").strip() for item in editorial.get(key, []) if str(item or "").strip()]
@@ -414,7 +414,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
             continue
         try:
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-            editorial = _ensure_blog_cta_comments(editorial)
+            editorial = _keep_variable_comments_separate(editorial)
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
                 "LinkedIn Comment Queue": json.dumps(editorial["linkedin_comments"], ensure_ascii=False),
@@ -646,7 +646,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
-            editorial = _ensure_blog_cta_comments(editorial)
+            editorial = _keep_variable_comments_separate(editorial)
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
             editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
