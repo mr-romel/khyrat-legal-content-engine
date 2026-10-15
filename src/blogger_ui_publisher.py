@@ -1044,6 +1044,18 @@ def publish_article_ui(
                 published_url = public_permalink
                 post_id = public_post_id or post_id
 
+            # The authenticated Blogger UI can expose a canonical public URL while
+            # leaving the browser on the posts dashboard, where the editor URL no
+            # longer contains the numeric post ID. Resolve that ID from the public
+            # feed before declaring a successfully published article to have failed.
+            if published_url and not post_id:
+                feed_permalink, feed_post_id = _public_post_permalink(blog_url, title, attempts=2)
+                if feed_post_id:
+                    post_id = feed_post_id
+                if not public_permalink and feed_permalink:
+                    public_permalink = feed_permalink
+                    published_url = feed_permalink
+
             # A private ?postId= URL is not a public permalink. Never report it as
             # published when the public feed could not verify the canonical link.
             if published_url and "?postId=" in published_url:
