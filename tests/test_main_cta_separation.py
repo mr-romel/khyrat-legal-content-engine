@@ -1,5 +1,5 @@
 from engagement_strategy import BLOGGER_URL
-from main import _ensure_blog_cta_comments
+from main import _keep_variable_comments_separate
 
 
 def test_fixed_blogger_cta_does_not_replace_variable_comments():
@@ -10,7 +10,7 @@ def test_fixed_blogger_cta_does_not_replace_variable_comments():
         "linkedin_comments": list(linkedin),
     }
 
-    result = _ensure_blog_cta_comments(editorial)
+    result = _keep_variable_comments_separate(editorial)
 
     assert result["facebook_comments"] == facebook
     assert result["linkedin_comments"] == linkedin
