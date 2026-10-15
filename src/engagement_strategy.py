@@ -13,20 +13,39 @@ COMMENT_INTERVAL_MINUTES = 15
 BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 
 
-def blog_cta_comment(platform: str = "facebook") -> str:
-    """A fixed blog-reading, further-information, and sharing CTA for every social post."""
-    if str(platform or "").strip().lower() == "linkedin":
-        return (
-            "للاطلاع على الشرح القانوني الكامل ومزيد من المعلومات والمقالات العملية، "
-            "اقرأ مدونة «اسأل محمود»: "
-            + BLOGGER_URL
-            + " لو المحتوى مفيد لزميل أو لفريق العمل، شارك معاه الرابط عشان يستفيدوا من التفاصيل والمصادر."
-        )
-    return (
-        "عايز تعرف التفاصيل والمعلومات القانونية كاملة؟ لقراءة المزيد من الشروحات والمقالات العملية، زور مدونة «اسأل محمود»: "
-        + BLOGGER_URL
-        + " ولو المعلومة ممكن تفيد غيرك، شارك الرابط أو المنشور معاه."
-    )
+def blog_cta_comment(
+    platform: str = "facebook",
+    *,
+    topic: str = "",
+    post_text: str = "",
+    post_key: str = "",
+) -> str:
+    """Return a relevant, varied Blogger CTA instead of repeating one identical link comment."""
+    platform_name = str(platform or "facebook").strip().lower()
+    context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
+    lowered = context.casefold()
+    if any(word in lowered for word in ("إيجار", "إيجارات", "مالك", "مستأجر")):
+        subject = "موضوع الإيجارات"
+    elif any(word in lowered for word in ("عمل", "عامل", "موظف", "فصل", "مرتب", "إجاز")):
+        subject = "موضوع قانون العمل"
+    elif any(word in lowered for word in ("شركة", "شركات", "عقد", "عقود")):
+        subject = "العقود والشركات"
+    elif any(word in lowered for word in ("ورثة", "ميراث", "تركة")):
+        subject = "موضوع الميراث"
+    else:
+        subject = str(topic or "").strip()[:90] or "الموضوع القانوني"
+
+    digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
+    variants = [
+        f"للتفاصيل العملية والمصادر المرتبطة بـ{subject}، تقدر تكمل القراءة في مدونة اسأل محمود: {BLOGGER_URL}",
+        f"لو محتاج تتوسع في {subject}، جمعنا شروحات ومعلومات إضافية على مدونة اسأل محمود: {BLOGGER_URL}",
+        f"الموضوع له تفاصيل مهمة؛ اقرأ الشرح الكامل عن {subject} على مدونة اسأل محمود: {BLOGGER_URL}",
+        f"للمزيد من المعلومات والأمثلة العملية في {subject}، زور مدونة اسأل محمود: {BLOGGER_URL}",
+    ]
+    chosen = variants[digest[0] % len(variants)]
+    if platform_name == "linkedin":
+        return chosen + " ويمكنك مشاركة الرابط مع زميل قد يستفيد منه"
+    return chosen + " ولو شايفه مفيد، شاركه مع حد ممكن يستفيد"
 
 
 def blog_cta_due(publication_rank: int) -> bool:

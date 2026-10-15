@@ -22,8 +22,8 @@ HEADERS = [
     "last_error", "created_at", "updated_at", "platform_proof",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
-MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "3") or "3")
-MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "5") or "5")
+MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "20") or "20")
+MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "20") or "20")
 MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "720") or "720")
 GRAPH_VERSION = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
 
@@ -213,12 +213,15 @@ def main():
 
     ensure_sheet(service, sheet_id)
     existing = read_rows(service, sheet_id)
-    completed_ids = {
-        str(x.get("comment_id", "")).strip()
-        for x in existing
-        if str(x.get("comment_id", "")).strip()
-        and str(x.get("reply_status", "")).upper() in {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED"}
-    }
+    # Keep the latest attempt for each comment. A successful reply must not
+    # suppress a retry for a failed like (and vice versa).
+    existing_by_comment = {}
+    for item in existing:
+        comment_id = str(item.get("comment_id", "")).strip()
+        if comment_id:
+            existing_by_comment[comment_id] = item
+    reply_done_states = {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED", "SKIPPED_NOT_REPLYABLE"}
+    like_done_states = {"LIKED", "SKIPPED_ALREADY_LIKED"}
 
     posts = recent_posts(service, sheet_id, sheet_range)
     print(f"Facebook public comment reply scope: latest {len(posts)} post(s)")
@@ -245,7 +248,12 @@ def main():
             comment_id = str(comment.get("id", "")).strip()
             if not comment_id:
                 continue
-            if comment_id in completed_ids:
+            previous = existing_by_comment.get(comment_id, {})
+            previous_reply_status = str(previous.get("reply_status", "")).upper()
+            previous_like_status = str(previous.get("like_status", "")).upper()
+            reply_done = previous_reply_status in reply_done_states
+            like_done = previous_like_status in like_done_states
+            if reply_done and like_done:
                 skipped_completed += 1
                 continue
 
@@ -268,34 +276,52 @@ def main():
                 skipped_page += 1
                 continue
 
-            # If Meta explicitly says this comment cannot be replied to, do not
-            # waste a write call. Missing can_comment is treated as unknown and
-            # the reply is attempted so older field responses remain compatible.
-            can_comment = comment.get("can_comment")
-            if can_comment is False:
-                skipped_not_replyable += 1
-                print(f"Public reply not eligible: {comment_id} | can_comment=False")
-                continue
-
-            like_result = {"status": "SKIPPED_ALREADY_LIKED", "http_status": ""}
-            if comment.get("user_likes") is not True:
+            # Like and reply are independent actions: retry only whichever failed.
+            if like_done:
+                like_result = {
+                    "status": previous_like_status,
+                    "http_status": previous.get("like_http_status", ""),
+                    "platform_proof": "",
+                }
+            elif comment.get("user_likes") is True:
+                like_result = {"status": "SKIPPED_ALREADY_LIKED", "http_status": ""}
+            else:
                 like_result = like_comment(
                     comment_id=comment_id,
                     page_access_token=token,
                     graph_version=GRAPH_VERSION,
                 )
 
-            reply_text = build_public_reply(
-                comment.get("message", ""),
-                post_row.get("الموضوع", ""),
-                processed,
-            )
-            reply_result = reply_to_comment(
-                comment_id=comment_id,
-                page_access_token=token,
-                graph_version=GRAPH_VERSION,
-                message=reply_text,
-            )
+            can_comment = comment.get("can_comment")
+            if reply_done:
+                reply_text = str(previous.get("reply_text", "") or "")
+                reply_result = {
+                    "status": previous_reply_status,
+                    "reply_id": previous.get("reply_id", ""),
+                    "http_status": previous.get("reply_http_status", ""),
+                    "platform_proof": previous.get("platform_proof", ""),
+                }
+            elif can_comment is False:
+                skipped_not_replyable += 1
+                reply_text = ""
+                reply_result = {
+                    "status": "SKIPPED_NOT_REPLYABLE",
+                    "http_status": "",
+                    "error": "Meta marked this comment as not replyable.",
+                }
+                print(f"Public reply not eligible; comment may still be liked: {comment_id}")
+            else:
+                reply_text = build_public_reply(
+                    comment.get("message", ""),
+                    post_row.get("الموضوع", ""),
+                    processed,
+                )
+                reply_result = reply_to_comment(
+                    comment_id=comment_id,
+                    page_access_token=token,
+                    graph_version=GRAPH_VERSION,
+                    message=reply_text,
+                )
 
             errors = []
             if like_result.get("status") not in {"LIKED", "SKIPPED_ALREADY_LIKED"}:
@@ -323,7 +349,7 @@ def main():
                 "platform_proof": reply_result.get("platform_proof", "") or like_result.get("platform_proof", ""),
             }
             append_row(service, sheet_id, event)
-            completed_ids.add(comment_id)
+            existing_by_comment[comment_id] = event
             processed += 1
 
             print(

@@ -244,7 +244,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         # Do not mistake a variable comment containing the blog URL for the
         # dedicated, idempotent CTA event required on every published post.
         if not cta_event:
-            cta_text = blog_cta_comment("linkedin")
+            cta_text = blog_cta_comment("linkedin", topic=row.get("الموضوع", ""), post_text=row.get("المحتوى", ""), post_key=post_urn)
             append_event(service, spreadsheet_id, {
                 "event_id": cta_event_id, "source_row": str(source_row), "post_urn": post_urn,
                 "topic": row.get("الموضوع", ""), "post_text": row.get("المحتوى", ""),

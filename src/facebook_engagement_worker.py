@@ -210,7 +210,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         # A generated/contextual comment may mention the blog URL, but it is not
         # the dedicated fixed CTA event and must never suppress that event.
         if not cta_event:
-            cta_text = blog_cta_comment("facebook")
+            cta_text = blog_cta_comment("facebook", topic=row.get("الموضوع", ""), post_text=row.get("المحتوى", ""), post_key=post_id)
             append_event(service, spreadsheet_id, {
                 "event_id": cta_event_id, "source_row": str(source_row), "post_id": post_id,
                 "topic": row.get("الموضوع", ""), "post_text": row.get("المحتوى", ""),

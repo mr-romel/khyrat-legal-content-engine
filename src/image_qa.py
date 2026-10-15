@@ -17,6 +17,7 @@ QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
 QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "25"))
 QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "25"))
+QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "40"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "1")))
 ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
 
@@ -113,7 +114,7 @@ CHECK THESE FIVE THINGS:
    bottom-right brand overlay described above. If any other text exists, mark text_detected=true and list it.
 4. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
-5. ANATOMY AND VISUAL INTEGRITY: Check for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra fingers, fused fingers, missing fingers, unnatural wrists, twisted arms, duplicated objects, or obvious generative artifacts. Treat obvious anatomy defects as a REGENERATE signal and explain them in composition_findings or issues
+5. ANATOMY AND VISUAL INTEGRITY: Inspect every visible hand, face, limb, joint, and repeated object closely. Look for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra/missing/fused fingers, unnatural wrists, twisted arms, duplicated objects, stretched bodies, and obvious generative artifacts. Any clearly visible anatomy defect that could be noticed in a social feed is a mandatory REGENERATE signal, even if the overall image looks attractive. Prefer no human figures when the scene works without them.
 DECISION:
 PASS when the image is usable for publication and materially related to the topic.
 REGENERATE only when the scene is clearly unrelated, unusable, badly malformed, or contains serious generated text that damages the asset.
@@ -237,6 +238,19 @@ def qa_image(
         critical_failures.append(f"Legal relevance is critically low ({data['relevance_score']}).")
     if data["overall_score"] < QA_HARD_REJECT_OVERALL:
         critical_failures.append(f"Overall usability is critically low ({data['overall_score']}).")
+    if data["composition_score"] < QA_HARD_REJECT_COMPOSITION:
+        critical_failures.append(f"Composition/anatomy integrity is critically low ({data['composition_score']}).")
+    integrity_terms = (
+        "distort", "warped", "malformed", "extra finger", "missing finger", "fused finger",
+        "extra limb", "duplicate limb", "unnatural wrist", "twisted arm", "deformed",
+        "disfigured", "anatomy defect", "anatomical defect", "stretched body",
+    )
+    visual_findings = " ".join(
+        str(item) for field in ("issues", "composition_findings", "relevance_findings")
+        for item in data.get(field, [])
+    ).casefold()
+    if any(term in visual_findings for term in integrity_terms):
+        critical_failures.append("Visible anatomy or image-integrity defect detected.")
     if data["text_detected"] and len(data.get("detected_text", [])) >= 2:
         critical_failures.append("Multiple unexpected generated text elements detected.")
     if any("unusable" in item.casefold() or "severely malformed" in item.casefold() for item in data.get("issues", [])):
