@@ -17,7 +17,7 @@ class _Response:
 def test_gemini_quota_routes_to_groq(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.delenv(raising=False)
+    monkeypatch.delenv('CEREBRAS_API_KEY', raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini")
@@ -110,7 +110,7 @@ def test_fallback_refuses_to_drop_google_search_tool(monkeypatch):
 def test_non_quota_gemini_error_also_uses_configured_fallback(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test-groq")
-    monkeypatch.delenv(raising=False)
+    monkeypatch.delenv('CEREBRAS_API_KEY', raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
     router = ai_router.RoutedClient(api_key="test-gemini")
