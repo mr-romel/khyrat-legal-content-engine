@@ -284,7 +284,7 @@ def collect_candidates(
         for query in [seed, *seed_suggestions]:
             query = _clean(query)
             norm = _norm(query)
-            if not norm or len(query) < 10 or norm in seen:
+            if not norm or len(query) < 10 or norm in seen or _is_foreign_jurisdiction_query(query):
                 continue
             seen.add(norm)
             if not any(term in query for term in LEGAL_TERMS):
