@@ -31,7 +31,7 @@ def test_gemini_quota_routes_to_groq(monkeypatch):
 
 
 def test_no_fallback_key_does_not_claim_alternate_provider(monkeypatch):
-    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
+    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MODEL_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert ai_router.has_any_provider_key() is False
 
@@ -166,3 +166,47 @@ def test_auxiliary_task_uses_gemini_only_after_all_backups_fail(monkeypatch):
     monkeypatch.setattr(router, "_generate_gemini", gemini)
     assert router.generate("scene prompt", model="gemini-test") == "gemini result"
     assert calls == ["groq", "openrouter", "Gemini"]
+
+
+
+def test_meta_model_api_uses_official_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "test-meta-model")
+    monkeypatch.delenv("META_MODEL", raising=False)
+    captured = {}
+
+    def fake_post(endpoint, *, headers, json, timeout):
+        captured["endpoint"] = endpoint
+        captured["headers"] = headers
+        captured["json"] = json
+        return _Response("Meta backup result")
+
+    monkeypatch.setattr(ai_router.requests, "post", fake_post)
+    router = ai_router.RoutedClient()
+    result = router._generate_openai_compatible(
+        "meta", "test prompt", "gemini-model", {"temperature": 0.2}
+    )
+
+    assert result == "Meta backup result"
+    assert captured["endpoint"] == "https://api.meta.ai/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer test-meta-model"
+    assert captured["json"]["model"] == "muse-spark-1.3"
+    assert captured["json"]["messages"] == [{"role": "user", "content": "test prompt"}]
+
+
+def test_meta_model_api_is_last_auxiliary_backup_before_gemini(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("MODEL_API_KEY", "test-meta-model")
+    monkeypatch.setattr(ai_router, "_GEMINI_QUOTA_EXHAUSTED", False)
+    router = ai_router.RoutedClient(api_key="test-gemini", task="comments")
+    calls = []
+
+    def meta(provider, prompt, model, config):
+        calls.append(provider)
+        return "Meta backup result"
+
+    monkeypatch.setattr(router, "_generate_openai_compatible", meta)
+    monkeypatch.setattr(router, "_generate_gemini", lambda *args, **kwargs: calls.append("Gemini") or "Gemini result")
+    assert router.generate("comment prompt", model="gemini-test") == "Meta backup result"
+    assert calls == ["meta"]
