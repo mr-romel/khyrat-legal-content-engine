@@ -21,7 +21,8 @@ def test_blog_cta_is_relevant_and_varies_by_post():
     linkedin = blog_cta_comment("linkedin", topic="العقود", post_text="مراجعة العقد", post_key="post-2")
     other = blog_cta_comment("facebook", topic="قانون العمل", post_text="الفصل من العمل", post_key="post-3")
     assert BLOGGER_URL in facebook and BLOGGER_URL in linkedin
-    assert "شارك" in facebook and "مشاركة" in linkedin
+    assert len(facebook) < 180 and len(linkedin) < 200
+    assert "شارك" not in facebook and "مشاركة" not in linkedin
     assert "قانون العمل" in facebook
     assert facebook != linkedin
     assert facebook != other
