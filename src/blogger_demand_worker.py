@@ -102,10 +102,18 @@ def _norm(value: str) -> str:
 
 
 def _similarity(a: str, b: str) -> float:
+    """Compare topic overlap while catching short queries contained in long titles."""
     aa, bb = set(_norm(a).split()), set(_norm(b).split())
     if not aa or not bb:
         return 0.0
-    return len(aa & bb) / len(aa | bb)
+    overlap = len(aa & bb)
+    jaccard = overlap / len(aa | bb)
+    containment = overlap / min(len(aa), len(bb))
+    # Jaccard alone misses a short query repeated inside a longer SEO title.
+    # Require at least two meaningful shared tokens for the containment signal.
+    if min(len(aa), len(bb)) >= 2 and containment >= 0.75:
+        return max(jaccard, containment)
+    return jaccard
 
 
 def _suggest(query: str) -> list[str]:
