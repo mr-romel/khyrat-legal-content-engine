@@ -37,13 +37,13 @@ def test_edge_tts_is_not_a_dependency_or_fallback():
     assert "edge-tts" not in requirements
 
 
-def test_image_qa_rejection_is_advisory_and_keeps_the_image():
+def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert 'image_qa_status = "QA_WARNING_RETAINED"' in main_source
-    assert "image_path.unlink(missing_ok=True)" not in main_source[
-        main_source.find('if image_qa_status == "QA_REJECTED"'):
-        main_source.find('print(f"IMAGE SEMANTIC QA:')
-    ]
+    assert "for image_qa_attempt in range(1, 4)" in main_source
+    assert 'image_qa_status = "QA_REJECTED"' in main_source
+    assert "Image failed visual QA after" in main_source
+    assert "image_path.unlink(missing_ok=True)" in main_source
+    assert "QA_UNAVAILABLE_BLOCKED" in main_source
 
 
 def test_image_generation_failure_never_blocks_social_publication():
