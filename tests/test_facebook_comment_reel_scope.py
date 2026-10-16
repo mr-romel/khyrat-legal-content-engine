@@ -55,3 +55,10 @@ def test_recent_posts_deduplicates_shared_post_and_reel_id(monkeypatch):
     targets = worker.recent_posts(object(), "sheet", "Content!A:BC")
 
     assert len(targets) == 1
+
+
+
+def test_sheet_range_is_widened_for_reel_fields():
+    assert worker._include_reel_columns("Content!A:AF") == "Content!A:BC"
+    assert worker._include_reel_columns("Content!A:BC") == "Content!A:BC"
+    assert worker._include_reel_columns("Content!A:BD") == "Content!A:BD"
