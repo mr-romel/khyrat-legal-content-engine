@@ -14,3 +14,15 @@ def test_foreign_jurisdiction_topics_are_rejected():
 def test_egyptian_legal_topics_remain_eligible():
     assert not _is_foreign_jurisdiction_query("حقوق العامل عند الفصل في مصر")
     assert not _is_foreign_jurisdiction_query("إجراءات رفع دعوى تعويض")
+
+def test_topic_similarity_catches_query_embedded_in_long_seo_title():
+    from blogger_demand_worker import _similarity
+
+    assert _similarity(
+        "حقوق العامل عند الفصل",
+        "حقوق العامل عند الفصل في القانون المصري: المستندات والخطوات العملية",
+    ) >= 0.75
+    assert _similarity(
+        "حقوق العامل عند الفصل",
+        "تأسيس الشركات ومسؤولية المدير",
+    ) < 0.44

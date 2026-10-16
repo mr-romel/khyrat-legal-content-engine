@@ -45,25 +45,49 @@ def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, m
             break
     return labels
 
-_EDITORIAL_META_RE = re.compile(r"(?:زاوية\s*(?:المحتوى|المقال|أخرى|جديدة)?|الهدف|الهدف\s*من\s*المحتوى|pillar|objective|hook|cta|check[ -]?list|نوع\s*المحتوى|خطة\s*المحتوى)", re.IGNORECASE)
+_EDITORIAL_META_RE = re.compile(
+    r"(?:زاوية\s*(?:المحتوى|المقال|أخرى|جديدة)?|الهدف(?:\s*من\s*المحتوى)?|pillar|objective|hook|cta|"
+    r"check[ -]?list|نوع\s*المحتوى|خطة\s*المحتوى|الجمهور\s*المستهدف|تعليمات\s*الصياغة)",
+    re.IGNORECASE,
+)
+# These are drafting/process instructions, not reader-facing legal content.
 _AI_LEAK_RE = re.compile(
-    r"(?:المطلوب\s+مقال\s+توعوي|لا\s+تذكر\s+أرقام\s+مواد|ما\s+لم\s+تكن\s+موجودة\s+صراحة\s+في\s+المصادر|"
-    r"يتم\s+مراجعة\s+كل\s+المقالات|أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج)|"
-    r"اكتب\s+مقالًا?\s+توعويًا?)", re.IGNORECASE
+    r"(?:المطلوب\s+(?:كتابة|صياغة|مقال)|لا\s+تذكر\s+أرقام\s+مواد|"
+    r"ما\s+لم\s+تكن\s+موجودة\s+صراحة\s+في\s+المصادر|يتم\s+مراجعة\s+كل\s+المقالات|"
+    r"أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج|الصياغة)|اكتب\s+(?:مقال|محتوى)|"
+    r"قم\s+ب(?:كتابة|صياغة)|صياغة\s+الذكاء\s+الاصطناعي|التأليف\s+(?:الآلي|باستخدام)|"
+    r"المصادر\s+المقدمة|حزمة\s+البحث|return\s+json|system\s+prompt|seo\s+requirements|"
+    r"write\s+(?:an\s+)?article|drafting\s+instructions|as\s+an\s+ai|"
+    r"based\s+on\s+the\s+provided\s+(?:content|material)|content\s+angle)",
+    re.IGNORECASE,
 )
 
 def _strip_editorial_metadata(text: str) -> str:
     value = str(text or "")
-    # Drop leaked instruction sentences, not just their trigger words.
-    value = re.sub(
-        r"[^.!؟\n]*(?:المطلوب\s+مقال\s+توعوي|لا\s+تذكر\s+أرقام\s+مواد|"
+    # Remove full instruction lines/sentences so no fragments of a prompt reach readers.
+    instruction = (
+        r"(?:المطلوب\s+(?:كتابة|صياغة|مقال)|لا\s+تذكر\s+أرقام\s+مواد|"
         r"ما\s+لم\s+تكن\s+موجودة\s+صراحة\s+في\s+المصادر|يتم\s+مراجعة\s+كل\s+المقالات|"
-        r"أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج)|اكتب\s+مقالًا?\s+توعويًا?)[^.!؟]*(?:[.!؟]|$)",
-        " ", value, flags=re.IGNORECASE
+        r"أنا\s+ذكاء\s+اصطناعي|تعليمات\s+(?:للكاتب|للنموذج|الصياغة)|اكتب\s+(?:مقال|محتوى)|"
+        r"قم\s+ب(?:كتابة|صياغة)|صياغة\s+الذكاء\s+الاصطناعي|التأليف\s+(?:الآلي|باستخدام)|"
+        r"المصادر\s+المقدمة|حزمة\s+البحث|return\s+json|system\s+prompt|seo\s+requirements|"
+        r"write\s+(?:an\s+)?article|drafting\s+instructions|as\s+an\s+ai|"
+        r"based\s+on\s+the\s+provided\s+(?:content|material)|content\s+angle)"
+    )
+    value = re.sub(
+        rf"[^.!؟\n]*(?:{instruction})[^.!؟\n]*(?:[.!؟]|$)",
+        " ",
+        value,
+        flags=re.IGNORECASE,
     )
     value = _EDITORIAL_META_RE.sub("", value)
+    value = re.sub(r"(?im)^\s*(?:system|user|assistant|prompt|instructions?)\s*[:：].*$", " ", value)
+    value = re.sub(r"(?im)^\s*(?:[-*•]\s*)?(?:اكتب|قم بكتابة|تعليمات الصياغة|المطلوب|هدف المقال|زاوية المحتوى)\s*[:：].*$", " ", value)
     value = re.sub(r"\s{2,}", " ", value)
     return value.strip()
+
+def _has_editorial_leak(text: str) -> bool:
+    return bool(_AI_LEAK_RE.search(str(text or "")))
 
 def _article_copy(article: dict[str, Any]) -> dict[str, Any]:
     out = dict(article or {})
@@ -83,6 +107,17 @@ def _article_copy(article: dict[str, Any]) -> dict[str, Any]:
             faq.append({"question": _strip_editorial_metadata(item.get("question", "")),
                         "answer": _strip_editorial_metadata(item.get("answer", ""))})
     out["faq"] = faq
+    searchable = [
+        out.get("title", ""), out.get("lead", ""), out.get("meta_description", ""),
+        out.get("excerpt", ""),
+        *(value for section in sections for value in (section.get("heading", ""), section.get("body", ""))),
+        *(value for item in faq for value in (item.get("question", ""), item.get("answer", ""))),
+    ]
+    remaining = next((value for value in searchable if _has_editorial_leak(value)), "")
+    if remaining:
+        raise BloggerPublishError("Refusing to publish Blogger article: AI/editorial drafting instructions remain after sanitization.")
+    if not out.get("title") or not out.get("lead") or len(sections) < 2:
+        raise BloggerPublishError("Refusing to publish Blogger article after editorial cleanup: essential article fields are empty.")
     return out
 
 def _safe_filename(v: str) -> str:
