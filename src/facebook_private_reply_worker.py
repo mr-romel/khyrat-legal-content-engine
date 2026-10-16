@@ -22,7 +22,7 @@ HEADERS = [
     "last_error", "created_at", "updated_at", "platform_proof",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
-MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "60") or "60")
+MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "150") or "60")
 MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "50") or "50")
 MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "8760") or "8760")
 GRAPH_VERSION = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
