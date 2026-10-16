@@ -52,3 +52,17 @@ def test_qa_prompt_explicitly_requires_regeneration_for_anatomy_defects():
     )
     assert "Any clearly visible anatomy defect" in prompt
     assert "mandatory REGENERATE signal" in prompt
+
+
+
+def test_qa_prompt_treats_visible_distortion_as_mandatory_regeneration():
+    prompt = _build_prompt(
+        "نزاع حول توقيع عقد",
+        "A contemporary contract review scene.",
+        {"width": 1024, "height": 1280, "aspect_ratio": 0.8, "aspect_ratio_ok": True},
+        0,
+        "CONTEXT_ONLY",
+    )
+    assert "visible distortion" in prompt
+    assert "mandatory REGENERATE signal" in prompt
+    assert "no visible hands" in prompt
