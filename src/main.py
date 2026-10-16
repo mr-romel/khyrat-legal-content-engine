@@ -305,60 +305,97 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             model=config["gemini_model"],
         )
         print(f"POST-ALIGNED IMAGE BRIEF: {visual_description}")
-        create_legal_image(
-            topic=topic,
-            image_brief=visual_description,
-            post_context=post,
-            visual_description=visual_description,
-            output_path=str(image_path),
-            cloudflare_account_id=config["cloudflare_account_id"],
-            cloudflare_api_token=config["cloudflare_api_token"],
-            api_key=config.get("gemini_api_key", ""),
-        )
-        if not image_path.is_file() or image_path.stat().st_size == 0:
-            raise ImageGenerationError("Generated image file is empty.")
-        generated_image_path = image_path
-        image_url = github_raw_url(str(image_path))
-
-        # Semantic QA is diagnostic only: a QA warning is recorded but does not
-        # cancel publication or discard a successfully generated image.
-        image_qa_summary = "QA not run"
+        image_qa_summary = ""
         image_qa_score = ""
-        image_qa_status = "GENERATED_QA_PENDING"
-        try:
-            image_qa = qa_image(
-                api_key=config["gemini_api_key"],
-                image_path=str(image_path),
-                topic=topic,
-                image_brief=visual_description,
-            )
+        image_qa_status = "QA_REJECTED"
+        image_qa_attempt = 0
+        regeneration_notes = ""
+        for image_qa_attempt in range(1, 4):
+            image_path.unlink(missing_ok=True)
+            attempt_brief = visual_description
+            if regeneration_notes:
+                attempt_brief += (
+                    "\\n\\nMANDATORY VISUAL REGENERATION NOTES: "
+                    + regeneration_notes
+                    + "\\nAvoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only."
+                )
+            try:
+                create_legal_image(
+                    topic=topic,
+                    image_brief=attempt_brief,
+                    post_context=post,
+                    visual_description=attempt_brief,
+                    output_path=str(image_path),
+                    cloudflare_account_id=config["cloudflare_account_id"],
+                    cloudflare_api_token=config["cloudflare_api_token"],
+                    api_key=config.get("gemini_api_key", ""),
+                )
+            except Exception as generation_exc:
+                image_qa_summary = f"Image generation attempt {image_qa_attempt} failed: {generation_exc}"
+                print(image_qa_summary)
+                if image_qa_attempt >= 3:
+                    raise ImageGenerationError(image_qa_summary) from generation_exc
+                continue
+
+            if not image_path.is_file() or image_path.stat().st_size == 0:
+                image_qa_summary = f"Image generation attempt {image_qa_attempt} returned an empty file."
+                print(image_qa_summary)
+                if image_qa_attempt >= 3:
+                    raise ImageGenerationError(image_qa_summary)
+                continue
+
+            # A rejected image is regenerated; an unavailable QA service fails closed.
+            # This prevents visibly distorted assets from being published as a warning.
+            try:
+                image_qa = qa_image(
+                    api_key=config["gemini_api_key"],
+                    image_path=str(image_path),
+                    topic=topic,
+                    image_brief=attempt_brief,
+                )
+            except Exception as qa_exc:
+                image_qa_summary = f"Image QA unavailable on attempt {image_qa_attempt}; image blocked: {qa_exc}"
+                image_qa_status = "QA_UNAVAILABLE_BLOCKED"
+                image_path.unlink(missing_ok=True)
+                raise ImageGenerationError(image_qa_summary) from qa_exc
+
             image_qa_summary = summarize_qa(image_qa)
             image_qa_score = str(image_qa.get("overall_score", ""))
-            image_qa_status = "PASS" if str(image_qa.get("decision", "")).upper() == "PASS" else "QA_REJECTED"
-        except Exception as qa_exc:
-            image_qa_summary = f"Image QA unavailable: {qa_exc}"
-            image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
-        if image_qa_status == "QA_UNAVAILABLE_IMAGE_RETAINED":
-            # The image bytes were generated and branded successfully. A transient
-            # QA/TLS outage must not silently downgrade a visual post to text-only.
-            image_qa_status = "QA_UNAVAILABLE_IMAGE_RETAINED"
-        if image_qa_status == "QA_REJECTED":
-            # QA is advisory: retain a generated image and record a warning.
-            # Only generation/file-integrity failures may leave the post text-only.
-            image_qa_status = "QA_WARNING_RETAINED"
-        print(f"IMAGE SEMANTIC QA: {image_qa_status} | {image_qa_summary}")
+            if str(image_qa.get("decision", "")).upper() == "PASS":
+                image_qa_status = "PASS"
+                break
+
+            image_qa_status = "QA_REJECTED"
+            regeneration_notes = str(image_qa.get("regeneration_prompt", "") or "").strip()
+            if not regeneration_notes:
+                regeneration_notes = "Remove every visible distortion, malformed anatomy, duplicate object, and unrelated element."
+            print(
+                f"IMAGE SEMANTIC QA: rejected attempt {image_qa_attempt}/3; "
+                f"regenerating. Issues: {image_qa_summary}"
+            )
+
+        if image_qa_status != "PASS":
+            image_path.unlink(missing_ok=True)
+            raise ImageGenerationError(
+                f"Image failed visual QA after {image_qa_attempt} attempt(s); publishing text-only. "
+                + image_qa_summary
+            )
+
+        generated_image_path = image_path
+        image_url = github_raw_url(str(image_path))
+        print(f"IMAGE SEMANTIC QA: PASS on attempt {image_qa_attempt} | {image_qa_summary}")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
                 "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
-                "Image QA Attempt": "1",
+                "Image QA Attempt": str(image_qa_attempt),
                 "Image QA Status": image_qa_status,
                 "Image QA Score": image_qa_score,
                 "Image QA Issues": image_qa_summary[:1500],
                 "المحتوى": post,
                 "وصف الصورة": visual_description,
                 "وقت آخر تشغيل": current.isoformat(),
-                "آخر خطأ": "" if image_qa_status == "PASS" else image_qa_summary[:1500],
+                "آخر خطأ": "",
             })
         except Exception as state_exc:
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
@@ -372,7 +409,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
-                "Image QA Attempt": "1",
+                "Image QA Attempt": str(locals().get("image_qa_attempt", 1)),
                 "Image QA Status": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
                 "Image QA Issues": str(image_exc)[:1500],
                 "Image Mode": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
