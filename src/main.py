@@ -406,6 +406,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         # a stale local file or stale public URL; downstream publishes text only.
         image_url = ""
         generated_image_path = None
+        image_path.unlink(missing_ok=True)
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
