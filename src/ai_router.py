@@ -21,7 +21,7 @@ _GEMINI_QUOTA_EXHAUSTED = False
 
 def has_any_provider_key() -> bool:
     return any(os.getenv(name, "").strip() for name in (
-        "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"
+        "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MODEL_API_KEY"
     ))
 
 
@@ -133,6 +133,12 @@ class RoutedClient:
                 "openrouter/free",
                 "https://openrouter.ai/api/v1/chat/completions",
             ),
+            # Official Meta Model API (OpenAI-compatible Chat Completions).
+            "meta": (
+                os.getenv("MODEL_API_KEY", "").strip(),
+                os.getenv("META_MODEL", "muse-spark-1.3").strip(),
+                "https://api.meta.ai/v1/chat/completions",
+            ),
         }
         if provider not in settings:
             raise RuntimeError(f"Unknown AI provider: {provider}")
@@ -143,6 +149,9 @@ class RoutedClient:
         # from being selected by environment overrides or a caller's Gemini model ID.
         if provider == "groq" and model and model.startswith("groq/"):
             selected_model = model.split("/", 1)[1]
+        # Meta Model API uses its own catalog; never forward a Gemini model ID.
+        if provider == "meta":
+            selected_model = os.getenv("META_MODEL", "muse-spark-1.3").strip()
 
         tools = self._config_value(config, "tools", None)
         if tools:
@@ -221,10 +230,11 @@ class RoutedClient:
         failures: list[str] = []
         providers = []
         configured_alternates = []
-        for provider in ("groq", "openrouter"):
+        for provider in ("groq", "openrouter", "meta"):
             key_name = {
                 "groq": "GROQ_API_KEY",
                 "openrouter": "OPENROUTER_API_KEY",
+                "meta": "MODEL_API_KEY",
             }[provider]
             if os.getenv(key_name, "").strip():
                 configured_alternates.append(
@@ -270,7 +280,7 @@ class RoutedClient:
 def create_client(api_key: str = "", *, task: str = "core") -> RoutedClient:
     """Create a router with task-aware provider order.
 
-    core: Gemini -> Groq -> OpenRouter (free-model router)
-    auxiliary tasks: Groq -> OpenRouter (free-model router) -> Gemini
+    core: Gemini -> Groq -> OpenRouter (free-model router) -> Meta Model API
+    auxiliary tasks: Groq -> OpenRouter (free-model router) -> Meta Model API -> Gemini
     """
     return RoutedClient(api_key=api_key, task=task)
