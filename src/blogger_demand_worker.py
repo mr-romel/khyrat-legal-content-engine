@@ -176,7 +176,7 @@ def _public_titles() -> list[dict[str, str]]:
     """Read recent public posts from Blogger's public JSON feed; no OAuth needed."""
     url = BLOG_URL.rstrip("/") + "/feeds/posts/default"
     try:
-        response = requests.get(url, params={"alt": "json", "max-results": "100"}, headers=HEADERS, timeout=TIMEOUT)
+        response = requests.get(url, params={"alt": "json", "max-results": "500"}, headers=HEADERS, timeout=TIMEOUT)
         response.raise_for_status()
         data = response.json().get("feed", {}).get("entry", [])
         out = []
@@ -237,7 +237,7 @@ def collect_candidates(
     recent_queries = [
         str(item.get("query", ""))
         for item in history[-45:]
-        if str(item.get("status", "")).upper() == "PUBLISHED"
+        if str(item.get("status", "")).upper() in {"PUBLISHED", "REJECTED_DUPLICATE_TITLE"}
     ]
     existing_titles = [item.get("title", "") for item in published]
     # Real Search Console impressions/clicks take precedence over proxy signals
@@ -249,9 +249,9 @@ def collect_candidates(
             continue
         if not any(term in query for term in LEGAL_TERMS):
             continue
-        if any(_similarity(query, old) >= 0.52 for old in recent_queries if old):
+        if any(_similarity(query, old) >= 0.44 for old in recent_queries if old):
             continue
-        if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
+        if any(_similarity(query, title) >= 0.44 for title in existing_titles if title):
             continue
         seen.add(norm)
         impressions = float(row.get("impressions", 0) or 0)
@@ -588,6 +588,34 @@ def main() -> int:
     description = _clean(article.get("meta_description", ""))[:180]
     if not title or len(description) < 40:
         raise RuntimeError("SEO article title or search description is missing; refusing to publish incomplete metadata.")
+
+    # A distinct query can still produce a near-duplicate title. Reuse an exact
+    # existing title through the idempotency/repair path below, but never publish
+    # a lightly reworded title for an already-covered topic.
+    duplicate_title = next(
+        (
+            item for item in published
+            if _norm(item.get("title", "")) != _norm(title)
+            and _similarity(title, item.get("title", "")) >= 0.44
+        ),
+        None,
+    )
+    if duplicate_title:
+        history.append({
+            **selected,
+            "date": today,
+            "status": "REJECTED_DUPLICATE_TITLE",
+            "title": title,
+            "duplicate_of": duplicate_title.get("title", ""),
+            "duplicate_url": duplicate_title.get("url", ""),
+            "rejected_at": datetime.now(ZoneInfo("Africa/Cairo")).isoformat(),
+        })
+        _save_map(keyword_map)
+        raise RuntimeError(
+            f"Refusing to publish near-duplicate Blogger title: {title!r}; "
+            f"similar existing title={duplicate_title.get('title', '')!r}. "
+            "Candidate recorded so the next run can select a different topic."
+        )
     keywords = [ _clean(x) for x in article.get("keywords", []) if _clean(x) ]
     labels = normalize_blogger_labels(["قانون مصر", "اسأل محمود", *keywords])
     print(f"Demand Blogger labels normalized: count={len(labels)} combined_chars={len(', '.join(labels))}")
