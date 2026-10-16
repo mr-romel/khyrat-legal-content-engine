@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: facebook-comment-reply-worker
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   comment-reply:

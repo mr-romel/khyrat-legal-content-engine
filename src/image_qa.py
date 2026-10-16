@@ -16,8 +16,8 @@ QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
 QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
 QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "25"))
-QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "25"))
-QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "40"))
+QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "35"))
+QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "60"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "1")))
 ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
 
@@ -114,12 +114,13 @@ CHECK THESE FIVE THINGS:
    bottom-right brand overlay described above. If any other text exists, mark text_detected=true and list it.
 4. LEGAL RELEVANCE: Does the visual directly depict the legal situation in the topic/brief, rather than
    a generic lawyer, courthouse, scales, gavel, legal background, or unrelated office scene?
-5. ANATOMY AND VISUAL INTEGRITY: Inspect every visible hand, face, limb, joint, and repeated object closely. Look for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra/missing/fused fingers, unnatural wrists, twisted arms, duplicated objects, stretched bodies, and obvious generative artifacts. Any clearly visible anatomy defect that could be noticed in a social feed is a mandatory REGENERATE signal, even if the overall image looks attractive. Prefer no human figures when the scene works without them.
+5. ANATOMY AND VISUAL INTEGRITY: Inspect every visible hand, face, limb, joint, and repeated object closely. Look for warped faces, asymmetrical eyes, malformed teeth, distorted ears, duplicate limbs, extra/missing/fused fingers, unnatural wrists, twisted arms, duplicated objects, stretched bodies, broken geometry, melted edges, and obvious generative artifacts. Any clearly visible anatomy defect, visible distortion, malformed anatomy, duplicated or fused object, or physically impossible detail that a viewer could notice in a social feed is a mandatory REGENERATE signal, even if the overall image looks attractive. Do not excuse defects as minor styling issues. Prefer no human figures and no visible hands when the scene works without them.
 DECISION:
 PASS when the image is usable for publication and materially related to the topic.
-REGENERATE only when the scene is clearly unrelated, unusable, badly malformed, or contains serious generated text that damages the asset.
-Do not reject a usable image merely because composition, styling, or interpretation is imperfect.
-The image is a first-class publishing asset. QA is advisory and should preserve a usable image whenever possible.
+REGENERATE when the scene is unrelated, visibly distorted, anatomically implausible, contains duplicated/fused objects, is unusable, or contains generated text that damages the asset.
+A visible anatomy or geometry defect is not a style preference: reject it even if the topic is relevant.
+Do not reject a clean, coherent image merely because composition or styling is not perfect.
+The image is a first-class publishing asset; do not publish a visibly malformed image just to avoid another generation attempt.
 
 Return JSON only:
 {{
@@ -244,6 +245,8 @@ def qa_image(
         "distort", "warped", "malformed", "extra finger", "missing finger", "fused finger",
         "extra limb", "duplicate limb", "unnatural wrist", "twisted arm", "deformed",
         "disfigured", "anatomy defect", "anatomical defect", "stretched body",
+        "broken geometry", "melted edge", "physically impossible", "fused object",
+        "duplicated object", "visual artifact", "generative artifact", "bad anatomy",
     )
     visual_findings = " ".join(
         str(item) for field in ("issues", "composition_findings", "relevance_findings")
