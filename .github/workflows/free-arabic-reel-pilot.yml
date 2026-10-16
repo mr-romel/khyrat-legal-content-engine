@@ -1,0 +1,63 @@
+name: Free Arabic Reel Pilot (manual review only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic_override:
+        description: "Optional topic for smoke testing; leave blank to read the next scheduled topic from Google Sheets"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-arabic-reel-pilot
+  cancel-in-progress: false
+
+jobs:
+  build-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/free-arabic-manim-reel
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Install FFmpeg and Arabic fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Install CPU-only PyTorch and isolated pilot packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install git+https://github.com/k2-fsa/OmniVoice.git
+          python -m pip install -r experiments/free-arabic-manim-reel/requirements.txt
+      - name: Build one local-only Reel
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
+          REEL_PILOT_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
+          VOICETUT_SPEAKER: "Mohamed"
+        run: |
+          python experiments/free-arabic-manim-reel/pilot.py --output-dir pilot-output
+      - name: Upload review artifact (no publishing)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-arabic-manim-reel-pilot
+          path: |
+            pilot-output/free-arabic-legal-reel.mp4
+            pilot-output/script.json
+            pilot-output/qa.json
+            pilot-output/narration.wav
+          if-no-files-found: warn
+          retention-days: 7
