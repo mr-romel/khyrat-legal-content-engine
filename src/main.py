@@ -315,9 +315,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             attempt_brief = visual_description
             if regeneration_notes:
                 attempt_brief += (
-                    "\\n\\nMANDATORY VISUAL REGENERATION NOTES: "
+                    "\n\nMANDATORY VISUAL REGENERATION NOTES: "
                     + regeneration_notes
-                    + "\\nAvoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only."
+                    + "\nAvoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only."
                 )
             try:
                 create_legal_image(
