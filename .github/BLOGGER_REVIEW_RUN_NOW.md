@@ -5,3 +5,5 @@ Trigger the resumable live Blogger editorial review worker. Each run rewrites up
 Retry after wiring Gemini/Groq/Cerebras/OpenRouter failover — 2026-10-14T20:56Z
 
 Retry Blogger review after removing unsupported patch field — 2026-10-14T21:00Z
+
+Manual review requested 2026-10-16: continue revising remaining live legacy articles and generate a distinct image for every successfully updated article.
