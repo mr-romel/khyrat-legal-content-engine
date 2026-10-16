@@ -34,6 +34,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
         run: |
           PYTHONPATH=src python scripts/run_content_intelligence.py
       - name: Upload content intelligence dashboard
