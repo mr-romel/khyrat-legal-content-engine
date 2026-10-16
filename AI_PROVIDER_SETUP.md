@@ -5,6 +5,7 @@ The text-generation router is configured to avoid Cerebras and any paid-model fa
 1. Gemini API free tier (GEMINI_API_KEY) for core legal drafting/review.
 2. Groq developer free tier (GROQ_API_KEY) for fallback and auxiliary tasks.
 3. OpenRouter's free-model router (OPENROUTER_API_KEY, model defaults to openrouter/free).
+4. Meta Model API (MODEL_API_KEY, model defaults to muse-spark-1.3) as an additional fallback.
 
 When a provider reports quota exhaustion, an invalid key, or a connection failure, the router tries the next configured provider. Free-tier limits and model availability can change and are not unlimited. Keep each account on its free plan and do not enable billing if the requirement is a $0 ceiling. The image-generation path is separate and still needs its own provider; this text router does not make image generation free.
 
@@ -13,6 +14,7 @@ When a provider reports quota exhaustion, an invalid key, or a connection failur
 - Gemini AI Studio: https://aistudio.google.com/apikey — select a model and project that show free-tier access; do not attach billing if you need a hard $0 ceiling.
 - Groq: https://console.groq.com/keys — use the free developer tier.
 - OpenRouter: https://openrouter.ai/settings/keys — use only free models; its published free plan currently documents 50 requests/day. See https://openrouter.ai/pricing/.
+- Meta Model API: https://dev.meta.ai/ — open the API keys section and create a key for your team. Official API docs: https://dev.meta.ai/docs/authentication. Meta's model availability, quotas, and pricing are account-dependent; do not assume this provider is free.
 
 Do not paste keys into source files, commits, issue comments, or chat.
 
@@ -22,6 +24,7 @@ Open https://github.com/mr-romel/khyrat-legal-content-engine/settings/secrets/ac
 
 - GROQ_API_KEY
 - OPENROUTER_API_KEY
+- MODEL_API_KEY
 
 The workflows already map these secrets into the scheduled publisher, Blogger publisher, Facebook and LinkedIn engagement workers, daily Reel generator, and content-intelligence job. Missing provider keys are skipped automatically.
 
@@ -29,6 +32,7 @@ The workflows already map these secrets into the scheduled publisher, Blogger pu
 
 - Groq: openai/gpt-oss-120b (override with GROQ_MODEL; subject to the Groq free-plan limits)
 - OpenRouter: openrouter/free (do not override with a paid model if a $0 ceiling is required)
+- Meta Model API: muse-spark-1.3 (override with META_MODEL if needed)
 
 ## Blogger OAuth check
 
