@@ -190,21 +190,44 @@ def recent_posts(service, spreadsheet_id, sheet_range):
 
 
 def list_comments(post_id, token):
+    """Read all available top-level comments across Graph API pages.
+
+    A single 50-comment page silently skipped older comments whenever a post
+    or Reel had a busy thread. Bound pagination to keep a scheduled run finite.
+    """
     params = {
         "access_token": token,
         "fields": "id,message,from,created_time,can_comment,user_likes,parent,comment_count",
         "filter": "toplevel",
         "order": "reverse_chronological",
-        "limit": "50",
+        "limit": "100",
     }
-    try:
-        response = requests.get(graph_url(post_id, "comments"), params=params, timeout=45)
-    except requests.RequestException as exc:
-        return [], 0, str(exc)
-    if not response.ok:
-        return [], response.status_code, api_error(response)
-    payload = response.json()
-    return payload.get("data", []) or [], response.status_code, ""
+    url = graph_url(post_id, "comments")
+    comments = []
+    last_status = 200
+    # Up to 10 pages / 1,000 comments per post per run; newest comments first.
+    for _page in range(10):
+        try:
+            response = requests.get(url, params=params, timeout=45)
+        except requests.RequestException as exc:
+            return comments, 0, str(exc)
+        last_status = response.status_code
+        if not response.ok:
+            return comments, response.status_code, api_error(response)
+        try:
+            payload = response.json()
+        except ValueError:
+            return comments, response.status_code, "Facebook returned invalid JSON while listing comments."
+        comments.extend(payload.get("data", []) or [])
+        paging = payload.get("paging") or {}
+        cursors = paging.get("cursors") or {}
+        after = str(cursors.get("after", "")).strip()
+        if not paging.get("next") or not after:
+            break
+        # Keep the token in params rather than reusing a paging URL that may
+        # expose credentials in logs or persist it outside this request.
+        params["after"] = after
+    return comments, last_status, ""
 
 
 def build_public_reply(comment_text, post_topic, index):
