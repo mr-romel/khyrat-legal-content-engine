@@ -157,8 +157,47 @@ def _include_reel_columns(sheet_range: str) -> str:
     return f"{match.group(1)}{end_column if end_index >= 55 else 'BC'}"
 
 
-def recent_posts(service, spreadsheet_id, sheet_range):
-    """Return recent Facebook feed posts AND published Reels from the content sheet."""
+def list_page_videos(page_id, token):
+    """Discover published Page video objects, including Reels missing from Sheets.
+
+    Some already-published Reels predate the workflow that records Reel Facebook
+    IDs in the content sheet. The Page videos edge is a secondary discovery
+    source; failure here must not prevent processing IDs already in Sheets.
+    """
+    if not page_id or not token:
+        return [], 0, "Page ID or access token is missing."
+    url = graph_url(page_id, "videos")
+    params = {
+        "access_token": token,
+        "fields": "id,description,created_time,permalink_url",
+        "limit": "100",
+    }
+    videos = []
+    last_status = 200
+    for _page in range(5):
+        try:
+            response = requests.get(url, params=params, timeout=45)
+        except requests.RequestException as exc:
+            return videos, 0, str(exc)
+        last_status = response.status_code
+        if not response.ok:
+            return videos, response.status_code, api_error(response)
+        try:
+            payload = response.json()
+        except ValueError:
+            return videos, response.status_code, "Facebook returned invalid JSON while listing Page videos."
+        videos.extend(payload.get("data", []) or [])
+        paging = payload.get("paging") or {}
+        cursors = paging.get("cursors") or {}
+        after = str(cursors.get("after", "")).strip()
+        if not paging.get("next") or not after:
+            break
+        params["after"] = after
+    return videos, last_status, ""
+
+
+def recent_posts(service, spreadsheet_id, sheet_range, *, page_id="", token=""):
+    """Return recent feed posts, published Reels, and Page videos from both sources."""
     candidates = []
     seen_ids = set()
     current = now()
@@ -180,11 +219,42 @@ def recent_posts(service, spreadsheet_id, sheet_range):
             seen_ids.add(reel_id)
             candidates.append((published_at, source_row, reel_id, row))
 
+    # Secondary discovery catches previously published Page videos/Reels whose
+    # IDs were never written back to the content sheet.
+    if page_id and token:
+        page_videos, video_status, video_error = list_page_videos(page_id, token)
+        if video_error:
+            print(f"Facebook Page video discovery unavailable: http={video_status} error={video_error}")
+        else:
+            added_videos = 0
+            for video in page_videos:
+                video_id = str(video.get("id", "")).strip()
+                if not video_id or video_id in seen_ids:
+                    continue
+                created_text = str(video.get("created_time", "")).strip()
+                try:
+                    published_at = datetime.fromisoformat(created_text.replace("Z", "+00:00")).astimezone(CAIRO)
+                except ValueError:
+                    published_at = current
+                description = str(video.get("description", "")).strip()
+                row = {
+                    "الموضوع": description[:180],
+                    "المحتوى": description,
+                    "Facebook Status": "PUBLISHED",
+                    "Facebook Post ID": video_id,
+                    "_source_type": "PAGE_VIDEO_API",
+                }
+                seen_ids.add(video_id)
+                candidates.append((published_at, 0, video_id, row))
+                added_videos += 1
+            print(f"Facebook Page video discovery: returned={len(page_videos)} new_targets={added_videos}")
+
     candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
     print(
         "Facebook reply targets discovered: "
         f"posts={sum(1 for item in candidates if str(item[3].get('Facebook Post ID', '')).strip() == item[2])} "
-        f"reels={sum(1 for item in candidates if str(item[3].get('Reel Facebook ID', '')).strip() == item[2])}"
+        f"reels={sum(1 for item in candidates if str(item[3].get('Reel Facebook ID', '')).strip() == item[2])} "
+        f"page_videos={sum(1 for item in candidates if item[3].get('_source_type') == 'PAGE_VIDEO_API')}"
     )
     return candidates[:MAX_RECENT_POSTS]
 
@@ -281,7 +351,7 @@ def main():
     reply_done_states = {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED", "SKIPPED_NOT_REPLYABLE"}
     like_done_states = {"LIKED", "SKIPPED_ALREADY_LIKED"}
 
-    posts = recent_posts(service, sheet_id, sheet_range)
+    posts = recent_posts(service, sheet_id, sheet_range, page_id=page_id, token=token)
     print(f"Facebook public comment reply scope: latest {len(posts)} post(s)")
     if not posts:
         return 0
