@@ -22,9 +22,9 @@ HEADERS = [
     "last_error", "created_at", "updated_at", "platform_proof",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
-MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "20") or "20")
-MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "20") or "20")
-MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "720") or "720")
+MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "60") or "60")
+MAX_COMMENTS_PER_RUN = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENTS_PER_RUN", "50") or "50")
+MAX_COMMENT_AGE_HOURS = int(os.getenv("FACEBOOK_COMMENT_REPLY_MAX_COMMENT_AGE_HOURS", "8760") or "8760")
 GRAPH_VERSION = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
 
 
@@ -144,14 +144,48 @@ def read_content(service, spreadsheet_id, sheet_range):
     return rows
 
 
+def _include_reel_columns(sheet_range: str) -> str:
+    """Widen the usual A:AF content range so Reel Facebook ID is not truncated."""
+    match = re.match(r"^(.*!A:)([A-Z]+)$", str(sheet_range or "").strip())
+    if not match:
+        return sheet_range
+    end_column = match.group(2)
+    end_index = 0
+    for char in end_column:
+        end_index = end_index * 26 + ord(char) - ord("A") + 1
+    # BC is column 55. Preserve any configured range that is already wider.
+    return f"{match.group(1)}{end_column if end_index >= 55 else 'BC'}"
+
+
 def recent_posts(service, spreadsheet_id, sheet_range):
+    """Return recent Facebook feed posts AND published Reels from the content sheet."""
     candidates = []
+    seen_ids = set()
+    current = now()
     for source_row, row in read_content(service, spreadsheet_id, sheet_range):
+        published_at = _published_at(row, current)
+        source_row = int(source_row)
+
         post_id = str(row.get("Facebook Post ID", "")).strip()
-        if str(row.get("Facebook Status", "")).strip().upper() != "PUBLISHED" or not post_id:
-            continue
-        candidates.append((_published_at(row, now()), int(source_row), post_id, row))
+        post_status = str(row.get("Facebook Status", "")).strip().upper()
+        if post_id and post_status == "PUBLISHED" and post_id not in seen_ids:
+            seen_ids.add(post_id)
+            candidates.append((published_at, source_row, post_id, row))
+
+        # Reel fields live after AF in the content sheet. The workflow must read
+        # through BC so the Reel Facebook ID is actually available to this worker.
+        reel_id = str(row.get("Reel Facebook ID", "")).strip()
+        reel_status = str(row.get("Reel Status", "")).strip().upper()
+        if reel_id and reel_status == "PUBLISHED" and reel_id not in seen_ids:
+            seen_ids.add(reel_id)
+            candidates.append((published_at, source_row, reel_id, row))
+
     candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    print(
+        "Facebook reply targets discovered: "
+        f"posts={sum(1 for item in candidates if str(item[3].get('Facebook Post ID', '')).strip() == item[2])} "
+        f"reels={sum(1 for item in candidates if str(item[3].get('Reel Facebook ID', '')).strip() == item[2])}"
+    )
     return candidates[:MAX_RECENT_POSTS]
 
 
@@ -208,7 +242,8 @@ def main():
     token = config["facebook_page_access_token"]
     page_id = config["facebook_page_id"]
     sheet_id = config["sheet_id"]
-    sheet_range = config["sheet_range"]
+    sheet_range = _include_reel_columns(config["sheet_range"])
+    print(f"Facebook comment worker sheet range: {sheet_range}")
     current = now()
 
     ensure_sheet(service, sheet_id)
