@@ -62,3 +62,36 @@ def test_sheet_range_is_widened_for_reel_fields():
     assert worker._include_reel_columns("Content!A:AF") == "Content!A:BC"
     assert worker._include_reel_columns("Content!A:BC") == "Content!A:BC"
     assert worker._include_reel_columns("Content!A:BD") == "Content!A:BD"
+
+
+
+def test_list_comments_paginates_beyond_first_page(monkeypatch):
+    calls = []
+
+    class Response:
+        ok = True
+        status_code = 200
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, *, params, timeout):
+        calls.append(dict(params))
+        if len(calls) == 1:
+            return Response({
+                "data": [{"id": "comment_1"}],
+                "paging": {"next": "https://example.invalid/page", "cursors": {"after": "cursor_2"}},
+            })
+        return Response({"data": [{"id": "comment_2"}]})
+
+    monkeypatch.setattr(worker.requests, "get", fake_get)
+    comments, status, error = worker.list_comments("post_1", "test-token")
+
+    assert [item["id"] for item in comments] == ["comment_1", "comment_2"]
+    assert status == 200
+    assert error == ""
+    assert len(calls) == 2
+    assert calls[1]["after"] == "cursor_2"
