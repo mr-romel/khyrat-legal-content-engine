@@ -144,6 +144,19 @@ def read_content(service, spreadsheet_id, sheet_range):
     return rows
 
 
+def _include_reel_columns(sheet_range: str) -> str:
+    """Widen the usual A:AF content range so Reel Facebook ID is not truncated."""
+    match = re.match(r"^(.*!A:)([A-Z]+)$", str(sheet_range or "").strip())
+    if not match:
+        return sheet_range
+    end_column = match.group(2)
+    end_index = 0
+    for char in end_column:
+        end_index = end_index * 26 + ord(char) - ord("A") + 1
+    # BC is column 55. Preserve any configured range that is already wider.
+    return f"{match.group(1)}{end_column if end_index >= 55 else 'BC'}"
+
+
 def recent_posts(service, spreadsheet_id, sheet_range):
     """Return recent Facebook feed posts AND published Reels from the content sheet."""
     candidates = []
@@ -229,7 +242,8 @@ def main():
     token = config["facebook_page_access_token"]
     page_id = config["facebook_page_id"]
     sheet_id = config["sheet_id"]
-    sheet_range = config["sheet_range"]
+    sheet_range = _include_reel_columns(config["sheet_range"])
+    print(f"Facebook comment worker sheet range: {sheet_range}")
     current = now()
 
     ensure_sheet(service, sheet_id)
