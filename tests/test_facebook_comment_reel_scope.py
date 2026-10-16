@@ -95,3 +95,27 @@ def test_list_comments_paginates_beyond_first_page(monkeypatch):
     assert error == ""
     assert len(calls) == 2
     assert calls[1]["after"] == "cursor_2"
+
+
+
+def test_recent_posts_adds_page_videos_missing_from_sheet(monkeypatch):
+    now = datetime(2026, 10, 16, 12, 0, tzinfo=ZoneInfo("Africa/Cairo"))
+    monkeypatch.setattr(worker, "now", lambda: now)
+    monkeypatch.setattr(worker, "read_content", lambda *_: [])
+    monkeypatch.setattr(
+        worker,
+        "list_page_videos",
+        lambda *_: (
+            [{"id": "untracked_reel_1", "created_time": "2026-10-16T08:30:00+00:00", "description": "ريل قانوني"}],
+            200,
+            "",
+        ),
+    )
+
+    targets = worker.recent_posts(
+        object(), "sheet", "Content!A:BC", page_id="page_1", token="test-token"
+    )
+
+    assert len(targets) == 1
+    assert targets[0][2] == "untracked_reel_1"
+    assert targets[0][3]["_source_type"] == "PAGE_VIDEO_API"
