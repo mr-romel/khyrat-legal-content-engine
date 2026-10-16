@@ -103,7 +103,7 @@ def _parse_schedule(row: dict[str, str]) -> datetime | None:
     else:
         if parsed.hour == 0 and parsed.minute == 0 and time_text:
             parsed_time = None
-            for fmt in ("%H:%M", "%H:%M:%S", "%I:%M %p"):
+            for fmt in ("%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M:%S %p"):
                 try:
                     parsed_time = datetime.strptime(time_text, fmt).time()
                     break
