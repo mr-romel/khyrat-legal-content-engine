@@ -486,12 +486,18 @@ def _main_impl():
                 graph_version=CONFIG["facebook_graph_version"],
             )
         else:
+            event_id = str(event.get("event_id", ""))
+            comment_text = str(event.get("comment_text", "") or "")
+            # Existing queued rows may predate this policy. Keep the link only
+            # on the dedicated CTA event; sanitize every other comment at send time.
+            if not event_id.startswith("COMMENT_BLOG_CTA:"):
+                comment_text = remove_blogger_link(comment_text)
             result = add_comment(
-            post_id=event["post_id"],
-            page_access_token=CONFIG["facebook_page_access_token"],
-            graph_version=CONFIG["facebook_graph_version"],
-            message=event["comment_text"],
-        )
+                post_id=event["post_id"],
+                page_access_token=CONFIG["facebook_page_access_token"],
+                graph_version=CONFIG["facebook_graph_version"],
+                message=comment_text,
+            )
         changes = {
             "attempts": attempts,
             "last_error": result.get("error", ""),
