@@ -111,7 +111,7 @@ def _normalize(value: Any, limit: int) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for item in value:
-        text = normalize_comment(str(item or ""))
+        text = remove_blogger_link(normalize_comment(str(item or "")))
         key = re.sub(r"\s+", " ", text).casefold()
         if text and key not in seen:
             seen.add(key)
