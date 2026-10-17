@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-legal-reel-${{ github.sha }}
+  group: khyrat-reel-generation
   cancel-in-progress: false
 
 jobs:
