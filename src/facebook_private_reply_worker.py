@@ -11,6 +11,7 @@ import requests
 from config import load_facebook_engagement_config
 from facebook_publisher import like_comment, reply_to_comment
 from sheets import create_service, get_values
+from engagement_strategy import remove_blogger_link
 
 # This worker intentionally handles PUBLIC threaded replies only.
 # It never sends private messages.
@@ -252,7 +253,7 @@ def build_public_reply(comment_text, post_topic, index):
         f"شكرًا لتفاعلك معنا. تابع صفحة اسأل محمود واستمر في متابعتنا للمحتوى القانوني العملي، ومشاركتك للبوست بتساعد المعلومة توصل لناس أكتر.",
         f"شكرًا على تعليقك. تابع الصفحة علشان تشوف الجديد من اسأل محمود، ولو شايف المحتوى مفيد شاركه مع أصحابك أو زملائك.",
     ]
-    return templates[index % len(templates)]
+    return remove_blogger_link(templates[index % len(templates)])
 
 
 def _event_id(comment_id):

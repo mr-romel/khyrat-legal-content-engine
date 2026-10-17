@@ -91,6 +91,19 @@ def comment_schedule_offsets(count: int) -> list[int]:
     return [COMMENT_INTERVAL_MINUTES * i for i in range(count)]
 
 
+def remove_blogger_link(text: str) -> str:
+    """Remove Blogger URLs from replies and contextual comments; dedicated CTA comments bypass this."""
+    value = str(text or "")
+    value = re.sub(
+        r"(?i)(?:https?://)?(?:www\.)?askmahmoudkhyrat\.blogspot\.com(?:/[^\s]*)?",
+        "",
+        value,
+    )
+    value = re.sub(r"[ \t]{2,}", " ", value)
+    value = re.sub(r"\s+([،,؛;:.!?؟])", r"\1", value)
+    return value.strip()
+
+
 def normalize_comment(text: str) -> str:
     value = sanitize_social_copy(str(text or ""))
     value = re.sub(r"\\s+", " ", value).strip()

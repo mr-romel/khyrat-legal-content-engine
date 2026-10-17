@@ -9,16 +9,8 @@ from typing import Any
 
 from ai_router import create_client, has_any_provider_key
 
-from engagement_strategy import choose_comment_count, normalize_comment
+from engagement_strategy import choose_comment_count, normalize_comment, remove_blogger_link
 
-
-BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
-BLOG_CTA_TEMPLATES = [
-    f"وللي حابب يقرأ التفاصيل كاملة، المقال موجود على المدونة: {BLOG_URL}",
-    f"شرح أوسع بالمستندات والنقاط العملية موجود على مدونتنا: {BLOG_URL}",
-    f"لو الموضوع محتاج قراءة أعمق، جمعنا التفاصيل كاملة هنا: {BLOG_URL}",
-    f"للتفاصيل الموسعة والأمثلة، ممكن مراجعة المقال على المدونة: {BLOG_URL}",
-]
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
@@ -119,7 +111,7 @@ def _normalize(value: Any, limit: int) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for item in value:
-        text = normalize_comment(str(item or ""))
+        text = remove_blogger_link(normalize_comment(str(item or "")))
         key = re.sub(r"\s+", " ", text).casefold()
         if text and key not in seen:
             seen.add(key)
@@ -223,8 +215,8 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
         "المسألة هنا لا تتعلق بصحة القاعدة فقط، لكن بكيفية تطبيقها على الوقائع المحددة والآثار الناتجة عنها",
     ]
     return {
-        "facebook_comments": [normalize_comment(x) for x in fb_templates[:count]],
-        "linkedin_comments": [normalize_comment(x) for x in li_templates[:count]],
+        "facebook_comments": [remove_blogger_link(normalize_comment(x)) for x in fb_templates[:count]],
+        "linkedin_comments": [remove_blogger_link(normalize_comment(x)) for x in li_templates[:count]],
     }
 
 
@@ -365,7 +357,7 @@ Facebook: اكتب التعليقات بصوت الصفحة نفسها، بال�
 إذا احتجت سؤالًا، استخدم فقط مصدرًا حقيقيًا متاحًا للنظام. وبما أنه لا توجد بيانات رسائل واردة ضمن هذه المهمة، لا تدّعِ أن سؤالًا وصل على الرسائل أو الواتساب. استخدم بدلًا من ذلك صيغًا عامة وصادقة مثل: "من الأسئلة الشائعة اللي بتوصلنا..." أو "من الاستفسارات المتكررة..." أو "سؤال بيتكرر كتير...".
 لا تستخدم: "طب لو حصل معايا..."، "أنا عندي موقف مشابه..."، "أنا عملت..." أو أي صياغة توهم أن الصفحة متابع حقيقي.
 
-CTA: استخدم CTA عاديًا من الصفحة عندما يكون مناسبًا، مثل الدعوة لإرسال رسالة أو مشاركة المنشور مع شخص قد يحتاج المعلومة.\n\nرابط المدونة جزء من CTA المسموح به: {{BLOG_URL}}\nعندما يكون مناسبًا، اجعل تعليقًا واحدًا فقط من التعليقات يحمل CTA للمدونة، ويكون الرابط كاملًا وقابلًا للنقر. لا تضع رابط المدونة في كل التعليقات ولا تجعله إعلانيًا بشكل مزعج. لا تخفِ الـCTA داخل شخصية متابع، ولا تجعل كل التعليقات دعوات لاتخاذ إجراء.
+CTA: استخدم CTA عاديًا من الصفحة عندما يكون مناسبًا، مثل الدعوة لإرسال رسالة أو مشاركة المنشور مع شخص قد يحتاج المعلومة.\n\nممنوع وضع رابط المدونة أو أي رابط Blogger داخل هذه التعليقات؛ رابط المدونة يُنشر فقط في تعليق CTA مستقل على المنشور نفسه.
 اجعل التعليقات مختلفة فعلًا في الطول والبداية والإيقاع. بعضها ممكن يكون قصيرًا جدًا وبعضها جملة أو جملتين. اكتب كما يكتب صاحب صفحة حقيقية وهو بيرد بسرعة، مش كما يكتب محرر تقرير. كل تعليق يجب أن يضيف قيمة مرتبطة بسياق المنشور الكامل، وليس بجملة منفردة منه. ممنوع إعادة صياغة عنوان المنشور أو تلخيصه، وممنوع البدء بعنوان المنشور ثم شرطة أو نقطتين وإضافة "زاوية جديدة" أو "Checklist" أو أي عنوان فرعي تحليلي. التعليق ليس عنوانًا بديلًا للمنشور. ممنوع العبارات النمطية مثل "النقطة الأهم هنا" و"من زاوية أخرى" و"من المهم الإشارة إلى" و"هذا يسلط الضوء على" و"لا شك أن". كل تعليق لازم يبدو مكتوبًا منفردًا في لحظته.
 لا تجعل كل التعليقات أسئلة، ولا تجعل كل التعليقات تطلب المشاركة.
 كل تعليق يجب أن يكون مستقلًا وقابلًا للنشر منفردًا، وألا يبدو جزءًا من قالب آلي متكرر. كل تعليق لازم يرتبط بمرساة محددة من المنشور نفسه: واقعة، طرف، مستند، إجراء، توقيت، استثناء، أثر عملي أو مصطلح قانوني ورد في السياق. ممنوع التعليق العام من نوع التفاصيل مهمة أو لازم نراجع المستندات من غير ربطه بنقطة محددة في هذا المنشور. ممنوع نسخ أو إعادة صياغة جملة كاملة من المنشور، ووزّع وظائف التعليقات بين الإضافة المعرفية والزاوية المختلفة والسؤال التطبيقي والتطبيق العملي والتوضيح وفتح النقاش وCTA عند ملاءمته. لو لم تجد نقطة محددة تضيفها، لا تخترع معلومة قانونية؛ استخدم سؤالًا تطبيقيًا مرتبطًا بواقعة المنشور أو أثره العملي.
@@ -402,8 +394,8 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
         print(f"Comment AI output validation failed; using deterministic platform-specific comments: {exc}")
         return _fallback_comments(topic=topic, post=post, count=count)
 
-    facebook = _diversify_comments(facebook, post)
-    linkedin = _diversify_comments(linkedin, post)
+    facebook = [remove_blogger_link(x) for x in _diversify_comments(facebook, post)]
+    linkedin = [remove_blogger_link(x) for x in _diversify_comments(linkedin, post)]
     if len(facebook) != count or len(linkedin) != count:
         print("Comment AI produced repetitive/AI-style comments; using natural deterministic fallback.")
         return _fallback_comments(topic=topic, post=post, count=count)

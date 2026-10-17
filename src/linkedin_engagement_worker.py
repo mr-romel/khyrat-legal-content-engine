@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
-from engagement_strategy import blog_cta_comment, blog_cta_due, find_cta_event
+from engagement_strategy import blog_cta_comment, blog_cta_due, find_cta_event, remove_blogger_link
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
 from linkedin_publisher import like_comment, like_post, resolve_member_urn, verify_comment
 from sheets import create_service, get_values
@@ -310,7 +310,7 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
                 "sequence": str(sequence),
                 "scheduled_at": iso(current + timedelta(minutes=offset)),
                 "status": "PENDING",
-                "comment_text": message,
+                "comment_text": remove_blogger_link(message),
                 "attempts": "0",
                 "capability_status": "NOT_CHECKED",
                 "fingerprint": comment_fingerprint(post_urn, message),
@@ -668,9 +668,14 @@ def _main_impl():
                 token=token, actor_urn=actor, comment_urn=event["comment_urn"]
             )
         else:
+            event_id = str(event.get("event_id", ""))
+            comment_text = str(event.get("comment_text", "") or "")
+            # Also sanitize old queued events, not just newly generated comments.
+            if not event_id.startswith("COMMENT_BLOG_CTA:"):
+                comment_text = remove_blogger_link(comment_text)
             result = add_linkedin_comment(
                 token=token, actor_urn=actor, post_urn=event["post_urn"],
-                message=event["comment_text"], dry_run=False
+                message=comment_text, dry_run=False
             )
         changes = {
             "attempts": str(attempts),

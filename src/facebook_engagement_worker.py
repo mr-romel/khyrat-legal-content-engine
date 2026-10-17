@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from comment_engine import generate_comments
 from config import load_facebook_engagement_config
-from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, find_cta_event, normalize_comment
+from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, find_cta_event, normalize_comment, remove_blogger_link
 from facebook_publisher import add_comment, like_comment, like_post, verify_comment
 from sheets import create_service, get_values
 
@@ -265,7 +265,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         next_sequence = max(existing_sequences, default=0) + 1
         for offset, message in enumerate(comments):
             sequence = next_sequence + offset
-            clean = normalize_comment(message)
+            clean = remove_blogger_link(normalize_comment(message))
             scheduled = current + timedelta(minutes=15 * offset)
             append_event(service, spreadsheet_id, {
                 "event_id": f"COMMENT_BUNDLE:{post_id}:{sequence}",
@@ -486,12 +486,18 @@ def _main_impl():
                 graph_version=CONFIG["facebook_graph_version"],
             )
         else:
+            event_id = str(event.get("event_id", ""))
+            comment_text = str(event.get("comment_text", "") or "")
+            # Existing queued rows may predate this policy. Keep the link only
+            # on the dedicated CTA event; sanitize every other comment at send time.
+            if not event_id.startswith("COMMENT_BLOG_CTA:"):
+                comment_text = remove_blogger_link(comment_text)
             result = add_comment(
-            post_id=event["post_id"],
-            page_access_token=CONFIG["facebook_page_access_token"],
-            graph_version=CONFIG["facebook_graph_version"],
-            message=event["comment_text"],
-        )
+                post_id=event["post_id"],
+                page_access_token=CONFIG["facebook_page_access_token"],
+                graph_version=CONFIG["facebook_graph_version"],
+                message=comment_text,
+            )
         changes = {
             "attempts": attempts,
             "last_error": result.get("error", ""),
