@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from comment_engine import generate_comments
 from config import load_facebook_engagement_config
-from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, find_cta_event, normalize_comment
+from engagement_strategy import blog_cta_comment, blog_cta_due, choose_comment_count, find_cta_event, normalize_comment, remove_blogger_link
 from facebook_publisher import add_comment, like_comment, like_post, verify_comment
 from sheets import create_service, get_values
 
@@ -265,7 +265,7 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
         next_sequence = max(existing_sequences, default=0) + 1
         for offset, message in enumerate(comments):
             sequence = next_sequence + offset
-            clean = normalize_comment(message)
+            clean = remove_blogger_link(normalize_comment(message))
             scheduled = current + timedelta(minutes=15 * offset)
             append_event(service, spreadsheet_id, {
                 "event_id": f"COMMENT_BUNDLE:{post_id}:{sequence}",
