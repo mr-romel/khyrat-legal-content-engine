@@ -245,7 +245,7 @@ def collect_candidates(
     recent_queries = [
         str(item.get("query", ""))
         for item in history[-45:]
-        if str(item.get("status", "")).upper() in {"PUBLISHED", "REJECTED_DUPLICATE_TITLE"}
+        if str(item.get("status", "")).upper() in {"PUBLISHED", "PUBLISH_UNVERIFIED", "PROCESSING", "REJECTED_DUPLICATE_TITLE"}
     ]
     existing_titles = [item.get("title", "") for item in published]
     # Real Search Console impressions/clicks take precedence over proxy signals
