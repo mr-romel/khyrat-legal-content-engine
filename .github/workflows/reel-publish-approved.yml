@@ -9,6 +9,10 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: khyrat-approved-reel-publishing
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
