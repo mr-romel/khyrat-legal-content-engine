@@ -368,12 +368,14 @@ def _smart_is_due(row: dict[str, str], current) -> bool:
     if target is None or current < target:
         return False
 
-    # Never publish an old backlog item just because its scheduled slot passed.
-    # The 20-minute grace window tolerates a delayed 15-minute scheduler cycle,
-    # while stale READY/FAILED rows remain untouched for an explicit reschedule.
-    if current - target > timedelta(minutes=20):
+    # Recover a missed scheduled slot instead of silently losing that day's post.
+    # The workflow runs every 15 minutes, but queue delays/outages can exceed one
+    # cycle. Allow a bounded 48-hour recovery window; terminal PUBLISHED/CANCELLED
+    # rows are excluded above, so this does not replay successful publications.
+    age = current - target
+    if age > timedelta(hours=48):
         print(
-            "Skipping stale scheduled row: "
+            "Skipping stale scheduled row outside the 48-hour recovery window: "
             f"ID={row.get('ID', '')}, scheduled={target.isoformat()}, "
             f"now={current.isoformat()}. Reschedule it explicitly to publish."
         )
