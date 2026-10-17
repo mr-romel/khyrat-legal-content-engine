@@ -112,7 +112,6 @@ def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float
 
 
 def _is_due(row: dict[str, str], current) -> bool:
-    """Select scheduled rows that are actually due, including missed runs, without replaying stale backlog."""
     status = str(row.get("الحالة", "READY")).strip().upper()
     if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
         return False
@@ -120,22 +119,8 @@ def _is_due(row: dict[str, str], current) -> bool:
     target_time = parse_time(row.get("ساعة النشر", ""))
     if target_date is None or target_time is None:
         return False
-    # Combine the row's own date and time. The old implementation copied only
-    # the clock time onto 'today' and accepted a one-hour window, which caused
-    # a daily slot to disappear permanently when the runner was delayed.
-    target = current.replace(
-        year=target_date.year,
-        month=target_date.month,
-        day=target_date.day,
-        hour=target_time.hour,
-        minute=target_time.minute,
-        second=0,
-        microsecond=0,
-    )
-    age_seconds = (current - target).total_seconds()
-    # Recover missed daily slots for up to 48 hours; never publish future rows
-    # or replay an unbounded historical backlog.
-    return 0 <= age_seconds <= 48 * 60 * 60
+    target = current.replace(hour=target_time.hour, minute=target_time.minute, second=0, microsecond=0)
+    return 0 <= (current - target).total_seconds() < 3600 and current.date() >= target_date
 
 
 def _failed_retry(row: dict[str, str], current) -> bool:
