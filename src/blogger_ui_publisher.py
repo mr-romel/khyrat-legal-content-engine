@@ -1019,45 +1019,33 @@ def publish_article_ui(
             match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", editor_url)
             if match:
                 post_id = match.group(2)
-            browser_permalink = _public_permalink_in_browser(
-                page, blog_url, title, target_blog_id,
-                require_public_body=not allow_dashboard_permalink_fallback,
-            )
-            if browser_permalink:
-                published_url = browser_permalink
 
-            # The authenticated dashboard row is the preferred verifier when it
-            # exposes a public View link for this exact title. Only call public
-            # feeds/HTML when the dashboard did not produce a canonical permalink.
+            # Resolve URL and numeric post ID together from the authenticated
+            # dashboard. Blogger commonly navigates away from the editor after
+            # confirmation, so reading the ID from page.url loses it and makes a
+            # successful publication look unverified even when the row has a View link.
+            dashboard_url, dashboard_post_id = _published_dashboard_post(
+                page, blog_url, title, target_blog_id, require_public_body=False
+            )
+            if dashboard_url:
+                published_url = dashboard_url
+                post_id = dashboard_post_id or post_id
+
             parsed_published = urlparse(published_url)
-            if (
+            valid_public_url = bool(
                 published_url
                 and "?postId=" not in published_url
+                and parsed_published.scheme in {"http", "https"}
                 and parsed_published.netloc == urlparse(blog_url).netloc
                 and re.search(r"/\d{4}/\d{2}/", parsed_published.path)
                 and "/p/" not in parsed_published.path
-            ):
-                public_permalink, public_post_id = published_url, ""
-            else:
-                public_permalink, public_post_id = _public_post_permalink(blog_url, title, attempts=2)
-            if public_permalink:
-                published_url = public_permalink
-                post_id = public_post_id or post_id
-
-            # The authenticated Blogger UI can expose a canonical public URL while
-            # leaving the browser on the posts dashboard, where the editor URL no
-            # longer contains the numeric post ID. Resolve that ID from the public
-            # feed before declaring a successfully published article to have failed.
-            if published_url and not post_id:
+            )
+            if not valid_public_url or not post_id:
                 feed_permalink, feed_post_id = _public_post_permalink(blog_url, title, attempts=2)
+                if feed_permalink:
+                    published_url = feed_permalink
                 if feed_post_id:
                     post_id = feed_post_id
-                if not public_permalink and feed_permalink:
-                    public_permalink = feed_permalink
-                    published_url = feed_permalink
-
-            # A private ?postId= URL is not a public permalink. Never report it as
-            # published when the public feed could not verify the canonical link.
             if published_url and "?postId=" in published_url:
                 published_url = ""
             if not post_id or not published_url:
