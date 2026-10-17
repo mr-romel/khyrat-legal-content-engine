@@ -51,3 +51,11 @@ def test_find_cta_event_requires_exact_id_and_comment_action():
         "comment_text": blog_cta_comment("facebook"),
     }
     assert find_cta_event([reaction, fixed_cta], "COMMENT_BLOG_CTA:post-123") is fixed_cta
+
+
+def test_remove_blogger_link_from_replies_and_contextual_comments():
+    from engagement_strategy import remove_blogger_link
+
+    assert remove_blogger_link("اقرأ التفاصيل https://askmahmoudkhyrat.blogspot.com/2026/10/post.html") == "اقرأ التفاصيل"
+    assert remove_blogger_link("الرابط askmahmoudkhyrat.blogspot.com/") == "الرابط"
+    assert "askmahmoudkhyrat.blogspot.com" not in remove_blogger_link("شرح إضافي: https://www.askmahmoudkhyrat.blogspot.com/")
