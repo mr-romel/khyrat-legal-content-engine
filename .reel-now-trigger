@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Generate a fresh legal reel with Cloudflare image generation configured and deliver the MP4 to Telegram.
-Trigger nonce: 1791810366398
+Generate the current production Reel using the new hook-question-answer-CTA script and deliver exactly one replacement MP4 to Telegram for review.
+Trigger nonce: 1792259251071
