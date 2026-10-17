@@ -9,16 +9,8 @@ from typing import Any
 
 from ai_router import create_client, has_any_provider_key
 
-from engagement_strategy import choose_comment_count, normalize_comment
+from engagement_strategy import choose_comment_count, normalize_comment, remove_blogger_link
 
-
-BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
-BLOG_CTA_TEMPLATES = [
-    f"وللي حابب يقرأ التفاصيل كاملة، المقال موجود على المدونة: {BLOG_URL}",
-    f"شرح أوسع بالمستندات والنقاط العملية موجود على مدونتنا: {BLOG_URL}",
-    f"لو الموضوع محتاج قراءة أعمق، جمعنا التفاصيل كاملة هنا: {BLOG_URL}",
-    f"للتفاصيل الموسعة والأمثلة، ممكن مراجعة المقال على المدونة: {BLOG_URL}",
-]
 
 SYSTEM_PROMPT = """
 أنت محرر تفاعل اجتماعي لصفحة محامٍ مصري.
@@ -223,8 +215,8 @@ def _fallback_comments(*, topic: str, post: str, count: int) -> dict[str, list[s
         "المسألة هنا لا تتعلق بصحة القاعدة فقط، لكن بكيفية تطبيقها على الوقائع المحددة والآثار الناتجة عنها",
     ]
     return {
-        "facebook_comments": [normalize_comment(x) for x in fb_templates[:count]],
-        "linkedin_comments": [normalize_comment(x) for x in li_templates[:count]],
+        "facebook_comments": [remove_blogger_link(normalize_comment(x)) for x in fb_templates[:count]],
+        "linkedin_comments": [remove_blogger_link(normalize_comment(x)) for x in li_templates[:count]],
     }
 
 
@@ -402,8 +394,8 @@ LinkedIn: أنشئ بالضبط {count} تعليقات، أي نفس عدد Face
         print(f"Comment AI output validation failed; using deterministic platform-specific comments: {exc}")
         return _fallback_comments(topic=topic, post=post, count=count)
 
-    facebook = _diversify_comments(facebook, post)
-    linkedin = _diversify_comments(linkedin, post)
+    facebook = [remove_blogger_link(x) for x in _diversify_comments(facebook, post)]
+    linkedin = [remove_blogger_link(x) for x in _diversify_comments(linkedin, post)]
     if len(facebook) != count or len(linkedin) != count:
         print("Comment AI produced repetitive/AI-style comments; using natural deterministic fallback.")
         return _fallback_comments(topic=topic, post=post, count=count)
