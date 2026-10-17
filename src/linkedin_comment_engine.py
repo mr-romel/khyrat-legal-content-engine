@@ -9,7 +9,7 @@ from typing import Any
 
 from ai_router import create_client, has_any_provider_key
 
-from engagement_strategy import normalize_comment, comment_schedule_offsets as shared_schedule_offsets, choose_comment_count as shared_choose_comment_count
+from engagement_strategy import normalize_comment, remove_blogger_link, comment_schedule_offsets as shared_schedule_offsets, choose_comment_count as shared_choose_comment_count
 
 DEFAULT_FALLBACK_MODEL = "gemini-2.5-flash"
 TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
@@ -108,7 +108,7 @@ def _normalize_comments(value: Any, count: int) -> list[str]:
     result = []
     seen = set()
     for item in value:
-        text = normalize_comment(str(item or ""))
+        text = remove_blogger_link(normalize_comment(str(item or "")))
         key = text.casefold()
         if text and key not in seen:
             seen.add(key)
@@ -163,7 +163,7 @@ def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
     # The published post is the only source of subject matter. The fallback
     # never interpolates the spreadsheet topic/title.
     if not post_text:
-        return [normalize_comment(x) for x in templates[:count]]
+        return [remove_blogger_link(normalize_comment(x)) for x in templates[:count]]
     return [normalize_comment(x) for x in templates[:count]]
 
 
@@ -221,4 +221,4 @@ def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic
     except Exception as exc:
         print(f"LinkedIn comment AI output validation failed; using deterministic fallback: {exc}")
         return _fallback_linkedin_comments(post, count)
-    return comments
+    return [remove_blogger_link(c) for c in comments]
