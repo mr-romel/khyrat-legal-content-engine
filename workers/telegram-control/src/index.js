@@ -320,22 +320,33 @@ async function handleCallback(env, callback) {
 
   if (action === "reel_approve" || action === "reel_reject") {
     const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();
-    if (reelStatus !== "REVIEW") {
-      return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: `حالة الريل الحالية: ${reelStatus || "غير محددة"}`, show_alert: false });
+    const reelApproval = String(row["Reel Approval"] || "").trim().toUpperCase();
+    if (reelStatus !== "REVIEW" || reelApproval === "APPROVED" || reelApproval === "REJECTED") {
+      return telegram(env, "answerCallbackQuery", {
+        callback_query_id: callback.id,
+        text: reelApproval ? `تم التعامل مع المراجعة بالفعل: ${reelApproval}` : `حالة الريل الحالية: ${reelStatus || "غير محددة"}`,
+        show_alert: false,
+      });
     }
-    const approval = action === "reel_approve" ? "APPROVED" : "REJECTED";
+    const approved = action === "reel_approve";
+    const approval = approved ? "APPROVED" : "REJECTED";
     await updateSheetRow(env, rowNumber, {
+      "Reel Status": approved ? "REVIEW" : "REGENERATE_REQUESTED",
       "Reel Approval": approval,
-      "Reel Review": approval === "APPROVED" ? "تم اعتماد الريل من Telegram" : "تم رفض الريل من Telegram",
-      "Reel Last Error": approval === "REJECTED" ? "Rejected from Telegram Reel review." : "",
+      "Reel Review": approved ? "تم اعتماد الريل من Telegram؛ ينتظر النشر" : "تم رفض النسخة؛ طلب إعادة توليد من Telegram",
+      "Reel Last Error": approved ? "" : "Rejected from Telegram Reel review; regeneration requested.",
     });
-    await telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: approval === "APPROVED" ? "تم اعتماد الريل." : "تم رفض الريل.", show_alert: false });
+    await telegram(env, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: approved ? "تم الاعتماد؛ النشر سيبدأ تلقائيًا." : "تم الرفض؛ طلب إعادة التوليد وتحديث نسخة المراجعة.",
+      show_alert: false,
+    });
     return editReviewMessage(
       env,
       callback.message,
-      approval === "APPROVED"
-        ? `✅ تم اعتماد الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}\n\nسيتم نشره تلقائيًا في تشغيل Reel Publisher القادم.`
-        : `❌ تم رفض الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}`,
+      approved
+        ? `✅ تم اعتماد الريل — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}\n\nتم تسجيل الاعتماد. سينشره Reel Publisher تلقائيًا، ولن يُعاد نشره عند الضغط مرة أخرى.`
+        : `🔄 تم رفض النسخة الحالية — الصف ${rowNumber}\n\nالموضوع: ${row["الموضوع"] || ""}\n\nتم وضع طلب إعادة التوليد. سيظهر الفيديو الجديد هنا للمراجعة قبل النشر.`,
     );
   }
 
