@@ -61,6 +61,17 @@ def choose_row(
         reel_file = str(row.get("Reel File", "")).strip()
         force_regenerate = os.getenv("REEL_FORCE_REGENERATE", "").strip().lower() in {"1", "true", "yes", "on"}
         force_telegram_review = os.getenv("REEL_FORCE_TELEGRAM_REVIEW", "").strip().lower() in {"1", "true", "yes", "on"}
+        # A review decision belongs to the Sheet, not to this runner's ephemeral
+        # filesystem. Daily workflows start on fresh machines, so a missing local
+        # MP4 must NEVER cause an already-delivered REVIEW Reel to be regenerated
+        # and sent again. Only the rejection workflow may regenerate, after it has
+        # atomically changed the state to REGENERATING.
+        if reel_status in {"REVIEW", "APPROVED", "PUBLISHED"} and not force_regenerate:
+            print(f"Reel source row {target_number} is already {reel_status}; waiting for the user's decision and refusing another Telegram delivery.")
+            return None
+        if reel_status == "REGENERATING" and not force_regenerate:
+            print(f"Reel source row {target_number} is already locked for regeneration; refusing duplicate run.")
+            return None
         if reel_status == "PUBLISHED" and not force_regenerate:
             print(f"Reel source row {target_number} already has Reel Status=PUBLISHED.")
             return None
