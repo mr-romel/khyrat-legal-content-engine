@@ -1,0 +1,123 @@
+name: Regenerate Rejected Legal Reel
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khyrat-reel-generation
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: src
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
+      GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
+      GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
+      GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
+      REEL_SKIP_GEMINI: "false"
+      REEL_RECOVERY: "true"
+      REEL_FORCE_REGENERATE: "true"
+      REEL_FORCE_TELEGRAM_REVIEW: "true"
+      REEL_MAX_DURATION_SECONDS: "180"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Reel dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-reel.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Lock one rejected Reel for regeneration
+        id: target
+        run: |
+          python - <<'PY'
+          import json, os
+          from sheets import create_service, get_values, row_to_dict, update_row
+          raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
+          if not raw or not os.getenv("GOOGLE_SHEET_ID"):
+              raise SystemExit("Google Sheets credentials or sheet ID are missing.")
+          service = create_service(json.loads(raw))
+          sheet_id = os.environ["GOOGLE_SHEET_ID"]
+          full_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:AY")
+          sheet_name = full_range.split("!", 1)[0]
+          values = get_values(service, sheet_id, full_range)
+          target = None
+          for number, raw_row in enumerate(values[1:], start=2):
+              row = row_to_dict(raw_row)
+              if str(row.get("Reel Status", "")).strip().upper() != "REGENERATE_REQUESTED":
+                  continue
+              source_id = str(row.get("ID", "") or "").strip()
+              topic = str(row.get("الموضوع", "") or "").strip()
+              if not source_id or not topic or not str(row.get("المحتوى", "") or "").strip():
+                  update_row(service, sheet_id, sheet_name, number, {
+                      "Reel Status": "FAILED",
+                      "Reel Last Error": "Cannot regenerate: missing row ID, topic, or source post content.",
+                  })
+                  continue
+              if not any(str(row.get(k, "") or "").strip().upper() == "PUBLISHED" for k in ("Facebook Status", "LinkedIn Status")):
+                  update_row(service, sheet_id, sheet_name, number, {
+                      "Reel Status": "FAILED",
+                      "Reel Last Error": "Cannot regenerate: source post has no successful Facebook/LinkedIn publication.",
+                  })
+                  continue
+              target = (number, row, source_id, topic)
+              break
+          if not target:
+              print("No rejected Reel is waiting for regeneration.")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+                  out.write("found=false\n")
+              raise SystemExit(0)
+          number, row, source_id, topic = target
+          update_row(service, sheet_id, sheet_name, number, {
+              "Reel Status": "REGENERATING",
+              "Reel Approval": "",
+              "Reel Review": "REGENERATING | Telegram rejection",
+              "Reel Last Error": "",
+          })
+          os.makedirs("generated", exist_ok=True)
+          with open("generated/reel_source.json", "w", encoding="utf-8") as f:
+              json.dump({"row_number": number, "source_id": source_id, "topic": topic}, f, ensure_ascii=False, indent=2)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"found=true\nrow_number={number}\n")
+          print(f"Locked row {number} / source ID {source_id} for a single regeneration.")
+          PY
+      - name: Generate and send replacement for review
+        if: steps.target.outputs.found == 'true'
+        run: |
+          rm -rf generated/reels
+          PYTHONPATH=src python src/reel_pipeline.py
+          if ! find generated/reels -maxdepth 3 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+            echo "::error::Regeneration finished without a new MP4."
+            exit 1
+          fi
+      - name: Upload replacement Reel review package
+        if: success() && steps.target.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: khyrat-daily-reel
+          path: generated/reels/
+          if-no-files-found: error
+          retention-days: 14
