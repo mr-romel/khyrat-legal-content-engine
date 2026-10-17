@@ -60,6 +60,38 @@ jobs:
           else
             python experiments/free-arabic-manim-reel/pilot.py --output-dir pilot-output
           fi
+      - name: Send generated Reel to Telegram for review (no publishing)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$TELEGRAM_BOT_TOKEN" || { echo "::error::Missing TELEGRAM_BOT_TOKEN repository secret"; exit 1; }
+          test -n "$TELEGRAM_CHAT_ID" || { echo "::error::Missing TELEGRAM_CHAT_ID repository secret"; exit 1; }
+          test -s pilot-output/free-arabic-legal-reel.mp4 || { echo "::error::Reel MP4 was not generated"; exit 1; }
+          CAPTION="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          script = json.loads(Path("pilot-output/script.json").read_text(encoding="utf-8"))
+          qa = json.loads(Path("pilot-output/qa.json").read_text(encoding="utf-8"))
+          topic = str(script.get("topic", "بدون عنوان")).strip()
+          caption = (
+              "🎬 ريل قانوني — للمراجعة فقط\n"
+              f"الموضوع: {topic}\n"
+              f"المقاس: {qa.get('width')}×{qa.get('height')} | "
+              f"الصوت: {qa.get('audio_codec')} | الفيديو: {qa.get('video_codec')}\n"
+              "⚠️ لم يتم النشر على أي منصة. راجع النص والصوت والمعلومة القانونية قبل الموافقة."
+          )
+          print(caption[:1024])
+          PY
+          )"
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 180 \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo" \
+            -F "chat_id=${TELEGRAM_CHAT_ID}" \
+            -F "caption=${CAPTION}" \
+            -F "supports_streaming=true" \
+            -F "video=@pilot-output/free-arabic-legal-reel.mp4;type=video/mp4")"
+          python -c 'import json,sys; d=json.loads(sys.argv[1]); assert d.get("ok") is True, "Telegram API did not confirm delivery"; print("Telegram review delivery confirmed; message_id=" + str(d["result"]["message_id"]))' "$RESPONSE"
       - name: Upload review artifact (no publishing)
         if: always()
         uses: actions/upload-artifact@v4
