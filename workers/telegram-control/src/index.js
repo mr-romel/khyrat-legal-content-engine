@@ -76,9 +76,12 @@ async function sheetValues(env, range = "A:BC", sheetOverride = null) {
   return data.values || [];
 }
 
-function rowToDict(row) {
-  const padded = [...row, ...Array(Math.max(0, HEADERS.length - row.length)).fill("")];
-  return Object.fromEntries(HEADERS.map((h, i) => [h, padded[i] || ""]));
+function rowToDict(row, headerRow = HEADERS) {
+  const activeHeaders = Array.isArray(headerRow) && headerRow.some((value) => String(value || "").trim())
+    ? headerRow.map((value) => String(value || "").trim())
+    : HEADERS;
+  const padded = [...row, ...Array(Math.max(0, activeHeaders.length - row.length)).fill("")];
+  return Object.fromEntries(activeHeaders.map((header, index) => [header, padded[index] || ""]));
 }
 
 async function updateSheetRow(env, rowNumber, patch) {
@@ -91,9 +94,15 @@ async function updateSheetRow(env, rowNumber, patch) {
   const readData = await read.json();
   if (!read.ok) throw new Error(`Google Sheets row read failed: ${JSON.stringify(readData)}`);
   const existing = (readData.values?.[0] || []).slice();
-  while (existing.length < HEADERS.length) existing.push("");
+  const headerResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encodeURIComponent(`${sheetName}!A1:BC1`)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const headerData = await headerResponse.json();
+  if (!headerResponse.ok) throw new Error(`Google Sheets header read failed: ${JSON.stringify(headerData)}`);
+  const actualHeaders = (headerData.values?.[0] || HEADERS).map((value) => String(value || "").trim());
+  while (existing.length < actualHeaders.length) existing.push("");
   for (const [key, value] of Object.entries(patch)) {
-    const index = HEADERS.indexOf(key);
+    const index = actualHeaders.indexOf(key);
     if (index >= 0) existing[index] = value == null ? "" : String(value);
   }
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}?valueInputOption=RAW`, {
@@ -172,7 +181,7 @@ function shortText(value, max = 90) {
 
 async function statusText(env) {
   const values = await sheetValues(env);
-  const rows = values.slice(1).map(rowToDict);
+  const rows = values.slice(1).map((raw) => rowToDict(raw, values[0]));
   const today = cairoParts();
   const todayKey = dateKey(today);
   const counts = { total: 0, published: 0, pending: 0, review: 0, failed: 0 };
@@ -208,7 +217,7 @@ async function statusText(env) {
 
 async function sendReviewList(env) {
   const values = await sheetValues(env);
-  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }));
+  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw, values[0]) }));
   const matches = rows.filter(({ row }) => REVIEW_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
   const reels = rows.filter(({ row }) => String(row["Reel Status"] || "").trim().toUpperCase() === "REVIEW" && String(row["Reel Approval"] || "").trim().toUpperCase() !== "REJECTED");
   if (!matches.length && !reels.length) return send(env, "🟢 لا توجد مراجعات معلقة حاليًا.");
@@ -266,7 +275,7 @@ async function sendBank(env) {
 
 async function retryRow(env, rowNumber) {
   const values = await sheetValues(env);
-  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1]) : null;
+  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
   if (!row) throw new Error("الصف غير موجود.");
   const current = String(row["الحالة"] || "").trim().toUpperCase();
   if (!FAILED_STATUSES.has(current)) return `الحالة الحالية للصف ${rowNumber}: ${current || "غير محددة"}`;
