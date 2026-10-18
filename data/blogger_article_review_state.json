@@ -36,6 +36,7 @@
     "5174990096481834032",
     "5296585923927650616",
     "5383378277794299616",
+    "5431329658403063021",
     "5831014662069724275",
     "5909965978332251540",
     "6043169212895093157",
@@ -69,6 +70,11 @@
   ],
   "failed_ids": [
     {
+      "id": "257380329521850840",
+      "title": "كيف تتصرف عند التعرض للابتزاز الإلكتروني في مصر؟ طرق الإبلاغ والخطوات القانونية",
+      "error": "Article body is too short to safely rewrite (0 chars)."
+    },
+    {
       "id": "2969177969635672665",
       "title": "حكم امتناع بعض الورثة عن تقسيم التركة وكيفية التعامل معها قانونًا وشرعًا",
       "error": "Article body is too short to safely rewrite (0 chars)."
@@ -84,7 +90,7 @@
       "error": "Article body is too short to safely rewrite (0 chars)."
     }
   ],
-  "last_batch_success_count": 0,
-  "last_title": "لماذا يلزمك محامٍ متخصص؟ تجنّب 5 أخطاء قانونية شائعة",
-  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2025/07/5.html"
+  "last_batch_success_count": 1,
+  "last_title": "حجية الاعتراف في القانون المصري وشروط صحته أمام القضاء الجنائي",
+  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_18.html"
 }
