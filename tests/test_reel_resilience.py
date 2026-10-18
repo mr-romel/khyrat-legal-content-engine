@@ -52,3 +52,13 @@ def test_image_generation_failure_never_blocks_social_publication():
     assert "continuing with text publication fallback" in main_source
     assert "publishing text to both platforms instead of cancelling the post" in main_source
     assert "refusing text-only social publication" not in main_source
+
+
+
+def test_fallback_reel_uses_fifteen_second_segments_and_single_outro():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "segment_seconds = 15.0" in source
+    assert "segment_duration = min(segment_seconds, base_duration - (i * segment_seconds))" in source
+    assert "branded end-card appended once" in source
+    assert "generated/ask mahmoud logo.png" in source
+    assert "اسأل محمود - مستشار قانوني للشركات" in source
