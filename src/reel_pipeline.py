@@ -842,6 +842,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         )
         cta = "احفظ الفيديو قبل أي إجراء تحقيق، واكتب في التعليقات: إيه أكتر نقطة محتاج تفهمها عن الاعتراف؟"
         hook_options = [hook]
+        hook_index = 0
     else:
         question = "إيه النقطة المحددة اللي بتغيّر الحكم على الموقف ده؟"
         answer = (
