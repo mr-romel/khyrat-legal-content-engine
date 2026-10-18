@@ -1,6 +1,10 @@
 name: Publish Approved Legal Reel
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reel-publish-approved.yml"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
