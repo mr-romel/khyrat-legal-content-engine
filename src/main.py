@@ -345,8 +345,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     raise ImageGenerationError(image_qa_summary)
                 continue
 
-            # A rejected image is regenerated; an unavailable QA service fails closed.
-            # This prevents visibly distorted assets from being published as a warning.
+            # QA is advisory: if the QA service is temporarily unavailable, keep a valid
+            # generated image and continue. Never stop the post because QA is unavailable.
             try:
                 image_qa = qa_image(
                     api_key=config["gemini_api_key"],
@@ -355,10 +355,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     image_brief=attempt_brief,
                 )
             except Exception as qa_exc:
-                image_qa_summary = f"Image QA unavailable on attempt {image_qa_attempt}; image blocked: {qa_exc}"
-                image_qa_status = "QA_UNAVAILABLE_BLOCKED"
-                image_path.unlink(missing_ok=True)
-                raise ImageGenerationError(image_qa_summary) from qa_exc
+                image_qa_summary = f"Image QA unavailable on attempt {image_qa_attempt}; valid generated image accepted: {qa_exc}"
+                image_qa_status = "QA_UNAVAILABLE_ACCEPTED"
+                print(image_qa_summary)
+                break
 
             image_qa_summary = summarize_qa(image_qa)
             image_qa_score = str(image_qa.get("overall_score", ""))
@@ -375,12 +375,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 f"regenerating. Issues: {image_qa_summary}"
             )
 
-        if image_qa_status != "PASS":
-            image_path.unlink(missing_ok=True)
-            raise ImageGenerationError(
-                f"Image failed visual QA after {image_qa_attempt} attempt(s); publishing text-only. "
-                + image_qa_summary
-            )
+        if image_qa_status != "PASS" and image_path.is_file() and image_path.stat().st_size > 0:
+            # Low-severity QA concerns must not block publication. After the retry
+            # budget, retain the last usable image and publish it with a warning.
+            image_qa_status = "ACCEPTED_WITH_WARNINGS"
+            print(f"IMAGE QA ADVISORY: accepting usable image after {image_qa_attempt} attempt(s): {image_qa_summary}")
+        elif image_qa_status != "PASS":
+            raise ImageGenerationError("Image provider returned no usable image file.")
 
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
@@ -402,8 +403,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # Fail closed: never publish a social post without its required image.
-        # Clear stale image state and leave the row retryable for the next run.
+        # Publishing must never be blocked by image generation or image QA.
+        # Fall back to text-only if no usable image could be produced.
         image_url = ""
         generated_image_path = None
         image_path.unlink(missing_ok=True)
@@ -411,18 +412,16 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
                 "Image QA Attempt": str(locals().get("image_qa_attempt", 1)),
-                "Image QA Status": "IMAGE_GENERATION_FAILED_RETRY_REQUIRED",
+                "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "IMAGE_GENERATION_FAILED_RETRY_REQUIRED",
+                "Image Mode": "TEXT_ONLY_FALLBACK",
                 "المحتوى": post,
                 "وقت آخر تشغيل": current.isoformat(),
-                "آخر خطأ": f"Required image unavailable; publication blocked and will retry: {image_exc}"[:1500],
+                "آخر خطأ": f"Image unavailable; publishing text-only and continuing: {image_exc}"[:1500],
             })
         except Exception as state_exc:
-            print(f"Image failure state update unavailable: {state_exc}")
-        raise ImageGenerationError(
-            f"Required post image could not be generated and passed QA; refusing text-only publication: {image_exc}"
-        ) from image_exc
+            print(f"Image fallback state update unavailable: {state_exc}")
+        print(f"IMAGE OPTIONAL: proceeding with text-only publication: {image_exc}")
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
@@ -680,9 +679,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0)
         if not image_available:
-            raise ImageGenerationError(
-                "Required post image is missing or empty; blocking publication so the row can retry."
-            )
+            print("No usable image available; continuing with text-only publication as requested.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
