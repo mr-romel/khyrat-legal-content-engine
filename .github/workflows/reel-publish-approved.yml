@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/reel-publish-approved.yml"
+      - "workers/telegram-control/src/index.js"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -71,7 +72,12 @@ jobs:
               raise SystemExit("Google service-account credentials are missing.")
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
-          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:AY").strip()
+          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BC").strip()
+          # Do not silently truncate Reel approval fields when an older secret ends at AY.
+          if "!" in sheet_range:
+              tab, cols = sheet_range.split("!", 1)
+              if cols.endswith((":AY", ":AZ", ":BA", ":BB")):
+                  sheet_range = f"{tab}!A:BC"
           if not sheet_id:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
