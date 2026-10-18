@@ -362,6 +362,11 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
 
             image_qa_summary = summarize_qa(image_qa)
             image_qa_score = str(image_qa.get("overall_score", ""))
+            if bool(image_qa.get("women_or_girls_detected", False)):
+                image_path.unlink(missing_ok=True)
+                raise ImageGenerationError(
+                    "Image contains a woman or girl; using text-only fallback rather than blocking publication."
+                )
             if str(image_qa.get("decision", "")).upper() == "PASS":
                 image_qa_status = "PASS"
                 break
