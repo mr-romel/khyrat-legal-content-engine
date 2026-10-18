@@ -82,21 +82,34 @@ jobs:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
           values=get_values(svc,sheet_id,sheet_range)
+          if not values:
+              raise SystemExit("Google Sheet returned no rows; verify the configured tab/range.")
+          headers=[str(x or "").strip() for x in values[0]]
+          def mapped(raw):
+              return {header: (raw[i] if i < len(raw) else "") for i, header in enumerate(headers) if header}
+          candidates=[]
           for n, raw in enumerate(values[1:], start=2):
-              row=row_to_dict(raw)
-              if str(row.get("Reel Status","")).strip().upper()=="REVIEW" and str(row.get("Reel Approval","")).strip().upper()=="APPROVED":
-                  run_id=str(row.get("Reel Run ID","")).strip()
-                  if run_id:
+              row=mapped(raw)
+              status=str(row.get("Reel Status","")).strip().upper()
+              approval=str(row.get("Reel Approval","")).strip().upper()
+              run_id=str(row.get("Reel Run ID","")).strip()
+              if approval=="APPROVED":
+                  candidates.append((n,status,approval,run_id))
+                  if status in {"REVIEW","APPROVED","READY_TO_PUBLISH"} and run_id:
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
                           out.write(f"row_number={n}\nrun_id={run_id}\n")
+                      print(f"Approved Reel found at row {n}; status={status}; run_id={run_id}")
                       raise SystemExit(0)
+          print("No publishable approved Reel found. Approval rows: " + repr(candidates))
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("row_number=\nrun_id=\n")
           PY
 
       - name: Stop when no approved Reel is waiting
         if: ${{ steps.target.outputs.row_number == '' }}
-        run: echo "QUEUE_EMPTY=true"
+        run: |
+          echo "::error::No approved Reel with a valid Reel Run ID was found in the configured Google Sheet. Check the Telegram approval row and the sheet tab/range."
+          exit 1
 
       - name: Download reviewed reel package
         if: ${{ steps.target.outputs.row_number != '' }}
