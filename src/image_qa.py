@@ -15,9 +15,9 @@ DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
 QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
 QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
-QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "25"))
-QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "35"))
-QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "60"))
+QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "5"))
+QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "10"))
+QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "15"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "1")))
 ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
 
@@ -234,7 +234,9 @@ def qa_image(
     # The user's no-women requirement is a hard publication rule, not an advisory.
     if data["women_or_girls_detected"]:
         critical_failures.append("A woman or girl is visible; this image violates the no-women requirement.")
-    # Soft thresholds are warnings. Hard thresholds are the regeneration boundary.
+    # Keep score thresholds extremely permissive: scores are advisory and should
+    # rarely trigger regeneration. Only the explicit no-women constraint and
+    # genuinely unusable/severe visual defects should be treated as hard failures.
     if data["relevance_score"] < QA_HARD_REJECT_RELEVANCE:
         critical_failures.append(f"Legal relevance is critically low ({data['relevance_score']}).")
     if data["overall_score"] < QA_HARD_REJECT_OVERALL:
