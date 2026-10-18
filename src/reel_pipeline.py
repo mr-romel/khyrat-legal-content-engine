@@ -946,6 +946,60 @@ def build_fast_fallback_reel(
         raise RuntimeError("Animated Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
     shutil.move(str(narrated), str(output_video))
     print(f"Animated multi-scene fallback created: segments={count} max_segment={segment_seconds:.0f}s duration={base_duration:.1f}s; branded end-card appended once")
+def stitch_video_in_15s_segments(input_video: Path, output_video: Path) -> Path:
+    """Reassemble the visual track as <=15s segments with soft crossfades.
+
+    Narration/music stays continuous on its own track. The branded end-card is
+    intentionally appended by add_motion_graphics_layer after this function.
+    """
+    duration = _media_duration(input_video)
+    if duration <= 15.0:
+        shutil.copy2(input_video, output_video)
+        return output_video
+
+    segment_seconds = 15.0
+    transition_seconds = 0.35
+    segment_count = int((duration + segment_seconds - 0.001) // segment_seconds)
+    segment_count = max(2, segment_count)
+    inputs = ["-i", str(input_video)]
+    filters = []
+    for i in range(segment_count):
+        start = i * segment_seconds
+        end = min(duration, (i + 1) * segment_seconds)
+        filters.append(
+            f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,"
+            f"fps=15,scale=720:1280:force_original_aspect_ratio=increase,"
+            f"crop=720:1280,setsar=1[v{i}]"
+        )
+    previous = "[v0]"
+    elapsed = min(segment_seconds, duration)
+    for i in range(1, segment_count):
+        next_label = f"[xf{i}]"
+        offset = max(0.0, elapsed - transition_seconds)
+        filters.append(
+            f"{previous}[v{i}]xfade=transition=fade:duration={transition_seconds:.3f}:"
+            f"offset={offset:.3f}{next_label}"
+        )
+        previous = next_label
+        elapsed += min(segment_seconds, max(0.0, duration - i * segment_seconds)) - transition_seconds
+
+    # Crossfades overlap the picture slightly; pad the final frame so the
+    # uninterrupted original narration never gets cut off at the end.
+    filters.append(f"{previous}tpad=stop_mode=clone:stop_duration=3,trim=duration={duration:.3f}[vout]")
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-filter_complex_threads", "2", *inputs,
+         "-filter_complex", ";".join(filters), "-map", "[vout]", "-map", "0:a:0?",
+         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
+         "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+         "-movflags", "+faststart", str(output_video)],
+        capture_output=True, text=True, timeout=600, check=False,
+    )
+    if result.returncode != 0 or not output_video.is_file():
+        raise RuntimeError("15-second Reel segment stitching failed: " + (result.stderr or result.stdout)[-3000:])
+    print(f"REEL_STAGE segments_stitched={segment_count} segment_max_seconds=15 transition=soft_crossfade outro=deferred")
+    return output_video
+
+
 def _probe_video_duration(video_path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -1328,7 +1382,10 @@ def main() -> int:
                             try:
                                 if not slogan_ready:
                                     raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
-                                add_motion_graphics_layer(raw_video, output_video, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
+                                segmented_video = output_dir / "segmented-mpt-base.mp4"
+                                stitch_video_in_15s_segments(raw_video, segmented_video)
+                                add_motion_graphics_layer(segmented_video, output_video, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
+                                segmented_video.unlink(missing_ok=True)
                             except Exception as branding_exc:
                                 raise RuntimeError(f"REEL_STAGE branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
                             raw_video.unlink(missing_ok=True)
@@ -1367,7 +1424,10 @@ def main() -> int:
                 try:
                     if not slogan_ready:
                         raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
-                    add_motion_graphics_layer(output_video, branded, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
+                    segmented_video = output_dir / "segmented-fallback-base.mp4"
+                    stitch_video_in_15s_segments(output_video, segmented_video)
+                    add_motion_graphics_layer(segmented_video, branded, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
+                    segmented_video.unlink(missing_ok=True)
                     shutil.move(str(branded), str(output_video))
                 except Exception as branding_exc:
                     raise RuntimeError(f"REEL_STAGE fallback_branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
