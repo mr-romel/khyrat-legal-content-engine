@@ -524,12 +524,11 @@ def add_motion_graphics_layer(
         sentences = [topic.strip() or "راجع الوقائع", "اجمع المستندات", "راجع التفاصيل", "اختار الإجراء المناسب"]
     selected = []
     for sentence in sentences:
-        words = sentence.split()
-        phrase = " ".join(words[:8]).strip(" ،؛:.-")
+        # Keep the complete spoken sentence on screen; never truncate it to a short teaser.
+        phrase = sentence.strip(" ،؛:.-")
         if phrase and phrase not in selected:
             selected.append(phrase)
-        if len(selected) == 8:
-            break
+    selected = selected[:12]
     while len(selected) < 8:
         selected.append(selected[-1] if selected else (topic or "راجع التفاصيل"))
 
@@ -541,10 +540,26 @@ def add_motion_graphics_layer(
         cd.rounded_rectangle((55, 48, 845, 110), radius=20, fill=(12, 43, 70, 255))
         cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
         # Main words are source-derived; line art is drawn like a whiteboard sketch.
-        cd.text((450, 190), rtl(phrase[:42]), font=font(37), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
-        # Cyan hand-drawn underline is baked into the whiteboard card so the
-        # animation can stay lightweight enough for GitHub-hosted runners.
-        cd.line([(245, 250), (360, 246), (470, 252), (650, 248)], fill=(35, 174, 230, 255), width=6, joint="curve")
+        # Wrap the complete caption into readable lines.
+        words = phrase.split()
+        lines, current = [], ""
+        for word in words:
+            candidate = (current + " " + word).strip()
+            if current and cd.textbbox((0, 0), rtl(candidate), font=font(30))[2] > 790:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        if current:
+            lines.append(current)
+        if len(lines) > 3:
+            lines = lines[:3]
+            lines[2] = lines[2].rstrip("،؛:.") + "…"
+        line_y = 155 if len(lines) == 1 else (140 if len(lines) == 2 else 125)
+        for line in lines:
+            cd.text((450, line_y), rtl(line), font=font(30), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
+            line_y += 49
+        cd.line([(245, 300), (360, 296), (470, 302), (650, 298)], fill=(35, 174, 230, 255), width=6, joint="curve")
         # Topic-specific line art completes the whiteboard sketch.
         icon_x, icon_y = 105, 310
         if i == 0:
@@ -573,8 +588,10 @@ def add_motion_graphics_layer(
     previous = "[base]"
     for i in range(8):
         idx = i + 1
-        start = max(2.0, duration * (0.08 + i * 0.105))
-        end = min(duration - 2.0, start + max(4.5, min(6.5, duration * 0.075)))
+        start = i * 15.0
+        end = min(duration, start + 15.0)
+        if start >= duration:
+            continue
         if end <= start:
             continue
         out = f"[wb{i}]"
@@ -587,7 +604,7 @@ def add_motion_graphics_layer(
         filter_parts.append(f"[{idx}:v]scale=720:312{card_label}")
         filter_parts.append(
             f"{previous}{card_label}overlay=x='{x_expr}':"
-            f"y=500:eval=frame:enable='{enable_expr}'{out}"
+            f"y=720:eval=frame:enable='{enable_expr}'{out}"
         )
         previous = out
     if len(filter_parts) == 1:
@@ -614,7 +631,7 @@ def add_motion_graphics_layer(
         fallback_enable = "between(t,2.0,8.0)".replace(",", r"\,")
         fallback_filter = (
             "[0:v]null[base];[1:v]scale=720:312[card];"
-            f"[base][card]overlay=x='{fallback_x}':y=500:eval=frame:"
+            f"[base][card]overlay=x='{fallback_x}':y=720:eval=frame:"
             f"enable='{fallback_enable}'[wb]"
         )
         subprocess.run(
