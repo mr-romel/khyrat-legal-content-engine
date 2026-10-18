@@ -235,7 +235,7 @@ async function sendReviewList(env) {
 
 async function sendFailedList(env) {
   const values = await sheetValues(env);
-  const matches = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
+  const matches = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw, values[0]) }))
     .filter(({ row }) => FAILED_STATUSES.has(String(row["الحالة"] || "").trim().toUpperCase()));
   if (!matches.length) return send(env, "🟢 لا توجد منشورات فاشلة حاليًا.");
   for (const { rowNumber, row } of matches.slice(0, 10)) {
@@ -253,7 +253,7 @@ async function sendToday(env) {
   const values = await sheetValues(env);
   const today = cairoParts();
   const todayKey = dateKey(today);
-  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw) }))
+  const rows = values.slice(1).map((raw, i) => ({ rowNumber: i + 2, row: rowToDict(raw, values[0]) }))
     .filter(({ row }) => {
       const d = String(row["تاريخ النشر"] || "").trim();
       return d === todayKey || d.includes(`${today.day}/${today.month}`);
@@ -323,7 +323,7 @@ async function handleCallback(env, callback) {
     return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "بيانات الصف غير صالحة.", show_alert: false });
   }
   const values = await sheetValues(env);
-  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1]) : null;
+  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
   if (!row) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "الصف غير موجود.", show_alert: false });
   const current = String(row["الحالة"] || "").trim().toUpperCase();
 
