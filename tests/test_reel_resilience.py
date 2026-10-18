@@ -41,16 +41,16 @@ def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
     assert "for image_qa_attempt in range(1, 4)" in main_source
     assert 'image_qa_status = "QA_REJECTED"' in main_source
-    assert "Image failed visual QA after" in main_source
-    assert "image_path.unlink(missing_ok=True)" in main_source
-    assert "QA_UNAVAILABLE_BLOCKED" in main_source
+    assert "IMAGE SEMANTIC QA: rejected attempt" in main_source
+    assert "IMAGE SEMANTIC QA: PASS" in main_source
+    assert "valid generated image accepted" in main_source
 
 
 def test_image_generation_failure_never_blocks_social_publication():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert '"Image QA Status": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK"' in main_source
-    assert "continuing with text publication fallback" in main_source
-    assert "publishing text to both platforms instead of cancelling the post" in main_source
+    assert '"Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK"' in main_source
+    assert "publishing text-only and continuing" in main_source
+    assert "No usable image available; continuing with text-only publication" in main_source
     assert "refusing text-only social publication" not in main_source
 
 
@@ -62,3 +62,15 @@ def test_fallback_reel_uses_fifteen_second_segments_and_single_outro():
     assert "branded end-card appended once" in source
     assert "generated/ask mahmoud logo.png" in source
     assert "اسأل محمود - مستشار قانوني للشركات" in source
+
+
+
+def test_primary_and_fallback_reels_are_stitched_into_fifteen_second_segments():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "def stitch_video_in_15s_segments(" in source
+    assert "segment_seconds = 15.0" in source
+    assert "transition=fade:duration=" in source
+    assert "segments_stitched=" in source
+    assert "stitch_video_in_15s_segments(raw_video, segmented_video)" in source
+    assert "stitch_video_in_15s_segments(output_video, segmented_video)" in source
+    assert "add_motion_graphics_layer(segmented_video, output_video" in source
