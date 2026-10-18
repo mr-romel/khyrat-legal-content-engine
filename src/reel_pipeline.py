@@ -748,7 +748,9 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Create one Arabic legal short-video package for a modern legal advisory brand. "
         "Use ONLY the supplied reviewed post for spoken legal substance. Never invent legal facts. The TOPIC field is editorial metadata only: NEVER read it aloud, NEVER use it as the opening hook, and NEVER copy its wording into the spoken script unless those exact words are independently necessary and supported by the REVIEWED POST. "
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
-        "MANDATORY RETENTION STRUCTURE in this exact order: (1) a very strong, shocking but truthful hook in the first sentence, dynamically tailored to the reviewed post; vary the hook style across topics and runs, using a surprising consequence, costly mistake, myth-busting challenge, urgent warning, or counterintuitive fact only when directly supported by the post. Never fabricate a penalty, deadline, legal outcome, or scare claim. Do not start with greetings or topic announcements. (2) Immediately ask one short, direct question the viewer genuinely wants answered. (3) Answer that exact question clearly in plain Egyptian Arabic using only the reviewed post, then explain the practical legal meaning. (4) Give one specific safe action the viewer can take based on the post. (5) A natural, compelling CTA asking the viewer to comment with a relevant question or save/share the Reel, without promising individual legal advice. (6) Stop the generated script after the CTA; the existing separately rendered branded ending must remain last and must retain the spoken slogan 'خليك فاكر دايما ... اسأل محمود' with the user's logo. Do not put the slogan inside the main script or generate another outro. Use natural transitions; no headings or labels read aloud. Do not announce the topic or say the Sheet title. " + f"Target 130–165 seconds and 170–210 Arabic words maximum. Use concise sentences; the script must contain 170–210 whitespace-separated words. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never generate a script that exceeds this limit. No filler or repeated disclaimer. "
+        "MANDATORY STORY DESIGN — write a useful mini-consultation, not a generic legal monologue. Before drafting, silently identify from the reviewed post: (A) the exact real-world problem the viewer faces, (B) the most important legal distinction that changes the answer, (C) the strongest answer the source actually supports, and (D) the next safe action. Every one of these must be unmistakable in the spoken script. "
+        + "MANDATORY STRUCTURE in this exact order: (1) First sentence names a concrete risk, costly mistake, or surprising truth that is explicitly supported by the reviewed post; do not use empty hooks such as 'غلطة واحدة ممكن تضيع حقك' unless the post explains exactly how. (2) Ask a sharp, problem-specific question — never a generic 'إيه السؤال اللي لازم تجاوب عليه؟'. (3) Give the direct answer immediately in the next sentence. State the decisive legal rule or distinction in plain Egyptian Arabic; do not hide the answer behind suspense, repeat the hook, or use vague wording like 'الموضوع حسب التفاصيل' as the main answer. (4) Explain the practical consequence in one short sentence, without exaggeration. (5) Give a concrete, safe, source-grounded action the viewer can take now. Avoid generic checklists about preserving all messages/documents unless those are directly relevant to this post. (6) Finish with a strong, specific CTA tied to THIS issue: ask the viewer to comment with one focused question, save the Reel for the exact moment they may need it, or share it with the person who needs this information. No weak 'تابعنا للمزيد' CTA. Never promise individual legal advice. (7) Stop after the CTA; the separately rendered branded ending must remain last and retain the spoken slogan 'خليك فاكر دايما ... اسأل محمود' with the user's logo. Do not put the slogan inside the main script or generate another outro. No headings or labels read aloud. Do not announce the topic or read the Sheet title. "
+        + f"Target 90–115 seconds and 170–210 Arabic words maximum. The script must contain 170–210 whitespace-separated words but every sentence must earn its place by stating the problem, answer, reasoning, action, or CTA. No padding, repeated disclaimer, empty suspense, generic legal warnings, or duplicate conclusions. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never exceed these limits. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, tied to the exact reviewed post and sentence. Describe only the concrete action, people, modern objects, documents, workplace, home, phone, or evidence stated in that sentence. Use ordinary present-day settings and documentary realism. Keep backgrounds simple and use only modern props supported by the post. Never add a courtroom or lawyer unless the reviewed post actually describes one. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -822,16 +824,43 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         "إوعى تستعجل وتاخد القرار قبل ما تعرف النقطة القانونية اللي ممكن تقلب فهمك للموقف."
     ]
     hook_index = sum(ord(ch) for ch in (topic + text[:120])) % len(hook_options)
-    question = "طيب، إيه السؤال اللي لازم تجاوب عليه قبل ما تتحرك؟"
-    answer = (
-        f"{core} "
-        "والإجابة لازم تكون مبنية على الوقائع اللي حصلت فعلًا، مش على التخمين أو كلام متداول. "
-    )
-    action = (
-        "ابدأ بترتيب الأحداث حسب التاريخ، واحفظ الرسائل والمستندات والإيصالات والصور الأصلية المرتبطة بالموقف. "
-        "بعد كده راجع الإجراء المناسب على ضوء التفاصيل كاملة، ولو في نقطة مش واضحة استشر مختص قبل ما تلتزم بخطوة يصعب الرجوع عنها."
-    )
-    cta = "لو عندك سؤال مرتبط بالنقطة دي، اكتبه في تعليق، واحفظ الريل عشان ترجع للمعلومة وقت الحاجة."
+    # The fallback must still answer a concrete question from the source, rather than
+    # padding the Reel with universal advice. Prefer source-specific issue cues.
+    lower = text.lower()
+    if any(term in lower for term in ("اعتراف", "إكراه", "محاضر الشرطة", "تحقيقات النيابة")):
+        hook = "خلي بالك: مش كل اعتراف في محضر شرطة يبقى دليل يحسم القضية."
+        question = "إمتى الاعتراف ممكن يفقد قيمته القانونية؟"
+        answer = (
+            "لما ما يكونش صادر عن إرادة حرة، أو يكون فيه إكراه مادي أو معنوي. "
+            "وكمان لازم يكون الاعتراف صريح ومحدد للواقعة نفسها؛ والمحكمة هي اللي بتقدّر قيمته "
+            "وتقارنه بظروف الواقعة وباقي الأدلة."
+        )
+        action = (
+            "لو بتدلي بأقوال تحت ضغط، ما توقّعش على كلام مش بيعبر عن أقوالك بدقة. "
+            "اطلب مراجعة المحضر بهدوء، واستعن بمحامي قبل أي خطوة مؤثرة. "
+            "ولو حصل إكراه، فظروف صدور الاعتراف ومدى توافقه مع باقي الوقائع نقاط لازم تتعرض على الدفاع."
+        )
+        cta = "احفظ الفيديو قبل أي إجراء تحقيق، واكتب في التعليقات: إيه أكتر نقطة محتاج تفهمها عن الاعتراف؟"
+        hook_options = [hook]
+    else:
+        question = "إيه النقطة المحددة اللي بتغيّر الحكم على الموقف ده؟"
+        answer = (
+            f"{core} "
+            "المهم هنا مش الانطباع العام؛ المهم القاعدة المحددة اللي يذكرها المحتوى والوقائع اللي تنطبق عليها. "
+        )
+        action = (
+            "ارجع للنقطة الواردة في المنشور، وحدد الواقعة اللي تنطبق عليها قبل ما تتصرف. "
+            "لو المنشور ما بيحسمش حالة بعينها، ما تعتبرش ده جواب نهائي لحالتك؛ اعرض التفاصيل على مختص."
+        )
+        cta = "اكتب في التعليقات سؤالًا محددًا عن النقطة دي، واحفظ الفيديو للرجوع للمعلومة وقت الحاجة."
+        hook_options = [
+            "قبل ما تاخد قرار، فيه تفصيلة محددة في الموقف ده لازم تفهمها الأول.",
+            "مش كل تصرف شكله عادي بيكون مناسب قانونيًا؛ الفارق في النقطة دي تحديدًا.",
+            "لو بتواجه الموقف ده، ما تبدأش بالحل قبل ما تعرف القاعدة اللي بتحكمه."
+        ]
+        hook_index = sum(ord(ch) for ch in (topic + text[:120])) % len(hook_options)
+    if "hook_index" not in locals():
+        hook_index = 0
     script = " ".join([hook_options[hook_index], question, answer, action, cta])
     script = _bound_reel_script(script, max_words=210)
     if len(script.split()) < 170:
