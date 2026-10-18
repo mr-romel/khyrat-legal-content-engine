@@ -471,7 +471,17 @@ def add_motion_graphics_layer(
     if slogan_audio is None or not slogan_audio.is_file():
         raise RuntimeError("Required spoken brand slogan audio is missing; refusing unbranded Reel delivery.")
 
-    logo = Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"))
+    # Prefer an explicitly configured logo, then the canonical repository asset.
+    # The daily worker stores the real logo under generated/; older deployments used
+    # a root-level Arabic filename, so retain that as a final compatibility fallback.
+    logo_candidates = [
+        Path(logo_path) if logo_path else Path(os.getenv("BRAND_LOGO_PATH", "")),
+        Path("generated/ask mahmoud logo.png"),
+        Path("assets/branding/logo.png"),
+        Path("assets/branding/ask_mahmoud_3d.png"),
+        Path("لوجو اسال محمود 3دي.png"),
+    ]
+    logo = next((candidate for candidate in logo_candidates if str(candidate) and candidate.is_file()), Path("__missing_brand_logo__"))
     endcard = work_dir / "brand_endcard.mp4"
     img = Image.new("RGB", (1080, 1920), (7, 17, 34))
     draw = ImageDraw.Draw(img)
@@ -490,11 +500,13 @@ def add_motion_graphics_layer(
     if not logo.is_file():
         draw.text((540, 520), rtl("اسأل محمود"), font=font(88), anchor="mm", fill=(255, 255, 255))
         draw.rounded_rectangle((300, 630, 780, 645), radius=7, fill=(35, 174, 230))
-    draw.text((540, 1050), rtl("اسأل محمود"), font=font(86), anchor="mm", fill=(255, 255, 255))
-    draw.text((540, 1170), rtl("مستشار قانوني للشركات"), font=font(45), anchor="mm", fill=(190, 220, 238))
-    draw.rounded_rectangle((190, 1280, 890, 1385), radius=38, fill=(13, 99, 145))
-    draw.text((540, 1332), rtl("خليك فاكر دايمًا"), font=font(48), anchor="mm", fill=(255, 255, 255))
-    draw.text((540, 1490), rtl("اسأل محمود"), font=font(70), anchor="mm", fill=(60, 198, 244))
+    draw.text((540, 1015), rtl("اسأل محمود"), font=font(86), anchor="mm", fill=(255, 255, 255))
+    draw.text((540, 1125), rtl("مستشار قانوني للشركات"), font=font(43), anchor="mm", fill=(190, 220, 238))
+    # Exact brand line, shaped and rendered locally rather than generated inside a video model.
+    draw.text((540, 1210), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font(29), anchor="mm", fill=(255, 255, 255))
+    draw.rounded_rectangle((190, 1300, 890, 1405), radius=38, fill=(13, 99, 145))
+    draw.text((540, 1352), rtl("خليك فاكر دايمًا"), font=font(48), anchor="mm", fill=(255, 255, 255))
+    draw.text((540, 1510), rtl("اسأل محمود"), font=font(70), anchor="mm", fill=(60, 198, 244))
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
     subprocess.run([
@@ -865,22 +877,28 @@ def build_fast_fallback_reel(
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected configured duration limit")
 
     base_duration = min(180.0, max(50.0, audio_duration))
-    count = min(8, len(scenes))
-    per_scene = base_duration / count
-    # Normalize every still image into a short MP4 clip first. This avoids
-    # FFmpeg image2 timestamp/0.04s-duration behavior on downloaded JPG/PNG assets.
-    # The Reel renderer consumes video clips only, while preserving real topic-matched imagery.
+    # Each visual segment is capped at 15 seconds, then stitched into one seamless
+    # Reel. The brand end-card and spoken slogan are appended once, after this base.
+    segment_seconds = 15.0
+    count = int((base_duration + segment_seconds - 0.001) // segment_seconds)
+    count = max(1, count)
     scene_clips = output_video.parent / "scene_clips"
     scene_clips.mkdir(parents=True, exist_ok=True)
     normalized = []
-    for i, scene in enumerate(scenes[:count]):
+    for i in range(count):
+        scene = scenes[i % len(scenes)]
+        segment_duration = min(segment_seconds, base_duration - (i * segment_seconds))
         clip = scene_clips / f"scene_{i+1:02d}.mp4"
+        # Alternate subtle camera movement per segment so reused images don't feel
+        # like a repeated loop, while keeping the transitions clean and consistent.
+        pan_x = 42 if i % 2 == 0 else -42
+        pan_y = 34 if i % 3 else -34
         clip_cmd = [
             "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(scene),
-            "-t", f"{per_scene:.3f}",
+            "-t", f"{segment_duration:.3f}",
             "-vf", "scale=1160:2060:force_original_aspect_ratio=increase,crop=1080:1920,"
-                   "zoompan=z='min(zoom+0.0028,1.09)':x='iw/2-(iw/zoom/2)+42*sin(on/11)':"
-                   "y='ih/2-(ih/zoom/2)+34*cos(on/13)':d=1:s=1080x1920:fps=30,"
+                   f"zoompan=z='min(zoom+0.0028,1.09)':x='iw/2-(iw/zoom/2)+({pan_x})*sin(on/11)':"
+                   f"y='ih/2-(ih/zoom/2)+({pan_y})*cos(on/13)':d=1:s=1080x1920:fps=30,"
                    "eq=contrast=1.04:saturation=1.05,setsar=1",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
             "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", str(clip),
@@ -927,7 +945,7 @@ def build_fast_fallback_reel(
     if result.returncode != 0 or not narrated.is_file():
         raise RuntimeError("Animated Reel audio mux failed: " + (result.stderr or result.stdout)[-3000:])
     shutil.move(str(narrated), str(output_video))
-    print(f"Animated multi-scene fallback created: scenes={count} duration={base_duration:.1f}s")
+    print(f"Animated multi-scene fallback created: segments={count} max_segment={segment_seconds:.0f}s duration={base_duration:.1f}s; branded end-card appended once")
 def _probe_video_duration(video_path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
