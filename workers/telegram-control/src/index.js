@@ -7,7 +7,7 @@ const HEADERS = [
   "Facebook Comment Queue", "Facebook Comments Published", "Facebook Reaction Status",
   "LinkedIn Comment Queue", "LinkedIn Comments Published", "LinkedIn Reaction Status",
   "Blogger Status", "Blogger Post ID", "Blogger URL", "Blogger Search Title", "Blogger Search Query",
-  "Blogger Search Candidates", "Blogger Last Error",
+  "Blogger Search Candidates", "Blogger Meta Description", "Blogger SEO Status", "Blogger SEO Error", "Blogger SEO Verified At", "Blogger Last Error",
   "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
   "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel Last Error",
   "Reel Published At", "Reel QA Score", "Reel QA Issues",
@@ -64,7 +64,7 @@ async function googleAccessToken(env) {
   return data.access_token;
 }
 
-async function sheetValues(env, range = "A:AY", sheetOverride = null) {
+async function sheetValues(env, range = "A:BC", sheetOverride = null) {
   const token = await googleAccessToken(env);
   const sheetName = sheetOverride || env.GOOGLE_SHEET_NAME || "Content";
   const encoded = encodeURIComponent(`${sheetName}!${range}`);
@@ -84,7 +84,7 @@ function rowToDict(row) {
 async function updateSheetRow(env, rowNumber, patch) {
   const token = await googleAccessToken(env);
   const sheetName = env.GOOGLE_SHEET_NAME || "Content";
-  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:AY${rowNumber}`);
+  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:BC${rowNumber}`);
   const read = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -99,7 +99,7 @@ async function updateSheetRow(env, rowNumber, patch) {
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}?valueInputOption=RAW`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:AY${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
+    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:BC${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(`Google Sheets row update failed: ${JSON.stringify(data)}`);
