@@ -290,9 +290,10 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
 
-    # Image generation is best-effort and must never hold up social publication.
-    # Prefer the image_brief produced with the post; only derive a scene separately
-    # when a fallback post has no usable brief.
+    # A fresh, post-aligned image is mandatory for social publication.
+    # Prefer the image_brief produced with the post; derive a scene separately
+    # only when a fallback post has no usable brief. If image generation/QA fails,
+    # fail this row and let the scheduler retry instead of publishing text-only.
     generated_image_path = None
     image_url = ""
     image_path = GENERATED_DIR / f"{safe_id}.jpg"
@@ -401,9 +402,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # Publishing is non-blocking: never cancel the post solely because the
-        # image provider or visual-brief generation is unavailable. Do not reuse
-        # a stale local file or stale public URL; downstream publishes text only.
+        # Fail closed: never publish a social post without its required image.
+        # Clear stale image state and leave the row retryable for the next run.
         image_url = ""
         generated_image_path = None
         image_path.unlink(missing_ok=True)
@@ -411,16 +411,18 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
                 "Image QA Attempt": str(locals().get("image_qa_attempt", 1)),
-                "Image QA Status": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
+                "Image QA Status": "IMAGE_GENERATION_FAILED_RETRY_REQUIRED",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "IMAGE_GENERATION_FAILED_TEXT_FALLBACK",
+                "Image Mode": "IMAGE_GENERATION_FAILED_RETRY_REQUIRED",
                 "المحتوى": post,
                 "وقت آخر تشغيل": current.isoformat(),
-                "آخر خطأ": f"Image unavailable; publication will continue as text: {image_exc}"[:1500],
+                "آخر خطأ": f"Required image unavailable; publication blocked and will retry: {image_exc}"[:1500],
             })
         except Exception as state_exc:
-            print(f"Image failure state update unavailable; continuing to publication anyway: {state_exc}")
-        print(f"IMAGE GENERATION FAILED — continuing with text publication fallback: {image_exc}")
+            print(f"Image failure state update unavailable: {state_exc}")
+        raise ImageGenerationError(
+            f"Required post image could not be generated and passed QA; refusing text-only publication: {image_exc}"
+        ) from image_exc
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
@@ -678,8 +680,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0)
         if not image_available:
-            print("No usable generated image is available; publishing text to both platforms instead of cancelling the post.")
-            image_path = None
+            raise ImageGenerationError(
+                "Required post image is missing or empty; blocking publication so the row can retry."
+            )
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
