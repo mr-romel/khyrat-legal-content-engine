@@ -146,6 +146,9 @@ jobs:
 
       - name: Verify manual approval
         if: ${{ steps.target.outputs.row_number != '' }}
+        env:
+          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           python - <<'PY'
           import os
@@ -167,6 +170,9 @@ jobs:
 
       - name: Publish approved reel
         if: ${{ steps.target.outputs.row_number != '' }}
+        env:
+          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           python - <<'PY'
           import json, os
@@ -192,6 +198,9 @@ jobs:
 
       - name: Record publication in Google Sheets
         if: ${{ success() && steps.target.outputs.row_number != '' }}
+        env:
+          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           python - <<'PY'
           import json, os
