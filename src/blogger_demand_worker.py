@@ -779,6 +779,31 @@ def main() -> int:
                 blog_url=BLOG_URL, search_description=description, force_update=True,
                 allow_dashboard_permalink_fallback=True,
             )
+            # The dashboard returns the exact post ID even when the public feed
+            # omits its body; use that ID to persist the repaired content directly.
+            if os.getenv("BLOGGER_OAUTH_JSON", "").strip() and result.get("post_id"):
+                repair_api = blogger_rest_service()
+                repair_blog_id = BLOG_ID or resolve_blog_id(repair_api, BLOG_URL)
+                repair_id = str(result["post_id"])
+                repair_api.posts().patch(
+                    blogId=repair_blog_id, postId=repair_id, body={"content": html}
+                ).execute()
+                repaired = repair_api.posts().get(
+                    blogId=repair_blog_id, postId=repair_id
+                ).execute()
+                repaired_html = str(repaired.get("content", "") or "")
+                repaired_text = " ".join(re.sub(r"<[^>]+>", " ", repaired_html).split())
+                if len(repaired_text) < 900:
+                    raise RuntimeError("Blogger in-place UI/REST repair failed: saved body remains under 900 characters.")
+                if demand_image_url and not re.search(r"<img\\b[^>]*\\bsrc\\s*=", repaired_html, re.I):
+                    raise RuntimeError("Blogger in-place UI/REST repair failed: generated image is missing.")
+                result.update({
+                    "post_id": repair_id,
+                    "post_url": str(repaired.get("url", "") or result.get("post_url", "")),
+                    "title": str(repaired.get("title", title)),
+                    "publisher": "BROWSER_UI_THEN_REST_REPAIR",
+                })
+                print(f"Blogger existing post repaired and verified by ID: {result['post_url']}")
     elif os.getenv("BLOGGER_OAUTH_JSON", "").strip():
         try:
             blogger_api = blogger_rest_service()
