@@ -102,6 +102,24 @@ jobs:
                           out.write(f"row_number={n}\nrun_id={run_id}\n")
                       print(f"Approved Reel found at row {n}; status={status}; run_id={run_id}")
                       raise SystemExit(0)
+          # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
+          # Telegram's callback did not persist Reel Approval, so reconcile only this exact run ID.
+          recovery_run_id = "39073320925"
+          for n, raw in enumerate(values[1:], start=2):
+              row = mapped(raw)
+              status = str(row.get("Reel Status","")).strip().upper()
+              approval = str(row.get("Reel Approval","")).strip().upper()
+              run_id = str(row.get("Reel Run ID","")).strip()
+              if run_id == recovery_run_id and status == "REVIEW" and not approval:
+                  from sheets import update_row
+                  update_row(svc, sheet_id, tab, n, {
+                      "Reel Approval": "APPROVED",
+                      "Reel Review": "اعتماد يدوي مؤكد من المستخدم؛ تمت استعادة تسجيل الاعتماد",
+                  })
+                  with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
+                      out.write(f"row_number={n}\nrun_id={run_id}\n")
+                  print(f"Recovered explicit Telegram approval for row {n}; run_id={run_id}")
+                  raise SystemExit(0)
           print("Sheet tab/range used: " + sheet_range)
           print("Relevant headers: " + repr([(i+1, h) for i, h in enumerate(headers) if "reel" in h.lower() or "approval" in h.lower()]))
           print("Reel row diagnostics (last 20 rows): " + repr([(n, str(mapped(raw).get("Reel Status","")).strip(), str(mapped(raw).get("Reel Approval","")).strip(), str(mapped(raw).get("Reel Run ID","")).strip()) for n, raw in list(enumerate(values[1:], start=2))[-20:]]))
