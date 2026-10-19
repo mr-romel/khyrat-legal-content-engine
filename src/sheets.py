@@ -89,9 +89,11 @@ def get_values(service, spreadsheet_id: str, sheet_range: str) -> list[list[str]
     return response.get("values", [])
 
 
-def row_to_dict(row: list[str]) -> dict[str, str]:
-    padded = list(row) + [""] * (len(HEADERS) - len(row))
-    return {HEADERS[i]: padded[i] for i in range(len(HEADERS))}
+def row_to_dict(row: list[str], headers: list[str] | None = None) -> dict[str, str]:
+    """Map a sheet row using its live header row; fall back only when unavailable."""
+    active_headers = [str(value or "").strip() for value in headers] if headers and any(str(value or "").strip() for value in headers) else HEADERS
+    padded = list(row) + [""] * max(0, len(active_headers) - len(row))
+    return {header: str(padded[i] or "") for i, header in enumerate(active_headers) if header}
 
 
 def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") -> None:
@@ -110,20 +112,26 @@ def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") ->
 
 
 def update_row(service, spreadsheet_id: str, sheet_name: str, row_number: int, values: dict[str, Any]) -> None:
+    """Update named cells using the sheet's actual header positions, preserving unrelated columns."""
+    header_values = get_values(service, spreadsheet_id, f"{sheet_name}!A1:{SHEET_LAST_COLUMN}1")
+    headers = [str(value or "").strip() for value in header_values[0]] if header_values else []
+    if not headers or not any(headers):
+        headers = HEADERS
     current = get_values(service, spreadsheet_id, f"{sheet_name}!A{row_number}:{SHEET_LAST_COLUMN}{row_number}")
-    row = [[""] * len(HEADERS)]
-    if current:
-        existing = current[0] + [""] * (len(HEADERS) - len(current[0]))
-        row[0] = existing[:len(HEADERS)]
+    row = list(current[0]) if current else []
+    row += [""] * max(0, len(headers) - len(row))
     for key, value in values.items():
-        if key in HEADERS:
-            row[0][HEADERS.index(key)] = "" if value is None else str(value)
+        if key in headers:
+            row[headers.index(key)] = "" if value is None else str(value)
+    width = max(len(headers), len(row))
+    row += [""] * max(0, width - len(row))
+    last_column = _column_letter(width)
     _execute_with_retry(
         lambda: service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
-            range=f"{sheet_name}!A{row_number}:{SHEET_LAST_COLUMN}{row_number}",
+            range=f"{sheet_name}!A{row_number}:{last_column}{row_number}",
             valueInputOption="RAW",
-            body={"values": row},
+            body={"values": [row]},
         ),
         f"updating row {row_number} in {sheet_name}",
     )
