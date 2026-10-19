@@ -5,6 +5,7 @@ import html
 import io
 import os
 import re
+import requests
 from pathlib import Path
 from typing import Any
 
@@ -156,17 +157,47 @@ def main() -> int:
     bid = _clean(config.get("blogger_blog_id", "")) or resolve_blog_id(svc, config["blogger_url"])
     source_rows = _load_sheet_rows(config)
 
+    # The Blogger REST posts.list endpoint returns HTTP 400 in this account.
+    # The public JSON feed already exposes LIVE post IDs, titles and bodies, so
+    # use it as the inventory and reserve authenticated REST calls for exact-ID
+    # patches. This avoids a failed list call blocking all repairs.
     posts: list[dict[str, Any]] = []
-    token = None
-    while True:
-        args: dict[str, Any] = {"blogId": bid, "maxResults": 500, "fetchBodies": True, "status": ["LIVE"]}
-        if token:
-            args["pageToken"] = token
-        result = svc.posts().list(**args).execute()
-        posts.extend(result.get("items", []) or [])
-        token = result.get("nextPageToken")
-        if not token:
-            break
+    feed_url = config["blogger_url"].rstrip("/") + "/feeds/posts/default"
+    try:
+        response = requests.get(
+            feed_url,
+            params={"alt": "json", "max-results": "500"},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; KhyratBloggerRepair/1.0)"},
+            timeout=45,
+        )
+        response.raise_for_status()
+        entries = response.json().get("feed", {}).get("entry", []) or []
+        for entry in entries:
+            raw_id = str((entry.get("id") or {}).get("$t", "") or "")
+            match = re.search(r"(?:post-|\\.post-)(\\d+)$", raw_id)
+            post_id = match.group(1) if match else ""
+            title = _clean(str((entry.get("title") or {}).get("$t", "") or ""))
+            content = str((entry.get("content") or {}).get("$t", "") or "")
+            url = next(
+                (str(link.get("href", "")).strip() for link in entry.get("link", []) or []
+                 if link.get("rel") == "alternate" and str(link.get("href", "")).startswith("http")),
+                "",
+            )
+            if post_id and title:
+                posts.append({"id": post_id, "title": title, "content": content, "url": url, "status": ["LIVE"]})
+        print(f"Blogger public-feed inventory loaded: live_posts={len(posts)}")
+    except Exception as feed_exc:
+        print(f"Blogger public-feed inventory failed; falling back to REST list: {feed_exc}")
+        token = None
+        while True:
+            args: dict[str, Any] = {"blogId": bid, "maxResults": 100, "fetchBodies": True, "status": ["LIVE"]}
+            if token:
+                args["pageToken"] = token
+            result = svc.posts().list(**args).execute()
+            posts.extend(result.get("items", []) or [])
+            token = result.get("nextPageToken")
+            if not token:
+                break
 
     candidates = [p for p in posts if p.get("id") and p.get("title") and _is_title_only(p)]
     max_posts = max(1, int(os.getenv("BLOGGER_REPAIR_MAX_POSTS", "100")))
