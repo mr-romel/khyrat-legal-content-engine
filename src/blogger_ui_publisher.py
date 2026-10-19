@@ -1019,12 +1019,17 @@ def publish_article_ui(
             match = re.search(r"/blog/post/edit/([0-9]+)/([0-9]+)", editor_url)
             if match:
                 post_id = match.group(2)
-            browser_permalink = _public_permalink_in_browser(
+            # Keep both the canonical public permalink and the exact Blogger
+            # post ID. The public feed can lag or omit the body; the authenticated
+            # dashboard row still exposes the edit URL needed for REST repair.
+            browser_permalink, browser_post_id = _published_dashboard_post(
                 page, blog_url, title, target_blog_id,
                 require_public_body=not allow_dashboard_permalink_fallback,
             )
             if browser_permalink:
                 published_url = browser_permalink
+            if browser_post_id:
+                post_id = browser_post_id
 
             # The authenticated dashboard row is the preferred verifier when it
             # exposes a public View link for this exact title. Only call public
