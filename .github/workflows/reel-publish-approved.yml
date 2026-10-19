@@ -73,11 +73,13 @@ jobs:
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
           sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BC").strip()
-          # Do not silently truncate Reel approval fields when an older secret ends at AY.
+          # Reel control fields live after the core social columns. Always read through BC,
+          # even when the shared GOOGLE_SHEET_RANGE secret is configured for a shorter workflow.
           if "!" in sheet_range:
-              tab, cols = sheet_range.split("!", 1)
-              if cols.endswith((":AY", ":AZ", ":BA", ":BB")):
-                  sheet_range = f"{tab}!A:BC"
+              tab, _cols = sheet_range.split("!", 1)
+          else:
+              tab = "Content"
+          sheet_range = f"{tab}!A:BC"
           if not sheet_id:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
