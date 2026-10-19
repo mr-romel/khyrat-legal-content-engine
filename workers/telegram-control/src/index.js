@@ -9,7 +9,7 @@ const HEADERS = [
   "Blogger Status", "Blogger Post ID", "Blogger URL", "Blogger Search Title", "Blogger Search Query",
   "Blogger Search Candidates", "Blogger Meta Description", "Blogger SEO Status", "Blogger SEO Error", "Blogger SEO Verified At", "Blogger Last Error",
   "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
-  "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel Last Error",
+  "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel YouTube ID", "Reel YouTube URL", "Reel Last Error",
   "Reel Published At", "Reel QA Score", "Reel QA Issues",
 ];
 
