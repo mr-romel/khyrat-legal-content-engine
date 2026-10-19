@@ -2,10 +2,6 @@ name: Blogger Title-Only Article Repair
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/BLOGGER_REPAIR_NOW.md"
 
 permissions:
   contents: read
