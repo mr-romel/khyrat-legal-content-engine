@@ -5,8 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/repair_blogger_title_only_posts.py"
-      - ".github/workflows/blogger-title-only-repair.yml"
+      - ".github/BLOGGER_REPAIR_NOW.md"
 
 permissions:
   contents: read
