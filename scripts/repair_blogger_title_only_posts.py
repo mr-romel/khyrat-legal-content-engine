@@ -172,9 +172,16 @@ def main() -> int:
         )
         response.raise_for_status()
         entries = response.json().get("feed", {}).get("entry", []) or []
+        print("Blogger feed inventory diagnostics: entry_count=%d sample=%s" % (
+            len(entries),
+            repr([{
+                "id": str((entry.get("id") or {}).get("$t", "") or "")[:160],
+                "title": str((entry.get("title") or {}).get("$t", "") or "")[:100],
+            } for entry in entries[:3]])
+        ))
         for entry in entries:
             raw_id = str((entry.get("id") or {}).get("$t", "") or "")
-            match = re.search(r"(?:post-|\\.post-)(\\d+)$", raw_id)
+            match = re.search(r"(?:post-|\\.post-)(\\d+)", raw_id.strip())
             post_id = match.group(1) if match else ""
             title = _clean(str((entry.get("title") or {}).get("$t", "") or ""))
             content = str((entry.get("content") or {}).get("$t", "") or "")
@@ -186,6 +193,8 @@ def main() -> int:
             if post_id and title:
                 posts.append({"id": post_id, "title": title, "content": content, "url": url, "status": ["LIVE"]})
         print(f"Blogger public-feed inventory loaded: live_posts={len(posts)}")
+        if not posts:
+            raise RuntimeError("Public feed returned entries but no Blogger post IDs could be parsed.")
     except Exception as feed_exc:
         print(f"Blogger public-feed inventory failed; falling back to REST list: {feed_exc}")
         token = None
@@ -253,12 +262,12 @@ def main() -> int:
             visible = _plain(new_content)
             if len(visible) < MIN_BODY_CHARS or not re.search(r"<img\b", new_content, re.I):
                 raise RuntimeError("Generated replacement failed body/image validation.")
-            updated = svc.posts().patch(
+            svc.posts().patch(
                 blogId=bid,
                 postId=pid,
                 body={"content": new_content},
-                fetchBody=True,
             ).execute()
+            updated = svc.posts().get(blogId=bid, postId=pid).execute()
             verified = str(updated.get("content", "") or "")
             if len(_plain(verified)) < MIN_BODY_CHARS or not re.search(r"<img\b", verified, re.I):
                 raise RuntimeError("Blogger API returned an update without a verified body and image.")
