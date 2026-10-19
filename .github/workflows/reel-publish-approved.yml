@@ -34,6 +34,10 @@ jobs:
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'private' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -177,6 +181,7 @@ jobs:
           from config import load_video_config
           from sheets import create_service, get_values, row_to_dict, update_row
           from reel_publishers import publish_facebook_video
+          from youtube_publisher import publish_youtube_short
 
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
@@ -199,7 +204,7 @@ jobs:
           plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
           fb_caption=str(plan.get('facebook_caption','')).strip()
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
-                  'linkedin': {'post_id': str(row.get('Reel LinkedIn ID','')).strip()},
+                  'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
           errors=[]
 
@@ -212,12 +217,23 @@ jobs:
               try:
                   fb=publish_facebook_video(str(video), fb_caption)
                   result['facebook']=fb
-                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; LinkedIn is being processed'})
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
               except Exception as exc:
                   errors.append('Facebook: '+str(exc))
 
-          Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
           fb_ok=bool(result['facebook'].get('video_id'))
+          # Publish to YouTube only after Facebook is confirmed. YouTube failure is recorded
+          # independently so the successful Facebook publication is never repeated blindly.
+          if fb_ok and not result['youtube'].get('video_id'):
+              try:
+                  title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
+                  description=str(plan.get('youtube_description', fb_caption)).strip()
+                  yt=publish_youtube_short(str(video), title, description)
+                  result['youtube']=yt
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
+              except Exception as exc:
+                  errors.append('YouTube: '+str(exc))
+          Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
           if errors:
               status='PUBLISHED_PARTIAL' if fb_ok else 'PUBLISH_FAILED'
               update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Status':status,'Reel Last Error':' | '.join(errors)[:1500],
@@ -244,9 +260,10 @@ jobs:
           update_row(svc,cfg["sheet_id"],sheet,int(os.environ["ROW_NUMBER"]),{
             "Reel Status":"PUBLISHED",
             "Reel Facebook ID":result["facebook"].get("video_id",""),
-            "Reel LinkedIn ID":result["linkedin"].get("post_id",""),
+            "Reel YouTube ID":result.get("youtube",{}).get("video_id",""),
+            "Reel YouTube URL":result.get("youtube",{}).get("url",""),
             "Reel Approval":"APPROVED",
-            "Reel Review":"تم نشر الريلز على فيسبوك بعد المراجعة اليدوية؛ نشر لينكدإن معطّل",
+            "Reel Review":"تم نشر الريلز على فيسبوك ويوتيوب بعد المراجعة اليدوية؛ لينكدإن معطّل",
             "Reel Last Error":"",
             "Reel Published At":os.environ.get("GITHUB_RUN_ID",""),
           })
