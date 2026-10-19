@@ -111,8 +111,18 @@ def _duplicate_score(topic: str, bank_rows: list[dict[str, str]]) -> tuple[float
     return best_score, best_topic
 
 
+def _linkedin_token_blocked(row: dict[str, str]) -> bool:
+    """A rejected LinkedIn token is not a transient post failure; avoid a 15-minute retry loop."""
+    linkedin_status = str(row.get("LinkedIn Status", "")).strip().upper()
+    facebook_status = str(row.get("Facebook Status", "")).strip().upper()
+    error = str(row.get("آخر خطأ", "")).upper()
+    return linkedin_status == "BLOCKED_TOKEN" and facebook_status == "PUBLISHED" and ("401" in error or "TOKEN" in error or "USERINFO" in error)
+
+
 def _is_due(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "READY")).strip().upper()
+    if _linkedin_token_blocked(row):
+        return False
     if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
         return False
     target_date = parse_date(row.get("تاريخ النشر", ""))
@@ -124,6 +134,8 @@ def _is_due(row: dict[str, str], current) -> bool:
 
 
 def _failed_retry(row: dict[str, str], current) -> bool:
+    if _linkedin_token_blocked(row):
+        return False
     return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
 
 
@@ -779,9 +791,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             except LinkedInPublishError as exc:
                 error = f"LinkedIn: {exc}"
                 publication_errors.append(error)
-                row["LinkedIn Status"] = "FAILED"
+                auth_rejected = "HTTP 401" in str(exc).upper() or "USERINFO FAILED" in str(exc).upper() or "TOKEN HAS EXPIRED" in str(exc).upper()
+                row["LinkedIn Status"] = "BLOCKED_TOKEN" if auth_rejected else "FAILED"
                 try:
-                    update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": "FAILED", "آخر خطأ": error})
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": row["LinkedIn Status"], "آخر خطأ": error})
                 except Exception as state_exc:
                     print(f"LinkedIn failure state could not be persisted: {state_exc}")
                 notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
@@ -804,7 +817,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 "الحالة": final_status,
                 "Facebook Status": "PUBLISHED" if fb_ok else "FAILED",
                 "Facebook Post ID": facebook_post_id,
-                "LinkedIn Status": "PUBLISHED" if li_post_ok else "FAILED",
+                "LinkedIn Status": "PUBLISHED" if li_post_ok else ("BLOCKED_TOKEN" if str(row.get("LinkedIn Status", "")).strip().upper() == "BLOCKED_TOKEN" else "FAILED"),
                 "LinkedIn Post ID": linkedin_post_id,
                 "LinkedIn Comment Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Comment Status", "")).strip().upper(),
                 "LinkedIn Reaction Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Reaction Status", "")).strip().upper(),
@@ -826,9 +839,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 f"التعليقات: Facebook 3-7 | LinkedIn 3-7 (تم وضعها في Queue ويشغلها Engagement Worker)"
             )
         else:
-            detail = final_error or "Social publication did not complete; row remains retryable."
-            notify(f"🟠 Publication retry scheduled automatically.\nالموضوع: {topic}\nالسبب: {detail}")
-            print(f"Non-blocking publication failure; scheduler will retry: {detail}")
+            detail = final_error or "Social publication did not complete."
+            if str(row.get("LinkedIn Status", "")).strip().upper() == "BLOCKED_TOKEN" and fb_ok:
+                notify(f"🟠 تم نشر المنشور على Facebook، وتم إيقاف إعادة المحاولة التلقائية لـ LinkedIn بسبب رفض التوكن (401).\nالموضوع: {topic}\nالإجراء: أصلح/جدّد توكن LinkedIn، ثم أعد اعتماد الصف لإعادة نشر LinkedIn فقط دون تكرار Facebook.\nالسبب: {detail}")
+                print(f"LinkedIn token rejected; Facebook succeeded. Automatic retries paused to prevent duplicate publishing: {detail}")
+            else:
+                notify(f"🟠 Publication retry scheduled automatically.\nالموضوع: {topic}\nالسبب: {detail}")
+                print(f"Non-blocking publication failure; scheduler will retry: {detail}")
         return
     except Exception as exc:
         print(f"Non-blocking pipeline error: {exc}")
