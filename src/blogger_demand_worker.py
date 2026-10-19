@@ -795,7 +795,7 @@ def main() -> int:
                 repaired_text = " ".join(re.sub(r"<[^>]+>", " ", repaired_html).split())
                 if len(repaired_text) < 900:
                     raise RuntimeError("Blogger in-place UI/REST repair failed: saved body remains under 900 characters.")
-                if demand_image_url and not re.search(r"<img\\b[^>]*\\bsrc\\s*=", repaired_html, re.I):
+                if demand_image_url and not re.search(r"<img\b[^>]*\bsrc\s*=", repaired_html, re.I):
                     raise RuntimeError("Blogger in-place UI/REST repair failed: generated image is missing.")
                 result.update({
                     "post_id": repair_id,
