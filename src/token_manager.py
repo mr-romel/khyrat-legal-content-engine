@@ -181,20 +181,39 @@ def renew_linkedin() -> str:
     if not access_token:
         raise RuntimeError("LINKEDIN_ACCESS_TOKEN is missing.")
 
-    # Existing access token is sufficient until its known expiry. Refresh
-    # configuration is optional and is used only when all required values exist.
-    if not refresh_token or not client_id or not client_secret or not expires_at_raw:
-        return (
-            "LinkedIn renewal not configured; existing Access Token will remain "
-            "in use. Automatic renewal requires LINKEDIN_REFRESH_TOKEN, "
-            "LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET and "
-            "LINKEDIN_TOKEN_EXPIRES_AT."
+    # Validate the token with LinkedIn itself. A token can return HTTP 401
+    # before its stored expiry if it was revoked or consent changed.
+    validation = requests.get(
+        "https://api.linkedin.com/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+        timeout=30,
+    )
+    if validation.status_code not in {200, 401}:
+        validation.raise_for_status()
+        raise RuntimeError(f"Unexpected LinkedIn userinfo status: HTTP {validation.status_code}")
+    force_refresh = validation.status_code == 401
+
+    refresh_ready = bool(refresh_token and client_id and client_secret)
+    if force_refresh and not refresh_ready:
+        raise RuntimeError(
+            "LinkedIn userinfo rejected the current access token with HTTP 401. "
+            "Automatic refresh is unavailable because LINKEDIN_REFRESH_TOKEN, "
+            "LINKEDIN_CLIENT_ID, or LINKEDIN_CLIENT_SECRET is missing. "
+            "Re-authorize LinkedIn and update GitHub Secrets."
         )
 
-    expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
-    remaining = expires_at - datetime.now(timezone.utc)
-    if remaining > timedelta(days=RENEWAL_DAYS):
-        return f"LinkedIn token healthy: ≈{remaining.days}d remaining."
+    if not refresh_ready:
+        return "LinkedIn token validated successfully; automatic renewal is not configured."
+
+    expiry_due = True
+    if expires_at_raw:
+        try:
+            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
+            expiry_due = expires_at - datetime.now(timezone.utc) <= timedelta(days=RENEWAL_DAYS)
+        except ValueError:
+            expiry_due = True
+    if not force_refresh and not expiry_due:
+        return "LinkedIn token validated successfully by /v2/userinfo; no refresh needed."
 
     response = requests.post(
         "https://www.linkedin.com/oauth/v2/accessToken",
@@ -213,7 +232,18 @@ def renew_linkedin() -> str:
     expires_in = int(data.get("expires_in", 0) or 0)
     refresh_expires_in = int(data.get("refresh_token_expires_in", 0) or 0)
     if not new_access_token or not expires_in:
-        raise RuntimeError(f"LinkedIn refresh response missing token or expiry: {data}")
+        raise RuntimeError("LinkedIn refresh response did not include a valid access token and expiry.")
+
+    refreshed_validation = requests.get(
+        "https://api.linkedin.com/v2/userinfo",
+        headers={"Authorization": f"Bearer {new_access_token}", "Accept": "application/json"},
+        timeout=30,
+    )
+    if refreshed_validation.status_code != 200:
+        raise RuntimeError(
+            f"LinkedIn refreshed token failed userinfo validation (HTTP {refreshed_validation.status_code}); "
+            "GitHub Secrets were not changed."
+        )
 
     new_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     update_github_secret("LINKEDIN_ACCESS_TOKEN", new_access_token)
