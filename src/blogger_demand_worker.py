@@ -163,18 +163,22 @@ def _serp(query: str) -> list[dict[str, str]]:
 
 
 def _trending_legal_terms() -> list[str]:
-    """Use Egypt's public trending feed only as an optional recency signal."""
+    """Collect current Egypt trends; each trend is reframed as a careful legal explainer."""
     url = "https://trends.google.com/trending/rss?geo=EG"
     try:
         response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         response.raise_for_status()
         root = ET.fromstring(response.text)
         terms = []
+        seen = set()
         for item in root.findall(".//item"):
             title = _clean(item.findtext("title", ""))
-            if title and any(term in title for term in LEGAL_TERMS):
-                terms.append(title)
-        return terms[:20]
+            key = _norm(title)
+            if title and key and key not in seen:
+                seen.add(key)
+                terms.append(title[:100])
+        print(f"Google Trends Egypt topics collected: {len(terms)}")
+        return terms[:30]
     except Exception as exc:
         print(f"Google Trends Egypt feed unavailable (optional): {exc}")
         return []
@@ -281,6 +285,31 @@ def collect_candidates(
                 "ctr": ctr,
                 "average_position": position,
             },
+        })
+    # Turn current Egypt trends into legal explainers. We do not repeat a trend
+    # headline as news; we explain relevant Egyptian-law questions without
+    # asserting unverified allegations or treating virality as search-volume data.
+    for trend in trends[:30]:
+        trend = _clean(trend)[:100]
+        if not trend:
+            continue
+        query = f"الجوانب القانونية المرتبطة بترند {trend} في مصر"
+        norm = _norm(query)
+        if not norm or norm in seen or _is_foreign_jurisdiction_query(query):
+            continue
+        if any(_similarity(query, old) >= 0.52 for old in recent_queries if old):
+            continue
+        if any(_similarity(query, title) >= 0.56 for title in existing_titles if title):
+            continue
+        seen.add(norm)
+        candidates.append({
+            "query": query,
+            "seed": trend,
+            "suggestions": [],
+            "suggestion_count": 0,
+            "trend_matches": [trend],
+            "demand_score": 88,
+            "demand_signal": "GOOGLE_TRENDS_EGYPT_LEGAL_ANGLE",
         })
     for seed in SEEDS:
         # One autocomplete request per seed. Reuse its returned suggestions as
@@ -719,7 +748,7 @@ def main() -> int:
             page_token = None
             existing_api = None
             while True:
-                kwargs = {"blogId": target_blog_id, "maxResults": 500, "fetchBodies": True}
+                kwargs = {"blogId": target_blog_id, "maxResults": 100}
                 if page_token:
                     kwargs["pageToken"] = page_token
                 batch = blogger_api.posts().list(**kwargs).execute()
@@ -758,7 +787,7 @@ def main() -> int:
             page_token = None
             existing_api = None
             while True:
-                kwargs = {"blogId": target_blog_id, "maxResults": 500, "fetchBodies": True}
+                kwargs = {"blogId": target_blog_id, "maxResults": 100}
                 if page_token:
                     kwargs["pageToken"] = page_token
                 batch = blogger_api.posts().list(**kwargs).execute()
@@ -804,6 +833,32 @@ def main() -> int:
                 search_description=description,
                 allow_dashboard_permalink_fallback=True,
             )
+            # UI publication can confirm a title while Blogger has not persisted
+            # the body. Repair the exact post by ID through REST, avoiding a
+            # fragile title-list lookup; then verify the saved body and image.
+            if os.getenv("BLOGGER_OAUTH_JSON", "").strip() and result.get("post_id"):
+                repair_api = blogger_rest_service()
+                repair_blog_id = BLOG_ID or resolve_blog_id(repair_api, BLOG_URL)
+                repair_id = str(result["post_id"])
+                repair_api.posts().patch(
+                    blogId=repair_blog_id, postId=repair_id, body={"content": html}
+                ).execute()
+                repaired = repair_api.posts().get(
+                    blogId=repair_blog_id, postId=repair_id
+                ).execute()
+                repaired_html = str(repaired.get("content", "") or "")
+                repaired_text = " ".join(re.sub(r"<[^>]+>", " ", repaired_html).split())
+                if len(repaired_text) < 900:
+                    raise RuntimeError("Blogger REST in-place repair failed: saved body remains under 900 characters.")
+                if demand_image_url and not re.search(r"<img\b[^>]*\bsrc\s*=", repaired_html, re.I):
+                    raise RuntimeError("Blogger REST in-place repair failed: generated image is missing from saved content.")
+                result.update({
+                    "post_id": repair_id,
+                    "post_url": str(repaired.get("url", "") or result.get("post_url", "")),
+                    "title": str(repaired.get("title", title)),
+                    "publisher": "BROWSER_UI_THEN_REST_REPAIR",
+                })
+                print(f"Blogger UI publication repaired and verified through REST by post ID: {result['post_url']}")
     else:
         print("BLOGGER_OAUTH_JSON is absent; using the authenticated Blogger UI publisher.")
         result = publish_article_ui(
