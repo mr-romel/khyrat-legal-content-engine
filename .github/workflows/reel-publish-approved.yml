@@ -177,24 +177,68 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
+          from config import load_video_config
+          from sheets import create_service, get_values, row_to_dict, update_row
           from reel_publishers import publish_facebook_video, publish_linkedin_video
-          root=Path("review-package")/"generated"/"reels"/("row_"+os.environ["ROW_NUMBER"])
-          if not root.exists():
-              matches=list(Path("review-package").rglob("daily-reel.mp4"))
-              if not matches:
-                  raise SystemExit("Approved reel MP4 was not found in the downloaded artifact.")
-              video=matches[0]
-              plan_path=video.with_name("reel_plan.json")
+
+          cfg=load_video_config()
+          svc=create_service(cfg['service_account_info'])
+          sheet=cfg['sheet_range'].split('!',1)[0]
+          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BC')
+          headers=values[0] if values else []
+          row_number=int(os.environ['ROW_NUMBER'])
+          row=row_to_dict(values[row_number-1], headers)
+          run_id=str(os.environ.get('RUN_ID','')).strip()
+          root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))
+          if root.exists():
+              video=root/'daily-reel.mp4'
+              plan_path=root/'reel_plan.json'
           else:
-              video=root/"daily-reel.mp4"
-              plan_path=root/"reel_plan.json"
-          plan=json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else {}
-          fb_caption=str(plan.get("facebook_caption","")).strip()
-          li_caption=str(plan.get("linkedin_caption","")).strip() or fb_caption
-          fb=publish_facebook_video(str(video), fb_caption)
-          li=publish_linkedin_video(str(video), li_caption)
-          Path("publish-result.json").write_text(json.dumps({"facebook":fb,"linkedin":li},ensure_ascii=False,indent=2),encoding="utf-8")
+              matches=list(Path('review-package').rglob('daily-reel.mp4'))
+              if not matches: raise SystemExit('Approved reel MP4 was not found in downloaded artifact.')
+              video=matches[0]
+              plan_path=video.with_name('reel_plan.json')
+          if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
+          plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
+          fb_caption=str(plan.get('facebook_caption','')).strip()
+          li_caption=str(plan.get('linkedin_caption','')).strip() or fb_caption
+          result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
+                  'linkedin': {'post_id': str(row.get('Reel LinkedIn ID','')).strip()},
+                  'run_id': run_id, 'row_number': row_number}
+          errors=[]
+
+          # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
+          # Its Facebook ID was not persisted. Never blindly repost that specific reel.
+          facebook_outcome_uncertain = (run_id == '39073320925' and not result['facebook']['video_id'])
+          if not result['facebook']['video_id'] and facebook_outcome_uncertain:
+              errors.append('Facebook skipped: previous run may have published before failing; verify the Page before retrying to avoid a duplicate.')
+          elif not result['facebook']['video_id']:
+              try:
+                  fb=publish_facebook_video(str(video), fb_caption)
+                  result['facebook']=fb
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; LinkedIn is being processed'})
+              except Exception as exc:
+                  errors.append('Facebook: '+str(exc))
+
+          if not result['linkedin']['post_id']:
+              try:
+                  li=publish_linkedin_video(str(video), li_caption)
+                  result['linkedin']=li
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel LinkedIn ID': li['post_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'LinkedIn published; other platform state is being reconciled'})
+              except Exception as exc:
+                  errors.append('LinkedIn: '+str(exc))
+
+          Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+          fb_ok=bool(result['facebook'].get('video_id'))
+          li_ok=bool(result['linkedin'].get('post_id'))
+          if errors:
+              status='PUBLISHED_PARTIAL' if (fb_ok or li_ok) else 'PUBLISH_FAILED'
+              update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Status':status,'Reel Last Error':' | '.join(errors)[:1500],
+                  'Reel Review':'Partial publish; retry only missing platform IDs' if (fb_ok or li_ok) else 'Publish failed; inspect Reel Last Error'})
+              raise SystemExit(' | '.join(errors))
+          if not (fb_ok and li_ok): raise SystemExit('Publication incomplete; not marking as fully published.')
           PY
+
 
       - name: Record publication in Google Sheets
         if: ${{ success() && steps.target.outputs.row_number != '' }}
