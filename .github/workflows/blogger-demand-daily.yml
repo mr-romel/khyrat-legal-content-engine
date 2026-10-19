@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - ".github/BLOGGER_DEMAND_RUN_NOW.md"
+      - ".github/workflows/blogger-demand-daily.yml"
+      - "src/blogger_demand_worker.py"
   schedule:
     # Run before the social publishing window; timezone is explicit to handle DST.
     - cron: "0 7 * * *"
