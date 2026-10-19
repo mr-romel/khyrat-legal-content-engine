@@ -100,6 +100,9 @@ jobs:
                           out.write(f"row_number={n}\nrun_id={run_id}\n")
                       print(f"Approved Reel found at row {n}; status={status}; run_id={run_id}")
                       raise SystemExit(0)
+          print("Sheet tab/range used: " + sheet_range)
+          print("Relevant headers: " + repr([(i+1, h) for i, h in enumerate(headers) if "reel" in h.lower() or "approval" in h.lower()]))
+          print("Reel row diagnostics (last 20 rows): " + repr([(n, str(mapped(raw).get("Reel Status","")).strip(), str(mapped(raw).get("Reel Approval","")).strip(), str(mapped(raw).get("Reel Run ID","")).strip()) for n, raw in list(enumerate(values[1:], start=2))[-20:]]))
           print("No publishable approved Reel found. Approval rows: " + repr(candidates))
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("row_number=\nrun_id=\n")
@@ -132,7 +135,8 @@ jobs:
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
           values=get_values(svc,cfg["sheet_id"],cfg["sheet_range"])
-          rows=[row_to_dict(r) for r in values[1:]]
+          headers=values[0] if values else []
+          rows=[row_to_dict(r, headers) for r in values[1:]]
           n=int(os.environ["ROW_NUMBER"])
           row=rows[n-2]
           if str(row.get("Reel Status","")).strip().upper() != "REVIEW":
