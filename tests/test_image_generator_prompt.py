@@ -38,7 +38,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
 
     assert output.read_bytes() == b"fake-image-bytes"
     assert "negative_prompt" not in captured
-    prompt = captured["prompt"].lower()
+    prompt = captured["prompt"]
     assert prompt == "A worker reviewing a modern employment document beside a phone at a desk."
 
     import json
