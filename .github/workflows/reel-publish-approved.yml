@@ -134,11 +134,11 @@ jobs:
               out.write("row_number=\nrun_id=\n")
           PY
 
-      - name: Stop when no approved Reel is waiting
+      - name: Skip when no approved Reel is waiting
         if: ${{ steps.target.outputs.row_number == '' }}
         run: |
-          echo "::error::No approved Reel with a valid Reel Run ID was found in the configured Google Sheet. Check the Telegram approval row and the sheet tab/range."
-          exit 1
+          echo "No approved Reel is waiting; nothing to publish in this polling cycle."
+          exit 0
 
       - name: Download reviewed reel package
         if: ${{ steps.target.outputs.row_number != '' }}
