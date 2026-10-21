@@ -1495,7 +1495,7 @@ def main() -> int:
         try:
             from reel_subtitles import burn_sentence_subtitles
             spoken_sentences = [
-                part.strip() for part in re.split(r"(?<=[؟!.])\\s+", prepare_tts_script(brief["script"]))
+                part.strip() for part in re.split(r"(?<=[؟!.])\s+", prepare_tts_script(brief["script"]))
                 if part.strip()
             ]
             narration_duration = _media_duration(tts_audio)
