@@ -591,7 +591,38 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         )
 
     facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(post)), topic)
-    linkedin_post = append_hashtags(sanitize_social_copy(post), topic)
+
+    # Keep LinkedIn platform-native during image repair too. Never republish the
+    # consumer-facing Facebook caption verbatim as a LinkedIn post.
+    try:
+        repair_editorial = _prepare_editorial_assets(
+            config=config,
+            topic=topic,
+            facebook_post=post,
+            legal_sources=str(row.get("المصادر القانونية", "") or ""),
+        )
+        linkedin_body = str(repair_editorial.get("linkedin_post", "") or "").strip()
+        if not linkedin_body or len(linkedin_body) < 900:
+            raise RuntimeError("LinkedIn repair copy did not meet the professional depth requirement.")
+    except Exception as linkedin_repair_exc:
+        print(f"LinkedIn repair copy generation unavailable: {linkedin_repair_exc}")
+        # Safe fallback preserves the legal topic but reframes it for company
+        # decision-makers and adds operational analysis rather than Facebook CTA.
+        linkedin_body = (
+            f"تستحق مسألة {sanitize_social_copy(topic)} النظر إليها من زاوية إدارة المخاطر داخل الشركة، "
+            "وليس باعتبارها قاعدة قانونية منفصلة عن طريقة اتخاذ القرار. الأثر العملي يتوقف على الوقائع، "
+            "والاتفاقات المكتوبة، والمستندات التي تثبت ما تم تنفيذه، ومسؤولية كل طرف عن الالتزام."
+            "\n\n"
+            f"{sanitize_social_copy(post)}"
+            "\n\n"
+            "عمليًا، تحتاج الإدارة إلى تحديد المستندات ذات الصلة، ومراجعة الالتزامات والمواعيد، "
+            "وتوضيح المسؤول عن الإجراء وآلية إثبات تنفيذه. كما ينبغي تقييم أثر كل بديل على التشغيل "
+            "والتكلفة والعلاقة التعاقدية، بدلًا من اتخاذ قرار سريع اعتمادًا على ملخص عام للقاعدة."
+            "\n\n"
+            "تساعد المراجعة القانونية المبكرة على اكتشاف نقاط الغموض وتوثيق القرار قبل أن يتحول الخلاف "
+            "إلى نزاع. وتظل النتيجة مرتبطة بالنصوص النافذة والوقائع والمستندات الفعلية لكل حالة."
+        )
+    linkedin_post = append_hashtags(sanitize_social_copy(linkedin_body), topic)
     fb = publish_photo(
         page_id=config["facebook_page_id"],
         page_access_token=config["facebook_page_access_token"],
