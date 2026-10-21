@@ -79,7 +79,7 @@ def render_sentence_overlay(width: int, height: int, sentence: str, output: Path
         chosen = (font, lines, heights, total_h, box_h)
 
     font, lines, heights, total_h, box_height = chosen
-    y_top = max(int(height * 0.60), min(int(height * 0.68), height - box_height - int(height * 0.05)))
+    y_top = max(int(height * 0.05), min(int(height * 0.68), height - box_height - int(height * 0.05)))
     radius = int(24 * scale)
     draw.rounded_rectangle(
         (margin_x, y_top, width - margin_x, y_top + box_height),
