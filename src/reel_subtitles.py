@@ -87,7 +87,9 @@ def burn_sentence_subtitles(video_path: str, segments_json: str, output_path: st
     width, height = int(stream["width"]), int(stream["height"])
     with tempfile.TemporaryDirectory() as tmp:
         tmpdir = Path(tmp)
-        filters = []
+        inputs = []
+        graph_parts = ["[0:v]format=rgba[vbase]"]
+        previous = "vbase"
         for index, segment in enumerate(segments):
             text = str(segment.get("text", "")).strip()
             start, end = float(segment["start"]), float(segment["end"])
@@ -95,17 +97,27 @@ def burn_sentence_subtitles(video_path: str, segments_json: str, output_path: st
                 raise ValueError(f"Invalid subtitle segment at index {index}")
             png = tmpdir / f"subtitle-{index:04d}.png"
             render_sentence_overlay(width, height, text, png)
-            filters.append(f"[{index+1}:v]format=rgba,setpts=PTS-STARTPTS+{start}/TB[s{index}]")
-        inputs = []
-        for index, segment in enumerate(segments):
-            inputs += ["-loop", "1", "-t", f"{float(segment['end'])-float(segment['start']):.3f}", "-i", str(tmpdir / f"subtitle-{index:04d}.png")]
-        graph = "[0:v]format=rgba[base];" + ";".join(
-            f"[base][{i+1}:v]overlay=0:0:enable='between(t,{float(s['start']):.3f},{float(s['end']):.3f})'[v{i}]"
-            for i, s in enumerate(segments)
-        )
-        final_label = f"[v{len(segments)-1}]"
-        cmd = ["ffmpeg", "-y", "-i", str(video), *inputs, "-filter_complex", graph,
-               "-map", final_label, "-map", "0:a?", "-c:v", "libx264", "-crf", "18",
-               "-preset", "medium", "-c:a", "copy", "-movflags", "+faststart", str(output_path)]
-        subprocess.run(cmd, check=True)
+            # Keep each subtitle image available throughout the base video; PTS
+            # offsets it to the requested spoken interval, and enable gates display.
+            inputs += ["-loop", "1", "-i", str(png)]
+            next_label = f"v{index}"
+            image_label = f"s{index}"
+            graph_parts.append(
+                f"[{index+1}:v]format=rgba,setpts=PTS-STARTPTS+{start}/TB[{image_label}]"
+            )
+            graph_parts.append(
+                f"[{previous}][{image_label}]overlay=0:0:"
+                f"enable='between(t,{start:.3f},{end:.3f})'[{next_label}]"
+            )
+            previous = next_label
+        graph = ";".join(graph_parts)
+        cmd = [
+            "ffmpeg", "-y", "-i", str(video), *inputs,
+            "-filter_complex", graph,
+            "-map", f"[{previous}]", "-map", "0:a?",
+            "-c:v", "libx264", "-crf", "18", "-preset", "medium",
+            "-c:a", "copy", "-shortest", "-movflags", "+faststart",
+            str(output_path),
+        ]
+
     return str(output_path)
