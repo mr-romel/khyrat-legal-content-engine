@@ -226,43 +226,10 @@ def create_legal_image(
     if not visual_description:
         raise ImageGenerationError("A post-derived visual description is required.")
 
-    # The visual description is already extracted from the final post.
-    # The image model must not reinterpret the topic or invent a generic legal scene.
-    prompt = (
-        "Create one realistic contemporary editorial photograph that directly illustrates the specific legal topic and scene below. "
-        "Prioritize subject-matter accuracy over generic legal imagery: depict the concrete action, objects, setting, and evidence "
-        "that best communicate this exact issue to an ordinary viewer. "
-        "Use a present-day workplace, home, shop, street, smartphone, or modern paperwork only when the scene supports it. "
-        "Show one clear focal action, natural documentary lighting, realistic materials, and a clean portrait 4:5 composition. "
-        "Prefer a scene with no people when objects, documents, devices, or the location can clearly explain the legal issue. "
-        "Avoid close-up hands and faces; adult men only if a person is essential, and show one adult man in a natural, anatomically plausible pose with hands partly out of frame. "
-        "Human anatomy must be photorealistic: exactly five natural fingers per visible hand, two arms maximum, natural joints, realistic eyes and teeth, no fused or duplicated body parts. "
-        "Do not depict any women or girls. Never depict women or girls, female-presenting "
-        "people, female faces or bodies, or women in backgrounds, reflections, photographs, screens, illustrations, or silhouettes. "
-        "For topics involving women, harassment, family matters, or another situation where a woman would normally be central, "
-        "show the relevant evidence, phone, documents, setting, or a non-identifying scene instead; do not substitute an unrelated male subject. "
-        "Do not distort the legal meaning or invent people, events, symbols, scenery, or props. "
-        "No readable text, letters, captions, numbers, logos, watermarks, interface elements, infographics, posters, signage, "
-        "cartoon styling, illustration, 3D rendering, fantasy, or surreal effects.\n\n"
-        "EXACT SCENE AND CONTEXT FROM THE FINAL POST:\n"
-        f"Legal topic: {topic}\n"
-        f"Final post text: {str(post_context or '')[:1800]}\n"
-        f"Scene brief: {visual_description}\n\n"
-        "Every visible object and action must directly support the exact legal topic. "
-        "Do not substitute generic legal imagery, unrelated people, unrelated office scenes, historical scenery, "
-        "legal symbols, gavels, books, or courtrooms unless the final post explicitly concerns those objects. "
-        "No women or girls anywhere in the image. Render only the most topic-relevant scene."
-    )
-    negative_prompt = (
-        "woman, women, girl, girls, female, female-presenting person, female face, female body, "
-        "woman in background, woman in reflection, woman in photograph, woman on screen, female silhouette, "
-        "text, letters, captions, subtitles, watermark, logo, readable signage, "
-        "infographic, poster, user interface, chart, generic courtroom, justice scales, "
-        "generic lawyer stock photo, law books, unrelated office scene, cluttered background, "
-        "unrelated props, distorted hands, extra fingers, missing fingers, fused fingers, extra limbs, duplicated arms, malformed wrists, twisted joints, "
-        "warped faces, asymmetrical eyes, malformed teeth, duplicated people, duplicated objects, blurry faces, stretched anatomy, unnatural proportions, "
-        "cartoon, illustration, 3D render, fantasy, surrealism, low quality, deformed, disfigured"
-    )
+    # Use the post-derived visual description directly as requested. Avoid extra
+    # negative prompts and arbitrary subject restrictions that can block generation.
+    prompt = visual_description
+    negative_prompt = ""
 
     def _generate_with_gemini() -> bytes:
         if not gemini_key:
@@ -319,7 +286,6 @@ def create_legal_image(
 
     request_body = {
         "prompt": prompt,
-        "negative_prompt": negative_prompt,
         "width": width,
         "height": height,
         "num_steps": num_steps,
