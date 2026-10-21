@@ -227,7 +227,8 @@ jobs:
           if fb_ok and not result['youtube'].get('video_id'):
               try:
                   title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
-                  description=str(plan.get('youtube_description', fb_caption)).strip()
+                  # YouTube description must match the approved post copy for this exact Reel.
+          description=fb_caption
                   yt=publish_youtube_short(str(video), title, description)
                   result['youtube']=yt
                   update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
