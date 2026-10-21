@@ -98,7 +98,12 @@ jobs:
               run_id=str(row.get("Reel Run ID","")).strip()
               if approval=="APPROVED":
                   candidates.append((n,status,approval,run_id))
-                  if status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"} and run_id:
+                  fb_id = str(row.get("Reel Facebook ID","")).strip()
+                  yt_id = str(row.get("Reel YouTube ID","")).strip()
+                  # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
+                  eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
+                  backfill_youtube = status == "PUBLISHED" and bool(fb_id) and not yt_id
+                  if (eligible_status or backfill_youtube) and run_id:
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
                           out.write(f"row_number={n}\nrun_id={run_id}\n")
                       print(f"Approved Reel found at row {n}; status={status}; run_id={run_id}")
