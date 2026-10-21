@@ -66,3 +66,12 @@ def test_qa_prompt_treats_visible_distortion_as_mandatory_regeneration():
     assert "visible distortion" in prompt
     assert "mandatory REGENERATE signal" in prompt
     assert "no visible hands" in prompt
+
+
+def test_image_qa_without_key_does_not_block_publication(tmp_path):
+    from image_qa import qa_image
+    path = tmp_path / "image.jpg"
+    Image.new("RGB", (1024, 1024), "white").save(path)
+    result = qa_image(api_key="", image_path=str(path), topic="test", image_brief="test")
+    assert result["decision"] == "PASS"
+    assert "publication remains unblocked" in result["issues"][0]
