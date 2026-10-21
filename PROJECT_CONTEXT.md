@@ -125,3 +125,82 @@ Depending on workflow: `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, `BL
 - Quality check after 720p/15fps Reel optimization: https://github.com/mr-romel/khyrat-legal-content-engine/actions/runs/38055120688
 
 **Do not describe this handoff as a fully resolved project.** Blogger publishing has a verified successful path through the saved UI session, but REST OAuth needs owner action. Reel duration-cap and image-provenance/QA changes require post-commit workflow verification.
+
+
+
+---
+
+## Current operating contract and 2026-10-21 handoff update
+
+### LinkedIn must not be Facebook copy
+LinkedIn is a distinct professional B2B legal-business post for company owners, management, HR, legal departments, compliance, operations and decision-makers. Target roughly 350–600 Arabic words when the topic supports it; current production code applies a depth gate around 350 words and a safe 2,900-character limit. Explain business impact, legal/operational exposure, documents to inspect, internal responsibility, decision points and risk controls. Use a different opening, structure and practical example from Facebook. Do not address the reader directly as أنت/إنت/عندك, do not use a sales pitch, and do not publish the same Facebook text to LinkedIn.
+
+**Regression rule:** every publication path, including image repair/republication, must create LinkedIn-specific copy. The image-repair path previously passed the raw post to both platforms. It has now been changed to call the editorial preparation path for a LinkedIn version, with a professional B2B fallback if generation fails. Commit: `606223916b2b2900c49c7805b80694679dbac8ed`. This code change still requires test/run verification.
+
+### Writing and legal rules
+- Verify current effective Egyptian law and amendments; never invent statute numbers, penalties, case citations, dates, quotations, deadlines, court principles or sources.
+- Prefer professional, natural Egyptian Arabic; avoid templates, filler, repeated hooks, generic motivational copy, hard-sell CTA, AI-production disclosure and internal editorial labels.
+- No dangling/incomplete endings or ellipses. Current editorial prompt avoids terminal full stops in public copy.
+- Do not reuse a subject unless the angle, objective, example, hook or practical treatment is materially new.
+- Facebook and LinkedIn may share legal facts, but not the same platform copy.
+
+### Schedule and retry rules
+- Exactly one planned slot per calendar day, Africa/Cairo, deterministic but variable between 10:00 and 22:00 inclusive; never apply an even/odd-day filter.
+- Check for existing posts before retrying; persist platform IDs/permalinks and status. A partial failure must not cause a duplicate on a platform that already succeeded.
+- A green Actions run or closed UI dialog is not proof of external publication. Require a public permalink, platform post ID, or Telegram delivery receipt.
+
+### Image generation
+- Derive the visual description from the completed post and send that description directly to the image generator; avoid arbitrary extra restrictions.
+- Avoid anachronistic/Pharaonic imagery for modern legal topics.
+- Preserve provider/model, exact prompt, prompt hash, final image hash and QA outcome in provenance sidecars where available.
+- On 2026-10-21, `src/image_generator.py` was changed to send the post-derived description directly and omit `negative_prompt`. `src/image_qa.py` was changed to make QA findings and API outages advisory/fail-open. This is code state, not proof that all tests/runtime paths pass; inspect the actual generated image and review the fail-open policy before considering it operationally verified.
+
+### Daily Reel and Shorts
+- Change the actual daily production path, not an experimental/pilot path unless explicitly asked.
+- Render exactly one subtitle box. Every spoken sentence must fit inside the box and frame using wrapping and adaptive font/height; no overlap, clipping or truncation.
+- Burn subtitles once. Bound the video to source/narration duration and retain `-t <source duration>` plus `-shortest` on main and fallback render paths where applicable.
+- Preserve the approved brand end card and vertical output. When YouTube Shorts publication is enabled, use the post text as the description and verify the real video ID/URL.
+- The 2026-10-21 update removed the duplicate whiteboard-card layer and added adaptive single-box subtitles in `src/reel_pipeline.py` and `src/reel_subtitles.py`. Exact MP4 generation, tests, Telegram delivery and Shorts publication still require verification.
+
+### Comments and platform permissions
+- Engagement is independent of the base publishing worker. Optional reaction/comment failures must not undo a successful post.
+- The intended comment queue varies between 3 and 7 contextual comments per post/platform. Queue workers publish at most one pending comment per run where configured, and retries must be idempotent.
+- Do not assume `w_member_social_feed` exists; prior LinkedIn capability testing confirmed `w_member_social` as the available scope. Use supported API operations only.
+
+### Blogger and search publishing
+- A Blogger demand article was verified at https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_314.html with title “كيفية التعامل مع الابتزاز الإلكتروني في مصر: الأدلة والخطوات القانونية التي يجب مراجعتها”.
+- Blogger REST OAuth previously returned `invalid_grant` for an expired/revoked refresh token. If it persists, owner-side reauthorization and secure replacement of `BLOGGER_OAUTH_JSON` are required; code cannot revive a revoked token.
+- Gemini 429 may indicate shared project quota exhaustion; do not cycle model names indefinitely. Use a verified-source fallback for Blogger demand articles and never invent legal content.
+- Normalize combined Blogger labels below 200 characters. Reuse exact existing published content on retry; inspect post IDs/body/state before cleanup.
+
+### Architecture quick reference
+- Core publisher/runtime: `src/run_main.py`, `src/main.py`, `src/content_system.py`, `src/content_system_runtime.py`, `src/content_planner.py`.
+- Generation/style: `src/gemini.py`, `src/gemini_runtime.py`, `src/ai_router.py`, `src/content_style.py`, `src/content_style_v3.py`, `src/social_content.py`.
+- Quality/diversity: `src/content_diversity.py`, `src/content_similarity.py`, `src/editorial_review.py`, `src/decision_engine.py`, `src/content_intelligence*.py`, `src/analytics.py`, `src/performance.py`.
+- Legal/SEO: `src/legal_research.py`, `src/legal_reference_registry.py`, `src/search_console_intelligence.py`, `src/search_geo.py`.
+- Images: `src/image_generator.py`, `src/image_qa.py`, `src/free_media.py`.
+- Reels/Telegram: `src/reel_pipeline.py`, `src/reel_subtitles.py`, `src/reel_publishers.py`, `src/video_layer.py`, `src/video_module/`, `src/telegram_publication.py`, `src/telegram_bot.py`, `src/telegram_control.py`.
+- Facebook/LinkedIn: `src/facebook_publisher.py`, `src/facebook_engagement_worker.py`, `src/facebook_private_reply_worker.py`, `src/linkedin_publisher.py`, `src/linkedin_engagement.py`, `src/linkedin_engagement_worker.py`, `src/linkedin_comment_engine.py`.
+- Blogger: `src/blogger_worker.py`, `src/blogger_demand_worker.py`, `src/blogger_publisher.py`, `src/blogger_ui_publisher.py`, and the Blogger SEO/identity/pages modules.
+- Infrastructure/marketplace: `src/config.py`, `src/sheets.py`, `src/token_manager.py`, `src/production_monitor.py`, `src/utils.py`, `src/marketplace/`.
+
+### Current changes and what remains unverified
+- LinkedIn image-repair copy path: commit `606223916b2b2900c49c7805b80694679dbac8ed`.
+- Reel single caption box / duplicate card-layer removal: commit `1fa5226d0588c5aa45910ec63d811e38d0a100e1`.
+- Image QA advisory/fail-open: commits `2d7dda43d1d84727c9dda944b91f82c6d273bc87` and `e7f483a31bb88261c7af4fc5a4db78b156ce53b0`.
+- A trigger file was updated to request a one-off Reel run; the last observed Vercel status was pending. This is not proof of Reel generation, Telegram delivery or social publication.
+- Run the current tests/Quality Check; inspect the exact Reel MP4 and image; confirm Telegram receipt and Shorts URL/ID if enabled; confirm LinkedIn copy on normal and image-repair paths; reauthorize Blogger OAuth if `invalid_grant` persists.
+
+### Secret handling
+Only secret *names* may be documented: `BLOGGER_OAUTH_JSON`, `BLOGGER_UI_STORAGE_STATE_B64`, `BLOGGER_BLOG_ID`, `BLOGGER_URL`, `BLOGGER_ENABLED`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_CREDENTIALS`, `GOOGLE_SHEET_URL`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_RANGE`, `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, Cloudflare account/token secret names, and platform-specific Meta/LinkedIn token secret names. Never store secret values in code, documentation, prompts or logs.
+
+### Acceptance checklist
+- [ ] Legal sources verified; no invented claims or citations.
+- [ ] LinkedIn copy is distinct, substantive, professional and B2B on every path.
+- [ ] One daily slot in Cairo time between 10:00 and 22:00; no parity filter.
+- [ ] Retries are idempotent and do not duplicate successful platform posts.
+- [ ] Exact image inspected; provenance retained.
+- [ ] Reel has one caption box with the entire spoken sentence inside frame and bounded duration.
+- [ ] Current tests/Quality Check pass.
+- [ ] Telegram delivery and public platform publication verified independently.
+- [ ] No secret values in repository, documentation or logs.
