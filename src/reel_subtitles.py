@@ -116,8 +116,11 @@ def burn_sentence_subtitles(video_path: str, segments_json: str, output_path: st
             "-filter_complex", graph,
             "-map", f"[{previous}]", "-map", "0:a?",
             "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-            "-c:a", "copy", "-shortest", "-movflags", "+faststart",
+            "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
             str(output_path),
         ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=900)
 
+    if not Path(output_path).is_file() or Path(output_path).stat().st_size < 100_000:
+        raise RuntimeError("Subtitle renderer did not produce a valid output video.")
     return str(output_path)
