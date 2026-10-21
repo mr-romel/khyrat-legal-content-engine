@@ -37,21 +37,9 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     )
 
     assert output.read_bytes() == b"fake-image-bytes"
+    assert "negative_prompt" not in captured
     prompt = captured["prompt"].lower()
-    negative = captured["negative_prompt"].lower()
-    assert "worker reviewing a modern employment document" in prompt
-    assert "contemporary editorial photograph" in prompt
-    assert "directly illustrates the specific legal topic" in prompt
-    assert "adult men only" in prompt
-    assert "anatomically plausible pose" in prompt
-    assert "extra limbs" in negative
-    assert "fused fingers" in negative
-    assert "do not depict any women or girls" in prompt
-    assert "woman" in negative
-    assert "female face" in negative
-    for trigger in ("egypt", "egyptian", "pharaoh", "pyramid", "hieroglyph", "sarcophagus", "ancient egypt"):
-        assert trigger not in prompt
-        assert trigger not in negative
+    assert prompt == "A worker reviewing a modern employment document beside a phone at a desk."
 
     import json
     provenance = json.loads((tmp_path / "legal.jpg.provenance.json").read_text(encoding="utf-8"))
