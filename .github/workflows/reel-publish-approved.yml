@@ -37,7 +37,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -202,7 +202,7 @@ jobs:
               plan_path=video.with_name('reel_plan.json')
           if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
           plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
-          fb_caption=str(plan.get('facebook_caption','')).strip()
+          fb_caption=str(plan.get('facebook_caption','') or row.get('المحتوى','')).strip()
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
