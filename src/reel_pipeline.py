@@ -518,131 +518,16 @@ def add_motion_graphics_layer(
         "-crf", "18", "-c:a", "aac", "-b:a", "160k", "-shortest", str(endcard)
     ], check=True, timeout=180)
 
-    # Build up to eight explainer cards from actual narration sentences, not generic stock labels.
-    sentences = [v.strip() for v in re.split(r"(?<=[؟!.])\s+", prepare_tts_script(script or topic)) if v.strip()]
-    if not sentences:
-        sentences = [topic.strip() or "راجع الوقائع", "اجمع المستندات", "راجع التفاصيل", "اختار الإجراء المناسب"]
-    selected = []
-    for sentence in sentences:
-        # Keep the complete spoken sentence on screen; never truncate it to a short teaser.
-        phrase = sentence.strip(" ،؛:.-")
-        if phrase and phrase not in selected:
-            selected.append(phrase)
-    selected = selected[:12]
-    while len(selected) < 8:
-        selected.append(selected[-1] if selected else (topic or "راجع التفاصيل"))
-
-    overlay_inputs = []
-    for i, phrase in enumerate(selected):
-        card = Image.new("RGBA", (900, 390), (0, 0, 0, 0))
-        cd = ImageDraw.Draw(card)
-        cd.rounded_rectangle((18, 18, 882, 372), radius=34, fill=(250, 253, 255, 246), outline=(24, 153, 204, 255), width=5)
-        cd.rounded_rectangle((55, 48, 845, 110), radius=20, fill=(12, 43, 70, 255))
-        cd.text((450, 79), rtl("خلّي بالك من النقطة دي"), font=font(29), anchor="mm", fill=(255, 255, 255, 255))
-        # Main words are source-derived; line art is drawn like a whiteboard sketch.
-        # Wrap the complete caption into readable lines.
-        words = phrase.split()
-        lines, current = [], ""
-        for word in words:
-            candidate = (current + " " + word).strip()
-            if current and cd.textbbox((0, 0), rtl(candidate), font=font(30))[2] > 790:
-                lines.append(current)
-                current = word
-            else:
-                current = candidate
-        if current:
-            lines.append(current)
-        if len(lines) > 3:
-            lines = lines[:3]
-            lines[2] = lines[2].rstrip("،؛:.") + "…"
-        line_y = 155 if len(lines) == 1 else (140 if len(lines) == 2 else 125)
-        for line in lines:
-            cd.text((450, line_y), rtl(line), font=font(30), anchor="mm", fill=(9, 35, 57, 255), stroke_width=0)
-            line_y += 49
-        cd.line([(245, 300), (360, 296), (470, 302), (650, 298)], fill=(35, 174, 230, 255), width=6, joint="curve")
-        # Topic-specific line art completes the whiteboard sketch.
-        icon_x, icon_y = 105, 310
-        if i == 0:
-            cd.rounded_rectangle((icon_x, icon_y-24, icon_x+34, icon_y+18), radius=5, outline=(10, 87, 129, 255), width=4)
-            cd.line((icon_x+8, icon_y-10, icon_x+26, icon_y-10), fill=(10, 87, 129, 255), width=3)
-        elif i == 1:
-            cd.ellipse((icon_x, icon_y-24, icon_x+42, icon_y+18), outline=(10, 87, 129, 255), width=4)
-            cd.line((icon_x+11, icon_y-2, icon_x+19, icon_y+7, icon_x+33, icon_y-12), fill=(10, 87, 129, 255), width=4)
-        elif i == 2:
-            cd.line((icon_x+2, icon_y-20, icon_x+2, icon_y+17, icon_x+39, icon_y+17), fill=(10, 87, 129, 255), width=4)
-            cd.line((icon_x+8, icon_y+9, icon_x+18, icon_y-3, icon_x+27, icon_y+3, icon_x+37, icon_y-16), fill=(10, 87, 129, 255), width=4)
-        else:
-            cd.ellipse((icon_x, icon_y-23, icon_x+31, icon_y+8), outline=(10, 87, 129, 255), width=4)
-            cd.line((icon_x+26, icon_y+5, icon_x+43, icon_y+22), fill=(10, 87, 129, 255), width=5)
-        path = work_dir / f"whiteboard_card_{i+1}.png"
-        card.save(path)
-        overlay_inputs.extend(["-loop", "1", "-framerate", "1", "-i", str(path)])
-
+    # Keep a single caption layer in the delivered Reel. The previous whiteboard
+    # cards duplicated the spoken-sentence subtitle box and caused overlapping boxes.
     base = work_dir / "whiteboard_base.mp4"
     vf = "scale=780:1386:force_original_aspect_ratio=increase,crop=720:1280:x='30+10*sin(t*0.22)':y='45+12*cos(t*0.18)',fps=15,eq=contrast=1.03:saturation=1.04"
     subprocess.run(["ffmpeg", "-y", "-i", str(input_video), "-vf", vf, "-c:v", "libx264",
                     "-preset", "veryfast", "-crf", "19", "-c:a", "copy", "-movflags", "+faststart", str(base)],
                    check=True, timeout=900)
-    duration = _media_duration(base)
-    filter_parts = ["[0:v]null[base]"]
-    previous = "[base]"
-    for i in range(8):
-        idx = i + 1
-        start = i * 15.0
-        end = min(duration, start + 15.0)
-        if start >= duration:
-            continue
-        if end <= start:
-            continue
-        out = f"[wb{i}]"
-        # Four source-derived whiteboard cards slide in on a simple four-node
-        # graph. The previous hand+drawbox chain timed out even with low-fps
-        # still inputs, so the marker underline is now drawn into each card.
-        card_label = f"[card{i}]"
-        x_expr = f"if(lt(t,{start+0.40:.3f}),-720+(t-{start:.3f})*1950,60)".replace(",", r"\,")
-        enable_expr = f"between(t,{start:.3f},{end:.3f})".replace(",", r"\,")
-        filter_parts.append(f"[{idx}:v]scale=720:312{card_label}")
-        filter_parts.append(
-            f"{previous}{card_label}overlay=x='{x_expr}':"
-            f"y=720:eval=frame:enable='{enable_expr}'{out}"
-        )
-        previous = out
-    if len(filter_parts) == 1:
-        filter_parts.append("[base]null[wbfinal]")
-        previous = "[wbfinal]"
-    filter_complex = ";".join(filter_parts)
-    styled = work_dir / "whiteboard_motion.mp4"
-    try:
-        subprocess.run(
-            ["ffmpeg", "-y", "-filter_complex_threads", "2", "-i", str(base), *overlay_inputs,
-             "-filter_complex", filter_complex, "-map", previous, "-map", "0:a:0?",
-             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "4",
-             "-crf", "24", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
-             # Looped still-card inputs can keep FFmpeg alive forever without an output cap.
-             "-t", f"{duration:.3f}", "-shortest", str(styled)],
-            check=True, timeout=120,
-        )
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
-        # Branded, motion-card fallback: one whiteboard card overlays the base
-        # for a short window, then the branded end card is still appended.
-        print(f"REEL_STAGE whiteboard_simplified_fallback reason={exc}")
-        styled.unlink(missing_ok=True)
-        fallback_x = "if(lt(t,2.4),-720+(t-2.0)*1950,60)".replace(",", r"\,")
-        fallback_enable = "between(t,2.0,8.0)".replace(",", r"\,")
-        fallback_filter = (
-            "[0:v]null[base];[1:v]scale=720:312[card];"
-            f"[base][card]overlay=x='{fallback_x}':y=720:eval=frame:"
-            f"enable='{fallback_enable}'[wb]"
-        )
-        subprocess.run(
-            ["ffmpeg", "-y", "-filter_complex_threads", "2", "-i", str(base),
-             "-loop", "1", "-framerate", "1", "-i", str(work_dir / "whiteboard_card_1.png"),
-             "-filter_complex", fallback_filter, "-map", "[wb]", "-map", "0:a:0?",
-             "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
-             "-crf", "25", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
-             "-t", f"{duration:.3f}", "-shortest", str(styled)],
-            check=True, timeout=120,
-        )
+    # The base video is the only content layer; sentence subtitles are burned once
+    # after the branded end-card has been appended.
+    styled = base
     concat_list = work_dir / "concat.txt"
     concat_list.write_text(f"file '{styled.resolve()}'\nfile '{endcard.resolve()}'\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
