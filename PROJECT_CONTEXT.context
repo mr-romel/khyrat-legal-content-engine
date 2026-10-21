@@ -94,3 +94,32 @@ DO NOT CLAIM THE WHOLE PROJECT IS FIXED until the new Reel workflow, final image
 
 LATEST CHANGE
 - d1b84071fa1c21689f641b2828e343f5c8afa7fa — explicitly rejected images are removed and the row falls back to text-only publication rather than posting a known-bad image.
+
+
+
+LATEST OPERATING CONTRACT — 2026-10-21
+LINKEDIN: Never reuse Facebook copy. LinkedIn is a standalone professional B2B legal-business post for company owners, management, HR, legal, compliance and operations. Target 350–600 Arabic words when topic supports it; current depth gate ~350 words and safe cap 2,900 chars. Discuss business impact, risk, documents, responsibility and decision points. Do not address the reader as أنت/إنت/عندك. Every path, including image repair, must generate LinkedIn-specific copy. Fix committed as 606223916b2b2900c49c7805b80694679dbac8ed; runtime/test verification remains pending.
+
+GENERAL WRITING: Verify current Egyptian law; never invent statutes, penalties, court citations, dates, quotations or sources. Use natural professional Egyptian Arabic, no robotic filler, AI disclosure, internal planning labels, ellipses or incomplete endings. No hard-sell CTA. Distinct platform copy; recycled topics need a materially new angle.
+
+SCHEDULE: Exactly one slot/day; Africa/Cairo; deterministic variable time 10:00–22:00 inclusive; no odd/even-day filter. Retries idempotent; never duplicate already-published posts. Green job/dialog closure is not proof: require permalink, platform post ID or Telegram receipt.
+
+IMAGE: Send post-derived visual description directly; avoid arbitrary restrictions and irrelevant Pharaonic imagery. Keep provider/model/prompt hash/final image hash/QA in provenance. Latest code removes negative_prompt and makes visual QA advisory/fail-open; verify tests and inspect actual image before treating as resolved.
+
+REEL: Actual daily path only, not pilot. One subtitle box; full spoken sentence wrapped and fully in-frame; no duplicate layer, clipping or truncation. Burn once and cap duration with -t <source duration> and -shortest on main/fallback paths. Verify actual MP4, Telegram receipt and YouTube Shorts URL/ID when enabled. Single-box changes are not yet end-to-end verified.
+
+ENGAGEMENT: Intended variable 3–7 contextual comments per post/platform; queue worker at most one pending comment per run where configured; idempotent. Do not assume LinkedIn w_member_social_feed exists; previously confirmed scope is w_member_social.
+
+BLOGGER: Verified article https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_314.html. Blogger OAuth invalid_grant requires owner reauthorization if persistent; update BLOGGER_OAUTH_JSON securely. Gemini 429 means use verified-source fallback rather than cycling model names. Normalize labels below 200 chars. Verify Published state and public permalink; do not bulk-delete drafts.
+
+CURRENT CODE UPDATES, NOT YET OPERATIONALLY VERIFIED:
+- LinkedIn image-repair B2B copy: 606223916b2b2900c49c7805b80694679dbac8ed.
+- Reel single caption box/removal of duplicate card layer: 1fa5226d0588c5aa45910ec63d811e38d0a100e1.
+- Image QA fail-open/advisory: 2d7dda43d1d84727c9dda944b91f82c6d273bc87 and e7f483a31bb88261c7af4fc5a4db78b156ce53b0.
+- One-off Reel trigger was updated, but pending Vercel status is not proof of render or delivery.
+
+ARCHITECTURE: Core src/run_main.py, src/main.py, src/content_system.py, src/content_system_runtime.py; writing src/gemini.py, src/gemini_runtime.py, src/ai_router.py, src/content_style*.py, src/social_content.py; legal src/legal_research.py, src/legal_reference_registry.py; images src/image_generator.py, src/image_qa.py; Reels src/reel_pipeline.py, src/reel_subtitles.py, src/reel_publishers.py, src/video_module/; Telegram src/telegram_publication.py, src/telegram_bot.py, src/telegram_control.py; Facebook/LinkedIn publishers and engagement workers; Blogger REST/UI/demand/SEO modules; infrastructure src/config.py, src/sheets.py, src/token_manager.py, src/production_monitor.py; marketplace src/marketplace/.
+
+SECRETS: Names only, never values. Relevant names include BLOGGER_OAUTH_JSON, BLOGGER_UI_STORAGE_STATE_B64, GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_CREDENTIALS, GOOGLE_SHEET_URL/ID/RANGE, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN/CHAT_ID, Cloudflare credentials and platform-specific Meta/LinkedIn tokens.
+
+NEXT VERIFICATION: Run tests and Quality Check; inspect actual daily Reel and image; verify Telegram and Shorts delivery; verify LinkedIn B2B copy in normal and image-repair paths; reauthorize Blogger OAuth if invalid_grant persists.
