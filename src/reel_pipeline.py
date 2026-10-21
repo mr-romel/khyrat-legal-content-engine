@@ -1489,6 +1489,38 @@ def main() -> int:
                     raise RuntimeError(f"REEL_STAGE fallback_branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
 
         video_path = output_dir / "daily-reel.mp4"
+        # Burn one complete spoken sentence at a time into the actual delivered MP4.
+        # Sentence durations are weighted by spoken-text length over the measured narration
+        # duration; this is deterministic and avoids displaying the whole script at once.
+        try:
+            from reel_subtitles import burn_sentence_subtitles
+            spoken_sentences = [
+                part.strip() for part in re.split(r"(?<=[؟!.])\\s+", prepare_tts_script(brief["script"]))
+                if part.strip()
+            ]
+            narration_duration = _media_duration(tts_audio)
+            if not spoken_sentences or narration_duration <= 0:
+                raise RuntimeError("Cannot create subtitle timings without narration sentences and audio duration.")
+            weights = [max(1, len(part)) for part in spoken_sentences]
+            total_weight = sum(weights)
+            segments = []
+            cursor = 0.0
+            for index, (sentence, weight) in enumerate(zip(spoken_sentences, weights)):
+                end = narration_duration if index == len(spoken_sentences) - 1 else cursor + narration_duration * weight / total_weight
+                if end - cursor >= 0.20:
+                    segments.append({"text": sentence, "start": round(cursor, 3), "end": round(end, 3)})
+                cursor = end
+            segments_path = output_dir / "subtitle_segments.json"
+            segments_path.write_text(json.dumps({"segments": segments}, ensure_ascii=False, indent=2), encoding="utf-8")
+            subtitled_video = output_dir / "daily-reel-subtitled.mp4"
+            burn_sentence_subtitles(str(video_path), str(segments_path), str(subtitled_video))
+            if not subtitled_video.is_file() or subtitled_video.stat().st_size < 100_000:
+                raise RuntimeError("Subtitle burn-in did not produce a valid MP4.")
+            shutil.move(str(subtitled_video), str(video_path))
+            print(f"REEL_STAGE subtitles=burned sentence_count={len(segments)} narration_duration={narration_duration:.1f}s")
+        except Exception as subtitle_exc:
+            raise RuntimeError(f"REEL_STAGE subtitle_render_failed; refusing delivery of Reel without sentence subtitles: {subtitle_exc}") from subtitle_exc
+
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
         final_duration = _media_duration(video_path)
