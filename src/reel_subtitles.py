@@ -45,30 +45,53 @@ def _wrap(draw, text, font, max_width):
 
 
 def render_sentence_overlay(width: int, height: int, sentence: str, output: Path) -> None:
+    """Render one adaptive caption box that contains the entire spoken sentence."""
     scale = width / 1080
-    font = _font(max(30, int(42 * scale)))
     margin_x = int(64 * scale)
+    padding_x = int(28 * scale)
+    padding_y = int(18 * scale)
     box_width = width - 2 * margin_x
-    box_height = int(height * 0.20)
-    y_top = int(height * 0.70)
+    max_box_height = int(height * 0.32)
+    line_gap = max(3, int(6 * scale))
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
+
+    # Reduce the font only as much as necessary so every word remains inside the box.
+    chosen = None
+    for font_size in range(max(18, int(42 * scale)), max(17, int(21 * scale)) - 1, -1):
+        font = _font(font_size)
+        lines = _wrap(draw, sentence, font, box_width - 2 * padding_x)
+        heights = [draw.textbbox((0, 0), line, font=font, direction="rtl", language="ar")[3]
+                   for line in lines]
+        total_h = sum(heights) + max(0, len(lines) - 1) * line_gap
+        needed_h = total_h + 2 * padding_y
+        if needed_h <= max_box_height:
+            chosen = (font, lines, heights, total_h, min(max_box_height, max(int(height * 0.12), needed_h)))
+            break
+    if chosen is None:
+        # Last-resort small font still wraps the full sentence; never truncate its text.
+        font = _font(max(16, int(18 * scale)))
+        lines = _wrap(draw, sentence, font, box_width - 2 * padding_x)
+        heights = [draw.textbbox((0, 0), line, font=font, direction="rtl", language="ar")[3]
+                   for line in lines]
+        total_h = sum(heights) + max(0, len(lines) - 1) * line_gap
+        box_h = min(height - int(height * 0.06), total_h + 2 * padding_y)
+        chosen = (font, lines, heights, total_h, box_h)
+
+    font, lines, heights, total_h, box_height = chosen
+    y_top = max(int(height * 0.60), min(int(height * 0.68), height - box_height - int(height * 0.05)))
     radius = int(24 * scale)
     draw.rounded_rectangle(
         (margin_x, y_top, width - margin_x, y_top + box_height),
         radius=radius,
-        fill=(255, 255, 255, 238),
+        fill=(255, 255, 255, 242),
         outline=(27, 143, 194, 255),
         width=max(2, int(4 * scale)),
     )
-    padding = int(28 * scale)
-    lines = _wrap(draw, sentence, font, box_width - 2 * padding)
-    line_gap = int(8 * scale)
-    heights = [draw.textbbox((0, 0), line, font=font)[3] for line in lines]
-    total_h = sum(heights) + max(0, len(lines) - 1) * line_gap
-    y = y_top + max(padding // 2, (box_height - total_h) // 2)
+    y = y_top + max(padding_y, (box_height - total_h) // 2)
     for line, line_h in zip(lines, heights):
-        draw.text((width // 2, y), line, font=font, fill=(10, 38, 61, 255), anchor="ma", direction="rtl", language="ar")
+        draw.text((width // 2, y), line, font=font, fill=(10, 38, 61, 255),
+                  anchor="ma", direction="rtl", language="ar")
         y += line_h + line_gap
     image.save(output)
 
