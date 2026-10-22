@@ -137,6 +137,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
             findings.append({"severity": "MEDIUM", "code": "NO_INTERNAL_POST_LINKS", "message": "No contextual link to another post in the public feed was detected.", "title": item["title"], "url": item["url"]})
 
     sitemap_urls = []
+    is_sitemap_index = False
     try:
         root = ET.fromstring(sitemap) if sitemap else None
         if root is not None:
@@ -149,6 +150,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
                 findings.append({"severity": "MEDIUM", "code": "SITEMAP_NO_URLS",
                                  "message": "Sitemap returned successfully but no loc URLs were parsed."})
             if root.tag.endswith("sitemapindex"):
+                is_sitemap_index = True
                 findings.append({"severity": "LOW", "code": "SITEMAP_INDEX",
                                  "message": "Sitemap endpoint is an index; nested sitemap URLs are listed but not fetched individually."})
     except ET.ParseError as exc:
@@ -157,8 +159,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
 
     sitemap_url_set = set(sitemap_urls)
     feed_url_set = {str(item.get("url", "")).split("#", 1)[0].rstrip("/") for item in entries if item.get("url")}
-    missing_from_sitemap = sorted(feed_url_set - sitemap_url_set)
-    if sitemap_urls:
+    missing_from_sitemap = sorted(feed_url_set - sitemap_url_set) if sitemap_urls and not is_sitemap_index else []
+    if sitemap_urls and not is_sitemap_index:
         checks.append({"name": "feed_permalink_coverage_in_sitemap",
                        "ok": not missing_from_sitemap,
                        "feed_urls": len(feed_url_set),
