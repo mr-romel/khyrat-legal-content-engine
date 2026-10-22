@@ -631,7 +631,15 @@ def _main_impl():
         return 0
 
     token = CONFIG["linkedin_access_token"]
-    actor = (CONFIG.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
+    actor = (CONFIG.get("linkedin_author_urn", "") or "").strip()
+    if not actor:
+        print("LINKEDIN_AUTHOR_URN is empty; resolving the member URN from the authenticated token.")
+        actor = (resolve_member_urn(token) or "").strip()
+    if not actor:
+        raise RuntimeError(
+            "LinkedIn member URN could not be resolved. Set LINKEDIN_AUTHOR_URN to the member URN returned by LinkedIn userinfo; refusing to mark queued events as processed."
+        )
+    print(f"LinkedIn actor configured: {actor}")
 
     for event in due:
         row_number = int(event["_row_number"])
@@ -777,12 +785,13 @@ def main():
     try:
         return _main_impl()
     except Exception as exc:
-        # Engagement is strictly non-blocking. A failed comment worker must
-        # never affect the publishing workflow or prevent the next retry cycle.
-        print(f"Non-blocking engagement worker error: {exc}")
+        # Do not report a broken worker as a successful GitHub Actions run.
+        # This worker is separate from publishing, so failing this job cannot
+        # block the content publisher; the next scheduled cycle can retry.
+        print(f"LinkedIn engagement worker failed: {exc}")
         import traceback
         print(traceback.format_exc())
-        return 0
+        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())
