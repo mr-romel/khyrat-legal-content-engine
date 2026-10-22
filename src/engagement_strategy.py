@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timedelta
 from typing import Iterable
 
@@ -27,6 +28,16 @@ def blog_cta_comment(
     if not re.match(r"^https?://(?:www\.)?askmahmoudkhyrat\.blogspot\.com(?:/|$)", candidate_url, flags=re.I):
         candidate_url = BLOGGER_URL
     candidate_url = re.sub(r"[?&]m=1(?:&.*)?$", "", candidate_url)
+    if platform_name == "facebook":
+        parts = urlsplit(candidate_url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query.update({
+            "utm_source": "facebook",
+            "utm_medium": "organic_social",
+            "utm_campaign": "legal_reels",
+            "utm_content": re.sub(r"[^A-Za-z0-9_-]", "", str(post_key or ""))[:80] or "facebook_post",
+        })
+        candidate_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
     context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
     lowered = context.casefold()
     if any(word in lowered for word in ("إيجار", "إيجارات", "مالك", "مستأجر")):
