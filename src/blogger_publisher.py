@@ -15,7 +15,7 @@ BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
 DEFAULT_BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
 FACEBOOK_URL = "https://www.facebook.com/AskMahmoudNow"
 LINKEDIN_URL = "https://www.linkedin.com/in/mahmoud-khyrat"
-BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/?m=1"
+BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 WHATSAPP_URL = "https://wa.me/201022718375"
 SUGGEST_URL = "https://suggestqueries.google.com/complete/search"
 
@@ -550,7 +550,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     title = str(article.get("title") or title).strip()[:110]
     content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
     keyword_labels = [str(x).strip() for x in (article.get("keywords", []) if isinstance(article.get("keywords"), list) else []) if str(x).strip()]
-    labs=list(dict.fromkeys([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels]))[:10]
+    labs=normalize_blogger_labels([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels])
     body={"title":title,"content":content,"labels":labs,"readerComments":"allow"}
     # Blogger API v3 publishes by default when isDraft is omitted.
     try: result=svc.posts().insert(blogId=bid,body=body,fetchBody=True).execute()
