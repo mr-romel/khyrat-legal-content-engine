@@ -55,6 +55,9 @@ def test_run_reports_duplicate_titles_and_does_not_claim_google_crawl(monkeypatc
     })())
     report = run(str(tmp_path / "audit"))
     assert report["summary"]["posts_in_feed"] == 2
+    assert report["summary"]["feed_urls_missing_from_sitemap"] == 1
+    assert report["summary"]["posts_without_internal_links"] == 2
+    assert any(x["code"] == "FEED_URL_NOT_IN_SITEMAP" for x in report["findings"])
     assert any(x["code"] == "DUPLICATE_TITLE" for x in report["findings"])
     assert "does not measure Googlebot crawl" in report["important_limit"]
     assert (tmp_path / "audit" / "report.md").exists()
