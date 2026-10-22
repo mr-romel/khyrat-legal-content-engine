@@ -20,14 +20,14 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; KhyratLegalSEOAudit/1.0)"}
 
 
 def clean(value: object) -> str:
-    return re.sub(r"\\s+", " ", unescape(str(value or ""))).strip()
+    return re.sub(r"\s+", " ", unescape(str(value or ""))).strip()
 
 
 def norm_title(value: str) -> str:
     value = clean(value).casefold()
     value = re.sub(r"[ـًٌٍَُِّْٰ]", "", value)
     value = re.sub(r"[إأآٱ]", "ا", value).replace("ى", "ي").replace("ة", "ه")
-    return " ".join(re.findall(r"[\\w\\u0600-\\u06ff]+", value))
+    return " ".join(re.findall(r"[\w\u0600-\u06ff]+", value))
 
 
 def fetch(url: str) -> tuple[int, str, str]:
@@ -140,16 +140,33 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
     try:
         root = ET.fromstring(sitemap) if sitemap else None
         if root is not None:
-            sitemap_urls = [node.text.strip() for node in root.iter()
+            sitemap_urls = [node.text.strip().split("#", 1)[0].rstrip("/")
+                            for node in root.iter()
                             if node.tag.endswith("loc") and node.text and node.text.strip()]
             checks.append({"name": "sitemap_parse", "ok": bool(sitemap_urls),
                            "url_count": len(sitemap_urls)})
             if not sitemap_urls:
                 findings.append({"severity": "MEDIUM", "code": "SITEMAP_NO_URLS",
                                  "message": "Sitemap returned successfully but no loc URLs were parsed."})
+            if root.tag.endswith("sitemapindex"):
+                findings.append({"severity": "LOW", "code": "SITEMAP_INDEX",
+                                 "message": "Sitemap endpoint is an index; nested sitemap URLs are listed but not fetched individually."})
     except ET.ParseError as exc:
         findings.append({"severity": "HIGH", "code": "SITEMAP_PARSE_ERROR",
                          "message": f"Sitemap is not valid XML: {exc}"})
+
+    sitemap_url_set = set(sitemap_urls)
+    feed_url_set = {str(item.get("url", "")).split("#", 1)[0].rstrip("/") for item in entries if item.get("url")}
+    missing_from_sitemap = sorted(feed_url_set - sitemap_url_set)
+    if sitemap_urls:
+        checks.append({"name": "feed_permalink_coverage_in_sitemap",
+                       "ok": not missing_from_sitemap,
+                       "feed_urls": len(feed_url_set),
+                       "missing_count": len(missing_from_sitemap)})
+        for missing_url in missing_from_sitemap:
+            findings.append({"severity": "MEDIUM", "code": "FEED_URL_NOT_IN_SITEMAP",
+                             "message": "Public feed permalink was not found in the sitemap response.",
+                             "url": missing_url})
 
     latest_updated = max((x["updated"] for x in entries if x["updated"]), default="")
     latest_published = max((x["published"] for x in entries if x["published"]), default="")
@@ -164,6 +181,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
             "sitemap_urls": len(sitemap_urls),
             "internal_links_between_posts": internal_link_count,
             "posts_without_internal_links": len(posts_without_internal_links),
+            "feed_urls_missing_from_sitemap": len(missing_from_sitemap),
             "checks_passed": sum(1 for x in checks if x.get("ok")),
             "checks_total": len(checks),
             "high_findings": sum(1 for x in findings if x["severity"] == "HIGH"),
@@ -174,6 +192,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         "checks": checks,
         "findings": findings,
         "posts_without_internal_links": posts_without_internal_links,
+        "feed_urls_missing_from_sitemap": missing_from_sitemap,
         "posts": entries,
     }
     out = Path(output_dir)
@@ -188,6 +207,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         f"- URLs found in sitemap: {len(sitemap_urls)}",
         f"- Internal links between known posts: {internal_link_count}",
         f"- Posts without detected internal links: {len(posts_without_internal_links)}",
+        f"- Feed URLs missing from sitemap response: {len(missing_from_sitemap)}",
         f"- Latest published timestamp in feed: {latest_published or 'not available'}",
         f"- Latest updated timestamp in feed: {latest_updated or 'not available'}",
         f"- Findings: {len(findings)} (high={report['summary']['high_findings']}, medium={report['summary']['medium_findings']})",
