@@ -19,9 +19,14 @@ def blog_cta_comment(
     topic: str = "",
     post_text: str = "",
     post_key: str = "",
+    blog_url: str = "",
 ) -> str:
-    """Return a relevant, varied Blogger CTA instead of repeating one identical link comment."""
+    """Return a relevant, varied Blogger CTA using the matching article URL when available."""
     platform_name = str(platform or "facebook").strip().lower()
+    candidate_url = str(blog_url or "").strip()
+    if not re.match(r"^https?://(?:www\\.)?askmahmoudkhyrat\\.blogspot\\.com(?:/|$)", candidate_url, flags=re.I):
+        candidate_url = BLOGGER_URL
+    candidate_url = re.sub(r"[?&]m=1(?:&.*)?$", "", candidate_url)
     context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
     lowered = context.casefold()
     if any(word in lowered for word in ("إيجار", "إيجارات", "مالك", "مستأجر")):
@@ -40,10 +45,10 @@ def blog_cta_comment(
     # Repeated multi-part calls to read, visit, and share can look promotional;
     # the comment should have one clear action and no extra engagement bait.
     variants = [
-        f"الشرح الموسع عن {subject} على مدونة اسأل محمود: {BLOGGER_URL}",
-        f"للاطلاع على تفاصيل {subject} والأمثلة العملية: {BLOGGER_URL}",
-        f"لو حابب تعرف تفاصيل أكثر عن {subject}، اقرأ هنا: {BLOGGER_URL}",
-        f"معلومات إضافية مرتبطة بـ{subject} في مدونة اسأل محمود: {BLOGGER_URL}",
+        f"الشرح الموسع عن {subject} على مدونة اسأل محمود: {candidate_url}",
+        f"للاطلاع على تفاصيل {subject} والأمثلة العملية: {candidate_url}",
+        f"لو حابب تعرف تفاصيل أكثر عن {subject}، اقرأ هنا: {candidate_url}",
+        f"معلومات إضافية مرتبطة بـ{subject} في مدونة اسأل محمود: {candidate_url}",
     ]
     return variants[digest[0] % len(variants)]
 
