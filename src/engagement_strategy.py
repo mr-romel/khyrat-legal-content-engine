@@ -24,7 +24,7 @@ def blog_cta_comment(
     """Return a relevant, varied Blogger CTA using the matching article URL when available."""
     platform_name = str(platform or "facebook").strip().lower()
     candidate_url = str(blog_url or "").strip()
-    if not re.match(r"^https?://(?:www\\.)?askmahmoudkhyrat\\.blogspot\\.com(?:/|$)", candidate_url, flags=re.I):
+    if not re.match(r"^https?://(?:www\.)?askmahmoudkhyrat\.blogspot\.com(?:/|$)", candidate_url, flags=re.I):
         candidate_url = BLOGGER_URL
     candidate_url = re.sub(r"[?&]m=1(?:&.*)?$", "", candidate_url)
     context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
