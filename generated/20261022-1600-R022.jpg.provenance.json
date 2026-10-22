@@ -1,0 +1,24 @@
+{
+  "topic": "التحريض على الجريمة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A medium‑shot of a modern living‑room in daylight, focused on a young adult man in casual clothing sitting on a light‑colored sofa. He holds a smartphone in both hands, his thumb hovering over the “send” button. The phone’s screen fills the lower third of the frame, showing a social‑media post in Arabic script; the text is bold and partly highlighted in red, clearly a direct call to commit a violent act (e.g., a phrase that urges “attack” or “break into” a location). A small red exclamation‑mark icon flashes beside the text, reinforcing the inciting tone. Behind the man, a coffee table holds a half‑filled mug and a notebook; a large window lets in soft natural light that creates gentle shadows across the sofa and floor. Slightly out of focus, a second person—a friend in a T‑shirt—leans over the back of the sofa, looking at the phone with a concerned expression, eyebrows raised, indicating awareness of the serious nature of the comment. The camera angle is over the man’s right shoulder, giving a clear view of the phone screen and his hands while keeping the friend’s face visible in the background. The overall lighting is bright but natural, emphasizing the everyday setting of a casual online interaction that borders on criminal incitement.",
+  "prompt_sha256": "ac28f87c707b461cb35916e649cd24f526c88d30c45b823a32a5c2d6d8b1a45c",
+  "image_sha256": "39ed6643cd94398e98947be8a5a6e831c49a2359d992dca6bafca9e68c750c99",
+  "image_path": "generated/20261022-1600-R022.jpg",
+  "visual_description": "A medium‑shot of a modern living‑room in daylight, focused on a young adult man in casual clothing sitting on a light‑colored sofa. He holds a smartphone in both hands, his thumb hovering over the “send” button. The phone’s screen fills the lower third of the frame, showing a social‑media post in Arabic script; the text is bold and partly highlighted in red, clearly a direct call to commit a violent act (e.g., a phrase that urges “attack” or “break into” a location). A small red exclamation‑mark icon flashes beside the text, reinforcing the inciting tone. Behind the man, a coffee table holds a half‑filled mug and a notebook; a large window lets in soft natural light that creates gentle shadows across the sofa and floor. Slightly out of focus, a second person—a friend in a T‑shirt—leans over the back of the sofa, looking at the phone with a concerned expression, eyebrows raised, indicating awareness of the serious nature of the comment. The camera angle is over the man’s right shoulder, giving a clear view of the phone screen and his hands while keeping the friend’s face visible in the background. The overall lighting is bright but natural, emphasizing the everyday setting of a casual online interaction that borders on criminal incitement.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 3,
+  "qa_relevance_score": 4,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Generated gibberish text on the phone screen.",
+    "Failed to depict the primary action of the prompt (the social media post).",
+    "Missing key subject (the friend).",
+    "Anatomy: The man is holding two separate devices simultaneously (one to his ear, one in hand), which looks unnatural and confusing."
+  ],
+  "qa_checked_image_sha256": "39ed6643cd94398e98947be8a5a6e831c49a2359d992dca6bafca9e68c750c99"
+}
