@@ -88,7 +88,7 @@ def load_facebook_engagement_config() -> dict:
     return {
         "service_account_info": _service_account_info(),
         "sheet_id": _sheet_id(),
-        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:BC"),
         "gemini_api_key": _optional("GEMINI_API_KEY"),
         "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
         "facebook_page_id": _optional("FACEBOOK_PAGE_ID", DEFAULT_FACEBOOK_PAGE_ID),
