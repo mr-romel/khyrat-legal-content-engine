@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime, timezone
@@ -41,7 +42,18 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
 
     def check(name: str, url: str, required: bool = True) -> tuple[int | None, str, str]:
         try:
-            response = session.get(url, timeout=TIMEOUT, allow_redirects=True)
+            response = None
+            for attempt in range(3):
+                try:
+                    response = session.get(url, timeout=TIMEOUT, allow_redirects=True)
+                except requests.RequestException:
+                    if attempt == 2:
+                        raise
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                if response.status_code not in {408, 425, 429, 500, 502, 503, 504} or attempt == 2:
+                    break
+                time.sleep(1.5 * (attempt + 1))
             ok = 200 <= response.status_code < 300
             checks.append({"name": name, "url": url, "final_url": response.url,
                            "status": response.status_code, "ok": ok, "required": required})
