@@ -26,7 +26,7 @@ MAX_COMMENTS_PER_RUN = 1
 MAX_POSTS_TO_GENERATE_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_POSTS_PER_RUN", "1") or "1")
 MAX_DUE_EVENTS_PER_RUN = int(os.getenv("KHYRAT_ENGAGEMENT_DUE_EVENTS_PER_RUN", "3") or "3")
 MAX_LEGACY_RECONCILE_PER_RUN = int(os.getenv("KHYRAT_LEGACY_RECONCILE_PER_RUN", "2") or "2")
-MAX_RECENT_POSTS = int(os.getenv("KHYRAT_ENGAGEMENT_RECENT_POSTS", "3") or "3")
+MAX_RECENT_POSTS = int(os.getenv("KHYRAT_ENGAGEMENT_RECENT_POSTS", "30") or "30")
 
 
 def now_cairo():
@@ -161,9 +161,14 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
     """Ensure every recent published post with unfinished engagement has its own bundle."""
     candidates = []
     for source_row, row in read_content(service, spreadsheet_id, sheet_range):
-        post_id = str(row.get("Facebook Post ID", "")).strip()
-        status = str(row.get("Facebook Status", "")).strip().upper()
-        if status != "PUBLISHED" or not post_id:
+        # Prefer explicit Reel/Video IDs when the sheet has them; keep the legacy Post ID fallback.
+        post_id = next((str(row.get(key, "")).strip() for key in (
+            "Facebook Reel ID", "Reel ID", "Facebook Video ID", "Video ID", "Facebook Post ID"
+        ) if str(row.get(key, "")).strip()), "")
+        status = next((str(row.get(key, "")).strip().upper() for key in (
+            "Facebook Reel Status", "Reel Status", "Facebook Video Status", "Facebook Status"
+        ) if str(row.get(key, "")).strip()), "")
+        if status not in {"PUBLISHED", "SUCCESS", "POSTED"} or not post_id:
             continue
         candidates.append((_published_at(row, current), source_row, row, post_id))
     candidates.sort(key=lambda x: (x[0], int(x[1])), reverse=True)
@@ -455,9 +460,13 @@ def _main_impl():
     content_rows = read_content(service, CONFIG["sheet_id"], CONFIG["sheet_range"])
     recent_candidates = []
     for source_row, row in content_rows:
-        post_id = str(row.get("Facebook Post ID", "")).strip()
-        status = str(row.get("Facebook Status", "")).strip().upper()
-        if status == "PUBLISHED" and post_id:
+        post_id = next((str(row.get(key, "")).strip() for key in (
+            "Facebook Reel ID", "Reel ID", "Facebook Video ID", "Video ID", "Facebook Post ID"
+        ) if str(row.get(key, "")).strip()), "")
+        status = next((str(row.get(key, "")).strip().upper() for key in (
+            "Facebook Reel Status", "Reel Status", "Facebook Video Status", "Facebook Status"
+        ) if str(row.get(key, "")).strip()), "")
+        if status in {"PUBLISHED", "SUCCESS", "POSTED"} and post_id:
             recent_candidates.append((_published_at(row, current), int(source_row), post_id))
     recent_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
     recent_post_ids = {x[2] for x in recent_candidates[:MAX_RECENT_POSTS]}
