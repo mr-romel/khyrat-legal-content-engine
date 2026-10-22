@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from html import unescape
 from pathlib import Path
+from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 import requests
@@ -89,7 +90,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
             updated = clean((entry.get("updated") or {}).get("$t", ""))
             if title:
                 entries.append({"title": title, "normalized_title": norm_title(title),
-                                "url": url, "content_chars": len(content),
+                                "url": url, "content_chars": len(content), "content_html": content_html,
                                 "published": published, "updated": updated})
         checks.append({"name": "feed_parse", "ok": bool(entries), "entry_count": len(entries)})
         if not entries:
@@ -117,6 +118,24 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
                              "message": "Alternate permalink points outside the configured blog host.",
                              "title": item["title"], "url": item["url"]})
 
+    # Audit contextual links between posts present in the public Blogger feed.
+    known_urls = {str(item.get("url", "")).split("#", 1)[0].rstrip("/") for item in entries if item.get("url")}
+    internal_link_count = 0
+    posts_without_internal_links = []
+    for item in entries:
+        hrefs = re.findall("href=[\\\"']([^\\\"']+)[\\\"']", item.get("content_html", ""), flags=re.I)
+        links = []
+        for href in hrefs:
+            absolute = urljoin(item.get("url", ""), unescape(href)).split("#", 1)[0].rstrip("/")
+            parsed = urlparse(absolute)
+            if parsed.scheme in {"http", "https"} and parsed.netloc.casefold() == urlparse(base).netloc.casefold() and absolute in known_urls and absolute != str(item.get("url", "")).rstrip("/") and absolute not in links:
+                links.append(absolute)
+        item["internal_links_to_known_posts"] = links
+        internal_link_count += len(links)
+        if not links and item.get("url"):
+            posts_without_internal_links.append({"title": item["title"], "url": item["url"]})
+            findings.append({"severity": "MEDIUM", "code": "NO_INTERNAL_POST_LINKS", "message": "No contextual link to another post in the public feed was detected.", "title": item["title"], "url": item["url"]})
+
     sitemap_urls = []
     try:
         root = ET.fromstring(sitemap) if sitemap else None
@@ -143,6 +162,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         "summary": {
             "posts_in_feed": len(entries),
             "sitemap_urls": len(sitemap_urls),
+            "internal_links_between_posts": internal_link_count,
+            "posts_without_internal_links": len(posts_without_internal_links),
             "checks_passed": sum(1 for x in checks if x.get("ok")),
             "checks_total": len(checks),
             "high_findings": sum(1 for x in findings if x["severity"] == "HIGH"),
@@ -152,6 +173,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         },
         "checks": checks,
         "findings": findings,
+        "posts_without_internal_links": posts_without_internal_links,
         "posts": entries,
     }
     out = Path(output_dir)
@@ -164,6 +186,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         f"- Blog: {base}",
         f"- Posts in public feed: {len(entries)}",
         f"- URLs found in sitemap: {len(sitemap_urls)}",
+        f"- Internal links between known posts: {internal_link_count}",
+        f"- Posts without detected internal links: {len(posts_without_internal_links)}",
         f"- Latest published timestamp in feed: {latest_published or 'not available'}",
         f"- Latest updated timestamp in feed: {latest_updated or 'not available'}",
         f"- Findings: {len(findings)} (high={report['summary']['high_findings']}, medium={report['summary']['medium_findings']})",
