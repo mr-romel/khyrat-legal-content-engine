@@ -16,9 +16,10 @@ def test_prioritizes_impressions_ctr_and_internal_links():
         {"title": "تقسيم التركة", "url": "https://example.com/a", "internal_links_to_known_posts": []},
         {"title": "إجراءات تقسيم التركة قانونيا", "url": "https://example.com/b", "internal_links_to_known_posts": ["https://example.com/a"]}],
         "findings": [{"code": "THIN_OR_EMPTY_POST", "url": "https://example.com/a"}]}
+    # CTR values in this function are fractional when <= 1: 0.01 = 1%, 0.10 = 10%.
     performance = [
-        {"url": "https://example.com/a", "clicks": 5, "impressions": 1000, "ctr": 1.0, "position": 8},
-        {"url": "https://example.com/b", "clicks": 30, "impressions": 200, "ctr": 10.0, "position": 3}]
+        {"url": "https://example.com/a", "clicks": 5, "impressions": 1000, "ctr": 0.01, "position": 8},
+        {"url": "https://example.com/b", "clicks": 30, "impressions": 200, "ctr": 0.10, "position": 3}]
     result = prioritize(audit, performance)
     assert result["priorities"][0]["url"] == "https://example.com/a"
     assert "HIGH_IMPRESSIONS_LOW_CTR" in result["priorities"][0]["reasons"]
