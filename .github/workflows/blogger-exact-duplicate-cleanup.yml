@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: blogger-publication-v3
+  group: blogger-exact-duplicate-cleanup-v1
   cancel-in-progress: false
 
 jobs:
