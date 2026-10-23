@@ -315,17 +315,26 @@ def _footer(topic: str) -> str:
     return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>للتواصل المباشر:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a></p><p>المعلومة للتوعية العامة؛ تقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
 
 def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
-    """Find a few genuinely related published posts for internal linking."""
-    terms = [x for x in re.findall(r"[\u0600-\u06ff\w]+", _clean(topic)) if len(x) > 3][:5]
-    seen: set[str] = set()
-    found: list[dict[str,str]] = []
-    for term in terms:
+    """Find only contextually plausible published posts for future-article links."""
+    stopwords = {
+        "في", "من", "على", "عن", "الى", "إلى", "ما", "هل", "كيف", "متى", "مع",
+        "هذا", "هذه", "ذلك", "تلك", "التي", "الذي", "و", "او", "أو", "ثم",
+        "قانون", "القانون", "مصر", "المصري", "المصرية", "شرح", "دليل", "كيفية",
+    }
+    def terms(value: str) -> set[str]:
+        text = str(value or "").casefold()
+        text = re.sub(r"[إأآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
+        return {x for x in re.findall(r"[\u0600-\u06ff\w]+", text)
+                if len(x) > 2 and x not in stopwords}
+
+    topic_terms = terms(topic)
+    if len(topic_terms) < 2:
+        return []
+    candidates: dict[str, dict[str, Any]] = {}
+    for term in sorted(topic_terms):
         try:
             data = svc.posts().search(
-                blogId=bid,
-                q=term,
-                orderBy="PUBLISHED",
-                fetchBodies=False,
+                blogId=bid, q=term, orderBy="PUBLISHED", fetchBodies=False,
             ).execute()
         except Exception as exc:
             print(f"Related-post search unavailable for {term!r}: {exc}")
@@ -333,14 +342,17 @@ def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
         for item in data.get("items", []) or []:
             title = _clean(item.get("title"))
             url = _clean(item.get("url"))
-            if not title or not url or url in seen:
+            if not title or not url:
                 continue
-            seen.add(url)
-            found.append({"title": title, "url": url})
-            if len(found) >= 4:
-                return found
-    return found
-
+            overlap = topic_terms & terms(title)
+            if len(overlap) < 2:
+                continue
+            current = candidates.get(url)
+            record = {"title": title, "url": url, "overlap": overlap}
+            if current is None or len(overlap) > len(current["overlap"]):
+                candidates[url] = record
+    ranked = sorted(candidates.values(), key=lambda x: (-len(x["overlap"]), x["title"]))
+    return [{"title": item["title"], "url": item["url"]} for item in ranked[:3]]
 
 
 def _paragraph_html(text: str) -> str:
