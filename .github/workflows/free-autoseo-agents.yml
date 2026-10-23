@@ -1,0 +1,51 @@
+name: Free AutoSEO and GEO Agents
+
+on:
+  schedule:
+    - cron: "45 5 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/blogger_seo_audit.py"
+      - "src/blogger_search_console_prioritizer.py"
+      - "tests/test_blogger_seo_audit.py"
+      - "tests/test_blogger_search_console_prioritizer.py"
+      - "docs/FREE_AUTOSEO_AGENTS.md"
+      - ".github/workflows/free-autoseo-agents.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-autoseo-agents
+  cancel-in-progress: false
+
+jobs:
+  free-audit-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install free open-source audit dependencies
+        run: |
+          python -m pip install --disable-pip-version-check "requests>=2.32.0,<3.0.0" pytest
+      - name: Test SEO prioritization and technical audit
+        env:
+          PYTHONPATH: src
+        run: pytest -q tests/test_blogger_seo_audit.py tests/test_blogger_search_console_prioritizer.py
+      - name: Run public technical SEO audit
+        env:
+          PYTHONPATH: src
+        run: python src/blogger_seo_audit.py
+      - name: Preserve dated audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-autoseo-report
+          path: artifacts/seo-audit/
+          if-no-files-found: warn
+          retention-days: 30
