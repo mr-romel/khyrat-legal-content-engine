@@ -9,6 +9,8 @@ on:
     paths:
       - "src/blogger_seo_audit.py"
       - "src/blogger_search_console_prioritizer.py"
+      - "src/blogger_internal_link_planner.py"
+      - "tests/test_blogger_internal_link_planner.py"
       - "tests/test_blogger_seo_audit.py"
       - "tests/test_blogger_search_console_prioritizer.py"
       - "docs/FREE_AUTOSEO_AGENTS.md"
@@ -36,11 +38,15 @@ jobs:
       - name: Test SEO prioritization and technical audit
         env:
           PYTHONPATH: src
-        run: pytest -q tests/test_blogger_seo_audit.py tests/test_blogger_search_console_prioritizer.py
+        run: pytest -q tests/test_blogger_seo_audit.py tests/test_blogger_search_console_prioritizer.py tests/test_blogger_internal_link_planner.py
       - name: Run public technical SEO audit
         env:
           PYTHONPATH: src
         run: python src/blogger_seo_audit.py
+      - name: Build contextual internal-link recommendations (review only)
+        env:
+          PYTHONPATH: src
+        run: python src/blogger_internal_link_planner.py
       - name: Preserve dated audit report
         if: always()
         uses: actions/upload-artifact@v4
