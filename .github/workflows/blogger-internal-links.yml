@@ -1,0 +1,61 @@
+name: Apply Safe Blogger Internal Links
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_changes:
+        description: "Apply the conservative link additions to live posts"
+        type: boolean
+        required: true
+        default: true
+      limit:
+        description: "Maximum live posts to process (1-500)"
+        required: true
+        default: "500"
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_INTERNAL_LINKS_RUN_NOW.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-publication-v3
+  cancel-in-progress: false
+
+jobs:
+  apply-contextual-links:
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'BLOGGER_INTERNAL_LINKS_RUN_NOW' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BLOGGER_ENABLED: "true"
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_LINK_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
+      BLOGGER_LINK_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install existing free Blogger worker dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements-worker.txt
+      - name: Validate scripts
+        run: python -m compileall -q src/blogger_publisher.py scripts/apply_blogger_internal_links.py
+      - name: Apply conservative internal links to current live posts
+        env:
+          PYTHONPATH: src
+        run: python scripts/apply_blogger_internal_links.py
+      - name: Upload original-post backup and apply report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-internal-links-backup-and-report
+          path: |
+            artifacts/blogger-internal-links/
+          if-no-files-found: error
+          retention-days: 90
