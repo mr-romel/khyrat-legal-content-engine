@@ -1,0 +1,24 @@
+{
+  "topic": "التظلم من الجزاء الإداري — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A medium‑shot interior of a modern corporate office. A mid‑40s manager sits at a sleek glass‑top desk, leaning slightly forward, his hands holding a printed administrative‑penalty notice. In front of him lies an open folder labeled “Appeal” (the label is not readable) containing three separate sheets: * The top sheet is a formal grievance draft, its margins filled with handwritten notes and a highlighted paragraph. * Below it is a photocopied document that is faint, with large blank areas where details should be, suggesting weak supporting evidence. * The bottom sheet is a plain, unfilled form with only a title line visible, indicating a lack of concrete proof. To the manager’s right, a wall‑mounted monthly calendar is clearly visible; the current month’s page is turned to the 15th, and a bright red sticky‑note is attached to the 60‑day deadline box, the note’s edge curling, emphasizing that the deadline is approaching or may have passed. A digital wall clock shows the time at 3:45 PM, casting a soft shadow across the desk. Behind the manager, a large window lets in natural daylight, illuminating the scene with a gentle, even light. A sleek laptop rests open beside the papers, its screen displaying an email thread with the subject line blurred, reinforcing the administrative context without showing text. The overall composition centers on the manager’s focused expression and the three visual cues (deadline note, weak evidence document, and the formal grievance draft) that represent the three warning signs described in the query.",
+  "prompt_sha256": "eece4d811f1a8ce2f59840294daef838a4dcacfe1648f4152ec3c0cd2934c632",
+  "image_sha256": "994fef6c254e90157e08cf9673d6077f6776016fa57bfa2ac8d5058bc1ae4063",
+  "image_path": "generated/20261023-2100-R023.jpg",
+  "visual_description": "A medium‑shot interior of a modern corporate office. A mid‑40s manager sits at a sleek glass‑top desk, leaning slightly forward, his hands holding a printed administrative‑penalty notice. In front of him lies an open folder labeled “Appeal” (the label is not readable) containing three separate sheets: * The top sheet is a formal grievance draft, its margins filled with handwritten notes and a highlighted paragraph. * Below it is a photocopied document that is faint, with large blank areas where details should be, suggesting weak supporting evidence. * The bottom sheet is a plain, unfilled form with only a title line visible, indicating a lack of concrete proof. To the manager’s right, a wall‑mounted monthly calendar is clearly visible; the current month’s page is turned to the 15th, and a bright red sticky‑note is attached to the 60‑day deadline box, the note’s edge curling, emphasizing that the deadline is approaching or may have passed. A digital wall clock shows the time at 3:45 PM, casting a soft shadow across the desk. Behind the manager, a large window lets in natural daylight, illuminating the scene with a gentle, even light. A sleek laptop rests open beside the papers, its screen displaying an email thread with the subject line blurred, reinforcing the administrative context without showing text. The overall composition centers on the manager’s focused expression and the three visual cues (deadline note, weak evidence document, and the formal grievance draft) that represent the three warning signs described in the query.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 4,
+  "qa_relevance_score": 4,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Anatomy: The hands are malformed/merged while holding the pen.",
+    "The scene does not include the essential documents or the calendar mentioned in the brief.",
+    "The desk setup appears physically impossible or incoherent.",
+    "Significant lack of detail regarding the legal topic's specific warning signs."
+  ],
+  "qa_checked_image_sha256": "994fef6c254e90157e08cf9673d6077f6776016fa57bfa2ac8d5058bc1ae4063"
+}
