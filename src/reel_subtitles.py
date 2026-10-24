@@ -1,5 +1,7 @@
 """Generate a phone-friendly, sentence-at-a-time Arabic subtitle overlay.
 
+Never truncate its text; wrap the full sentence into the adaptive caption box.
+
 Input JSON may be a list of {text,start,end} objects, or an object with a
 'segments' list. Times are seconds. Rendering is performed with FFmpeg and
 Pillow using Arial Bold when installed, falling back to DejaVu Sans Bold.
