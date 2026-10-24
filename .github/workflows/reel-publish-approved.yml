@@ -91,7 +91,8 @@ jobs:
           def mapped(raw):
               return {header: (raw[i] if i < len(raw) else "") for i, header in enumerate(headers) if header}
           candidates=[]
-          for n, raw in enumerate(values[1:], start=2):
+          # Prefer the newest approved work first; do not let an old partial publication starve new reels.
+          for n, raw in reversed(list(enumerate(values[1:], start=2))):
               row=mapped(raw)
               status=str(row.get("Reel Status","")).strip().upper()
               approval=str(row.get("Reel Approval","")).strip().upper()
@@ -206,6 +207,15 @@ jobs:
               video=matches[0]
               plan_path=video.with_name('reel_plan.json')
           if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
+          if video.stat().st_size < 100_000: raise SystemExit(f'Approved reel file is unexpectedly small ({video.stat().st_size} bytes): {video}')
+          # Re-check the exact row immediately before any external publication to avoid stale approvals.
+          latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BE')
+          latest_headers=latest_values[0] if latest_values else []
+          latest_row=row_to_dict(latest_values[row_number-1], latest_headers)
+          if str(latest_row.get('Reel Approval','')).strip().upper() != 'APPROVED':
+              raise SystemExit('Approval was revoked or changed before publication; no platform was called.')
+          if str(latest_row.get('Reel Run ID','')).strip() != run_id:
+              raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
           plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
           fb_caption=str(plan.get('facebook_caption','') or row.get('المحتوى','')).strip()
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
