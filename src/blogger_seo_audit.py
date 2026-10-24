@@ -76,6 +76,32 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
     _, _, sitemap = check("sitemap", base + "/sitemap.xml")
     _, _, robots = check("robots_txt", base + "/robots.txt", required=False)
 
+    # Explicitly verify URLs reported by Search Console. These checks follow
+    # redirects and record the final destination/status so redirect-to-404
+    # chains are not mistaken for healthy canonicalization.
+    search_console_urls = [
+        ("gsc_about_us_404", base + "/p/about-us.html"),
+        ("gsc_redirecting_article", base + "/2026/10/blog-post_773.html"),
+    ]
+    for name, url in search_console_urls:
+        status, final_url, _ = check(name, url, required=False)
+        if status is None or not (200 <= status < 300):
+            findings.append({
+                "severity": "HIGH",
+                "code": "SEARCH_CONSOLE_URL_NOT_HEALTHY",
+                "message": f"Search Console URL ends with HTTP {status if status is not None else 'unreachable'} after redirects; final destination: {final_url or 'unavailable'}.",
+                "url": url,
+                "final_url": final_url,
+            })
+        elif final_url.rstrip("/") != url.rstrip("/"):
+            findings.append({
+                "severity": "LOW",
+                "code": "SEARCH_CONSOLE_URL_REDIRECTS",
+                "message": f"URL redirects to {final_url}; confirm this is the intended canonical destination.",
+                "url": url,
+                "final_url": final_url,
+            })
+
     entries: list[dict] = []
     try:
         data = json.loads(feed) if feed else {}
