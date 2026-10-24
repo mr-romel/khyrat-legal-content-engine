@@ -133,10 +133,23 @@ def main() -> int:
     report["updated_count"] = len(report["updated"])
     report["skipped_count"] = len(report["skipped"])
     report["error_count"] = len(report["errors"])
+    # Make skipped work actionable: publish reason counts and examples directly in the run log.
+    reason_counts = {}
+    for entry in report["skipped"]:
+        reason = str(entry.get("reason", "unspecified"))
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    report["skip_reason_counts"] = dict(sorted(reason_counts.items(), key=lambda item: (-item[1], item[0])))
+    report["diagnostic_samples"] = {
+        reason: [
+            {"title": entry.get("title", ""), "url": entry.get("url", ""), "id": entry.get("id", "")}
+            for entry in report["skipped"] if entry.get("reason") == reason
+        ][:5]
+        for reason in report["skip_reason_counts"]
+    }
     report_path = REPORT_DIR / f"internal-link-apply-report-{run_id}.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     (REPORT_DIR / "latest-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({k: report[k] for k in ("run_id", "live_posts", "apply_mode", "updated_count", "skipped_count", "error_count", "backup_file")}, ensure_ascii=False))
+    print(json.dumps({k: report[k] for k in ("run_id", "live_posts", "apply_mode", "updated_count", "skipped_count", "error_count", "skip_reason_counts", "diagnostic_samples", "backup_file")}, ensure_ascii=False))
     print(f"REPORT_FILE={report_path}")
     return 1 if report["errors"] else 0
 
