@@ -136,7 +136,7 @@ def main() -> int:
     report_path = REPORT_DIR / f"internal-link-apply-report-{run_id}.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     (REPORT_DIR / "latest-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({k: report[k] for k in ("run_id", "live_posts", "apply_mode", "updated_count", "skipped_count", "error_count", "backup_file", "report_file")}, ensure_ascii=False))
+    print(json.dumps({k: report[k] for k in ("run_id", "live_posts", "apply_mode", "updated_count", "skipped_count", "error_count", "backup_file")}, ensure_ascii=False))
     print(f"REPORT_FILE={report_path}")
     return 1 if report["errors"] else 0
 
