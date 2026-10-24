@@ -1,0 +1,22 @@
+{
+  "topic": "التحويلات المالية الاحتيالية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A mid‑30s business owner sits at a modest home office desk, eyes wide and mouth slightly open as they hold a smartphone to their ear. Their other hand hovers over a laptop keyboard, while the laptop screen is angled toward the viewer, showing a list of recent bank transactions with a few entries highlighted in red to indicate unauthorized transfers. Next to the laptop lies a freshly printed bank statement with a thick stack of pages, a notepad with a hand‑written checklist (items like “secure account,” “change passwords,” “preserve notifications”), and a coffee mug. A second smartphone rests on the desk, its screen illuminated by a series of push‑notification bubbles from a banking app, suggesting recent alerts. The room is a contemporary, sparsely furnished office: a small window lets in soft natural light that casts gentle shadows, and a simple bookshelf with a few binders sits in the background. The camera captures a slightly angled, eye‑level view that includes the person’s anxious expression, the phone, the laptop screen, and the desk items, emphasizing the urgency of documenting the fraud. No text, logos, or numbers are visible on any surface.",
+  "prompt_sha256": "05ae634564dc61411ac359e363e4065e6b353b2bb0f69b0920368d717a3e1e76",
+  "image_sha256": "d7695e9a8646ec6e582d90c7405a2da2b3e37269ced78525f34fb9a0b91ac7f3",
+  "image_path": "generated/20261024-1700-R024.jpg",
+  "visual_description": "A mid‑30s business owner sits at a modest home office desk, eyes wide and mouth slightly open as they hold a smartphone to their ear. Their other hand hovers over a laptop keyboard, while the laptop screen is angled toward the viewer, showing a list of recent bank transactions with a few entries highlighted in red to indicate unauthorized transfers. Next to the laptop lies a freshly printed bank statement with a thick stack of pages, a notepad with a hand‑written checklist (items like “secure account,” “change passwords,” “preserve notifications”), and a coffee mug. A second smartphone rests on the desk, its screen illuminated by a series of push‑notification bubbles from a banking app, suggesting recent alerts. The room is a contemporary, sparsely furnished office: a small window lets in soft natural light that casts gentle shadows, and a simple bookshelf with a few binders sits in the background. The camera captures a slightly angled, eye‑level view that includes the person’s anxious expression, the phone, the laptop screen, and the desk items, emphasizing the urgency of documenting the fraud. No text, logos, or numbers are visible on any surface.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 4,
+  "qa_relevance_score": 8,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Heavy presence of 'fake text' (gibberish/lines) on documents and screens, violating the 'No text, logos, or numbers' rule.",
+    "The illustrative/cartoonish art style is not suitable for professional legal content as requested in the 'Contemporary Scene Rule' which requires believable present-day settings."
+  ],
+  "qa_checked_image_sha256": "d7695e9a8646ec6e582d90c7405a2da2b3e37269ced78525f34fb9a0b91ac7f3"
+}
