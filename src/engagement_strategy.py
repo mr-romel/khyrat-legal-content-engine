@@ -59,7 +59,7 @@ def blog_cta_comment(
         f"معلومات وأمثلة عملية عن {subject}: {candidate_url}",
         f"أمثلة عملية وخطوات مرتبطة بـ{subject}: {candidate_url}",
         f"شرح وتفاصيل عملية عن {subject}: {candidate_url}",
-        f"معلومات إضافية وأمثلة واقعية: {candidate_url}",
+        f"معلومات وأمثلة واقعية عن {subject}: {candidate_url}",
     ]
     return variants[digest[0] % len(variants)]
 
