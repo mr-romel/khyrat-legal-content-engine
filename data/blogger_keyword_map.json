@@ -1314,7 +1314,7 @@
       "demand_score": 88,
       "demand_signal": "GOOGLE_TRENDS_EGYPT_LEGAL_ANGLE",
       "date": "2026-10-25",
-      "status": "PUBLISHED",
+      "status": "PUBLISH_UNVERIFIED",
       "title": "الضوابط القانونية لتغطية ونشر ترندات المباريات والدوريات الأجنبية في مصر",
       "keywords": [
         "تغطية المباريات في مصر",
@@ -1327,9 +1327,37 @@
       "serp_titles": [],
       "serp_urls": [],
       "research_date": "2026-10-25",
-      "post_id": "5926460702820086343",
-      "post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_25.html",
+      "post_url": "",
       "published_at": "2026-10-25T11:52:59.535134+03:00"
+    },
+    {
+      "query": "الجوانب القانونية المرتبطة بترند liverpool f.c. vs brighton & hove albion f.c. standings في مصر",
+      "seed": "liverpool f.c. vs brighton & hove albion f.c. standings",
+      "suggestions": [],
+      "suggestion_count": 0,
+      "trend_matches": [
+        "liverpool f.c. vs brighton & hove albion f.c. standings"
+      ],
+      "demand_score": 88,
+      "demand_signal": "GOOGLE_TRENDS_EGYPT_LEGAL_ANGLE",
+      "date": "2026-10-25",
+      "status": "PUBLISHED",
+      "title": "الحقوق القانونية ونشر محتوى المباريات العالمية في مصر: ضوابط البث والملكية الفكرية",
+      "keywords": [
+        "حقوق البث الرياضي في مصر",
+        "الملكية الفكرية للمباريات",
+        "قانون النشر الإلكتروني مصر",
+        "إعادة البث غير المشروع",
+        "تغطية الدوري الإنجليزي قانونًا",
+        "استخدام العلامات التجارية الرياضية"
+      ],
+      "meta_description": "تعرف على الضوابط القانونية لنشر نتائج ومحتوى مباريات الدوري الإنجليزي في مصر، وحقوق البث والملكية الفكرية لصناع المحتوى والمواقع الإخبارية.",
+      "serp_titles": [],
+      "serp_urls": [],
+      "research_date": "2026-10-25",
+      "post_id": "4149910395238804494",
+      "post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_624.html",
+      "published_at": "2026-10-25T21:28:57.874354+03:00"
     }
   ],
   "keyword_frequency": {
@@ -1396,7 +1424,14 @@
     "تغطية المباريات في مصر": 1,
     "النشر الرقمي للترندات الرياضية": 1,
     "المراهنات الرياضية والقانون المصري": 1,
-    "ضوابط المنصات الرقمية في مصر": 1
+    "ضوابط المنصات الرقمية في مصر": 1,
+    "الجوانب القانونية المرتبطة بترند liverpool f.c. vs brighton & hove albion f.c. standings في مصر": 1,
+    "حقوق البث الرياضي في مصر": 1,
+    "الملكية الفكرية للمباريات": 1,
+    "قانون النشر الإلكتروني مصر": 1,
+    "إعادة البث غير المشروع": 1,
+    "تغطية الدوري الإنجليزي قانونًا": 1,
+    "استخدام العلامات التجارية الرياضية": 1
   },
-  "updated_at": "2026-10-25T11:52:59.535218+03:00"
+  "updated_at": "2026-10-25T21:28:57.874453+03:00"
 }
