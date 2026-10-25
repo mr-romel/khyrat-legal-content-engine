@@ -39,18 +39,8 @@ def blog_cta_comment(
         })
         candidate_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
     context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
-    lowered = context.casefold()
-    if any(word in lowered for word in ("إيجار", "إيجارات", "مالك", "مستأجر")):
-        subject = "موضوع الإيجارات"
-    elif any(word in lowered for word in ("عمل", "عامل", "موظف", "فصل", "مرتب", "إجاز")):
-        subject = "موضوع قانون العمل"
-    elif any(word in lowered for word in ("شركة", "شركات", "عقد", "عقود")):
-        subject = "العقود والشركات"
-    elif any(word in lowered for word in ("ورثة", "ميراث", "تركة")):
-        subject = "موضوع الميراث"
-    else:
-        subject = str(topic or "").strip()[:90] or "الموضوع القانوني"
-
+    # The CTA subject must come from this post, never a hard-coded legal category.
+    subject = str(topic or "").strip()[:90] or "الموضوع ده"
     digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
     # Keep the fixed link comment concise and directly related to the post.
     # Repeated multi-part calls to read, visit, and share can look promotional;
