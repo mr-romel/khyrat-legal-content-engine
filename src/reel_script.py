@@ -68,7 +68,7 @@ def validate_reel_script(data: dict[str, Any]) -> dict[str, Any]:
     data["answer"] = answer
     data["cta"] = cta
     data["end_slogan"] = FIXED_SLOGAN
-    data["full_script"] = "\\n\\n".join((hook, answer, cta, FIXED_SLOGAN)).replace("\\n", "\n")
+    data["full_script"] = "\n\n".join((hook, answer, cta, FIXED_SLOGAN))
     try:
         seconds = int(data.get("estimated_seconds", 18))
     except (TypeError, ValueError):
