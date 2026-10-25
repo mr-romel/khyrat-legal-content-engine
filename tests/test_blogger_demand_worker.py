@@ -26,3 +26,14 @@ def test_topic_similarity_catches_query_embedded_in_long_seo_title():
         "حقوق العامل عند الفصل",
         "تأسيس الشركات ومسؤولية المدير",
     ) < 0.44
+
+
+
+def test_google_trends_are_only_used_when_a_real_legal_problem_angle_exists():
+    from blogger_demand_worker import _has_legal_problem_angle
+
+    assert _has_legal_problem_angle("ارتفاع أسعار الذهب")
+    assert _has_legal_problem_angle("تسريب بيانات العملاء")
+    assert _has_legal_problem_angle("حادث سيارة")
+    assert not _has_legal_problem_angle("مشاري راشد العفاسي")
+    assert not _has_legal_problem_angle("NY Red Bulls vs Inter Miami")
