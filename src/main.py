@@ -202,20 +202,19 @@ def _linkedin_native_fallback(*, topic: str, source_post: str) -> str:
     """Create distinct professional LinkedIn copy when editorial AI is unavailable."""
     clean_topic = sanitize_topic(topic) or "المسألة القانونية المطروحة"
     source = sanitize_social_copy(source_post).strip()
-    sentences = [part.strip() for part in re.split(r"(?<=[.!؟])\\s+|\\n+", source) if part.strip()]
+    sentences = [part.strip() for part in re.split(r"(?<=[.!؟])\s+|\n+", source) if part.strip()]
     anchor = " ".join(sentences[:2]).strip()
     if len(anchor) > 520:
         anchor = anchor[:520].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     return (
-        f"في التعامل العملي مع {clean_topic}، التحدي مش في معرفة القاعدة وحدها، لكن في تحديد أثرها على القرار قبل تنفيذه.\\n\\n"
-        f"{anchor}\\n\\n"
+        f"في التعامل العملي مع {clean_topic}، التحدي مش في معرفة القاعدة وحدها، لكن في تحديد أثرها على القرار قبل تنفيذه.\n\n"
+        f"{anchor}\n\n"
         "بالنسبة لصاحب العمل أو المسؤول عن القرار، المهم هو ربط القاعدة بالوقائع الفعلية: ما الالتزام القائم؟ "
         "ما المستند الذي يثبت الموقف؟ ومن المسؤول عن الإجراء وتوقيته؟ اختلاف إجابة سؤال واحد من دول ممكن يغيّر "
-        "تقييم المخاطر والخطوة المناسبة.\\n\\n"
+        "تقييم المخاطر والخطوة المناسبة.\n\n"
         "عمليًا، راجع المستندات ذات الصلة وحدد الخيارات المتاحة وأثر كل خيار قبل اتخاذ قرار يصعب الرجوع عنه. "
         "والتقييم النهائي يظل مرتبطًا بالتفاصيل والمستندات والقواعد المنطبقة على الحالة، مش بعنوان الموضوع وحده."
     ).strip()
-
 
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
