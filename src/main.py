@@ -220,6 +220,13 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     target_count = len(comments["facebook_comments"])
     reviewed = review_and_prepare(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, facebook_post=facebook_post, facebook_comments=comments["facebook_comments"][:5], linkedin_comments=comments["linkedin_comments"], legal_sources=legal_sources)
+    # Enforce platform separation even when the editorial model returns the Facebook text.
+    fb_compare = re.sub(r"\s+", " ", sanitize_social_copy(facebook_post)).strip().casefold()
+    li_compare = re.sub(r"\s+", " ", sanitize_social_copy(str(reviewed.get("linkedin_post", "") or ""))).strip().casefold()
+    similarity = SequenceMatcher(None, fb_compare, li_compare).ratio() if fb_compare and li_compare else 1.0
+    if not li_compare or len(li_compare) < 900 or similarity >= 0.78:
+        print(f"LinkedIn editorial copy failed platform-separation check (chars={len(li_compare)}, similarity={similarity:.2f}); using native fallback.")
+        reviewed["linkedin_post"] = _linkedin_native_fallback(topic=topic, source_post=facebook_post)
     reviewed_fb = list(reviewed.get("facebook_comments", []))[:target_count]
     reviewed_li = list(reviewed.get("linkedin_comments", []))[:target_count]
     if len(reviewed_fb) < target_count:
