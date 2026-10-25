@@ -483,30 +483,19 @@ def add_motion_graphics_layer(
     ]
     logo = next((candidate for candidate in logo_candidates if str(candidate) and candidate.is_file()), Path("__missing_brand_logo__"))
     endcard = work_dir / "brand_endcard.mp4"
-    img = Image.new("RGB", (1080, 1920), (7, 17, 34))
-    draw = ImageDraw.Draw(img)
-    # Brand palette: midnight navy, bright cyan, clean white.
-    draw.rounded_rectangle((105, 210, 975, 1710), radius=54, outline=(35, 174, 230), width=5)
-    draw.ellipse((365, 350, 715, 700), outline=(35, 174, 230), width=8)
-    if logo.is_file():
-        try:
-            mark = Image.open(logo).convert("RGBA")
-            mark.thumbnail((650, 650), Image.Resampling.LANCZOS)
-            img.paste(mark, ((1080-mark.width)//2, 390), mark)
-            draw = ImageDraw.Draw(img)
-        except Exception as exc:
-            print(f"Brand logo could not be loaded; using typographic mark: {exc}")
-            logo = Path("__missing_brand_logo__")
+    # Final card: original logo artwork full-screen, without invented text or framing.
+    from PIL import ImageOps
     if not logo.is_file():
-        draw.text((540, 520), rtl("اسأل محمود"), font=font(88), anchor="mm", fill=(255, 255, 255))
-        draw.rounded_rectangle((300, 630, 780, 645), radius=7, fill=(35, 174, 230))
-    draw.text((540, 1015), rtl("اسأل محمود"), font=font(86), anchor="mm", fill=(255, 255, 255))
-    draw.text((540, 1125), rtl("مستشار قانوني للشركات"), font=font(43), anchor="mm", fill=(190, 220, 238))
-    # Exact brand line, shaped and rendered locally rather than generated inside a video model.
-    draw.text((540, 1210), rtl("اسأل محمود - مستشار قانوني للشركات"), font=font(29), anchor="mm", fill=(255, 255, 255))
-    draw.rounded_rectangle((190, 1300, 890, 1405), radius=38, fill=(13, 99, 145))
-    draw.text((540, 1352), rtl("خليك فاكر دايمًا"), font=font(48), anchor="mm", fill=(255, 255, 255))
-    draw.text((540, 1510), rtl("اسأل محمود"), font=font(70), anchor="mm", fill=(60, 198, 244))
+        raise RuntimeError("Original brand logo is missing; refusing to generate a substitute logo.")
+    try:
+        with Image.open(logo) as source_logo:
+            mark = source_logo.convert("RGBA")
+        mark = ImageOps.fit(mark, (1080, 1920), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        background = Image.new("RGBA", (1080, 1920), (7, 17, 34, 255))
+        background.alpha_composite(mark)
+        img = background.convert("RGB")
+    except Exception as exc:
+        raise RuntimeError(f"Original brand logo could not be rendered full-screen: {exc}") from exc
     end_png = work_dir / "brand_endcard.png"
     img.save(end_png, quality=95)
     subprocess.run([
@@ -1305,7 +1294,7 @@ def main() -> int:
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
                         if float(REEL_MIN_DURATION_SECONDS) <= mpt_duration <= float(REEL_CONTENT_MAX_SECONDS):
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                            slogan_text = "خليك فاكر دايما .... اسأل محمود"
+                            slogan_text = "خليك فاكر دايما ... اسأل محمود"
                             slogan_ready = False
                             clean_slogan = prepare_tts_script(slogan_text)
                             try:
@@ -1346,7 +1335,7 @@ def main() -> int:
                 build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=REEL_CONTENT_MAX_SECONDS)
                 # Apply the same branded motion layer and spoken slogan to the fallback.
                 slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                slogan_text = "خليك فاكر دايما .... اسأل محمود"
+                slogan_text = "خليك فاكر دايما ... اسأل محمود"
                 slogan_ready = False
                 clean_slogan = prepare_tts_script(slogan_text)
                 try:
