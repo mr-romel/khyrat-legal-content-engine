@@ -149,23 +149,23 @@ def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
     raise RuntimeError("LinkedIn comment generation failed.")
 
 def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
-    """Deterministic comments must derive from the published post, never the Sheet title."""
-    post_text = re.sub(r"\s+", " ", str(post or "")).strip()
+    """Contextual LinkedIn comments grounded in the published post, not generic filler."""
+    post_text = re.sub(r"\\s+", " ", str(post or "")).strip()
+    # Pull a short subject anchor from the actual published copy. Never use the Sheet title.
+    words = re.findall(r"[\\wء-ي]+", post_text)
+    stop = {"اللي", "التي", "هذا", "هذه", "ذلك", "لكن", "لأن", "على", "من", "في", "عن", "مع", "بعد", "قبل", "إن", "أن", "هو", "هي", "وده", "دي", "ده", "كمان"}
+    anchor_words = [word for word in words if len(word) > 2 and word.casefold() not in stop][:4]
+    anchor = " ".join(anchor_words).strip() or "النقطة المطروحة"
     templates = [
-        "الوقائع والمستندات هي اللي بتحسم التطبيق العملي، مش القاعدة العامة وحدها",
-        "من منظور إداري، تحديد المسؤوليات والمواعيد والالتزامات قبل التنفيذ يقلل تكلفة التصحيح",
-        "التفصيل الصغير في المستند أو الإجراء ممكن يغيّر التقييم القانوني للموقف بالكامل",
-        "القرار السريع مش دايمًا الأقل تكلفة، خصوصًا لما يكون له أثر تعاقدي أو مالي",
-        "المهم إن القرار يتبني على الوقائع الفعلية والمستندات الموجودة، مش على وصف مختصر للمشكلة",
-        "المراجعة القانونية هنا أداة لإدارة المخاطر قبل ما المشكلة تتحول إلى نزاع أو تكلفة إضافية",
-        "لما يكون قدام الإدارة أكتر من بديل، مقارنة الأثر القانوني والتجاري لكل بديل بتخلي القرار أوضح",
+        f"في موضوع {anchor}، التمييز بين القاعدة العامة والوقائع الفعلية هو اللي بيحدد النتيجة العملية",
+        f"من ناحية التطبيق، {anchor} محتاجة ربط واضح بالمستندات والإجراء اللي حصل فعلًا، مش بالوصف المختصر وحده",
+        f"المخاطرة هنا إن التعامل مع {anchor} باعتبارها حالة واحدة يتجاهل اختلاف المراكز والظروف من حالة للتانية",
+        f"قبل اتخاذ قرار متعلق بـ {anchor}، مهم تحديد المسؤول عن الإجراء والأثر المتوقع لو اتأخر أو اتنفذ بشكل مختلف",
+        f"الجانب الإداري في {anchor} لا يقل أهمية عن فهم القاعدة؛ توثيق القرار وتحديد المسؤوليات يقلل مساحة الخلاف",
+        f"وجود معلومة عامة عن {anchor} مش كفاية وحده؛ التقييم الأدق يبدأ من الوقائع والمستندات المتاحة",
+        f"لو كان القرار العملي متعلقًا بـ {anchor}، فمراجعة البدائل وآثارها قبل التنفيذ غالبًا أقل تكلفة من تصحيح المسار لاحقًا",
     ]
-    # The published post is the only source of subject matter. The fallback
-    # never interpolates the spreadsheet topic/title.
-    if not post_text:
-        return [remove_blogger_link(normalize_comment(x)) for x in templates[:count]]
-    return [normalize_comment(x) for x in templates[:count]]
-
+    return [remove_blogger_link(normalize_comment(x)) for x in templates[:max(0, min(count, len(templates)))]]
 
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
     count = count if count is not None else choose_comment_count(topic, post)
