@@ -70,6 +70,22 @@ AR_STOP = {
     "هذا", "هذه", "ذلك", "ولا", "إذا", "لو", "لدى", "بشأن", "بين", "أو",
 }
 QUESTION_TERMS = ("ازاي", "كيف", "ماذا", "هل", "متى", "عقوبة", "حقوق", "إجراءات", "طريقة", "أعمل", "أفعل", "مستحقات")
+
+TREND_PROBLEM_TERMS = (
+    "سعر", "أسعار", "غلاء", "نصب", "احتيال", "اختراق", "تسريب", "ابتزاز", "تحرش",
+    "اعتداء", "حادث", "طلاق", "نفقة", "إيجار", "مرتبات", "راتب", "فصل", "عمال",
+    "مخالفات", "عقار", "سيارات", "مرور", "ضرائب", "غرامة", "شركات", "تداول",
+    "تحويل", "بنوك", "قروض", "تطبيق", "بيانات", "صور", "فيديو", "تشهير", "محكمة",
+    "حكم", "حقوق", "ترخيص", "تعويض", "شكوى", "تظلم", "إغلاق", "خلاف", "أموال",
+    "إيصال", "شيك", "عقد", "إصابة", "وفاة", "مفقود", "أجور", "تأمينات",
+)
+
+
+def _has_legal_problem_angle(trend: str) -> bool:
+    """Only turn trends into articles when there is a plausible, reader-useful legal problem."""
+    value = _clean(trend).casefold()
+    return any(term.casefold() in value for term in TREND_PROBLEM_TERMS)
+
 LEGAL_TERMS = ("قانون", "حقوق", "محكمة", "دعوى", "عقد", "إيجار", "عمل", "تعويض", "ورثة", "نفقة", "حضانة", "شيك", "أمانة", "ابتزاز", "فصل", "إخلاء", "شركة", "عقار", "ترخيص", "مخالفة", "تظلم", "مستحقات")
 FOREIGN_JURISDICTION_TERMS = (
     "الجزائر", "الجزائري", "الجزائرية", "السعودية", "السعودي",
@@ -291,9 +307,9 @@ def collect_candidates(
     # asserting unverified allegations or treating virality as search-volume data.
     for trend in trends[:30]:
         trend = _clean(trend)[:100]
-        if not trend:
+        if not trend or not _has_legal_problem_angle(trend):
             continue
-        query = f"الجوانب القانونية المرتبطة بترند {trend} في مصر"
+        query = f"حل المشكلة القانونية المرتبطة بترند {trend} وفق القانون المصري"
         norm = _norm(query)
         if not norm or norm in seen or _is_foreign_jurisdiction_query(query):
             continue
@@ -511,9 +527,12 @@ def main() -> int:
     keyword_map = _load_map()
     history = keyword_map["history"]
     published = _public_titles()
+    slot = "morning" if cairo_now.hour < 10 else "afternoon"
     existing_today = next(
         (item for item in reversed(history)
-         if item.get("date") == today and item.get("status") in {"PUBLISHED", "PUBLISH_UNVERIFIED"}),
+         if item.get("date") == today
+         and item.get("slot", "morning") == slot
+         and item.get("status") in {"PUBLISHED", "PUBLISH_UNVERIFIED"}),
         None,
     )
     if existing_today:
@@ -559,8 +578,16 @@ def main() -> int:
         except Exception as exc:
             print(f"Search Console data unavailable; using autocomplete/SERP demand signals: {exc}")
     candidates = collect_candidates(history, published, trends, search_console_rows)
+    # This workflow is specifically the trend layer. The ordinary scheduled
+    # Blogger article remains separate; irrelevant celebrity/sports trends are skipped.
+    candidates = [
+        item for item in candidates
+        if item.get("demand_signal") == "GOOGLE_TRENDS_EGYPT_LEGAL_ANGLE"
+        and any(_has_legal_problem_angle(term) for term in item.get("trend_matches", []))
+    ]
     if not candidates:
-        raise RuntimeError("No distinct legal search-demand candidate found after deduplication.")
+        print(f"No distinct Google Egypt trend with a defensible Egyptian-law problem angle for slot={slot}; skipping rather than manufacturing a legal connection.")
+        return 0
     selected = candidates[0]
     query = _clean(selected.get("query", ""))
     if not query:
@@ -714,6 +741,7 @@ def main() -> int:
     history_entry = {
         **selected,
         "date": today,
+        "slot": slot,
         "status": "PROCESSING",
         "title": title,
         "keywords": keywords,
