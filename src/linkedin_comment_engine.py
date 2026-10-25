@@ -150,9 +150,9 @@ def _generate(*, client, model: str, prompt: str, attempts: int) -> Any:
 
 def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
     """Contextual LinkedIn comments grounded in the published post, not generic filler."""
-    post_text = re.sub(r"\\s+", " ", str(post or "")).strip()
+    post_text = re.sub(r"\s+", " ", str(post or "")).strip()
     # Pull a short subject anchor from the actual published copy. Never use the Sheet title.
-    words = re.findall(r"[\\wء-ي]+", post_text)
+    words = re.findall(r"[\wء-ي]+", post_text)
     stop = {"اللي", "التي", "هذا", "هذه", "ذلك", "لكن", "لأن", "على", "من", "في", "عن", "مع", "بعد", "قبل", "إن", "أن", "هو", "هي", "وده", "دي", "ده", "كمان"}
     anchor_words = [word for word in words if len(word) > 2 and word.casefold() not in stop][:4]
     anchor = " ".join(anchor_words).strip() or "النقطة المطروحة"
@@ -166,7 +166,6 @@ def _fallback_linkedin_comments(post: str, count: int) -> list[str]:
         f"لو كان القرار العملي متعلقًا بـ {anchor}، فمراجعة البدائل وآثارها قبل التنفيذ غالبًا أقل تكلفة من تصحيح المسار لاحقًا",
     ]
     return [remove_blogger_link(normalize_comment(x)) for x in templates[:max(0, min(count, len(templates)))]]
-
 def generate_linkedin_comments(*, api_key: str, model: str, post_urn: str, topic: str, post: str, legal_sources: str = "", count: int | None = None) -> list[str]:
     count = count if count is not None else choose_comment_count(topic, post)
     if not api_key and not has_any_provider_key():
