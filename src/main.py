@@ -198,6 +198,25 @@ def _ensure_facebook_cta(post: str) -> str:
     return text + (("\n\n" + addition_text) if addition_text else "") + (("\n\n" + contact_cta) if contact_cta else "")
 
 
+def _linkedin_native_fallback(*, topic: str, source_post: str) -> str:
+    """Create distinct professional LinkedIn copy when editorial AI is unavailable."""
+    clean_topic = sanitize_topic(topic) or "المسألة القانونية المطروحة"
+    source = sanitize_social_copy(source_post).strip()
+    sentences = [part.strip() for part in re.split(r"(?<=[.!؟])\\s+|\\n+", source) if part.strip()]
+    anchor = " ".join(sentences[:2]).strip()
+    if len(anchor) > 520:
+        anchor = anchor[:520].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    return (
+        f"في التعامل العملي مع {clean_topic}، التحدي مش في معرفة القاعدة وحدها، لكن في تحديد أثرها على القرار قبل تنفيذه.\\n\\n"
+        f"{anchor}\\n\\n"
+        "بالنسبة لصاحب العمل أو المسؤول عن القرار، المهم هو ربط القاعدة بالوقائع الفعلية: ما الالتزام القائم؟ "
+        "ما المستند الذي يثبت الموقف؟ ومن المسؤول عن الإجراء وتوقيته؟ اختلاف إجابة سؤال واحد من دول ممكن يغيّر "
+        "تقييم المخاطر والخطوة المناسبة.\\n\\n"
+        "عمليًا، راجع المستندات ذات الصلة وحدد الخيارات المتاحة وأثر كل خيار قبل اتخاذ قرار يصعب الرجوع عنه. "
+        "والتقييم النهائي يظل مرتبطًا بالتفاصيل والمستندات والقواعد المنطبقة على الحالة، مش بعنوان الموضوع وحده."
+    ).strip()
+
+
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     target_count = len(comments["facebook_comments"])
@@ -735,7 +754,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             editorial = _keep_variable_comments_separate(editorial)
         except Exception as editorial_exc:
             print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
-            editorial = {"facebook_post": post, "linkedin_post": post, "facebook_comments": [], "linkedin_comments": []}
+            # Never silently publish Facebook copy verbatim as LinkedIn when editorial AI fails.
+            editorial = {
+                "facebook_post": post,
+                "linkedin_post": _linkedin_native_fallback(topic=topic, source_post=post),
+                "facebook_comments": [],
+                "linkedin_comments": [],
+            }
         editorial["facebook_comments"] = [sanitize_social_copy(x) for x in editorial.get("facebook_comments", []) if sanitize_social_copy(x)]
         editorial["linkedin_comments"] = [sanitize_social_copy(x) for x in editorial.get("linkedin_comments", []) if sanitize_social_copy(x)]
         facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(editorial["facebook_post"])), topic)
