@@ -9,7 +9,7 @@ on:
       - "src/blogger_demand_worker.py"
   schedule:
     # Run before the social publishing window; timezone is explicit to handle DST.
-    - cron: "0 7 * * *"
+    - cron: "0 7,13 * * *"
       timezone: "Africa/Cairo"
   workflow_dispatch:
 
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   publish-demand-article:
-    name: Research Egyptian legal searches and publish one extra article
+    name: Review Google Egypt trends and publish up to two relevant legal-problem articles
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
