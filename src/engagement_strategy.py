@@ -56,7 +56,7 @@ def blog_cta_comment(
     # Repeated multi-part calls to read, visit, and share can look promotional;
     # the comment should have one clear action and no extra engagement bait.
     variants = [
-        f"الشرح الموسع عن {subject} على مدونة اسأل محمود: {candidate_url}",
+        f"التفاصيل عن {subject} على مدونة اسأل محمود: {candidate_url}",
         f"للاطلاع على تفاصيل {subject} والأمثلة العملية: {candidate_url}",
         f"لو حابب تعرف تفاصيل أكثر عن {subject}، اقرأ هنا: {candidate_url}",
         f"معلومات إضافية مرتبطة بـ{subject} في مدونة اسأل محمود: {candidate_url}",
