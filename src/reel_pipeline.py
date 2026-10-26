@@ -244,7 +244,7 @@ def _media_duration(path: Path) -> float:
 def fit_reel_narration_duration(path: Path, target_seconds: float | None = None) -> Path:
     """QA only. Never speed up natural Egyptian narration."""
     duration = _media_duration(path)
-    minimum = min(45.0, float(REEL_MIN_DURATION_SECONDS))
+    minimum = 22.0
     maximum = float(REEL_CONTENT_MAX_SECONDS)
     if duration < minimum:
         raise RuntimeError("Reel narration is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
@@ -256,7 +256,7 @@ def fit_reel_narration_duration(path: Path, target_seconds: float | None = None)
 def _normalize_reel_audio_duration(path: Path, target_max: float | None = None) -> Path:
     """Keep Egyptian neural speech at natural speed; never use atempo compression."""
     duration = _media_duration(path)
-    minimum = float(REEL_MIN_DURATION_SECONDS)
+    minimum = 22.0
     maximum = min(float(target_max), float(REEL_CONTENT_MAX_SECONDS)) if target_max is not None else float(REEL_CONTENT_MAX_SECONDS)
     if duration < minimum:
         raise RuntimeError("Egyptian Neural TTS audio is too short: %.1fs; configured minimum is %.1fs." % (duration, minimum))
@@ -696,92 +696,45 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 
 
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
+    """Concise topic-aware fallback matching the same 30–40 second Reel contract."""
     text = " ".join(str(post or "").split())
-    post_sentences = [s.strip() for s in re.split(r"(?<=[؟!.])\s+", text) if s.strip()]
-    if not post_sentences:
+    sentences = [part.strip() for part in re.split(r"(?<=[؟!.])\\s+", text) if part.strip()]
+    if not sentences:
         raise RuntimeError("Cannot build Reel script without reviewed post content.")
 
-    # The Sheet topic/title is editorial metadata only. The spoken script is
-    # deliberately built from the reviewed post and never announces the title.
-    selected = post_sentences[:5]
-    core = " ".join(selected)
-    # Deterministic fallback mirrors the same hook -> question -> answer -> action -> CTA structure.
-    # Select a hook style from the content so different topics do not all open with the same line.
-    hook_options = [
-        "خلي بالك، غلطة واحدة في الموقف ده ممكن تضيّع عليك حقك لو اتصرفت قبل ما تفهم التفاصيل.",
-        "المفاجأة إن اللي ناس كتير بتفتكره تصرف عادي، ممكن يغيّر موقفك القانوني تمامًا.",
-        "قبل ما تاخد أي خطوة، اسمع دي: أخطر تفصيلة في الموضوع ممكن تكون حاجة إنت مش واخد بالك منها.",
-        "مش كل موقف واضح من أول نظرة؛ أحيانًا تفصيلة واحدة هي اللي بتفرق بين تصرف صح وتصرف يضرّك.",
-        "إوعى تستعجل وتاخد القرار قبل ما تعرف النقطة القانونية اللي ممكن تقلب فهمك للموقف."
+    # Vary the hook by topic while keeping the claim grounded in the supplied post.
+    hooks = [
+        "خلي بالك، التفصيلة دي ممكن تغيّر موقفك القانوني. ",
+        "قبل ما تتصرف، فيه نقطة مهمة لازم تبقى واضحة. ",
+        "الغلط هنا إنك تحكم على الموقف من شكله بس. ",
+        "ممكن تكون فاهم حقك صح، لكن ناقصك تفصيل مهم. ",
+        "استنى قبل ما تاخد قرار؛ الإجابة مش في الانطباع الأول. ",
     ]
-    hook_index = sum(ord(ch) for ch in (topic + text[:120])) % len(hook_options)
-    # The fallback must still answer a concrete question from the source, rather than
-    # padding the Reel with universal advice. Prefer source-specific issue cues.
-    lower = text.lower()
-    if any(term in lower for term in ("اعتراف", "إكراه", "محاضر الشرطة", "تحقيقات النيابة")):
-        hook = "خلي بالك: مش كل اعتراف في محضر شرطة يبقى دليل يحسم القضية."
-        question = "إمتى الاعتراف ممكن يفقد قيمته القانونية؟"
-        answer = (
-            "لما ما يكونش صادر عن إرادة حرة، أو يكون فيه إكراه مادي أو معنوي. "
-            "وكمان لازم يكون الاعتراف صريح ومحدد للواقعة نفسها؛ والمحكمة هي اللي بتقدّر قيمته "
-            "وتقارنه بظروف الواقعة وباقي الأدلة."
-        )
-        action = (
-            "لو بتدلي بأقوال تحت ضغط، ما توقّعش على كلام مش بيعبر عن أقوالك بدقة. "
-            "اطلب مراجعة المحضر بهدوء، واستعن بمحامي قبل أي خطوة مؤثرة. "
-            "ولو حصل إكراه، فظروف صدور الاعتراف ومدى توافقه مع باقي الوقائع نقاط لازم تتعرض على الدفاع."
-        )
-        cta = "احفظ الفيديو قبل أي إجراء تحقيق، واكتب في التعليقات: إيه أكتر نقطة محتاج تفهمها عن الاعتراف؟"
-        hook_options = [hook]
-        hook_index = 0
-    else:
-        question = "إيه النقطة المحددة اللي بتغيّر الحكم على الموقف ده؟"
-        answer = (
-            f"{core} "
-            "المهم هنا مش الانطباع العام؛ المهم القاعدة المحددة اللي يذكرها المحتوى والوقائع اللي تنطبق عليها. "
-        )
-        action = (
-            "ارجع للنقطة الواردة في المنشور، وحدد الواقعة اللي تنطبق عليها قبل ما تتصرف. "
-            "لو المنشور ما بيحسمش حالة بعينها، ما تعتبرش ده جواب نهائي لحالتك؛ اعرض التفاصيل على مختص."
-        )
-        cta = "اكتب في التعليقات سؤالًا محددًا عن النقطة دي، واحفظ الفيديو للرجوع للمعلومة وقت الحاجة."
-        hook_options = [
-            "قبل ما تاخد قرار، فيه تفصيلة محددة في الموقف ده لازم تفهمها الأول.",
-            "مش كل تصرف شكله عادي بيكون مناسب قانونيًا؛ الفارق في النقطة دي تحديدًا.",
-            "لو بتواجه الموقف ده، ما تبدأش بالحل قبل ما تعرف القاعدة اللي بتحكمه."
-        ]
-        hook_index = sum(ord(ch) for ch in (topic + text[:120])) % len(hook_options)
-    if "hook_index" not in locals():
-        hook_index = 0
-    script = " ".join([hook_options[hook_index], question, answer, action, cta])
-    script = _bound_reel_script(script, max_words=210)
-    if len(script.split()) < 170:
-        if any(term in lower for term in ("اعتراف", "إكراه", "محاضر الشرطة", "تحقيقات النيابة")):
-            script += (
-                " وخد بالك من فرق مهم: مجرد وجود اعتراف في المحضر مش معناه إن المحكمة لازم تاخد بيه. "
-                "لازم الاعتراف يكون واضح وصريح، ويتعلق بالواقعة نفسها، والمحكمة بتشوف كمان هل الكلام متوافق مع الظروف المحيطة وباقي عناصر الدعوى. "
-                "ولو بتقول إن الاعتراف حصل تحت ضغط أو إكراه، فالمهم توثّق لمحاميك ظروف اللي حصل بدقة: الضغط كان إزاي، وإمتى حصل، وإيه اللي يخالف مضمون الاعتراف في باقي الوقائع. "
-                "ما تحاولش تصيغ رواية على مقاس نتيجة معينة، وما تعتمدش على فكرة إنك تقدر تتراجع بعدين بسهولة؛ الأفضل إن أقوالك تعبر عن الحقيقة من البداية، وإنك تطلب مساعدة محامٍ قبل أي خطوة مؤثرة. "
-                "السؤال مش هل وقّعت وبس؛ السؤال هل الاعتراف صدر بإرادة حرة، وهل مضمونه متسق مع الواقعة والأدلة؟ دي نقاط التقييم الأساسية اللي لازم تتراجع في كل حالة."
-            )
-        else:
-            script += " ركّز على النقطة القانونية المحددة اللي بيشرحها المنشور، وافصل بين اللي حصل فعلًا وبين أي افتراض أو تفسير. حدّد الواقعة اللي تنطبق عليها القاعدة، وإيه الدليل اللي يسندها، وإيه النتيجة اللي المصدر بيقول إنها ممكن تترتب عليها. لو المعلومة المتاحة ما بتحسمش ظروفك، ما تحولهاش لحكم نهائي على حالتك. جهّز الوقائع الأساسية واسأل مختصًا عن السؤال المحدد قبل ما تتخذ إجراء يصعب التراجع عنه. واكتب في التعليقات السؤال اللي لسه محتاج إجابة واضحة عنه، عشان يكون النقاش مركزًا على المشكلة نفسها بدل نصائح عامة."
-    script = _bound_reel_script(script, max_words=210)
-    sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
+    hook = hooks[sum(ord(ch) for ch in (topic + text[:80])) % len(hooks)].strip()
+    topic_words = [w for w in re.findall(r"[ء-ي]+", topic) if len(w) > 2]
+    focus = " ".join(topic_words[:4]) or "الموقف ده"
+    question = f"إيه اللي يحسم موضوع {focus}؟"
+    answer_source = " ".join(sentences[:2])
+    answer_source = re.sub(r"https?://\\S+", "", answer_source)
+    answer_words = answer_source.split()
+    answer = " ".join(answer_words[:29]).strip()
+    if len(answer_words) > 29:
+        answer = answer.rstrip("،؛:") + "، والتفاصيل دي هي اللي تحدد تطبيق القاعدة."
+    cta = "اكتب سؤالك المحدد في التعليقات، واحفظ الفيديو قبل ما تاخد خطوة ممكن تندم عليها."
+    script = " ".join((hook, question, answer, cta))
+    words = script.split()
+    if len(words) < 55:
+        # Add only source material, never generic padding or unsupported legal rules.
+        extra = " ".join(sentences[2:4])
+        if extra:
+            script = " ".join((hook, question, answer, extra, cta))
+    script = _bound_reel_script(script, max_words=75)
+    if len(script.split()) < 45:
+        raise RuntimeError("Deterministic Reel script is too short to deliver a useful 30–40 second video.")
+    spoken_sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\\s+", script) if x.strip()]
     emotions = []
-    for i, sentence in enumerate(sentences, start=1):
-        if i == 1:
-            emotion = "strong_hook"
-        elif i == len(sentences):
-            emotion = "strong_cta"
-        elif any(k in sentence for k in ("السؤال", "المهم", "لكن")):
-            emotion = "clarification"
-        elif any(k in sentence for k in ("قبل", "ما تستعجل", "غلط")):
-            emotion = "warning"
-        elif any(k in sentence for k in ("اجمع", "المستندات", "الرسائل")):
-            emotion = "urgency"
-        else:
-            emotion = "calm_authority"
+    for i, sentence in enumerate(spoken_sentences, start=1):
+        emotion = "strong_hook" if i == 1 else "strong_cta" if i == len(spoken_sentences) else "calm_authority"
         emotions.append({"sentence_index": i, "delivery_emotion": emotion})
     return {
         "script": script,
