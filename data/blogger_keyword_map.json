@@ -1343,7 +1343,7 @@
       "demand_signal": "GOOGLE_TRENDS_EGYPT_LEGAL_ANGLE",
       "date": "2026-10-26",
       "slot": "afternoon",
-      "status": "PUBLISHED",
+      "status": "PUBLISH_UNVERIFIED",
       "title": "المعاملات المالية وتقلبات سعر الدولار: الضوابط القانونية وكيفية حماية العقود في مصر",
       "keywords": [
         "التعامل بالدولار في مصر",
@@ -1357,8 +1357,7 @@
       "serp_titles": [],
       "serp_urls": [],
       "research_date": "2026-10-26",
-      "post_id": "7523733592305439630",
-      "post_url": "https://askmahmoudkhyrat.blogspot.com/2026/10/blog-post_26.html",
+      "post_url": "",
       "published_at": "2026-10-26T13:00:02.008093+03:00"
     }
   ],
