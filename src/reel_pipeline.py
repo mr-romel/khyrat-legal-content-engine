@@ -382,9 +382,9 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
             "annotations": [{
                 "type": "speech_metadata",
                 "style": (
-                    "Natural everyday Egyptian Arabic, mature male legal presenter, engaging and trustworthy; 
-                    + emotion +
-                    "; confident but reassuring, crisp diction, conversational Cairo accent, natural pauses, no monotone and not a newsreader"
+                    "Natural everyday Egyptian Arabic, mature male legal presenter, engaging and trustworthy; "
+                    + emotion
+                    + "; confident but reassuring, crisp diction, conversational Cairo accent, natural pauses, no monotone and not a newsreader"
                 ),
             }],
         })
