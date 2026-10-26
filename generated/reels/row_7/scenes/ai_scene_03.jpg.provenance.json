@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "person preserving phone evidence in a contemporary setting",
+  "prompt_sha256": "12a0b006ed8bbd1ff27e4c22db7ee4a95371841540dfaa17d048598ed0fc7371",
+  "image_sha256": "6eee4ca124df63d29880f859f9441319fe81284ee61e204e82fa14e6f1df0d1c",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_03.jpg",
+  "visual_description": "person preserving phone evidence in a contemporary setting",
+  "qa_decision": "PENDING"
+}

@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "lawyer reviewing digital evidence",
+  "prompt_sha256": "a853b5b8189ff1210b435187fcf37b3c970fd4d3869a2439f7bf6f8748eddcb7",
+  "image_sha256": "928204f19261c7b617ea05853b424d4a987ab132f19f991d06ea43605b6a4eff",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_06.jpg",
+  "visual_description": "lawyer reviewing digital evidence",
+  "qa_decision": "PENDING"
+}

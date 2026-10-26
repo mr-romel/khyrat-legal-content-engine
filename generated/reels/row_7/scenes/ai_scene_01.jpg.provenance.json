@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "smartphone message evidence close up realistic",
+  "prompt_sha256": "5a62887b2e489871e267d18fa2e86b6c828a40386d535cc608020fc54fd26fed",
+  "image_sha256": "cccdf063cc2038f2c3131a230b374b95d0ebe3ca4d2f98a464521615018ea5ad",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_01.jpg",
+  "visual_description": "smartphone message evidence close up realistic",
+  "qa_decision": "PENDING"
+}

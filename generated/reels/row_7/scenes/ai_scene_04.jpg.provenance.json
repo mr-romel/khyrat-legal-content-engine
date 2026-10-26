@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "legal evidence documents smartphone",
+  "prompt_sha256": "97ffb6269c643077231077e711ac3b45f1e283f6021004f5c66d1b1773c4f5cc",
+  "image_sha256": "3edd135dbb7eda65a93c7819659745a305e35108149c01cce804cbedc0acaa35",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_04.jpg",
+  "visual_description": "legal evidence documents smartphone",
+  "qa_decision": "PENDING"
+}

@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "complaint evidence collection realistic",
+  "prompt_sha256": "194c0443a77c1efe5e1177721b9f1d39e0c72a5219c1f36a19c26dc3094caebd",
+  "image_sha256": "e74ee5366aec29aee8416f29a22cefddb89068ca90e7b65f11ac6fb89d7411fa",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_05.jpg",
+  "visual_description": "complaint evidence collection realistic",
+  "qa_decision": "PENDING"
+}

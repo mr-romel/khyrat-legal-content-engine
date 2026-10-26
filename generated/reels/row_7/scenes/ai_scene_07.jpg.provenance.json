@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "modern everyday scene showing التصوير دون إذن",
+  "prompt_sha256": "6bab54dff5ed2f21123cf9926a8a401bb88463f2cc65eb6ba1f52f283a789fbb",
+  "image_sha256": "5338b7475394c3f6a88f3200f326b046f1180dcae8ed0021383bd360589f3d3f",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_07.jpg",
+  "visual_description": "modern everyday scene showing التصوير دون إذن",
+  "qa_decision": "PENDING"
+}

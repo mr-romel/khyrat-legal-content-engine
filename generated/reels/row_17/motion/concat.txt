@@ -1,2 +1,0 @@
-file '/home/runner/work/khyrat-legal-content-engine/khyrat-legal-content-engine/generated/reels/row_17/motion/whiteboard_motion.mp4'
-file '/home/runner/work/khyrat-legal-content-engine/khyrat-legal-content-engine/generated/reels/row_17/motion/brand_endcard.mp4'

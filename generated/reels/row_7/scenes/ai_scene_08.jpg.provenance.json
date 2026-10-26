@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "التصوير دون إذن evidence on a contemporary desk",
+  "prompt_sha256": "a6910b9388cbb7025ddc2df69886966f1baf02cdada4f7a725c877509a8be5c6",
+  "image_sha256": "781f6bf2b6bd0c71f292bf71c6f96c59056b2a2fe49e80ecf9c2d57fe533466b",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_08.jpg",
+  "visual_description": "التصوير دون إذن evidence on a contemporary desk",
+  "qa_decision": "PENDING"
+}

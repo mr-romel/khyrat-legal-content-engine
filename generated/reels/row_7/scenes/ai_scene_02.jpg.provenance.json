@@ -1,0 +1,11 @@
+{
+  "topic": "التصوير دون إذن",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "digital evidence phone screen unreadable",
+  "prompt_sha256": "9a5711de2d764e5f2f159a893e44993b7e34f8c5b9f8194cca3ea21775c9bcf5",
+  "image_sha256": "fa4ebc345fd060a79741b945b58e02827406482fab0a7ffedd9fd1207df49bc9",
+  "image_path": "generated/reels/row_7/scenes/ai_scene_02.jpg",
+  "visual_description": "digital evidence phone screen unreadable",
+  "qa_decision": "PENDING"
+}

@@ -1,0 +1,35 @@
+{
+  "topic": "التصوير دون إذن",
+  "script": "خلي بالك، التفصيلة دي ممكن تغيّر موقفك القانوني إيه اللي يحسم موضوع التصوير دون إذن؟ كتير مننا بيشوفوا تصوير الأشخاص في الأماكن العامة أو حتى داخل المنشآت تصرف عادي، وبيفتكروا إن مجرد وجود الشخص في مكان عام بيبيح للغير التقاط صور ليه أو تسجيل، والتفاصيل دي هي اللي تحدد تطبيق القاعدة اكتب سؤالك المحدد في التعليقات، واحفظ الفيديو قبل ما تاخد خطوة ممكن تندم عليها",
+  "video_terms": [
+    "smartphone message evidence close up realistic",
+    "digital evidence phone screen unreadable",
+    "person preserving phone evidence in a contemporary setting",
+    "legal evidence documents smartphone",
+    "complaint evidence collection realistic",
+    "lawyer reviewing digital evidence",
+    "modern everyday scene showing التصوير دون إذن",
+    "التصوير دون إذن evidence on a contemporary desk"
+  ],
+  "facebook_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات المرتبطة بالموضوع.",
+  "linkedin_caption": "معلومة قانونية عملية مبنية على الوقائع والمستندات قبل اتخاذ القرار.",
+  "emotion_map": [
+    {
+      "sentence_index": 1,
+      "delivery_emotion": "strong_hook"
+    },
+    {
+      "sentence_index": 2,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 3,
+      "delivery_emotion": "calm_authority"
+    },
+    {
+      "sentence_index": 4,
+      "delivery_emotion": "strong_cta"
+    }
+  ],
+  "generation_mode": "deterministic_fallback"
+}
