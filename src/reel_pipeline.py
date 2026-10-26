@@ -698,7 +698,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
 def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     """Concise topic-aware fallback matching the same 30–40 second Reel contract."""
     text = " ".join(str(post or "").split())
-    sentences = [part.strip() for part in re.split(r"(?<=[؟!.])\\s+", text) if part.strip()]
+    sentences = [part.strip() for part in re.split(r"(?<=[؟!.])\s+", text) if part.strip()]
     if not sentences:
         raise RuntimeError("Cannot build Reel script without reviewed post content.")
 
@@ -715,7 +715,7 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
     focus = " ".join(topic_words[:4]) or "الموقف ده"
     question = f"إيه اللي يحسم موضوع {focus}؟"
     answer_source = " ".join(sentences[:2])
-    answer_source = re.sub(r"https?://\\S+", "", answer_source)
+    answer_source = re.sub(r"https?://\S+", "", answer_source)
     answer_words = answer_source.split()
     answer = " ".join(answer_words[:29]).strip()
     if len(answer_words) > 29:
@@ -729,9 +729,9 @@ def deterministic_brief(topic: str, post: str) -> dict[str, Any]:
         if extra:
             script = " ".join((hook, question, answer, extra, cta))
     script = _bound_reel_script(script, max_words=75)
-    if len(script.split()) < 45:
+    if len(script.split()) < 55:
         raise RuntimeError("Deterministic Reel script is too short to deliver a useful 30–40 second video.")
-    spoken_sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\\s+", script) if x.strip()]
+    spoken_sentences = [x.strip() for x in re.split(r"(?<=[؟!.])\s+", script) if x.strip()]
     emotions = []
     for i, sentence in enumerate(spoken_sentences, start=1):
         emotion = "strong_hook" if i == 1 else "strong_cta" if i == len(spoken_sentences) else "calm_authority"
