@@ -34,7 +34,7 @@ jobs:
       REEL_RECOVERY: "true"
       REEL_FORCE_REGENERATE: "true"
       REEL_FORCE_TELEGRAM_REVIEW: "true"
-      REEL_MAX_DURATION_SECONDS: "180"
+      REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
