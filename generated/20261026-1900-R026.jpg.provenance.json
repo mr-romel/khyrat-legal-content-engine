@@ -1,0 +1,22 @@
+{
+  "topic": "التصوير دون إذن — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A medium‑shot taken from slightly over the shoulder of a young adult holding a smartphone, the phone’s screen clearly visible and showing a close‑up portrait of a second person seated at a small table. The second person, a middle‑aged man in a casual shirt, is looking away and partially covering his face with his hand, his expression uneasy. They are inside a modern coffee shop: warm, low‑key lighting from pendant lamps, soft natural light spilling in from a window behind the photographer, wooden tables, a few other patrons blurred in the background. The café’s interior—tables, chairs, a counter with coffee machines—conveys a semi‑private setting rather than an open street. The photographer’s hand grips the phone with the camera app open, the viewfinder framing the subject’s face without his consent. The composition centers on the phone screen and the subject’s reaction, emphasizing the act of covert photographing in a private‑type venue. The overall mood is quiet but tense, with the contrast between the bright phone display and the dim, intimate café lighting highlighting the privacy breach.",
+  "prompt_sha256": "6b073a1b8f175859c68d70ddcc48d50b03e1c2298de12919a3fbf008df382b51",
+  "image_sha256": "33f4dcf3e14d6e5e4afa3292e6429aac86f899a63a1058a0acbc6ca984d6aee6",
+  "image_path": "generated/20261026-1900-R026.jpg",
+  "visual_description": "A medium‑shot taken from slightly over the shoulder of a young adult holding a smartphone, the phone’s screen clearly visible and showing a close‑up portrait of a second person seated at a small table. The second person, a middle‑aged man in a casual shirt, is looking away and partially covering his face with his hand, his expression uneasy. They are inside a modern coffee shop: warm, low‑key lighting from pendant lamps, soft natural light spilling in from a window behind the photographer, wooden tables, a few other patrons blurred in the background. The café’s interior—tables, chairs, a counter with coffee machines—conveys a semi‑private setting rather than an open street. The photographer’s hand grips the phone with the camera app open, the viewfinder framing the subject’s face without his consent. The composition centers on the phone screen and the subject’s reaction, emphasizing the act of covert photographing in a private‑type venue. The overall mood is quiet but tense, with the contrast between the bright phone display and the dim, intimate café lighting highlighting the privacy breach.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 6,
+  "qa_relevance_score": 8,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Presence of women in the background violates the 'NO WOMEN OR GIRLS RULE'.",
+    "Anatomical failure in the hand gripping the smartphone (distorted fingers and unnatural structure)."
+  ],
+  "qa_checked_image_sha256": "33f4dcf3e14d6e5e4afa3292e6429aac86f899a63a1058a0acbc6ca984d6aee6"
+}
