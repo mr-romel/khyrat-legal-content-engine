@@ -756,10 +756,10 @@ def build_fast_fallback_reel(
         raise RuntimeError("Fast Reel fallback requires at least 6 topic-matched scenes.")
     output_video.parent.mkdir(parents=True, exist_ok=True)
     audio_duration = _media_duration(audio_path)
-    if not float(REEL_MIN_DURATION_SECONDS) <= audio_duration <= float(REEL_CONTENT_MAX_SECONDS):
+    if not 22.0 <= audio_duration <= float(REEL_CONTENT_MAX_SECONDS):
         raise RuntimeError(f"Fast Reel audio duration invalid: {audio_duration:.1f}s; expected configured duration limit")
 
-    base_duration = min(180.0, max(50.0, audio_duration))
+    base_duration = min(float(REEL_CONTENT_MAX_SECONDS), max(22.0, audio_duration))
     # Each visual segment is capped at 15 seconds, then stitched into one seamless
     # Reel. The brand end-card and spoken slogan are appended once, after this base.
     segment_seconds = 15.0
