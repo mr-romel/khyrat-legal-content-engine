@@ -24,9 +24,9 @@ from social_content import sanitize_social_copy, sanitize_topic
 MPT_REPO = "https://github.com/harry0703/MoneyPrinterTurbo.git"
 MPT_REF = "v1.3.7"
 OUTPUT_ROOT = Path("generated/reels")
-REEL_MAX_DURATION_SECONDS = 180  # requested maximum: three minutes including brand end-card
-REEL_MIN_DURATION_SECONDS = min(30, REEL_MAX_DURATION_SECONDS)
-REEL_CONTENT_MAX_SECONDS = 170  # reserve 10s for branded ending and rendering overhead
+REEL_MAX_DURATION_SECONDS = 40  # hard cap including full-screen logo and spoken slogan
+REEL_MIN_DURATION_SECONDS = 30
+REEL_CONTENT_MAX_SECONDS = 34  # reserve 5.5s for branded ending
 
 
 def choose_row(
@@ -231,8 +231,8 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         capture_output=True, text=True, check=True, timeout=30,
     )
     duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Google Cloud TTS duration outside configured content limit: {duration:.1f}s; maximum {REEL_CONTENT_MAX_SECONDS}s")
+    if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
+        raise RuntimeError(f"Google Cloud TTS narration must be 22–34 seconds before the 5.5-second logo ending; got {duration:.1f}s")
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
 
@@ -427,8 +427,8 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
-    if duration < REEL_MIN_DURATION_SECONDS or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Gemini TTS duration outside configured content limit: {duration:.1f}s; maximum {REEL_CONTENT_MAX_SECONDS}s")
+    if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
+        raise RuntimeError(f"Gemini TTS narration must be 22–34 seconds before the 5.5-second logo ending; got {duration:.1f}s")
     return output_path
 
 
@@ -641,7 +641,7 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         "Natural Egyptian Arabic as actually spoken in Cairo, not Modern Standard Arabic. Return the script fully vowel-marked with tashkeel where useful for pronunciation. Write for the mouth: contractions, short phrases, pauses, and direct address. Fully vowel-mark the spoken script with Arabic diacritics wherever useful for pronunciation. Avoid robotic legal-news phrasing and MSA connectors such as يجب، ينبغي، حيث، لذلك، وبالتالي، يتعين. Never use hashtags, @, %, slashes, URLs, brackets, markdown, emoji, Latin abbreviations, or unexplained numbers in the spoken script; spell numbers as Arabic words. "
         "MANDATORY STORY DESIGN — write a useful mini-consultation, not a generic legal monologue. Before drafting, silently identify from the reviewed post: (A) the exact real-world problem the viewer faces, (B) the most important legal distinction that changes the answer, (C) the strongest answer the source actually supports, and (D) the next safe action. Every one of these must be unmistakable in the spoken script. "
         + "MANDATORY STRUCTURE in this exact order: (1) First sentence names a concrete risk, costly mistake, or surprising truth that is explicitly supported by the reviewed post; do not use empty hooks such as 'غلطة واحدة ممكن تضيع حقك' unless the post explains exactly how. (2) Ask a sharp, problem-specific question — never a generic 'إيه السؤال اللي لازم تجاوب عليه؟'. (3) Give the direct answer immediately in the next sentence. State the decisive legal rule or distinction in plain Egyptian Arabic; do not hide the answer behind suspense, repeat the hook, or use vague wording like 'الموضوع حسب التفاصيل' as the main answer. (4) Explain the practical consequence in one short sentence, without exaggeration. (5) Give a concrete, safe, source-grounded action the viewer can take now. Avoid generic checklists about preserving all messages/documents unless those are directly relevant to this post. (6) Finish with a strong, specific CTA tied to THIS issue: ask the viewer to comment with one focused question, save the Reel for the exact moment they may need it, or share it with the person who needs this information. No weak 'تابعنا للمزيد' CTA. Never promise individual legal advice. (7) Stop after the CTA; the separately rendered branded ending must remain last and retain the spoken slogan 'خليك فاكر دايما ... اسأل محمود' with the user's logo. Do not put the slogan inside the main script or generate another outro. No headings or labels read aloud. Do not announce the topic or read the Sheet title. "
-        + f"Target 90–115 seconds and 170–210 Arabic words maximum. The script must contain 170–210 whitespace-separated words but every sentence must earn its place by stating the problem, answer, reasoning, action, or CTA. No padding, repeated disclaimer, empty suspense, generic legal warnings, or duplicate conclusions. The spoken audio must be strictly below {REEL_CONTENT_MAX_SECONDS} seconds so the finished branded video stays below {REEL_MAX_DURATION_SECONDS} seconds. Never exceed these limits. "
+        + f"Target 25–32 seconds for the spoken body and 55–75 Arabic words maximum. The script must contain 55–75 whitespace-separated words: a strong topic-specific hook, then one clear question, then a direct source-grounded answer, then one strong CTA. Do not speak the slogan in this body; it is generated separately over the original full-screen logo for the final 5.5 seconds. No padding, repeated disclaimer, empty suspense, generic legal warnings, or duplicate conclusions. The final video including slogan must be 30–40 seconds. "
         "Return JSON only with script, video_terms, facebook_caption, linkedin_caption, emotion_map. "
         "video_terms must be 8 highly specific English visual searches, one per scene, tied to the exact reviewed post and sentence. Describe only the concrete action, people, modern objects, documents, workplace, home, phone, or evidence stated in that sentence. Use ordinary present-day settings and documentary realism. Keep backgrounds simple and use only modern props supported by the post. Never add a courtroom or lawyer unless the reviewed post actually describes one. "
         "emotion_map must contain one item per meaningful sentence with sentence_index and delivery_emotion. "
@@ -679,10 +679,10 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
     script = sanitize_social_copy(str(data.get("script", "")).strip())
-    script = _bound_reel_script(script, max_words=210)
+    script = _bound_reel_script(script, max_words=75)
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
     if len(terms) < 8: terms = post_visual_terms(post, topic)
-    if not 170 <= len(script.split()) <= 210 or len(terms) < 8:
+    if not 55 <= len(script.split()) <= 75 or len(terms) < 8:
         raise RuntimeError("Reel package is incomplete.")
     return {
         "script": script,
@@ -1251,7 +1251,7 @@ def main() -> int:
                 "--video-materials", ",".join(str(p.resolve()) for p in scenes),
                 "--video-aspect", "9:16",
                 "--video-count", "1",
-                "--video-clip-duration", "9",
+                "--video-clip-duration", "4",
                 "--video-concat-mode", "sequential",
                 "--video-transition-mode", "shuffle",
                 "--match-materials-to-script",
@@ -1292,7 +1292,7 @@ def main() -> int:
                         shutil.copy2(task_videos[-1], raw_video)
                         mpt_duration = _media_duration(raw_video)
                         print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
-                        if float(REEL_MIN_DURATION_SECONDS) <= mpt_duration <= float(REEL_CONTENT_MAX_SECONDS):
+                        if 24 <= mpt_duration <= float(REEL_CONTENT_MAX_SECONDS):
                             slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
                             slogan_text = "خليك فاكر دايما ... اسأل محمود"
                             slogan_ready = False
