@@ -22,7 +22,7 @@ class ReelScriptValidationTests(unittest.TestCase):
         result = validate_reel_script(data)
         self.assertEqual(result["end_slogan"], FIXED_SLOGAN)
         self.assertEqual(
-            result["full_script"].split("\\n\\n"),
+            result["full_script"].split("\n\n"),
             [data["hook"], data["answer"], data["cta"], FIXED_SLOGAN],
         )
 
