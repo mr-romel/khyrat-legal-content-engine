@@ -47,7 +47,7 @@ def _find_description(page):
     # Try accessible names first, then common input attributes and finally
     # visible editable controls inside the post-settings panel.
     patterns = [
-        re.compile(r"search\\s*description|وصف\\s*البحث|وصف.*البحث", re.I),
+        re.compile(r"search\s*description|وصف\s*البحث|وصف.*البحث", re.I),
         re.compile(r"meta.*description|description.*search|وصف.*محركات البحث", re.I),
     ]
     for pattern in patterns:
