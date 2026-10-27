@@ -152,15 +152,21 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
 
 
 def _linkedin_copy_similarity(left: str, right: str) -> float:
-    """Compare platform copy after removing whitespace and common punctuation."""
-    def normalize(value: str) -> str:
-        value = re.sub(r"#[\\w\\u0600-\\u06FF]+", " ", str(value or ""))
+    """Detect copied five-word phrases even when one version is longer."""
+    def words(value: str) -> list[str]:
+        value = re.sub(r"#[\\w\\u0600-\\u06FF]+", " ", str(value or ""), flags=re.UNICODE)
         value = re.sub(r"[\\W_]+", " ", value, flags=re.UNICODE)
-        return " ".join(value.casefold().split())
-    a, b = normalize(left), normalize(right)
-    if not a or not b:
+        return value.casefold().split()
+
+    a, b = words(left), words(right)
+    if min(len(a), len(b)) < 12:
         return 0.0
-    return SequenceMatcher(None, a, b).ratio()
+    def shingles(items: list[str]) -> set[tuple[str, ...]]:
+        return {tuple(items[i:i + 5]) for i in range(max(0, len(items) - 4))}
+    sa, sb = shingles(a), shingles(b)
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / min(len(sa), len(sb))
 
 
 def _make_distinct_linkedin_post(*, config: dict, topic: str, legal_sources: str, facebook_post: str, linkedin_post: str) -> str:
