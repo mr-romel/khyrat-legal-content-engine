@@ -154,8 +154,8 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
 def _linkedin_copy_similarity(left: str, right: str) -> float:
     """Detect copied five-word phrases even when one version is longer."""
     def words(value: str) -> list[str]:
-        value = re.sub(r"#[\\w\\u0600-\\u06FF]+", " ", str(value or ""), flags=re.UNICODE)
-        value = re.sub(r"[\\W_]+", " ", value, flags=re.UNICODE)
+        value = re.sub(r"#[\w\u0600-\u06FF]+", " ", str(value or ""), flags=re.UNICODE)
+        value = re.sub(r"[\W_]+", " ", value, flags=re.UNICODE)
         return value.casefold().split()
 
     a, b = words(left), words(right)
