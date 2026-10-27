@@ -43,15 +43,24 @@ def _safe_description(value: str) -> str:
 
 
 def _find_description(page):
+    # Blogger changes its labels and panel markup between UI experiments/locales.
+    # Try accessible names first, then common input attributes and finally
+    # visible editable controls inside the post-settings panel.
     patterns = [
-        re.compile(r"search description|وصف البحث|وصف.*البحث", re.I),
-        re.compile(r"search.*description", re.I),
+        re.compile(r"search\\s*description|وصف\\s*البحث|وصف.*البحث", re.I),
+        re.compile(r"meta.*description|description.*search|وصف.*محركات البحث", re.I),
     ]
     for pattern in patterns:
-        for role in ("textbox", "combobox"):
-            locator = page.get_by_role(role, name=pattern)
-            if locator.count():
-                return locator.first
+        for role in ("textbox", "combobox", "input"):
+            try:
+                locator = page.get_by_role(role, name=pattern)
+                if locator.count():
+                    for i in range(min(locator.count(), 8)):
+                        candidate = locator.nth(i)
+                        if candidate.is_visible() and candidate.is_enabled():
+                            return candidate
+            except Exception:
+                continue
     selectors = [
         'textarea[aria-label*="Search description" i]',
         'textarea[aria-label*="وصف البحث"]',
@@ -59,13 +68,24 @@ def _find_description(page):
         'input[aria-label*="وصف البحث"]',
         '[contenteditable="true"][aria-label*="Search description" i]',
         '[contenteditable="true"][aria-label*="وصف البحث"]',
+        'textarea[placeholder*="Search description" i]',
+        'textarea[placeholder*="وصف البحث"]',
+        'input[placeholder*="Search description" i]',
+        'input[placeholder*="وصف البحث"]',
         'textarea[name*="description" i]',
         'input[name*="description" i]',
+        '[contenteditable="true"][data-placeholder*="description" i]',
+        '[contenteditable="true"][data-placeholder*="وصف" i]',
     ]
     for selector in selectors:
-        locator = page.locator(selector)
-        if locator.count():
-            return locator.first
+        try:
+            locator = page.locator(selector)
+            for i in range(min(locator.count(), 8)):
+                candidate = locator.nth(i)
+                if candidate.is_visible() and candidate.is_enabled():
+                    return candidate
+        except Exception:
+            continue
     return None
 
 
