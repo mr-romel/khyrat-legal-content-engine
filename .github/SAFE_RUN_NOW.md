@@ -1,3 +1,3 @@
 # Safe immediate publishing run
 Run the scheduled pipeline now without forcing republish. The explicit manual-safe path may publish exactly one earliest READY/FAILED/PARTIAL_FAILED row across the schedule; it must never republish a PUBLISHED row.
-Trigger nonce: 2026-10-23T13:13:00Z
+Trigger nonce: 2026-10-27T17:40:00Z
