@@ -1,0 +1,24 @@
+{
+  "topic": "التفويض الإداري — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A modern government office bathed in soft daylight from a large window. At a sleek glass‑top desk, a senior official in a dark suit leans slightly forward, handing an open folder to a younger official in a lighter suit. The opened folder shows a printed page with a thick underline on one paragraph (signifying an explicit legal provision granting delegation) and a bold red stamp crossing out a different paragraph (indicating a portion that exceeds the allowed authority). On the desk beside the folder sit a small, partially rolled‑out map with a single region shaded in bright yellow (the geographic limit of the delegation) and a calculator next to a modest stack of coins (the financial ceiling). A wall‑mounted calendar is visible in the background, its current date circled in red while a past date is marked with a faded “expired”‑looking sticker, suggesting the delegation period has ended. The younger official holds a pen poised over a blank decision form, while the senior official points toward the underlined paragraph and the shaded area on the map, emphasizing the need to verify the scope and validity of the delegation. The camera is positioned at eye level, framing both officials, the desk, and the key documents in a single, clear medium‑shot composition, with natural light highlighting the papers and gestures, conveying the precise administrative check‑list described.",
+  "prompt_sha256": "5cfcc76d59a2905bc991cd1d1fea31ffd785be8194a24238830de949c1d30a22",
+  "image_sha256": "f5292610b276036dd75f672e2ddec46a563ab188414f2b523f967aad274b091f",
+  "image_path": "generated/20261027-2200-R027.jpg",
+  "visual_description": "A modern government office bathed in soft daylight from a large window. At a sleek glass‑top desk, a senior official in a dark suit leans slightly forward, handing an open folder to a younger official in a lighter suit. The opened folder shows a printed page with a thick underline on one paragraph (signifying an explicit legal provision granting delegation) and a bold red stamp crossing out a different paragraph (indicating a portion that exceeds the allowed authority). On the desk beside the folder sit a small, partially rolled‑out map with a single region shaded in bright yellow (the geographic limit of the delegation) and a calculator next to a modest stack of coins (the financial ceiling). A wall‑mounted calendar is visible in the background, its current date circled in red while a past date is marked with a faded “expired”‑looking sticker, suggesting the delegation period has ended. The younger official holds a pen poised over a blank decision form, while the senior official points toward the underlined paragraph and the shaded area on the map, emphasizing the need to verify the scope and validity of the delegation. The camera is positioned at eye level, framing both officials, the desk, and the key documents in a single, clear medium‑shot composition, with natural light highlighting the papers and gestures, conveying the precise administrative check‑list described.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 6,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Generated gibberish text in the background art.",
+    "Style mismatch (illustration vs realistic).",
+    "Missing specific required objects (map, calculator, specific stamp/document markings).",
+    "Incorrect number of people (3 vs 2 requested)."
+  ],
+  "qa_checked_image_sha256": "f5292610b276036dd75f672e2ddec46a563ab188414f2b523f967aad274b091f"
+}
