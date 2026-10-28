@@ -37,6 +37,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_COMMENT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_COMMENT_REFRESH_TOKEN }}
       YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
@@ -186,8 +187,8 @@ jobs:
           from pathlib import Path
           from config import load_video_config
           from sheets import create_service, get_values, row_to_dict, update_row
-          from reel_publishers import publish_facebook_video
-          from youtube_publisher import publish_youtube_short
+          from reel_publishers import publish_facebook_video, publish_facebook_video_comment
+          from youtube_publisher import publish_youtube_short, publish_youtube_short_comment
 
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
@@ -222,6 +223,9 @@ jobs:
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
           errors=[]
+          comment_warnings=[]
+          fresh_facebook=False
+          fresh_youtube=False
 
           # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
           # Its Facebook ID was not persisted. Never blindly repost that specific reel.
@@ -232,6 +236,7 @@ jobs:
               try:
                   fb=publish_facebook_video(str(video), fb_caption)
                   result['facebook']=fb
+                  fresh_facebook=True
                   update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
               except Exception as exc:
                   errors.append('Facebook: '+str(exc))
@@ -246,9 +251,31 @@ jobs:
                   description=fb_caption
                   yt=publish_youtube_short(str(video), title, description)
                   result['youtube']=yt
+                  fresh_youtube=True
                   update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
               except Exception as exc:
                   errors.append('YouTube: '+str(exc))
+          # Add one useful, first-party discussion prompt only for videos published in THIS run.
+          # Comment failures must not turn a successful video upload into a false publish failure.
+          title=str(plan.get('title', row.get('الموضوع', 'المعلومة القانونية'))).strip()
+          comment_text=(f"إيه أكتر نقطة في موضوع «{title}» محتاج توضيحها؟ "
+                        "اكتب سؤالك، واحفظ الفيديو للرجوع للمعلومة وقت الحاجة")[:900]
+          result['comments']={'facebook': {'status':'NOT_NEEDED'}, 'youtube': {'status':'NOT_NEEDED'}}
+          if fresh_facebook:
+              try:
+                  result['comments']['facebook']={'status':'PUBLISHED', **publish_facebook_video_comment(result['facebook']['video_id'], comment_text)}
+              except Exception as exc:
+                  result['comments']['facebook']={'status':'FAILED','error':str(exc)[:700]}
+                  comment_warnings.append('Facebook comment: '+str(exc))
+          if fresh_youtube:
+              try:
+                  result['comments']['youtube']={'status':'PUBLISHED', **publish_youtube_short_comment(result['youtube']['video_id'], comment_text)}
+              except Exception as exc:
+                  result['comments']['youtube']={'status':'FAILED','error':str(exc)[:700]}
+                  comment_warnings.append('YouTube comment: '+str(exc))
+          if comment_warnings:
+              print('Video upload succeeded but one or more first-party comments failed: '+' | '.join(comment_warnings))
+          Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
           Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
           if errors:
               status='PUBLISHED_PARTIAL' if fb_ok else 'PUBLISH_FAILED'
