@@ -1,0 +1,23 @@
+{
+  "topic": "التظلم من قرار الحفظ — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A modern, well‑lit office scene captured from a slightly elevated, eye‑level angle. At a clean wooden desk sits a business owner in business‑casual attire, leaning slightly forward as they examine an open file folder. The folder’s pages are fanned out, with a few sections visibly highlighted in yellow and a sticky note placed on one page, suggesting a point about “insufficient evidence.” Across the desk, a professional‑looking lawyer in a blazer stands, one hand resting on the file and the other gesturing toward the highlighted area, indicating discussion of the archiving decision. To the left of the desk, a wall‑mounted calendar is visible, its current month spread open and a single date circled in red, conveying a deadline. A sleek silver pen rests on a small stack of additional documents, and a coffee mug sits nearby. On the right edge of the desk, a laptop screen glows faintly, showing an unsent email draft (no readable text) and a notification badge, hinting at an appeal being prepared. A smartphone lies beside the laptop, screen illuminated with a reminder icon. Behind the desk, a large window lets in soft natural daylight, casting gentle shadows and highlighting the participants’ faces. A simple wall clock above the window shows the time, underscoring the urgency of the deadline. The overall composition focuses on the interaction between the business owner and the lawyer, the reviewed investigation file, and the visual cues of a marked calendar and prepared paperwork, all set in a contemporary office environment.",
+  "prompt_sha256": "27d8a31a3213e1bf71f97e313163f570a72db00dec559a8162c6758d459c40af",
+  "image_sha256": "51e1359025410a80488be1ed6473b840a92dcae3408768d3297ad4d0d4f85b55",
+  "image_path": "generated/20261028-2000-R028.jpg",
+  "visual_description": "A modern, well‑lit office scene captured from a slightly elevated, eye‑level angle. At a clean wooden desk sits a business owner in business‑casual attire, leaning slightly forward as they examine an open file folder. The folder’s pages are fanned out, with a few sections visibly highlighted in yellow and a sticky note placed on one page, suggesting a point about “insufficient evidence.” Across the desk, a professional‑looking lawyer in a blazer stands, one hand resting on the file and the other gesturing toward the highlighted area, indicating discussion of the archiving decision. To the left of the desk, a wall‑mounted calendar is visible, its current month spread open and a single date circled in red, conveying a deadline. A sleek silver pen rests on a small stack of additional documents, and a coffee mug sits nearby. On the right edge of the desk, a laptop screen glows faintly, showing an unsent email draft (no readable text) and a notification badge, hinting at an appeal being prepared. A smartphone lies beside the laptop, screen illuminated with a reminder icon. Behind the desk, a large window lets in soft natural daylight, casting gentle shadows and highlighting the participants’ faces. A simple wall clock above the window shows the time, underscoring the urgency of the deadline. The overall composition focuses on the interaction between the business owner and the lawyer, the reviewed investigation file, and the visual cues of a marked calendar and prepared paperwork, all set in a contemporary office environment.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 7,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Anatomy: The man's hands and fingers are distorted/fused with the papers.",
+    "Style: The 'illustrative' or 'comic-book' filter is unprofessional for legal content.",
+    "Text: There is gibberish text in the framed pictures on the wall and on the papers, which violates the brand rules."
+  ],
+  "qa_checked_image_sha256": "51e1359025410a80488be1ed6473b840a92dcae3408768d3297ad4d0d4f85b55"
+}
