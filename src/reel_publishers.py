@@ -128,3 +128,27 @@ def publish_linkedin_video(video_path: str, commentary: str) -> dict[str, str]:
     if not post_id:
         raise RuntimeError("LinkedIn returned no post ID.")
     return {"video_urn": video_urn, "post_id": post_id}
+
+
+def publish_facebook_video_comment(video_id: str, message: str) -> dict[str, str]:
+    """Publish one first-party page comment under a newly published Reel."""
+    page_id = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    token = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "").strip()
+    if not page_id or not token:
+        raise RuntimeError("Facebook comment credentials are incomplete.")
+    video_id = str(video_id or "").strip()
+    message = str(message or "").strip()
+    if not video_id or not message:
+        raise ValueError("Facebook video ID and comment text are required.")
+    version = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
+    response = requests.post(
+        f"https://graph.facebook.com/v{version}/{video_id}/comments",
+        data={"access_token": token, "message": message},
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Facebook Reel comment failed: HTTP {response.status_code} {response.text[:900]}")
+    comment_id = str(response.json().get("id", "")).strip()
+    if not comment_id:
+        raise RuntimeError("Facebook returned no comment ID.")
+    return {"comment_id": comment_id}
