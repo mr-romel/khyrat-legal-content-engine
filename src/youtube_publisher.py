@@ -87,3 +87,62 @@ def publish_youtube_short(video_path: str, title: str, description: str = "") ->
     if not video_id:
         raise RuntimeError("YouTube API returned no video ID.")
     return {"video_id": video_id, "url": f"https://youtube.com/shorts/{video_id}"}
+
+
+def publish_youtube_short_comment(video_id: str, message: str) -> dict[str, str]:
+    """Publish one channel-owned comment on a Short using a separately authorized OAuth token.
+
+    YOUTUBE_COMMENT_REFRESH_TOKEN must be authorized with the youtube.force-ssl scope.
+    It is separate from the upload token because OAuth grants do not automatically gain scopes.
+    """
+    client_id = os.getenv("YOUTUBE_CLIENT_ID", "").strip()
+    client_secret = os.getenv("YOUTUBE_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip()
+    if not all((client_id, client_secret, refresh_token)):
+        raise RuntimeError(
+            "YouTube comments need YOUTUBE_COMMENT_REFRESH_TOKEN authorized with "
+            "https://www.googleapis.com/auth/youtube.force-ssl."
+        )
+    video_id = str(video_id or "").strip()
+    message = str(message or "").strip()
+    if not video_id or not message:
+        raise ValueError("YouTube video ID and comment text are required.")
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=30,
+    )
+    if not token_response.ok:
+        raise RuntimeError(
+            f"YouTube comment OAuth refresh failed: HTTP {token_response.status_code} "
+            f"{token_response.text[:700]}"
+        )
+    access_token = token_response.json().get("access_token", "")
+    if not access_token:
+        raise RuntimeError("YouTube comment OAuth refresh returned no access token.")
+    from google.oauth2.credentials import Credentials
+    credentials = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=["https://www.googleapis.com/auth/youtube.force-ssl"],
+    )
+    youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+    response = youtube.commentThreads().insert(
+        part="snippet",
+        body={"snippet": {
+            "videoId": video_id,
+            "topLevelComment": {"snippet": {"textOriginal": message}},
+        }},
+    ).execute()
+    comment_id = str(response.get("id", "")).strip()
+    if not comment_id:
+        raise RuntimeError("YouTube API returned no comment thread ID.")
+    return {"comment_id": comment_id}
