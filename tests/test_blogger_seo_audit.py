@@ -61,3 +61,5 @@ def test_run_reports_duplicate_titles_and_does_not_claim_google_crawl(monkeypatc
     assert any(x["code"] == "DUPLICATE_TITLE" for x in report["findings"])
     assert "does not measure Googlebot crawl" in report["important_limit"]
     assert (tmp_path / "audit" / "report.md").exists()
+
+# Audit trigger: verify live Blogger canonical/feed/sitemap health after URL repairs.
