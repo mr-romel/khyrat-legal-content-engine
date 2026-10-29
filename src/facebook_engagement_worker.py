@@ -240,7 +240,8 @@ def enqueue_published_posts(service, spreadsheet_id, sheet_range, events, curren
                     "scheduled_at": iso(current), "updated_at": iso(current),
                 })
 
-        target_count = choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
+        is_reel = bool(str(row.get("Reel Facebook ID", "") or "").strip()) or str(row.get("Reel Status", "") or "").strip().upper() == "PUBLISHED"
+        target_count = 5 if is_reel else choose_comment_count(f"{row.get('الموضوع', '')}|{row.get('المحتوى', '')}")
         # Keep the variable 3-7 comments separate from the one fixed CTA comment.
         variable_comments = [
             x for x in existing
