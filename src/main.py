@@ -801,7 +801,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 facebook_post_id = facebook["post_id"]
                 row["Facebook Status"] = "PUBLISHED"
                 try:
-                    update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id, "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
+                    update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "PUBLISHED", "Facebook Post ID": facebook_post_id,
+                "Facebook Post URL": f"https://www.facebook.com/{facebook_post_id}" if facebook_post_id else "", "Facebook Comment Status": "QUEUED", "Facebook Reaction Status": "QUEUED"})
                 except Exception as state_exc:
                     print(f"Facebook state persistence unavailable after successful publish: {state_exc}")
                 try:
@@ -843,6 +844,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                     {
                         "LinkedIn Status": "PUBLISHED",
                         "LinkedIn Post ID": linkedin_post_id,
+                        "LinkedIn Post URL": f"https://www.linkedin.com/feed/update/{linkedin_post_id}/" if linkedin_post_id else "",
                         "LinkedIn Comment Status": "QUEUED",
                         "LinkedIn Reaction Status": "QUEUED",
                         "آخر خطأ": " | ".join(linkedin_interaction_errors)[:1500],
@@ -879,8 +881,10 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 "الحالة": final_status,
                 "Facebook Status": "PUBLISHED" if fb_ok else "FAILED",
                 "Facebook Post ID": facebook_post_id,
+                "Facebook Post URL": f"https://www.facebook.com/{facebook_post_id}" if facebook_post_id else "",
                 "LinkedIn Status": "PUBLISHED" if li_post_ok else ("BLOCKED_TOKEN" if str(row.get("LinkedIn Status", "")).strip().upper() == "BLOCKED_TOKEN" else "FAILED"),
                 "LinkedIn Post ID": linkedin_post_id,
+                        "LinkedIn Post URL": f"https://www.linkedin.com/feed/update/{linkedin_post_id}/" if linkedin_post_id else "",
                 "LinkedIn Comment Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Comment Status", "")).strip().upper(),
                 "LinkedIn Reaction Status": "QUEUED" if li_post_ok else str(row.get("LinkedIn Reaction Status", "")).strip().upper(),
                 "وقت آخر تشغيل": current.isoformat(),
