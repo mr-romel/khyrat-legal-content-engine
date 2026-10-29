@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from config import load_engagement_config
 from linkedin_comment_engine import choose_comment_count, comment_schedule_offsets, generate_linkedin_comments
-from engagement_strategy import blog_cta_comment, blog_cta_due, find_cta_event, remove_blogger_link
+from engagement_strategy import blog_cta_comment, blog_cta_due, find_cta_event, remove_blogger_link, resolve_blogger_article_url
 from linkedin_engagement import add_linkedin_comment, comment_fingerprint
 from linkedin_publisher import like_comment, like_post, resolve_member_urn, verify_comment
 from sheets import create_service, get_values
@@ -243,8 +243,9 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
         cta_event = find_cta_event(post_events, cta_event_id)
         # Do not mistake a variable comment containing the blog URL for the
         # dedicated, idempotent CTA event required on every published post.
+        article_url = resolve_blogger_article_url(topic=row.get("الموضوع", ""), post_text=row.get("المحتوى", ""))
+        cta_text = blog_cta_comment("linkedin", topic=row.get("الموضوع", ""), post_text=row.get("المحتوى", ""), post_key=post_urn, blog_url=article_url)
         if not cta_event:
-            cta_text = blog_cta_comment("linkedin", topic=row.get("الموضوع", ""), post_text=row.get("المحتوى", ""), post_key=post_urn)
             append_event(service, spreadsheet_id, {
                 "event_id": cta_event_id, "source_row": str(source_row), "post_urn": post_urn,
                 "topic": row.get("الموضوع", ""), "post_text": row.get("المحتوى", ""),
@@ -258,10 +259,19 @@ def enqueue_new_posts(service, spreadsheet_id, sheet_range, existing, current):
             print(f"Queued fixed Blogger CTA comment for LinkedIn post {post_urn}")
         elif cta_event and str(cta_event.get("status", "")).upper() in {"PENDING", "RETRY"}:
             scheduled_cta = parse_dt(cta_event.get("scheduled_at", ""))
-            if scheduled_cta is None or scheduled_cta > current:
-                update_event(service, spreadsheet_id, int(cta_event["_row_number"]), {
-                    "scheduled_at": iso(current), "updated_at": iso(current),
+            changes = {}
+            if str(cta_event.get("comment_text", "")).strip() != cta_text:
+                changes.update({
+                    "comment_text": cta_text,
+                    "fingerprint": comment_fingerprint(post_urn, cta_text),
+                    "updated_at": iso(current),
+                    "last_error": "Refreshed pending CTA with the matching Blogger article permalink.",
                 })
+                print(f"Updated pending Blogger CTA to article-specific link for LinkedIn post {post_urn}")
+            if scheduled_cta is None or scheduled_cta > current:
+                changes.update({"scheduled_at": iso(current), "updated_at": iso(current)})
+            if changes:
+                update_event(service, spreadsheet_id, int(cta_event["_row_number"]), changes)
 
         target_count = choose_comment_count("", row.get("المحتوى", ""))
         # Keep the variable 3-7 comments separate from the fixed CTA comment.
