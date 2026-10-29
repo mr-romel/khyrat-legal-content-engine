@@ -184,7 +184,7 @@ jobs:
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
-          REEL_GOOGLE_SHEET_RANGE: 'Content!A:BC'
+          REEL_GOOGLE_SHEET_RANGE: 'Content!A:BG'
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -249,7 +249,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash' }}
@@ -289,8 +289,8 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
-          BLOGGER_SEO_MAX_POSTS: "5"
+          GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
+          BLOGGER_SEO_MAX_POSTS: "25"
         run: PYTHONPATH=src python src/blogger_seo_worker.py
   blogger_site_setup:
     concurrency:
