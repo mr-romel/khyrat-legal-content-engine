@@ -20,3 +20,4 @@ publish-kick-2026-09-28T15:01:22.913Z
 publish-kick-2026-09-28T16:01:41.682Z
 cta-recovery-after-merge-2026-10-15T11:53:00Z
 manual-kick-recovery-2026-10-23T13:12:30.026Z
+manual-kick-article-specific-link-2026-10-29T14:30:00Z
