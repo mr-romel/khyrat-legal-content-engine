@@ -14,6 +14,54 @@ COMMENT_INTERVAL_MINUTES = 15
 BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 
 
+
+def resolve_blogger_article_url(*, topic: str = "", post_text: str = "", explicit_url: str = "") -> str:
+    """Resolve a post-specific public Blogger permalink; never guess a slug."""
+    candidate = str(explicit_url or "").strip()
+    if re.match(r"^https?://(?:www\.)?askmahmoudkhyrat\.blogspot\.com/\d{4}/\d{2}/", candidate, flags=re.I):
+        return re.sub(r"[?&]m=1(?:&.*)?$", "", candidate)
+    try:
+        import requests
+        response = requests.get(
+            "https://askmahmoudkhyrat.blogspot.com/feeds/posts/default",
+            params={"alt": "json", "max-results": "100"},
+            headers={"User-Agent": "KhyratLegalContentEngine/1.0"},
+            timeout=12,
+        )
+        response.raise_for_status()
+        entries = response.json().get("feed", {}).get("entry", [])
+    except Exception as exc:
+        print(f"Could not resolve matching Blogger article from public feed: {exc}")
+        return BLOGGER_URL
+
+    def terms(value: str) -> set[str]:
+        words = re.findall(r"[\w\u0600-\u06FF]{3,}", str(value or "").casefold())
+        stop = {"اللي", "على", "من", "في", "عن", "مع", "هذا", "هذه", "ذلك", "التي", "الذي", "بعد", "قبل", "عند", "بين", "كيف", "متى", "هل", "إلى", "الى", "لدى", "كان", "تكون", "يمكن", "بشأن", "حول", "ضمن"}
+        return {word for word in words if word not in stop}
+
+    source_terms = terms(str(topic or "") + " " + str(post_text or "")[:1400])
+    if not source_terms:
+        return BLOGGER_URL
+    scored = []
+    for entry in entries if isinstance(entries, list) else []:
+        title = str(entry.get("title", {}).get("$t", ""))
+        title_terms = terms(title)
+        if not title_terms:
+            continue
+        overlap = len(source_terms & title_terms) / len(title_terms)
+        coverage = len(source_terms & title_terms) / len(source_terms)
+        score = 0.7 * overlap + 0.3 * coverage
+        links = entry.get("link", [])
+        href = next((str(link.get("href", "")).strip() for link in links if link.get("rel") == "alternate" and link.get("href")), "")
+        if href and re.match(r"^https?://askmahmoudkhyrat\.blogspot\.com/\d{4}/\d{2}/", href, flags=re.I):
+            scored.append((score, title, href))
+    scored.sort(reverse=True)
+    if scored and scored[0][0] >= 0.48 and (len(scored) == 1 or scored[0][0] - scored[1][0] >= 0.08):
+        print(f"Matched Blogger article for LinkedIn CTA: {scored[0][1]} -> {scored[0][2]}")
+        return scored[0][2]
+    print("No confident matching Blogger article found; using blog homepage rather than guessing a wrong article.")
+    return BLOGGER_URL
+
 def blog_cta_comment(
     platform: str = "facebook",
     *,
