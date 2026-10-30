@@ -1,6 +1,10 @@
 name: Khyrat Daily Blogger Trend Article
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/TREND_RUN_NOW.md"
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
