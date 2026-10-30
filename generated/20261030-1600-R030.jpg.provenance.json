@@ -1,0 +1,23 @@
+{
+  "topic": "التلبس بالجريمة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A sun‑lit urban street in the middle of the day, with a small neighborhood grocery store on the left and a few pedestrians walking along the sidewalk. In the foreground, a modern Egyptian police officer in a dark uniform, tactical boots, a utility belt with a radio, handcuffs and a holstered sidearm, is lunging forward and gripping the wrist of a young man who has just been caught with a paper bag of stolen produce spilling out onto the pavement. The suspect’s eyes are wide with shock, his hand still clutching the bag, while a handful of apples and a broken glass jar lie scattered at his feet, evidence of the robbery. Just behind the officer, the store’s owner—a middle‑aged woman in a floral dress—has turned away from the counter, her mouth open as if she has just shouted a warning, her hand pointing at the thief. A few onlookers on the sidewalk pause, some stepping back, their faces showing surprise and curiosity. One child clutches a parent’s hand, looking toward the scene. The composition is an eye‑level, slightly off‑center shot that captures the dynamic moment of immediate apprehension: the officer’s forward motion, the suspect’s resistance, and the victim’s reaction, all under natural daylight that casts soft shadows from the awning above the shop. No signs, text, or logos are visible. The scene conveys a real‑time, direct observation of the crime and the swift, continuous pursuit that characterizes a lawful “caught‑in‑the‑act” arrest.",
+  "prompt_sha256": "b2477227eeef84792d6ce3a8a0e67b2a12ad6c0b3d465dc72b44bd13463ae723",
+  "image_sha256": "12fe61d267fb56f971058b33fa49fd338a444393815783f10c882f5a55184435",
+  "image_path": "generated/20261030-1600-R030.jpg",
+  "visual_description": "A sun‑lit urban street in the middle of the day, with a small neighborhood grocery store on the left and a few pedestrians walking along the sidewalk. In the foreground, a modern Egyptian police officer in a dark uniform, tactical boots, a utility belt with a radio, handcuffs and a holstered sidearm, is lunging forward and gripping the wrist of a young man who has just been caught with a paper bag of stolen produce spilling out onto the pavement. The suspect’s eyes are wide with shock, his hand still clutching the bag, while a handful of apples and a broken glass jar lie scattered at his feet, evidence of the robbery. Just behind the officer, the store’s owner—a middle‑aged woman in a floral dress—has turned away from the counter, her mouth open as if she has just shouted a warning, her hand pointing at the thief. A few onlookers on the sidewalk pause, some stepping back, their faces showing surprise and curiosity. One child clutches a parent’s hand, looking toward the scene. The composition is an eye‑level, slightly off‑center shot that captures the dynamic moment of immediate apprehension: the officer’s forward motion, the suspect’s resistance, and the victim’s reaction, all under natural daylight that casts soft shadows from the awning above the shop. No signs, text, or logos are visible. The scene conveys a real‑time, direct observation of the crime and the swift, continuous pursuit that characterizes a lawful “caught‑in‑the‑act” arrest.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 3,
+  "qa_relevance_score": 3,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "The image contains significant amounts of fake, gibberish Arabic-style text on the storefront signs, which violates the no-generated-text rule.",
+    "The core action requested (the arrest and struggle) is completely absent.",
+    "The anatomical details of the officer's weapon holster and equipment are distorted."
+  ],
+  "qa_checked_image_sha256": "12fe61d267fb56f971058b33fa49fd338a444393815783f10c882f5a55184435"
+}
