@@ -1,0 +1,22 @@
+{
+  "topic": "الجزاء المتناسب — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A contemporary office meeting room bathed in soft natural light from a large window on the left. At a rectangular wooden desk, a middle‑aged manager in a crisp button‑down shirt leans slightly forward, his right hand extending a printed disciplinary notice toward the employee opposite him. The notice is a plain sheet of paper, its edges crisp, with no visible text or logos. Directly beside the notice lies an open employee file: a thin black folder opened to reveal several stacked pages, a few of which are slightly dog‑eared, indicating prior warnings. A small notepad with handwritten bullet points and a pen rests on top of the file, suggesting a recent investigation record. Across the desk, the employee—young, wearing a casual polo shirt—holds a hand up as if speaking, eyes focused on the manager, expression a mix of concern and attentiveness, embodying the right to be heard. Both figures are centered in the frame, captured from a slightly elevated eye‑level angle that includes the desk surface, the open file, and the notice, emphasizing the interaction. The background shows a plain office wall with a simple corkboard holding a few neutral‑colored sticky notes, adding no extraneous detail. The lighting creates gentle shadows on the desk, highlighting the documents and the faces, conveying a serious but procedural atmosphere.",
+  "prompt_sha256": "43c0472e6ea5fcb923124ca0a8fde809db98ca37570ae5353c1c982d6a5a1d4c",
+  "image_sha256": "ec1bde93569b01e155401549ec788526c2703a548e154c06322173fdfc5e0667",
+  "image_path": "generated/20261031-2200-R001.jpg",
+  "visual_description": "A contemporary office meeting room bathed in soft natural light from a large window on the left. At a rectangular wooden desk, a middle‑aged manager in a crisp button‑down shirt leans slightly forward, his right hand extending a printed disciplinary notice toward the employee opposite him. The notice is a plain sheet of paper, its edges crisp, with no visible text or logos. Directly beside the notice lies an open employee file: a thin black folder opened to reveal several stacked pages, a few of which are slightly dog‑eared, indicating prior warnings. A small notepad with handwritten bullet points and a pen rests on top of the file, suggesting a recent investigation record. Across the desk, the employee—young, wearing a casual polo shirt—holds a hand up as if speaking, eyes focused on the manager, expression a mix of concern and attentiveness, embodying the right to be heard. Both figures are centered in the frame, captured from a slightly elevated eye‑level angle that includes the desk surface, the open file, and the notice, emphasizing the interaction. The background shows a plain office wall with a simple corkboard holding a few neutral‑colored sticky notes, adding no extraneous detail. The lighting creates gentle shadows on the desk, highlighting the documents and the faces, conveying a serious but procedural atmosphere.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 6,
+  "qa_relevance_score": 8,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Anatomy defect: The man on the left has a severe rendering error resulting in a duplicate head/face protruding from his shoulder.",
+    "The figures are not clean or professional due to the AI generation artifact on the subject's neck."
+  ],
+  "qa_checked_image_sha256": "ec1bde93569b01e155401549ec788526c2703a548e154c06322173fdfc5e0667"
+}
