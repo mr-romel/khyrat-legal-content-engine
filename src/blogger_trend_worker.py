@@ -40,19 +40,37 @@ def _log(svc, spreadsheet_id, values):
 
 
 def _rss_items(url):
+    """Read both RSS 2.0 <item> and Atom <entry> feeds (Google Trends uses Atom)."""
     response = requests.get(url, timeout=25, headers={"User-Agent":"Mozilla/5.0 (compatible; KhyratLegalTrendBot/1.0)"})
     response.raise_for_status()
     root = ET.fromstring(response.content)
     items = []
+
+    # RSS 2.0
     for item in root.findall(".//item"):
         title = (item.findtext("title") or "").strip()
         link = (item.findtext("link") or "").strip()
         desc = re.sub(r"<[^>]+>", " ", item.findtext("description") or "")
         desc = " ".join(desc.split())
         if title and link:
-            items.append({"title":title, "url":link, "description":desc[:1200]})
-    return items
+            items.append({"title": title, "url": link, "description": desc[:1200]})
 
+    # Atom (Google Trends RSS endpoint)
+    atom_ns = {"atom": "http://www.w3.org/2005/Atom"}
+    for entry in root.findall(".//atom:entry", atom_ns):
+        title = (entry.findtext("atom:title", default="", namespaces=atom_ns) or "").strip()
+        link = ""
+        for link_node in entry.findall("atom:link", atom_ns):
+            href = (link_node.attrib.get("href") or "").strip()
+            rel = (link_node.attrib.get("rel") or "alternate").strip()
+            if href and rel in {"alternate", ""}:
+                link = href
+                break
+        summary = entry.findtext("atom:summary", default="", namespaces=atom_ns) or ""
+        desc = " ".join(re.sub(r"<[^>]+>", " ", summary).split())
+        if title and link and not any(x["url"] == link for x in items):
+            items.append({"title": title, "url": link, "description": desc[:1200]})
+    return items
 
 def collect_candidates():
     urls = [
