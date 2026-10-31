@@ -1361,34 +1361,17 @@ def main() -> int:
         existing_reel_file = str(row.get("Reel File", "") or "").strip()
         force_regenerate = os.getenv("REEL_FORCE_REGENERATE", "").strip().lower() in {"1", "true", "yes", "on"}
 
-        # Delivery lock: after a successful Telegram send, the Sheet is the
-        # durable source of truth. Never send a second review copy for the same row.
-        if not force_regenerate and not (force_telegram_review or stale_delivery_lock) and current_reel_review.startswith("TELEGRAM_DELIVERED"):
-            print(f"Reel row {row_number} already has TELEGRAM_DELIVERED; refusing duplicate send.")
-            review_video_delivered = True
-        elif not force_regenerate and not (force_telegram_review or stale_delivery_lock) and current_reel_review.startswith("TELEGRAM_SENDING"):
-            print(f"Reel row {row_number} is already TELEGRAM_SENDING; refusing duplicate send.")
-            review_video_delivered = False
-        if not force_regenerate and not (force_telegram_review or stale_delivery_lock) and existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
-            print(f"Reel row {row_number} is already in {existing_reel_status} with a Reel File; refusing duplicate Telegram delivery.")
-            review_video_delivered = True
-        elif not force_regenerate and not (force_telegram_review or stale_delivery_lock) and (current_reel_review.startswith("TELEGRAM_SENDING") or current_reel_review.startswith("TELEGRAM_DELIVERED")):
-            print(f"Reel Telegram delivery already locked for row {row_number}; refusing duplicate send.")
-            review_video_delivered = current_reel_review.startswith("TELEGRAM_DELIVERED")
-        else:
-            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
-            telegram_result = send_video(str(video_path), caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية", reply_markup={"inline_keyboard": [[{"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"}, {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"}]]})
-            message_id = str((telegram_result or {}).get("message_id", ""))
-            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_DELIVERED | message_id={message_id} | duration={final_duration:.1f}s"})
-            review_video_delivered = True
-
+        # Persist the reviewable state BEFORE sending Telegram buttons. The
+        # callback webhook can be faster than this workflow: publishing REVIEW
+        # first prevents a valid approval from being rejected while status is
+        # still GENERATING, and prevents a later Sheet write from erasing it.
         review_payload = {
             "Reel Status": "REVIEW",
             "Reel Script": brief["script"],
             "Reel File": str(output_dir / "daily-reel.mp4"),
             "Reel Run ID": os.getenv("GITHUB_RUN_ID", ""),
             "Reel Approval": "",
-            "Reel Review": f"TELEGRAM_DELIVERED | review_ready | duration={final_duration:.1f}s",
+            "Reel Review": "REVIEW_READY | awaiting Telegram decision",
             "Reel Last Error": "",
         }
         sheet_saved = False
@@ -1405,12 +1388,26 @@ def main() -> int:
                     import time
                     time.sleep(attempt * 3)
         if not sheet_saved:
-            (output_dir / "review_pending.json").write_text(
-                json.dumps({"row_number": row_number, "status": "REVIEW", "sheet_error": str(last_sheet_error)}, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            print(f"REEL_READY row={row_number} file={video_path} telegram=delivered sheet=retry_pending")
-            return 0
+            raise RuntimeError(f"Could not persist Reel review state before Telegram delivery: {last_sheet_error}")
+
+        # Delivery lock: never send a second review copy for the same row.
+        if not force_regenerate and not (force_telegram_review or stale_delivery_lock) and current_reel_review.startswith("TELEGRAM_DELIVERED"):
+            print(f"Reel row {row_number} already has TELEGRAM_DELIVERED; refusing duplicate send.")
+            review_video_delivered = True
+        elif not force_regenerate and not (force_telegram_review or stale_delivery_lock) and current_reel_review.startswith("TELEGRAM_SENDING"):
+            print(f"Reel row {row_number} is already TELEGRAM_SENDING; refusing duplicate send.")
+            review_video_delivered = False
+        elif not force_regenerate and not (force_telegram_review or stale_delivery_lock) and existing_reel_status in {"REVIEW", "APPROVED"} and existing_reel_file:
+            print(f"Reel row {row_number} is already in {existing_reel_status} with a Reel File; refusing duplicate Telegram delivery.")
+            review_video_delivered = True
+        else:
+            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
+            telegram_result = send_video(str(video_path), caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية", reply_markup={"inline_keyboard": [[{"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"}, {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"}]]})
+            message_id = str((telegram_result or {}).get("message_id", ""))
+            # Update only the delivery metadata. Never overwrite Reel Approval:
+            # the owner may have approved/rejected while sendVideo was in flight.
+            update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_DELIVERED | message_id={message_id} | duration={final_duration:.1f}s"})
+            review_video_delivered = True
 
         print("REEL_READY row=" + str(row_number) + " file=" + str(video_path) + f" duration={final_duration:.1f}s telegram=delivered sheet=review")
         return 0
