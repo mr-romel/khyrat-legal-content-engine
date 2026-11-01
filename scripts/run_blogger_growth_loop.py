@@ -51,7 +51,32 @@ def _query(service, site: str, start: str, end: str, dimensions: list[str]) -> l
     return result
 
 
-def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[dict], start: str, end: str) -> dict:
+def inspect_index_status(service, site: str, urls: list[str], limit: int = 100) -> list[dict]:
+    """Use Search Console URL Inspection API; preserve per-URL failures as unknown."""
+    results = []
+    for url in list(dict.fromkeys(str(value).strip() for value in urls if str(value).strip()))[:max(1, min(200, limit))]:
+        try:
+            response = service.urlInspection().index().inspect(
+                body={"inspectionUrl": url, "siteUrl": site}
+            ).execute()
+            status = (response.get("inspectionResult") or {}).get("indexStatusResult") or {}
+            results.append({
+                "url": url,
+                "verdict": status.get("verdict", "UNKNOWN"),
+                "coverage_state": status.get("coverageState", ""),
+                "indexing_state": status.get("indexingState", ""),
+                "robots_txt_state": status.get("robotsTxtState", ""),
+                "page_fetch_state": status.get("pageFetchState", ""),
+                "last_crawl_time": status.get("lastCrawlTime", ""),
+                "google_canonical": status.get("googleCanonical", ""),
+                "user_canonical": status.get("userCanonical", ""),
+            })
+        except Exception as exc:
+            results.append({"url": url, "verdict": "UNKNOWN", "error": str(exc)[:500]})
+    return results
+
+
+def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[dict], start: str, end: str, index_rows: list[dict] | None = None) -> dict:
     page_metrics = [
         {
             "url": row.get("page", ""),
@@ -90,6 +115,14 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
     )
     total_clicks = sum(float(row.get("clicks", 0) or 0) for row in page_rows)
     total_impressions = sum(float(row.get("impressions", 0) or 0) for row in page_rows)
+    index_rows = index_rows or []
+    index_summary = {
+        "urls_inspected": len(index_rows),
+        "indexed_pass": sum(1 for row in index_rows if row.get("verdict") == "PASS"),
+        "not_indexed_or_blocked": sum(1 for row in index_rows if row.get("verdict") == "FAIL"),
+        "unknown_or_api_error": sum(1 for row in index_rows if row.get("verdict") not in {"PASS", "FAIL"}),
+        "results": index_rows,
+    }
     return {
         "generated_at": datetime.now(CAIRO).isoformat(),
         "site": os.getenv("SEARCH_CONSOLE_SITE_URL", BLOG_URL).strip(),
@@ -109,6 +142,7 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
             "No query rows means no query-level opportunity can be inferred; it does not prove that no searches exist."
         ),
         "technical_audit_summary": audit.get("summary", {}),
+        "url_inspection": index_summary,
         "page_priorities": priorities,
         "query_opportunities": query_opportunities[:250],
         "page_metrics": page_rows,
@@ -128,8 +162,11 @@ def main() -> int:
     page_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["page"])
     query_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["query", "page"])
     audit = json.loads(Path("artifacts/seo-audit/report.json").read_text(encoding="utf-8"))
+    audit_urls = [row.get("url", "") for row in audit.get("posts", []) if row.get("url")]
+    index_limit = max(1, min(200, int(os.getenv("SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT", "100"))))
+    index_rows = inspect_index_status(service, site, audit_urls, limit=index_limit)
     snapshot = build_growth_snapshot(
-        audit, page_rows, query_rows, start_date.isoformat(), end_date.isoformat()
+        audit, page_rows, query_rows, start_date.isoformat(), end_date.isoformat(), index_rows=index_rows
     )
     out = Path("artifacts/seo-audit")
     out.mkdir(parents=True, exist_ok=True)
@@ -143,7 +180,12 @@ def main() -> int:
     (out / "growth-priorities.json").write_text(
         json.dumps(snapshot["page_priorities"], ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(json.dumps(snapshot["measurement"], ensure_ascii=False, indent=2))
+    print(json.dumps({
+        "measurement": snapshot["measurement"],
+        "url_inspection": {
+            key: value for key, value in snapshot["url_inspection"].items() if key != "results"
+        },
+    }, ensure_ascii=False, indent=2))
     return 0
 
 
