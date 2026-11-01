@@ -9,7 +9,7 @@ from sheets import HEADERS, create_service, get_values, row_to_dict
 from telegram_bot import send_message
 from blogger_trend_worker import collect_candidates
 
-TZ = ZoneInfo("Africa/Cairo")
+TZ = ZoneInfo("Africa/Cairo")  # All displayed dates and times use Egypt local time.
 
 
 def _today(value: str) -> bool:
