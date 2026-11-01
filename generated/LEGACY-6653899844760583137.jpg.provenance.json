@@ -2,23 +2,20 @@
   "topic": "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور",
   "provider": "DIRECT_CLOUDFLARE",
   "model": "@cf/bytedance/stable-diffusion-xl-lightning",
-  "prompt": "A medium‑shot interior of a bright, modern daycare room. Sunlight streams through large windows, casting soft, even light over colorful walls adorned with children’s drawings and low shelves of toys. In the foreground, a middle‑aged daycare owner—dressed in business‑casual attire—stands slightly turned to the right, holding a multi‑page printed checklist in one hand. Their eyes are focused on a small, dome‑shaped surveillance camera mounted in the ceiling near a play corner, while the other hand rests on the checklist, thumb lightly resting on a highlighted line (the camera‑installation clause). The checklist is visible enough to convey its presence but no legible text is shown. To the left of the owner, a low table with scattered building blocks and a plush rug suggest a typical child‑care environment. The composition places the owner on the left third, the camera on the right third, and the checklist bridging the two, emphasizing the connection between the regulatory document and the installed equipment. The overall lighting is natural and warm, with gentle shadows that give depth without drawing attention away from the focal elements. No signage, logos, or readable text appear in the scene.",
-  "prompt_sha256": "f17fbcf64f00c95aaa21d33ca8aa1d46f31ae1212361aa535cb12288260dc1d9",
-  "image_sha256": "625afb717364838cf93a4d7a25732109232e0c0cc28ed675e4fda446881573e7",
+  "prompt": "A medium‑shot, eye‑level view inside a bright, modern daycare room. In the foreground a small wooden table holds a neat stack of printed pages and a closed folder, their edges visible but no text readable. A middle‑aged woman, the daycare owner, stands beside the table. She wears a casual blouse and jeans, holds a pen in one hand, and rests the other hand on the folder as she looks up thoughtfully toward a white‑plastic dome‑style surveillance camera mounted on the wall near the ceiling. Her expression is concerned yet focused. Behind her, the room is filled with typical childcare details: low‑height colorful chairs, a soft rug with scattered building blocks, a bookshelf with picture books, and a window that lets in soft natural daylight, casting gentle, warm illumination across the scene. The camera and the paperwork are the key visual elements that anchor the viewer’s attention to the owner’s review of new operational requirements.",
+  "prompt_sha256": "8d7be09a2c5cbda20c24494f99dfa489e6d8a5f520d5d2758ee20d2d6d1cdcac",
+  "image_sha256": "082833b6340d5f213ee4b7cbfbe0308c9f2b653e672bcd755550e0ffb6b6d49e",
   "image_path": "generated/LEGACY-6653899844760583137.jpg",
-  "visual_description": "A medium‑shot interior of a bright, modern daycare room. Sunlight streams through large windows, casting soft, even light over colorful walls adorned with children’s drawings and low shelves of toys. In the foreground, a middle‑aged daycare owner—dressed in business‑casual attire—stands slightly turned to the right, holding a multi‑page printed checklist in one hand. Their eyes are focused on a small, dome‑shaped surveillance camera mounted in the ceiling near a play corner, while the other hand rests on the checklist, thumb lightly resting on a highlighted line (the camera‑installation clause). The checklist is visible enough to convey its presence but no legible text is shown. To the left of the owner, a low table with scattered building blocks and a plush rug suggest a typical child‑care environment. The composition places the owner on the left third, the camera on the right third, and the checklist bridging the two, emphasizing the connection between the regulatory document and the installed equipment. The overall lighting is natural and warm, with gentle shadows that give depth without drawing attention away from the focal elements. No signage, logos, or readable text appear in the scene.",
+  "visual_description": "A medium‑shot, eye‑level view inside a bright, modern daycare room. In the foreground a small wooden table holds a neat stack of printed pages and a closed folder, their edges visible but no text readable. A middle‑aged woman, the daycare owner, stands beside the table. She wears a casual blouse and jeans, holds a pen in one hand, and rests the other hand on the folder as she looks up thoughtfully toward a white‑plastic dome‑style surveillance camera mounted on the wall near the ceiling. Her expression is concerned yet focused. Behind her, the room is filled with typical childcare details: low‑height colorful chairs, a soft rug with scattered building blocks, a bookshelf with picture books, and a window that lets in soft natural daylight, casting gentle, warm illumination across the scene. The camera and the paperwork are the key visual elements that anchor the viewer’s attention to the owner’s review of new operational requirements.",
   "qa_decision": "PASS",
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 2,
-  "qa_relevance_score": 2,
+  "qa_overall_score": 4,
+  "qa_relevance_score": 8,
   "qa_issues": [
     "Composition advisory below 55.",
     "Relevance advisory below 55.",
     "Overall advisory below 60.",
-    "Presence of a child (girl) detected.",
-    "Failure to depict the legal scenario (camera installation checklist).",
-    "Missing key subject (daycare owner).",
-    "High level of visual distortion in objects."
+    "Contains multiple women and girls in the scene, violating the core 'No Women or Girls' rule."
   ],
-  "qa_checked_image_sha256": "625afb717364838cf93a4d7a25732109232e0c0cc28ed675e4fda446881573e7"
+  "qa_checked_image_sha256": "082833b6340d5f213ee4b7cbfbe0308c9f2b653e672bcd755550e0ffb6b6d49e"
 }
