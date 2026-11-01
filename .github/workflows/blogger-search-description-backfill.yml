@@ -19,8 +19,6 @@ on:
     branches: [main]
     paths:
       - ".github/BLOGGER_SEARCH_DESCRIPTION_BACKFILL_RUN_NOW"
-      - "src/blogger_seo_worker.py"
-      - "scripts/backfill_blogger_search_descriptions.py"
 
 permissions:
   contents: read
