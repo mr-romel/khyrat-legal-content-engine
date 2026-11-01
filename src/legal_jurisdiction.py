@@ -28,12 +28,12 @@ FOREIGN_JURISDICTIONS = {
 def norm(text: str) -> str:
     value = unicodedata.normalize("NFKC", str(text or "")).casefold()
     value = re.sub(r"[إأآٱ]", "ا", value).replace("ى", "ي").replace("ة", "ه")
-    return re.sub(r"\\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def terms(text: str) -> set[str]:
     return {
-        word for word in re.findall(r"[a-z0-9\\u0600-\\u06ff]+", norm(text))
+        word for word in re.findall(r"[a-z0-9\u0600-\u06ff]+", norm(text))
         if len(word) > 2 and word not in STOPWORDS
     }
 
@@ -51,7 +51,7 @@ def choose_related(source: dict, posts: list[dict], max_links: int = 2) -> list[
     source_jurisdiction = jurisdiction(source_title)
     source_terms = terms(source_title)
     existing_html = str(source.get("content", "") or "")
-    existing_urls = set(re.findall(r'''href\\s*=\\s*["']([^"']+)["']''', existing_html, flags=re.I))
+    existing_urls = set(re.findall(r'''href\s*=\s*["']([^"']+)["']''', existing_html, flags=re.I))
     candidates = []
     for target in posts:
         if str(target.get("id")) == str(source.get("id")):
