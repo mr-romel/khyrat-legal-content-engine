@@ -9,7 +9,6 @@ from pathlib import Path
 
 from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service
 from blogger_seo_audit import run as run_public_audit
-from blogger_ui_publisher import set_search_description_ui
 
 
 def _plain_text(value: str) -> str:
@@ -55,6 +54,7 @@ def main() -> int:
     apply = os.getenv("BLOGGER_SEARCH_DESCRIPTION_APPLY", "false").strip().lower() in {"1", "true", "yes"}
     limit = max(1, min(500, int(os.getenv("BLOGGER_SEARCH_DESCRIPTION_LIMIT", "500"))))
     blog_url = os.getenv("BLOGGER_URL", DEFAULT_BLOG_URL).strip()
+    from blogger_ui_publisher import set_search_description_ui
     if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
         raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required for Blogger editor Search description updates.")
 
