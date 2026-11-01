@@ -290,7 +290,7 @@ jobs:
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
-          BLOGGER_SEO_MAX_POSTS: "25"
+          BLOGGER_SEO_MAX_POSTS: "5"
         run: PYTHONPATH=src python src/blogger_seo_worker.py
   blogger_site_setup:
     concurrency:
