@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+import html
 import re
 from datetime import datetime
 from typing import Any
@@ -48,7 +48,11 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat()
 
 def _clean(value: Any, limit: int = 500) -> str:
-    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    text = str(value or "")
+    text = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"\\s+", " ", text).strip()
     return text[:limit]
 
 def _slug(text: str) -> str:
@@ -103,7 +107,7 @@ def build_answer_extract(topic: str, post: str = "") -> str:
     return f"الإجابة تعتمد على تفاصيل الواقعة والنص القانوني المنطبق في {JURISDICTION}، ولا يصح حسم النتيجة من عنوان الموضوع وحده."
 
 def build_evidence(topic: str, post: str = "") -> str:
-    return "المصادر القانونية المسجلة للمنشور + النص القانوني/اللائحة/الحكم ذي الصلة عند إعداد النسخة المنشورة على الويب"
+    return "لم تُرفق مصادر قانونية محددة في سجل المحتوى؛ يلزم التحقق من النص الرسمي أو الجهة المختصة قبل الاعتماد."
 
 def build_local_intent(topic: str, post: str = "") -> str:
     return "EGYPT | CAIRO" if any(x in f"{topic} {post}" for x in ("القاهرة", "مصر", "محكمة", "نيابة", "وزارة", "مأمورية")) else "EGYPT"
@@ -143,7 +147,7 @@ def build_metadata(*, post_id: str, topic: str, post: str, platform: str, legal_
         "Meta Description": description,
         "Slug": _slug(question),
         "GEO Summary": _clean(f"سؤال: {question} | جواب مختصر: {extract} | الاختصاص: {JURISDICTION} | المجال: {entity}", 700),
-        "Author/Provenance": "Khyrat Legal Content Engine | human-reviewed legal content pipeline",
+        "Author/Provenance": "اسأل محمود | مسودة مولدة آليًا وتستلزم مراجعة قانونية بشرية قبل الاعتماد",
         "Updated At": _now(),
     }
 
