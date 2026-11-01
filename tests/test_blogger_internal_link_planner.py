@@ -24,3 +24,16 @@ def test_plan_skips_existing_internal_links():
     plan = build_plan(audit)
     assert not any(item["source_url"].endswith("/a") and item["target_url"].endswith("/b")
                    for item in plan["items"])
+
+
+def test_internal_links_never_cross_legal_jurisdictions():
+    from apply_blogger_internal_links import choose_related
+
+    source = {"id": "1", "title": "تقسيم التركة وإجراءات الورثة في الجزائر", "content": ""}
+    posts = [
+        {"id": "1", "title": source["title"], "url": "https://example.com/a"},
+        {"id": "2", "title": "إجراءات تقسيم التركة بين الورثة في مصر", "url": "https://example.com/b"},
+        {"id": "3", "title": "إجراءات تقسيم التركة بين الورثة في الجزائر", "url": "https://example.com/c"},
+    ]
+    related = choose_related(source, posts)
+    assert [item["url"] for item in related] == ["https://example.com/c"]
