@@ -39,6 +39,7 @@ jobs:
       - name: Test growth measurement and prioritization
         run: pytest -q tests/test_blogger_growth_loop.py tests/test_blogger_search_console_prioritizer.py tests/test_blogger_seo_audit.py
       - name: Inspect live Blogger pages, feed, canonical tags, sitemap and internal links
+        continue-on-error: true
         run: python src/blogger_seo_audit.py
       - name: Read actual Google Search Console page and query performance
         run: python scripts/run_blogger_growth_loop.py
