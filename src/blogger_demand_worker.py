@@ -986,16 +986,6 @@ def main() -> int:
         history_entry.update({"status": "PUBLISH_UNVERIFIED", "post_id": result.get("post_id", ""), "post_url": ""})
         _save_map(keyword_map)
         raise RuntimeError("Blogger article was not verified with its generated image embedded; it will be retried.")
-    if result.get("post_id") and description:
-        try:
-            from blogger_ui_publisher import set_search_description_ui
-            set_search_description_ui(
-                blog_id=BLOG_ID or resolve_blog_id(blogger_rest_service(), BLOG_URL),
-                post_id=str(result["post_id"]),
-                search_description=str(description).strip()[:150],
-            )
-        except Exception as exc:
-            print(f"WARNING: demand article published but Search description UI update failed: {exc}")
     history_entry.update({
         "status": "PUBLISHED",
         "post_id": result.get("post_id", ""),
