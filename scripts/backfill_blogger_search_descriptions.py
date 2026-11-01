@@ -149,7 +149,8 @@ def main() -> int:
     (out / "latest-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if apply and report["updated"]:
-        os.environ["BLOGGER_SEO_MAX_POSTS"] = str(limit)
+        batch_size = max(1, min(10, int(os.getenv("BLOGGER_SEARCH_DESCRIPTION_BATCH_SIZE", "5"))))
+        os.environ["BLOGGER_SEO_MAX_POSTS"] = str(batch_size)
         from blogger_seo_worker import main as run_existing_seo_worker
         worker_exit = run_existing_seo_worker()
         values_after = get_values(sheet_service, config["sheet_id"], config["sheet_range"])
