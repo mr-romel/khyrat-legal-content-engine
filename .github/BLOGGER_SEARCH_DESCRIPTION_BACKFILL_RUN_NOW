@@ -11,3 +11,5 @@ UI implementation nonce: 2026-11-01T15:51:00+02:00
 Regex fix smoke nonce: 2026-11-01T15:53:00+02:00
 
 UI diagnostics nonce: 2026-11-01T15:55:00+02:00
+
+Post-save wait nonce: 2026-11-01T15:57:00+02:00
