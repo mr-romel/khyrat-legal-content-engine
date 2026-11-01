@@ -76,32 +76,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
     _, _, sitemap = check("sitemap", base + "/sitemap.xml")
     _, _, robots = check("robots_txt", base + "/robots.txt", required=False)
 
-    # Explicitly verify URLs reported by Search Console. These checks follow
-    # redirects and record the final destination/status so redirect-to-404
-    # chains are not mistaken for healthy canonicalization.
-    search_console_urls = [
-        ("gsc_about_us_404", base + "/p/about-us.html"),
-        ("gsc_redirecting_article", base + "/2026/10/blog-post_773.html"),
-    ]
-    for name, url in search_console_urls:
-        status, final_url, _ = check(name, url, required=False)
-        if status is None or not (200 <= status < 300):
-            findings.append({
-                "severity": "HIGH",
-                "code": "SEARCH_CONSOLE_URL_NOT_HEALTHY",
-                "message": f"Search Console URL ends with HTTP {status if status is not None else 'unreachable'} after redirects; final destination: {final_url or 'unavailable'}.",
-                "url": url,
-                "final_url": final_url,
-            })
-        elif final_url.rstrip("/") != url.rstrip("/"):
-            findings.append({
-                "severity": "LOW",
-                "code": "SEARCH_CONSOLE_URL_REDIRECTS",
-                "message": f"URL redirects to {final_url}; confirm this is the intended canonical destination.",
-                "url": url,
-                "final_url": final_url,
-            })
-
+    # Never audit stale, hard-coded sample URLs. Real article URLs are
+    # discovered from the live Blogger feed below and checked individually.
     entries: list[dict] = []
     try:
         data = json.loads(feed) if feed else {}
@@ -125,6 +101,66 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
     except (ValueError, TypeError, AttributeError) as exc:
         findings.append({"severity": "HIGH", "code": "FEED_PARSE_ERROR",
                          "message": f"Could not parse Blogger JSON feed: {exc}"})
+
+    # Inspect real public article HTML, not only Blogger's feed metadata.
+    # This detects missing/weak snippets, canonical mistakes and index-blocking
+    # directives on actual URLs that readers and crawlers can reach.
+    page_audits = []
+    for item in entries[:40]:
+        url = item.get("url", "")
+        if not url:
+            continue
+        status, final_url, page_html = check("article_page", url, required=False)
+        if status is None or not (200 <= status < 300):
+            findings.append({"severity": "HIGH", "code": "ARTICLE_HTTP_ERROR",
+                             "message": f"Public article URL returned HTTP {status if status is not None else 'unreachable'}.",
+                             "title": item["title"], "url": url, "final_url": final_url})
+            continue
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", page_html, re.I | re.S)
+        title_tag = clean(re.sub(r"<[^>]+>", " ", title_match.group(1))) if title_match else ""
+        desc_match = re.search(r'<meta[^>]+name=["\\']description["\\'][^>]+content=["\\']([^"\\']*)', page_html, re.I)
+        if not desc_match:
+            desc_match = re.search(r'<meta[^>]+content=["\\']([^"\\']*)["\\'][^>]+name=["\\']description["\\']', page_html, re.I)
+        meta_description = clean(desc_match.group(1)) if desc_match else ""
+        canonical_match = re.search(r'<link[^>]+rel=["\\']canonical["\\'][^>]+href=["\\']([^"\\']+)', page_html, re.I)
+        if not canonical_match:
+            canonical_match = re.search(r'<link[^>]+href=["\\']([^"\\']+)["\\'][^>]+rel=["\\']canonical["\\']', page_html, re.I)
+        canonical = canonical_match.group(1).strip() if canonical_match else ""
+        h1_count = len(re.findall(r"<h1\\b", page_html, re.I))
+        image_tags = re.findall(r"<img\\b[^>]*>", page_html, re.I)
+        images_missing_alt = sum(1 for tag in image_tags if not re.search(r'\\balt=["\\'][^"\\']+["\\']', tag, re.I))
+        noindex = bool(re.search(r'<meta[^>]+name=["\\']robots["\\'][^>]+content=["\\'][^"\\']*noindex', page_html, re.I))
+        page = {"title": item["title"], "url": url, "http_status": status,
+                "html_title": title_tag, "meta_description": meta_description,
+                "canonical": canonical, "h1_count": h1_count,
+                "images": len(image_tags), "images_missing_alt": images_missing_alt,
+                "noindex": noindex}
+        page_audits.append(page)
+        if noindex:
+            findings.append({"severity": "HIGH", "code": "ARTICLE_NOINDEX",
+                             "message": "Article page contains a noindex directive.", "title": item["title"], "url": url})
+        if not meta_description:
+            findings.append({"severity": "MEDIUM", "code": "MISSING_META_DESCRIPTION",
+                             "message": "No meta description was detected on the public article HTML.", "title": item["title"], "url": url})
+        elif len(meta_description) < 70 or len(meta_description) > 180:
+            findings.append({"severity": "LOW", "code": "META_DESCRIPTION_LENGTH",
+                             "message": f"Meta description length is {len(meta_description)} characters; review for concise, complete search intent coverage.",
+                             "title": item["title"], "url": url})
+        if not title_tag:
+            findings.append({"severity": "MEDIUM", "code": "MISSING_HTML_TITLE",
+                             "message": "No HTML title tag was detected.", "title": item["title"], "url": url})
+        if not canonical:
+            findings.append({"severity": "MEDIUM", "code": "MISSING_CANONICAL",
+                             "message": "No canonical link was detected in public HTML.", "title": item["title"], "url": url})
+        elif canonical.rstrip("/") != url.rstrip("/"):
+            findings.append({"severity": "HIGH", "code": "CANONICAL_MISMATCH",
+                             "message": f"Canonical points to {canonical}, not this article URL.", "title": item["title"], "url": url})
+        if h1_count != 1:
+            findings.append({"severity": "LOW", "code": "H1_COUNT",
+                             "message": f"Expected one primary H1; detected {h1_count}.", "title": item["title"], "url": url})
+        if images_missing_alt:
+            findings.append({"severity": "LOW", "code": "IMAGE_ALT_MISSING",
+                             "message": f"{images_missing_alt} of {len(image_tags)} images have no alt text.", "title": item["title"], "url": url})
 
     counts = Counter(x["normalized_title"] for x in entries if x["normalized_title"])
     for item in entries:
@@ -208,7 +244,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
             "posts_in_feed": len(entries),
             "sitemap_urls": len(sitemap_urls),
             "internal_links_between_posts": internal_link_count,
-            "posts_without_internal_links": len(posts_without_internal_links),
+            "posts_without_internal_links": len(posts_without_internal_links),\n            "article_pages_audited": len(page_audits),\n            "articles_missing_meta_description": sum(1 for x in page_audits if not x["meta_description"]),\n            "articles_missing_canonical": sum(1 for x in page_audits if not x["canonical"]),\n            "articles_with_noindex": sum(1 for x in page_audits if x["noindex"]),
             "feed_urls_missing_from_sitemap": len(missing_from_sitemap),
             "checks_passed": sum(1 for x in checks if x.get("ok")),
             "checks_total": len(checks),
@@ -221,7 +257,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         "findings": findings,
         "posts_without_internal_links": posts_without_internal_links,
         "feed_urls_missing_from_sitemap": missing_from_sitemap,
-        "posts": entries,
+        "posts": entries,\n        "article_pages": page_audits,
     }
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -233,7 +269,7 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         f"- Blog: {base}",
         f"- Posts in public feed: {len(entries)}",
         f"- URLs found in sitemap: {len(sitemap_urls)}",
-        f"- Internal links between known posts: {internal_link_count}",
+        f"- Public article pages audited: {len(page_audits)}",\n        f"- Internal links between known posts: {internal_link_count}",
         f"- Posts without detected internal links: {len(posts_without_internal_links)}",
         f"- Feed URLs missing from sitemap response: {len(missing_from_sitemap)}",
         f"- Latest published timestamp in feed: {latest_published or 'not available'}",
