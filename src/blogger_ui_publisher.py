@@ -944,9 +944,11 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             except Exception:
                 before = {}
             print("Blogger Search description field before edit: " + json.dumps(before, ensure_ascii=False))
-            field.fill(description)
+            field.fill("")
+            field.click()
+            field.type(description, delay=4)
             field.press("Tab")
-            page.wait_for_timeout(500)
+            page.wait_for_timeout(700)
             try:
                 after = field.evaluate("(el) => ({tag: el.tagName, aria: el.getAttribute('aria-label'), placeholder: el.getAttribute('placeholder'), value: el.value || el.innerText || ''})")
             except Exception:
