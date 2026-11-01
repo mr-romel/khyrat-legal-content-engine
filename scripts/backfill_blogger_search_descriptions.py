@@ -9,18 +9,20 @@ from pathlib import Path
 
 from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service
 from blogger_seo_audit import run as run_public_audit
+from config import load_blogger_config
+from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 
 
 def _plain_text(value: str) -> str:
-    value = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", str(value or ""), flags=re.I | re.S)
-    value = re.sub(r"<br\s*/?>|</p\s*>|</li\s*>|</h[1-6]\s*>", ". ", value, flags=re.I)
+    value = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", str(value or ""), flags=re.I | re.S)
+    value = re.sub(r"<br\\s*/?>|</p\\s*>|</li\\s*>|</h[1-6]\\s*>", ". ", value, flags=re.I)
     value = re.sub(r"<[^>]+>", " ", value)
     value = html.unescape(value)
-    return re.sub(r"\s+", " ", value).strip(" .\t\r\n")
+    return re.sub(r"\\s+", " ", value).strip(" .\\t\\r\\n")
 
 
 def _first_paragraph(fragment: str) -> str:
-    match = re.search(r"<p\b[^>]*>(.*?)</p\s*>", fragment, flags=re.I | re.S)
+    match = re.search(r"<p\\b[^>]*>(.*?)</p\\s*>", fragment, flags=re.I | re.S)
     return _plain_text(match.group(1) if match else fragment)
 
 
@@ -28,15 +30,15 @@ def build_search_description(content: str, title: str = "") -> str:
     """Derive a truthful snippet from the article's own concise answer or opening paragraph."""
     content = str(content or "")
     answer = re.search(
-        r"<h[2-4]\b[^>]*>[^<]*(?:الإجابة المختصرة|ملخص الإجابة|الخلاصة)[^<]*</h[2-4]\s*>(.*?)(?=<h[1-4]\b|$)",
+        r"<h[2-4]\\b[^>]*>[^<]*(?:الإجابة المختصرة|ملخص الإجابة|الخلاصة)[^<]*</h[2-4]\\s*>(.*?)(?=<h[1-4]\\b|$)",
         content,
         flags=re.I | re.S,
     )
     candidate = _first_paragraph(answer.group(1)) if answer else ""
     if len(candidate) < 70:
         candidate = _first_paragraph(content)
-    candidate = re.sub(r"^" + re.escape(str(title or "").strip()) + r"\s*[:：—-]?\s*", "", candidate, flags=re.I)
-    candidate = re.sub(r"\s+", " ", candidate).strip()
+    candidate = re.sub(r"^" + re.escape(str(title or "").strip()) + r"\\s*[:：—-]?\\s*", "", candidate, flags=re.I)
+    candidate = re.sub(r"\\s+", " ", candidate).strip()
     if len(candidate) <= 150:
         return candidate
     cut = candidate[:150]
@@ -54,10 +56,6 @@ def main() -> int:
     apply = os.getenv("BLOGGER_SEARCH_DESCRIPTION_APPLY", "false").strip().lower() in {"1", "true", "yes"}
     limit = max(1, min(500, int(os.getenv("BLOGGER_SEARCH_DESCRIPTION_LIMIT", "500"))))
     blog_url = os.getenv("BLOGGER_URL", DEFAULT_BLOG_URL).strip()
-    from blogger_ui_publisher import set_search_description_ui
-    if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
-        raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required for Blogger editor Search description updates.")
-
     out = Path("artifacts/blogger-search-descriptions")
     out.mkdir(parents=True, exist_ok=True)
     audit_dir = Path("artifacts/seo-audit")
@@ -71,51 +69,75 @@ def main() -> int:
         print("Public audit found no missing Search descriptions in the audited article set.")
         return 0
 
-    svc = service()
-    bid = blog_id(svc, blog_url)
+    config = load_blogger_config()
+    sheet_service = create_service(config["service_account_info"])
+    sheet_name = config["sheet_range"].split("!", 1)[0]
+    ensure_headers(sheet_service, config["sheet_id"], sheet_name)
+    sheet_values = get_values(sheet_service, config["sheet_id"], config["sheet_range"])
+    if not sheet_values:
+        raise RuntimeError("Blogger content sheet is empty; cannot safely map live posts to rows.")
+    sheet_rows = [row_to_dict(row) for row in sheet_values[1:]]
+    row_by_url = {
+        _url_key(row.get("Blogger URL", "")): (row_number, row)
+        for row_number, row in enumerate(sheet_rows, start=2)
+        if _url_key(row.get("Blogger URL", ""))
+    }
+
+    blogger_service = service()
+    resolved_blog_id = blog_id(blogger_service, blog_url)
     posts = []
     token = None
     while True:
-        args = {"blogId": bid, "status": "LIVE", "fetchBodies": True, "maxResults": 500}
+        args = {"blogId": resolved_blog_id, "status": "LIVE", "fetchBodies": True, "maxResults": 500}
         if token:
             args["pageToken"] = token
-        batch = svc.posts().list(**args).execute()
+        batch = blogger_service.posts().list(**args).execute()
         posts.extend(batch.get("items") or [])
         token = batch.get("nextPageToken")
         if not token:
             break
 
-    targets = [p for p in posts if _url_key(p.get("url", "")) in missing_urls][:limit]
+    targets = [post for post in posts if _url_key(post.get("url", "")) in missing_urls][:limit]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup = []
     report = {
         "run_id": stamp, "blog_url": blog_url, "live_posts": len(posts),
         "audited_missing_descriptions": len(missing_urls), "matched_posts": len(targets),
         "apply_mode": apply, "updated": [], "skipped": [], "errors": [],
+        "method": "Google Sheet staging + existing blogger_seo_worker UI editor + public-page verification",
     }
 
     for post in targets:
         post_id = str(post.get("id", "")).strip()
         title = str(post.get("title", "")).strip()
-        content = str(post.get("content", "") or "")
-        description = build_search_description(content, title)
+        url = str(post.get("url", "")).strip()
+        row_match = row_by_url.get(_url_key(url))
+        if not row_match:
+            report["skipped"].append({"id": post_id, "title": title, "url": url, "reason": "no matching Blogger URL row in content sheet"})
+            continue
+        row_number, row = row_match
+        existing_description = str(row.get("Blogger Meta Description", "") or "").strip()
+        description = existing_description or build_search_description(str(post.get("content", "") or ""), title)
         backup.append({
-            "id": post_id, "title": title, "url": post.get("url", ""),
-            "old_public_meta_description": "", "proposed_search_description": description,
+            "id": post_id, "title": title, "url": url, "sheet_row": row_number,
+            "old_sheet_description": existing_description, "proposed_search_description": description,
+            "old_seo_status": row.get("Blogger SEO Status", ""),
         })
         if len(description) < 70:
-            report["skipped"].append({"id": post_id, "title": title, "reason": "insufficient grounded text"})
+            report["skipped"].append({"id": post_id, "title": title, "url": url, "reason": "insufficient grounded text"})
             continue
-        item = {"id": post_id, "title": title, "url": post.get("url", ""), "search_description": description}
+        item = {"id": post_id, "title": title, "url": url, "sheet_row": row_number, "search_description": description}
         if not apply:
             item["status"] = "DRY_RUN"
             report["updated"].append(item)
             continue
         try:
-            status = set_search_description_ui(
-                blog_id=bid, post_id=post_id, search_description=description
-            )
-            item["status"] = status
+            update_row(sheet_service, config["sheet_id"], sheet_name, row_number, {
+                "Blogger Meta Description": description[:150],
+                "Blogger SEO Status": "PENDING",
+                "Blogger SEO Error": "",
+            })
+            item["status"] = "STAGED_FOR_EXISTING_SEO_WORKER"
             report["updated"].append(item)
         except Exception as exc:
             report["errors"].append({**item, "error": str(exc)[:1200]})
@@ -127,6 +149,24 @@ def main() -> int:
     (out / "latest-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if apply and report["updated"]:
+        os.environ["BLOGGER_SEO_MAX_POSTS"] = str(limit)
+        from blogger_seo_worker import main as run_existing_seo_worker
+        worker_exit = run_existing_seo_worker()
+        values_after = get_values(sheet_service, config["sheet_id"], config["sheet_range"])
+        rows_after = [row_to_dict(row) for row in values_after[1:]] if values_after else []
+        status_by_url = {
+            _url_key(row.get("Blogger URL", "")): {
+                "status": row.get("Blogger SEO Status", ""),
+                "error": row.get("Blogger SEO Error", ""),
+            }
+            for row in rows_after
+        }
+        for item in report["updated"]:
+            item["worker_result"] = status_by_url.get(_url_key(item["url"]), {})
+            item["status"] = item["worker_result"].get("status", "UNKNOWN")
+        report["worker_exit_code"] = worker_exit
+        report["verified_count"] = sum(1 for item in report["updated"] if str(item["status"]).upper() == "VERIFIED")
+        report["failed_count"] = sum(1 for item in report["updated"] if str(item["status"]).upper() == "FAILED")
         verified_audit = run_public_audit(str(audit_dir))
         report["verification"] = verified_audit.get("summary", {})
         report["verification_missing_meta_descriptions"] = report["verification"].get("articles_missing_meta_description")
@@ -136,9 +176,11 @@ def main() -> int:
         "run_id": stamp, "live_posts": len(posts), "audited_missing_descriptions": len(missing_urls),
         "matched_posts": len(targets), "apply_mode": apply, "updated_count": report["updated_count"],
         "skipped_count": report["skipped_count"], "error_count": report["error_count"],
+        "verified_count": report.get("verified_count", 0),
+        "failed_count": report.get("failed_count", 0),
         "verification_missing_meta_descriptions": report.get("verification_missing_meta_descriptions"),
     }, ensure_ascii=False))
-    return 1 if report["errors"] else 0
+    return 1 if report["errors"] or report.get("failed_count", 0) else 0
 
 
 if __name__ == "__main__":
