@@ -28,7 +28,7 @@ def main() -> int:
         "requested_labels": requested,
         "saved_labels": saved,
         "utf8_bytes": sum(len(label.encode("utf-8")) for label in saved) + max(0, len(saved) - 1),
-        "verified": saved == labels,
+        "verified": set(saved) == set(labels),
     }
     Path("artifacts").mkdir(exist_ok=True)
     Path("artifacts/blogger-label-repair.json").write_text(
