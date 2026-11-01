@@ -939,9 +939,30 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             if current:
                 print(f"Blogger search description preserved because one already exists: post={post_id}")
                 return "EXISTING_PRESERVED"
+            try:
+                before = field.evaluate("(el) => ({tag: el.tagName, aria: el.getAttribute('aria-label'), placeholder: el.getAttribute('placeholder'), value: el.value || el.innerText || ''})")
+            except Exception:
+                before = {}
+            print("Blogger Search description field before edit: " + json.dumps(before, ensure_ascii=False))
             field.fill(description)
             field.press("Tab")
             page.wait_for_timeout(500)
+            try:
+                after = field.evaluate("(el) => ({tag: el.tagName, aria: el.getAttribute('aria-label'), placeholder: el.getAttribute('placeholder'), value: el.value || el.innerText || ''})")
+            except Exception:
+                after = {}
+            print("Blogger Search description field after edit: " + json.dumps(after, ensure_ascii=False))
+            done = _first_visible(page, [
+                'button:has-text("Done")', '[role="button"]:has-text("Done")',
+                'button:has-text("Save")', '[role="button"]:has-text("Save")',
+                'button:has-text("تم")', '[role="button"]:has-text("تم")',
+            ])
+            if done:
+                try:
+                    done.click()
+                    page.wait_for_timeout(350)
+                except Exception:
+                    pass
             _wait_for_editor_save(page)
             _click_publish(page)
             page.wait_for_timeout(1200)
@@ -955,7 +976,12 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             except Exception:
                 saved = (field.get_attribute("value") or "").strip()
             if saved != description:
-                raise BloggerUIPublishError("Blogger UI did not persist the requested Search description.")
+                try:
+                    controls = page.locator("input,textarea,[contenteditable='true']").evaluate_all("(els) => els.filter(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)).map(el => ({tag:el.tagName,aria:el.getAttribute('aria-label'),placeholder:el.getAttribute('placeholder'),value:el.value || el.innerText || ''}))")
+                    excerpt = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500))[:900]
+                except Exception:
+                    controls, excerpt = [], ""
+                raise BloggerUIPublishError("Blogger UI did not persist the requested Search description. " + json.dumps({"saved": saved, "expected": description, "controls": controls, "body": excerpt}, ensure_ascii=False)[:2200])
             print(f"Blogger Search description saved and verified: post={post_id}")
             return "UPDATED_VERIFIED"
     except Exception:
