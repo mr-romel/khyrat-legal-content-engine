@@ -126,9 +126,9 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         if not canonical_match:
             canonical_match = re.search(r"<link[^>]+href=['\\\"]([^'\\\"]+)['\\\"][^>]+rel=['\\\"]canonical['\\\"]", page_html, re.I)
         canonical = canonical_match.group(1).strip() if canonical_match else ""
-        h1_count = len(re.findall(r"<h1\\b", page_html, re.I))
-        image_tags = re.findall(r"<img\\b[^>]*>", page_html, re.I)
-        images_missing_alt = sum(1 for tag in image_tags if not re.search(r'\\balt=["\\'][^"\\']+["\\']', tag, re.I))
+        h1_count = len(re.findall(r"<h1\b", page_html, re.I))
+        image_tags = re.findall(r"<img\b[^>]*>", page_html, re.I)
+        images_missing_alt = sum(1 for tag in image_tags if not re.search(r"\balt=['\"][^'\"]+['\"]", tag, re.I))
         noindex = bool(re.search(r"<meta[^>]+name=['\\\"]robots['\\\"][^>]+content=['\\\"][^'\\\"]*noindex", page_html, re.I))
         page = {"title": item["title"], "url": url, "http_status": status,
                 "html_title": title_tag, "meta_description": meta_description,
