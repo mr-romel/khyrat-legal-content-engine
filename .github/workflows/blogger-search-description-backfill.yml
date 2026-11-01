@@ -1,6 +1,9 @@
 name: Blogger Search Description Backfill
 
 on:
+  schedule:
+    - cron: "45 6 * * *"
+      timezone: "Africa/Cairo"
   workflow_dispatch:
     inputs:
       apply_changes:
@@ -38,9 +41,10 @@ jobs:
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       BLOGGER_GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
-      BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
-      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
-      BLOGGER_SEARCH_DESCRIPTION_BATCH_SIZE: "5"
+      BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && 'true' || inputs.apply_changes }}
+      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'schedule' && '15' || github.event_name == 'push' && '500' || inputs.limit }}
+      BLOGGER_SEARCH_DESCRIPTION_BATCH_SIZE: "3"
+      BLOGGER_SEO_PAUSE_SECONDS: "8"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,6 +59,10 @@ jobs:
         env:
           PYTHONPATH: src:scripts
         run: pytest -q tests/test_blogger_search_description_backfill.py
+      - name: Test Blogger CAPTCHA detection and retry cooldown
+        env:
+          PYTHONPATH: src:scripts
+        run: pytest -q tests/test_blogger_seo_worker.py
       - name: Back up and fill only missing search descriptions
         env:
           PYTHONPATH: src:scripts

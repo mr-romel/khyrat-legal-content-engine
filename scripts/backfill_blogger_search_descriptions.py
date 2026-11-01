@@ -48,6 +48,17 @@ def build_search_description(content: str, title: str = "") -> str:
     return cut.rstrip(" ،؛:—-") + "…"
 
 
+def _retry_is_due(error: str) -> bool:
+    match = re.search(r"RETRY_AFTER=([^|]+)", str(error or ""))
+    if not match:
+        return False
+    try:
+        retry_at = datetime.fromisoformat(match.group(1).strip().replace("Z", "+00:00"))
+        return retry_at <= datetime.now(timezone.utc)
+    except ValueError:
+        return False
+
+
 def _url_key(value: str) -> str:
     return str(value or "").split("#", 1)[0].split("?", 1)[0].rstrip("/").casefold()
 
@@ -116,6 +127,13 @@ def main() -> int:
             None,
         )
         existing_description = str(row_match[1].get("Blogger Meta Description", "") or "").strip() if row_match else ""
+        if row_match and str(row_match[1].get("Blogger SEO Status", "")).strip().upper() == "DEFERRED_RATE_LIMIT":
+            if not _retry_is_due(str(row_match[1].get("Blogger SEO Error", ""))):
+                report["skipped"].append({
+                    "id": post_id, "title": title, "url": url,
+                    "reason": "RATE_LIMIT_COOLDOWN",
+                })
+                continue
         description = existing_description or build_search_description(str(post.get("content", "") or ""), title)
         if len(description) < 70:
             report["skipped"].append({"id": post_id, "title": title, "url": url, "reason": "insufficient grounded text"})

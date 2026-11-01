@@ -5,8 +5,9 @@ import html
 import json
 import os
 import re
+import time
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -19,6 +20,59 @@ from sheets import create_service, ensure_headers, get_values, row_to_dict, upda
 BLOGGER_EDIT_URL = "https://www.blogger.com/blog/post/edit/{blog_id}/{post_id}?hl=ar"
 STORAGE_STATE_FILE = Path(os.getenv("BLOGGER_UI_STORAGE_STATE_FILE", "generated/blogger/browser-state.json"))
 META_MAX = 180
+RATE_LIMIT_STATUS = "DEFERRED_RATE_LIMIT"
+CHALLENGE_MARKERS = (
+    "unusual traffic", "automated queries", "verify you are human",
+    "verify that you are human", "not a robot", "captcha",
+    "traffic from your computer network", "our systems have detected",
+    "تحقق من أنك لست روبوت", "حركة مرور غير معتادة",
+)
+
+
+class BloggerRateLimitError(RuntimeError):
+    """Raised when Blogger/Google serves a CAPTCHA or rate-limit interstitial."""
+
+
+def _challenge_reason(page, error: str = "") -> str:
+    try:
+        current_url = str(getattr(page, "url", "") or "").casefold()
+    except Exception:
+        current_url = ""
+    try:
+        body = _clean(page.locator("body").inner_text(timeout=2500)).casefold()
+    except Exception:
+        body = ""
+    haystack = f"{current_url} {body} {str(error or '').casefold()}"
+    if any(marker in haystack for marker in CHALLENGE_MARKERS):
+        return "Blogger/Google CAPTCHA or unusual-traffic challenge detected; automated edits paused."
+    if "google.com/sorry" in current_url:
+        return "Google unusual-traffic challenge detected; automated edits paused."
+    return ""
+
+
+def _defer_error(reason: str) -> str:
+    retry_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    return f"RETRY_AFTER={retry_at} | {reason}"[:1500]
+
+
+def _retry_is_due(error: str) -> bool:
+    match = re.search(r"RETRY_AFTER=([^|]+)", str(error or ""))
+    if not match:
+        return False
+    try:
+        retry_at = datetime.fromisoformat(match.group(1).strip().replace("Z", "+00:00"))
+        return retry_at <= datetime.now(timezone.utc)
+    except ValueError:
+        return False
+
+
+def _mark_deferred(sheet_service, sheet_id: str, sheet_name: str, candidates, reason: str) -> None:
+    deferred_error = _defer_error(reason)
+    for row_number, _row in candidates:
+        update_row(sheet_service, sheet_id, sheet_name, row_number, {
+            "Blogger SEO Status": RATE_LIMIT_STATUS,
+            "Blogger SEO Error": deferred_error,
+        })
 
 
 def _storage_state() -> dict:
@@ -222,8 +276,10 @@ def _read_public_meta(page, url: str) -> str:
     try:
         response = requests.get(url, headers=headers, timeout=18, allow_redirects=True)
         if response.status_code == 429:
-            raise RuntimeError("Public Blogger page rate-limited the SEO verification request.")
+            raise BloggerRateLimitError("Public Blogger page returned HTTP 429 during verification; automated edits paused.")
         response.raise_for_status()
+        if re.search("|".join(re.escape(x) for x in CHALLENGE_MARKERS), response.text, re.I):
+            raise BloggerRateLimitError("Public Blogger page returned a CAPTCHA/unusual-traffic challenge during verification; automated edits paused.")
         for tag in re.findall(r"<meta\b[^>]*>", response.text, flags=re.I):
             if not re.search(r"""\bname\s*=\s*['"]description['"]""", tag, flags=re.I):
                 continue
@@ -231,9 +287,14 @@ def _read_public_meta(page, url: str) -> str:
             if match:
                 return _clean(html.unescape(match.group(2)))
         return ""
+    except BloggerRateLimitError:
+        raise
     except Exception:
-        # Browser fallback handles transient Blogger throttling or unusual markup.
+        # Browser fallback handles transient markup, never a known rate limit.
         page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        challenge = _challenge_reason(page)
+        if challenge:
+            raise BloggerRateLimitError(challenge)
         page.wait_for_timeout(700)
         locator = page.locator('meta[name="description"]')
         if not locator.count():
@@ -258,6 +319,9 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
         page.goto(edit_url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(800)
 
+        challenge = _challenge_reason(page)
+        if challenge:
+            raise BloggerRateLimitError(challenge)
         if "accounts.google.com" in page.url:
             raise RuntimeError("Blogger UI session is not authenticated; storage state has expired or is invalid.")
 
@@ -278,9 +342,18 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
             "Blogger SEO Verified At": datetime.now(timezone.utc).isoformat(),
         })
         print(f"Blogger SEO verified: row={row_number}, post={post_id}")
-        return True
+        return "VERIFIED"
     except (PlaywrightTimeoutError, Exception) as exc:
         error = str(exc)[:1500]
+        challenge = _challenge_reason(page, error)
+        if isinstance(exc, BloggerRateLimitError) or challenge:
+            reason = challenge or error or "Blogger rate limit detected."
+            update_row(sheet_service, sheet_id, sheet_name, row_number, {
+                "Blogger SEO Status": RATE_LIMIT_STATUS,
+                "Blogger SEO Error": _defer_error(reason),
+            })
+            print(f"Blogger SEO paused by rate limit: row={row_number}, post={post_id}: {reason}")
+            return RATE_LIMIT_STATUS
         # Capture safe UI diagnostics (never cookies, tokens, or browser storage)
         # so a Blogger markup change can be fixed from the next Actions log.
         try:
@@ -310,7 +383,7 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
             "Blogger SEO Error": error,
         })
         print(f"Blogger SEO failed: row={row_number}, post={post_id}: {error}")
-        return False
+        return "FAILED"
 
 
 def main() -> int:
@@ -336,6 +409,8 @@ def main() -> int:
         status = _clean(row.get("Blogger SEO Status", "")).upper()
         if status == "VERIFIED":
             continue
+        if status == RATE_LIMIT_STATUS and not _retry_is_due(row.get("Blogger SEO Error", "")):
+            continue
         if status == "FAILED" and os.getenv("BLOGGER_SEO_RETRY_FAILED", "false").strip().lower() not in {"1", "true", "yes"}:
             continue
         if not _clean(row.get("Blogger Post ID", "")):
@@ -355,20 +430,38 @@ def main() -> int:
     )
 
     resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
+    all_candidates = candidates
     max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "5")))
-    candidates = candidates[:max_posts]
+    candidates = all_candidates[:max_posts]
     success = 0
+    failed = 0
+    deferred = 0
+    pause_seconds = max(2, min(30, int(os.getenv("BLOGGER_SEO_PAUSE_SECONDS", "6"))))
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(storage_state=storage, locale="ar-EG")
         page = context.new_page()
-        for row_number, row in candidates:
-            if process_row(page, resolved_blog_id, row_number, row, service, config["sheet_id"], sheet_name):
+        for index, (row_number, row) in enumerate(candidates):
+            outcome = process_row(page, resolved_blog_id, row_number, row, service, config["sheet_id"], sheet_name)
+            if outcome == "VERIFIED":
                 success += 1
+            elif outcome == RATE_LIMIT_STATUS:
+                deferred = 1
+                reason = "Batch paused after CAPTCHA/rate-limit detection; retry in a later scheduled run."
+                _mark_deferred(service, config["sheet_id"], sheet_name, all_candidates[index + 1:], reason)
+                break
+            else:
+                failed += 1
+            if index < len(candidates) - 1:
+                time.sleep(pause_seconds)
         browser.close()
 
-    print(f"Blogger SEO worker complete: verified={success}, attempted={len(candidates)}")
-    return 0
+    print(json.dumps({
+        "verified": success, "failed": failed, "deferred": deferred,
+        "attempted": success + failed + deferred,
+        "batch_size": len(candidates), "pause_seconds": pause_seconds,
+    }, ensure_ascii=False))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
