@@ -3,9 +3,8 @@ from __future__ import annotations
 import os
 
 from config import _service_account_info, _required, _optional
-from sheets import create_service, get_values, row_to_dict, _execute_with_retry
+from sheets import create_service, get_values, row_to_dict, _execute_with_retry, _ensure_sheet
 from search_geo import build_metadata, SEARCH_GEO_HEADERS
-from content_system import _ensure_sheet
 
 
 def main() -> int:
@@ -57,4 +56,16 @@ def main() -> int:
             "backfilling SearchGEO",
         )
         created = len(pending)
+
+    print({
+        "content_rows": max(0, len(rows) - 1),
+        "existing_geo_rows": len(existing_ids) - created,
+        "created_geo_rows": created,
+        "sheet": "SearchGEO",
+    })
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 
