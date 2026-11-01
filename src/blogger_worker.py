@@ -69,7 +69,7 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
             repaired = content.replace("<article", figure + "<article", 1)
         else:
             repaired = figure + content
-        svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired, "searchDescription": str(article.get("meta_description", "")).strip()[:150]}).execute()
+        svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired}).execute()
         print(f"Blogger image repaired for post {post_id}: {hosted}")
         return True
     except Exception as exc:
@@ -451,7 +451,6 @@ def main() -> int:
                             "title": title,
                             "content": content,
                             "labels": labels,
-                            "searchDescription": str(article.get("meta_description", "")).strip()[:150],
                         },
                         isDraft=False,
                     ).execute()
