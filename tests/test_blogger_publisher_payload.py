@@ -19,3 +19,15 @@ def test_blogger_labels_obey_utf8_byte_budget():
     ])
     assert labels
     assert sum(len(label.encode("utf-8")) for label in labels) <= 180
+
+
+def test_blogger_labels_obey_utf8_byte_budget():
+    from blogger_publisher import normalize_blogger_labels
+
+    labels = normalize_blogger_labels([
+        "ترند مصر", "مستجدات قانونية", "قانون مصر", "اسأل محمود",
+        "كاميرات مراقبة الحضانات", "قانون الحضانات في مصر",
+        "شروط ترخيص الحضانة", "القرارات الوزارية للحضانات", "غرامات الحضانات",
+    ])
+    assert labels
+    assert sum(len(label.encode("utf-8")) for label in labels) + len(labels) - 1 <= 180
