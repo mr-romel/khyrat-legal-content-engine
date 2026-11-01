@@ -79,6 +79,18 @@ def _find_description(page):
         '[contenteditable="true"][data-placeholder*="description" i]',
         '[contenteditable="true"][data-placeholder*="وصف" i]',
     ]
+    # Prefer explicit accessible labels, including labels associated through
+    # the HTML <label for=...> relationship.
+    for pattern in patterns:
+        try:
+            locator = page.get_by_label(pattern)
+            for i in range(min(locator.count(), 8)):
+                candidate = locator.nth(i)
+                if candidate.is_visible() and candidate.is_enabled():
+                    return candidate
+        except Exception:
+            continue
+
     for selector in selectors:
         try:
             locator = page.locator(selector)
@@ -88,6 +100,32 @@ def _find_description(page):
                     return candidate
         except Exception:
             continue
+
+    # Blogger has changed the field from textarea to input in some editor
+    # releases and sometimes drops aria-label/placeholder attributes. Inspect
+    # visible editable controls and their associated labels as a final fallback.
+    try:
+        controls = page.locator('textarea, input:not([type="hidden"]), [contenteditable="true"]')
+        for i in range(min(controls.count(), 40)):
+            candidate = controls.nth(i)
+            if not candidate.is_visible() or not candidate.is_enabled():
+                continue
+            attrs = " ".join(
+                str(candidate.get_attribute(name) or "")
+                for name in ("aria-label", "placeholder", "name", "title", "data-placeholder", "aria-labelledby")
+            )
+            if re.search(r"search.?description|description|وصف|البحث", attrs, re.I):
+                return candidate
+            try:
+                element_id = candidate.get_attribute("id") or ""
+                if element_id:
+                    label = page.locator(f'label[for="{element_id}"]')
+                    if label.count() and re.search(r"search.?description|description|وصف|البحث", label.first.inner_text(), re.I):
+                        return candidate
+            except Exception:
+                pass
+    except Exception:
+        pass
     return None
 
 
@@ -243,6 +281,30 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
         return True
     except (PlaywrightTimeoutError, Exception) as exc:
         error = str(exc)[:1500]
+        # Capture safe UI diagnostics (never cookies, tokens, or browser storage)
+        # so a Blogger markup change can be fixed from the next Actions log.
+        try:
+            body_text = _clean(page.locator("body").inner_text(timeout=3000))[:5000]
+            print(f"Blogger SEO UI body text (diagnostic): {body_text}")
+            controls = page.locator('input, textarea, [contenteditable="true"], [role="textbox"]')
+            control_details = []
+            for index in range(min(controls.count(), 40)):
+                node = controls.nth(index)
+                control_details.append({
+                    "tag": node.evaluate("(el) => el.tagName"),
+                    "type": node.get_attribute("type"),
+                    "aria": node.get_attribute("aria-label"),
+                    "placeholder": node.get_attribute("placeholder"),
+                    "name": node.get_attribute("name"),
+                    "title": node.get_attribute("title"),
+                    "role": node.get_attribute("role"),
+                })
+            print(f"Blogger SEO UI controls (diagnostic): {json.dumps(control_details, ensure_ascii=False)}")
+            debug_dir = Path("artifacts/blogger-seo-debug")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(debug_dir / f"post-{post_id}.png"), full_page=True)
+        except Exception as debug_exc:
+            print(f"Blogger SEO UI diagnostics unavailable: {debug_exc}")
         update_row(sheet_service, sheet_id, sheet_name, row_number, {
             "Blogger SEO Status": "FAILED",
             "Blogger SEO Error": error,
