@@ -31,3 +31,5 @@ Stage via existing Blogger SEO worker: 2026-11-01T16:11:00+02:00
 Retry with Sheets staging and existing SEO worker: 2026-11-01T16:26:00+02:00
 
 Append legacy rows and prioritize them in SEO worker: 2026-11-01T16:29:00+02:00
+
+Retry with generic Post settings accordion selectors: 2026-11-01T16:34:00+02:00
