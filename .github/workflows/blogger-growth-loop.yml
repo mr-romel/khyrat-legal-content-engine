@@ -13,7 +13,9 @@ on:
       - "src/search_geo.py"
       - "src/blogger_seo_audit.py"
       - "src/blogger_search_console_prioritizer.py"
+      - "src/search_console_intelligence.py"
       - "tests/test_blogger_growth_loop.py"
+      - "tests/test_search_console_intelligence.py"
       - ".github/workflows/blogger-growth-loop.yml"
 
 permissions:
@@ -49,6 +51,8 @@ jobs:
         run: python src/blogger_seo_audit.py
       - name: Read actual Google Search Console page and query performance
         run: python scripts/run_blogger_growth_loop.py
+      - name: Persist observed Search Console queries, pages and opportunities to Google Sheets
+        run: python -c "from search_console_intelligence import run; print(run(days=28))"
       - name: Build and backfill Search GEO records in the connected content sheet
         run: python scripts/run_search_geo.py
       - name: Preserve dated SEO, GEO and Search Console evidence
