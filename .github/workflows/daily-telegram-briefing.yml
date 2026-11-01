@@ -1,6 +1,10 @@
 name: Khyrat Daily Telegram Publishing Briefing
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/daily_telegram_briefing.py"
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
