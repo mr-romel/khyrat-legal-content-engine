@@ -199,8 +199,8 @@ def _fill_description(page, description: str) -> None:
 
 def _click_update(page) -> None:
     candidates = [
-        page.get_by_role("button", name=re.compile(r"update|تحديث|حفظ|save", re.I)),
-        page.get_by_text(re.compile(r"^\s*(update|تحديث|حفظ|save)\s*$", re.I)),
+        page.get_by_role("button", name=re.compile(r"update|تحديث|تعديل|حفظ|save|publish|نشر", re.I)),
+        page.get_by_text(re.compile(r"^\s*(update|تحديث|تعديل|حفظ|save|publish|نشر)\s*$", re.I)),
     ]
     for locator in candidates:
         if locator.count():
