@@ -188,9 +188,30 @@ def main() -> int:
         batch_size = max(1, min(10, int(os.getenv("BLOGGER_SEARCH_DESCRIPTION_BATCH_SIZE", "5"))))
         os.environ["BLOGGER_SEO_MAX_POSTS"] = str(batch_size)
         from blogger_seo_worker import main as run_existing_seo_worker
-        worker_exit = run_existing_seo_worker()
-        values_after = get_values(sheet_service, config["sheet_id"], config["sheet_range"])
-        rows_after = [row_to_dict(row) for row in values_after[1:]] if values_after else []
+        # The UI worker processes a bounded batch per invocation. Drain all
+        # staged rows in batches, while FAILED rows are quarantined and not
+        # retried endlessly in the same run.
+        max_rounds = max(1, (len(report["updated"]) + batch_size - 1) // batch_size + 1)
+        worker_exit = 0
+        rows_after = []
+        previous_pending = None
+        for round_number in range(max_rounds):
+            run_existing_seo_worker()
+            values_after = get_values(sheet_service, config["sheet_id"], config["sheet_range"])
+            rows_after = [row_to_dict(row) for row in values_after[1:]] if values_after else []
+            pending_count = sum(
+                1 for row in rows_after
+                if str(row.get("Blogger Status", "")).strip().upper() == "PUBLISHED"
+                and str(row.get("Blogger SEO Status", "")).strip().upper() in {"", "PENDING", "PROCESSING"}
+                and str(row.get("Blogger Meta Description", "")).strip()
+            )
+            print(f"Search description backfill batch {round_number + 1}/{max_rounds}: pending={pending_count}")
+            if pending_count == 0:
+                break
+            if previous_pending is not None and pending_count >= previous_pending:
+                print("Search description backfill stopped: pending count did not decrease.")
+                break
+            previous_pending = pending_count
         status_by_url = {
             _url_key(row.get("Blogger URL", "")): {
                 "status": row.get("Blogger SEO Status", ""),
