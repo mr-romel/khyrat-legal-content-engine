@@ -1,0 +1,23 @@
+{
+  "topic": "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A medium‑shot of a nervous middle‑aged man standing in a bright, modern daycare room. He holds a smartphone pressed to his ear with his left hand, his right hand gripping a stack of printed paperwork (permits, inspection forms) that he is glancing at. His eyebrows are furrowed, mouth slightly open as if mid‑question, conveying anxiety. Behind him, the daycare’s interior is clearly visible: low‑height tables with colorful building blocks, a wall‑mounted security camera perched in the corner of the ceiling, and a window letting in soft natural daylight that illuminates the space. A few children’s drawings are taped to the wall, and a small bookshelf of picture books sits to the side. The composition centers the man, with the phone, documents, and the ceiling camera forming a visual triangle that highlights the concern about installing surveillance equipment. The lighting is even, warm daylight, with gentle shadows that keep the scene realistic and uncluttered. No text, logos, or extraneous objects appear.",
+  "prompt_sha256": "a2373596829bedc155d5d62764fb4a6dbf72effde9e20db6f70208f899cd9f3c",
+  "image_sha256": "7328b98da094599bb8714ccf0d3f455dd6d4efa72db95f587bafe1dd30a53157",
+  "image_path": "generated/LEGACY-6653899844760583137.jpg",
+  "visual_description": "A medium‑shot of a nervous middle‑aged man standing in a bright, modern daycare room. He holds a smartphone pressed to his ear with his left hand, his right hand gripping a stack of printed paperwork (permits, inspection forms) that he is glancing at. His eyebrows are furrowed, mouth slightly open as if mid‑question, conveying anxiety. Behind him, the daycare’s interior is clearly visible: low‑height tables with colorful building blocks, a wall‑mounted security camera perched in the corner of the ceiling, and a window letting in soft natural daylight that illuminates the space. A few children’s drawings are taped to the wall, and a small bookshelf of picture books sits to the side. The composition centers the man, with the phone, documents, and the ceiling camera forming a visual triangle that highlights the concern about installing surveillance equipment. The lighting is even, warm daylight, with gentle shadows that keep the scene realistic and uncluttered. No text, logos, or extraneous objects appear.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 6,
+  "qa_relevance_score": 7,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Severe anatomical distortion of the man's hand and arm.",
+    "The phone position is physically implausible (fused with the side of the head).",
+    "Missing key environmental indicators for the daycare setting (security camera on ceiling, children's educational materials)."
+  ],
+  "qa_checked_image_sha256": "7328b98da094599bb8714ccf0d3f455dd6d4efa72db95f587bafe1dd30a53157"
+}
