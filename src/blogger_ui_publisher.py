@@ -867,6 +867,112 @@ def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
     return ""
 
 
+
+def set_search_description_ui(*, blog_id: str, post_id: str, search_description: str) -> str:
+    """Set and verify Blogger's editor-only Search description field for an existing live post."""
+    description = re.sub(r"\\s+", " ", str(search_description or "")).strip()[:150]
+    if not description:
+        raise BloggerUIPublishError("Refusing to set an empty Blogger search description.")
+    state_path = _storage_state_path()
+    browser = None
+    context = None
+
+    def open_settings(page):
+        toggle = _first_visible(page, [
+            'button[aria-label*="Post settings" i]',
+            '[role="button"][aria-label*="Post settings" i]',
+            'button[title*="Post settings" i]',
+            '[aria-label*="Post settings" i]',
+            'text=Post settings',
+            'text=إعدادات المشاركة',
+        ])
+        if toggle:
+            try:
+                toggle.click()
+                page.wait_for_timeout(350)
+            except Exception:
+                pass
+        field = _first_visible(page, [
+            'textarea[aria-label*="Search description" i]',
+            'textarea[placeholder*="Search description" i]',
+            'input[aria-label*="Search description" i]',
+            '[role="textbox"][aria-label*="Search description" i]',
+            'textarea[aria-label*="وصف البحث"]',
+            'textarea[placeholder*="وصف البحث"]',
+        ])
+        if not field:
+            label = _first_visible(page, ['text=Search description', 'text=وصف البحث'])
+            if label:
+                label.click()
+                page.wait_for_timeout(300)
+                field = _first_visible(page, [
+                    'textarea[aria-label*="Search description" i]',
+                    'textarea[placeholder*="Search description" i]',
+                    'input[aria-label*="Search description" i]',
+                    'textarea[aria-label*="وصف البحث"]',
+                    'textarea[placeholder*="وصف البحث"]',
+                ])
+        return field
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context(storage_state=state_path, viewport={"width": 1440, "height": 1000})
+            page = context.new_page()
+            page.set_default_timeout(15000)
+            editor_url = f"https://www.blogger.com/blog/post/edit/{blog_id}/{post_id}"
+            page.goto(editor_url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(1300)
+            if "accounts.google.com" in page.url or "signin" in page.url.lower():
+                raise BloggerUIPublishError("Blogger UI storage state is not authenticated or has expired.")
+            field = open_settings(page)
+            if not field:
+                try:
+                    excerpt = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500))[:900]
+                except Exception:
+                    excerpt = ""
+                raise BloggerUIPublishError("Search description field not found in Blogger editor. " + excerpt)
+            try:
+                current = field.input_value(timeout=1000).strip()
+            except Exception:
+                current = (field.get_attribute("value") or "").strip()
+            if current:
+                print(f"Blogger search description preserved because one already exists: post={post_id}")
+                return "EXISTING_PRESERVED"
+            field.fill(description)
+            field.press("Tab")
+            page.wait_for_timeout(500)
+            _wait_for_editor_save(page)
+            _click_publish(page)
+            page.wait_for_timeout(1200)
+            page.goto(editor_url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(900)
+            field = open_settings(page)
+            if not field:
+                raise BloggerUIPublishError("Could not reopen Blogger Search description field to verify persistence.")
+            try:
+                saved = field.input_value(timeout=1000).strip()
+            except Exception:
+                saved = (field.get_attribute("value") or "").strip()
+            if saved != description:
+                raise BloggerUIPublishError("Blogger UI did not persist the requested Search description.")
+            print(f"Blogger Search description saved and verified: post={post_id}")
+            return "UPDATED_VERIFIED"
+    except Exception:
+        raise
+    finally:
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if browser:
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+
 def publish_article_ui(
     *,
     title: str,
