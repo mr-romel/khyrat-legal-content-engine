@@ -10,7 +10,7 @@ from pathlib import Path
 from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service
 from blogger_seo_audit import run as run_public_audit
 from config import load_blogger_config
-from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+from sheets import append_row, create_service, ensure_headers, get_values, row_to_dict, update_row
 
 
 def _plain_text(value: str) -> str:
@@ -111,33 +111,69 @@ def main() -> int:
         post_id = str(post.get("id", "")).strip()
         title = str(post.get("title", "")).strip()
         url = str(post.get("url", "")).strip()
-        row_match = row_by_url.get(_url_key(url))
-        if not row_match:
-            report["skipped"].append({"id": post_id, "title": title, "url": url, "reason": "no matching Blogger URL row in content sheet"})
-            continue
-        row_number, row = row_match
-        existing_description = str(row.get("Blogger Meta Description", "") or "").strip()
+        row_match = row_by_url.get(_url_key(url)) or next(
+            ((rn, row) for rn, row in row_by_url.values() if str(row.get("Blogger Post ID", "")).strip() == post_id),
+            None,
+        )
+        existing_description = str(row_match[1].get("Blogger Meta Description", "") or "").strip() if row_match else ""
         description = existing_description or build_search_description(str(post.get("content", "") or ""), title)
-        backup.append({
-            "id": post_id, "title": title, "url": url, "sheet_row": row_number,
-            "old_sheet_description": existing_description, "proposed_search_description": description,
-            "old_seo_status": row.get("Blogger SEO Status", ""),
-        })
         if len(description) < 70:
             report["skipped"].append({"id": post_id, "title": title, "url": url, "reason": "insufficient grounded text"})
             continue
-        item = {"id": post_id, "title": title, "url": url, "sheet_row": row_number, "search_description": description}
+        backup.append({
+            "id": post_id, "title": title, "url": url,
+            "sheet_row": row_match[0] if row_match else None,
+            "old_sheet_description": existing_description,
+            "proposed_search_description": description,
+            "old_seo_status": row_match[1].get("Blogger SEO Status", "") if row_match else "",
+        })
+        item = {"id": post_id, "title": title, "url": url, "search_description": description}
         if not apply:
             item["status"] = "DRY_RUN"
             report["updated"].append(item)
             continue
         try:
-            update_row(sheet_service, config["sheet_id"], sheet_name, row_number, {
-                "Blogger Meta Description": description[:150],
-                "Blogger SEO Status": "PENDING",
-                "Blogger SEO Error": "",
-            })
-            item["status"] = "STAGED_FOR_EXISTING_SEO_WORKER"
+            if row_match:
+                row_number, row = row_match
+                notes = str(row.get("ملاحظات", "") or "").strip()
+                if "LEGACY SEO BACKFILL" not in notes.upper():
+                    notes = (notes + " | " if notes else "") + "LEGACY SEO BACKFILL"
+                update_row(sheet_service, config["sheet_id"], sheet_name, row_number, {
+                    "Blogger Meta Description": description[:150],
+                    "Blogger SEO Status": "PENDING",
+                    "Blogger SEO Error": "",
+                    "ملاحظات": notes,
+                })
+                item["sheet_row"] = row_number
+                item["status"] = "STAGED_EXISTING_ROW"
+            else:
+                published = str(post.get("published", "") or "")
+                date_part = published[:10]
+                time_part = published[11:16] if "T" in published else ""
+                row_values = {
+                    "ID": f"LEGACY-{post_id}",
+                    "الموضوع": title,
+                    "تاريخ النشر": date_part,
+                    "ساعة النشر": time_part,
+                    "نوع الجدولة": "LEGACY_SEO_BACKFILL",
+                    "الحالة": "PUBLISHED",
+                    "المحتوى": str(post.get("content", "") or ""),
+                    "ملاحظات": "LEGACY SEO BACKFILL | existing live post; do not republish",
+                    "Blogger Status": "PUBLISHED",
+                    "Blogger Post ID": post_id,
+                    "Blogger URL": url,
+                    "Blogger Search Title": title,
+                    "Blogger Search Query": title,
+                    "Blogger Meta Description": description[:150],
+                    "Blogger SEO Status": "PENDING",
+                    "Blogger SEO Error": "",
+                }
+                row_number = append_row(sheet_service, config["sheet_id"], sheet_name, row_values)
+                if row_number < 2:
+                    raise RuntimeError("Google Sheets did not return a valid appended row number.")
+                item["sheet_row"] = row_number
+                item["status"] = "APPENDED_LEGACY_ROW"
+                row_by_url[_url_key(url)] = (row_number, row_values)
             report["updated"].append(item)
         except Exception as exc:
             report["errors"].append({**item, "error": str(exc)[:1200]})
