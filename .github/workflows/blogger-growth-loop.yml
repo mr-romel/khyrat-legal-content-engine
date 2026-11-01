@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - "scripts/run_blogger_growth_loop.py"
+      - "src/blogger_seo_audit.py"
+      - "src/blogger_search_console_prioritizer.py"
       - "tests/test_blogger_growth_loop.py"
       - ".github/workflows/blogger-growth-loop.yml"
 
