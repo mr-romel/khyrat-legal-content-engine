@@ -1,0 +1,45 @@
+name: Blogger Label Repair
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_LABEL_REPAIR_RUN_NOW"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-publication-v3
+  cancel-in-progress: false
+
+jobs:
+  repair-labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_LABEL_REPAIR_POST_ID: "6653899844760583137"
+      BLOGGER_LABEL_REPAIR_LABELS: '["قانون مصر","الحضانات","ترخيص الحضانة"]'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Blogger dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-worker.txt
+      - name: Repair labels with a UTF-8-safe Blogger payload
+        env:
+          PYTHONPATH: src:scripts
+        run: python scripts/repair_blogger_post_labels.py
+      - name: Save repair report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-label-repair
+          path: artifacts/blogger-label-repair.json
+          if-no-files-found: warn
+          retention-days: 90
