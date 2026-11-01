@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - "scripts/run_blogger_growth_loop.py"
+      - "scripts/run_search_geo.py"
+      - "src/search_geo.py"
       - "src/blogger_seo_audit.py"
       - "src/blogger_search_console_prioritizer.py"
       - "tests/test_blogger_growth_loop.py"
@@ -30,6 +32,8 @@ jobs:
       SEARCH_CONSOLE_SITE_URL: ${{ secrets.SEARCH_CONSOLE_SITE_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,6 +49,8 @@ jobs:
         run: python src/blogger_seo_audit.py
       - name: Read actual Google Search Console page and query performance
         run: python scripts/run_blogger_growth_loop.py
+      - name: Build and backfill Search GEO records in the connected content sheet
+        run: python scripts/run_search_geo.py
       - name: Preserve dated SEO, GEO and Search Console evidence
         if: always()
         uses: actions/upload-artifact@v4
