@@ -49,7 +49,7 @@ jobs:
           PYTHONPATH: src:scripts
         run: |
           python -m compileall -q src/blogger_publisher.py scripts/apply_blogger_internal_links.py
-          pytest -q tests/test_blogger_internal_link_planner.py
+          pytest -q tests/test_blogger_internal_link_planner.py tests/test_legal_jurisdiction.py
       - name: Apply conservative internal links to current live posts
         env:
           PYTHONPATH: src
