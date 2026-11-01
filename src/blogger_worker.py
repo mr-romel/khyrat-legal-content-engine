@@ -495,7 +495,7 @@ def main() -> int:
                     )
                 except Exception as exc:
                     print(f"WARNING: article published but Search description UI update failed: {exc}")
-            target = Path(f"${BLOGGER_ARTIFACT_DIR}/row_{row_number}")
+            target = Path(f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}")
             target.mkdir(parents=True, exist_ok=True)
             (target / "article.html").write_text(content, encoding="utf-8")
         else:
