@@ -34,7 +34,7 @@ jobs:
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
       BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
       BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
-      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
+      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '1' || inputs.limit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
