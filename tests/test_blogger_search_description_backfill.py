@@ -1,4 +1,4 @@
-from scripts.backfill_blogger_search_descriptions import build_search_description
+from backfill_blogger_search_descriptions import build_search_description
 
 
 def test_prefers_article_answer_section_and_limits_length():
