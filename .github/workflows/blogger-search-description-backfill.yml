@@ -1,0 +1,59 @@
+name: Blogger Search Description Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_changes:
+        description: "Write missing Blogger search descriptions derived from article text"
+        type: boolean
+        required: true
+        default: false
+      limit:
+        description: "Maximum live posts to inspect (1-500)"
+        required: true
+        default: "500"
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_SEARCH_DESCRIPTION_BACKFILL_RUN_NOW"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-publication-v3
+  cancel-in-progress: false
+
+jobs:
+  backfill-search-descriptions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
+      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Blogger API dependencies
+        run: python -m pip install --disable-pip-version-check "google-api-python-client>=2.0.0" "google-auth>=2.0.0"
+      - name: Test grounded search-description extraction
+        env:
+          PYTHONPATH: src:scripts
+        run: pytest -q tests/test_blogger_search_description_backfill.py
+      - name: Back up and fill only missing search descriptions
+        env:
+          PYTHONPATH: src:scripts
+        run: python scripts/backfill_blogger_search_descriptions.py
+      - name: Preserve before/after report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-search-description-backfill
+          path: artifacts/blogger-search-descriptions/
+          if-no-files-found: warn
+          retention-days: 90
