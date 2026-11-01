@@ -563,7 +563,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
     keyword_labels = [str(x).strip() for x in (article.get("keywords", []) if isinstance(article.get("keywords"), list) else []) if str(x).strip()]
     labs=normalize_blogger_labels([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels])
-    body={"title":title,"content":content,"labels":labs,"readerComments":"allow"}
+    body={"title":title,"content":content,"labels":labs,"readerComments":"allow","searchDescription":str(article.get("meta_description","")).strip()[:150]}
     # Blogger API v3 publishes by default when isDraft is omitted.
     try: result=svc.posts().insert(blogId=bid,body=body,fetchBody=True).execute()
     except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
