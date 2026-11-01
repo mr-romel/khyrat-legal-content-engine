@@ -32,6 +32,7 @@ jobs:
       BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
       BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
       BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
       BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
     steps:
