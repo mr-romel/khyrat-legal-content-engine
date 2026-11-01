@@ -1,6 +1,10 @@
 name: Khyrat Evening Telegram Publishing Report
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/evening_telegram_report.py"
   schedule:
     # Cairo is UTC+2 in winter and UTC+3 in summer. Run at both UTC
     # candidates and let the worker send only when Cairo local time is 22:xx.
@@ -37,4 +41,5 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_NAME: Content
+          FORCE_EVENING_REPORT: ${{ github.event_name == 'push' && '1' || '' }}
         run: PYTHONPATH=src python src/evening_telegram_report.py
