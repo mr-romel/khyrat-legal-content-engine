@@ -29,7 +29,6 @@ def build_blogger_post_payload(title: str, content: str, labels: list[str]) -> d
         "title": str(title or "").strip(),
         "content": str(content or ""),
         "labels": list(labels or []),
-        "readerComments": "ALLOW",
     }
 
 
