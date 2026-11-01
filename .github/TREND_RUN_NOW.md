@@ -9,3 +9,5 @@ Correct Blogger readerComments enum to ALLOW: 2026-11-01T16:10:00+02:00
 Retry using default Blogger comments policy: 2026-11-01T16:12:00+02:00
 
 Fallback isolate Blogger 400 labels: 2026-11-01T16:15:00+02:00
+
+Retry daily trend after Egypt-only source filter and Blogger API payload fixes: 2026-11-01T18:05:00+02:00
