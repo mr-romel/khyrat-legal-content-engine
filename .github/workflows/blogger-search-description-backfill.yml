@@ -33,6 +33,11 @@ jobs:
       BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
       BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
       BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      BLOGGER_GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
       BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
       BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '1' || inputs.limit }}
     steps:
