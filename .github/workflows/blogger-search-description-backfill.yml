@@ -61,6 +61,10 @@ jobs:
         env:
           PYTHONPATH: src:scripts
         run: pytest -q tests/test_blogger_search_description_backfill.py
+      - name: Test Blogger CAPTCHA detection and retry cooldown
+        env:
+          PYTHONPATH: src:scripts
+        run: pytest -q tests/test_blogger_seo_worker.py
       - name: Back up and fill only missing search descriptions
         env:
           PYTHONPATH: src:scripts
