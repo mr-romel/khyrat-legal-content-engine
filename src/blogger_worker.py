@@ -69,7 +69,7 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
             repaired = content.replace("<article", figure + "<article", 1)
         else:
             repaired = figure + content
-        svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired}).execute()
+        svc.posts().patch(blogId=bid, postId=post_id, body={"content": repaired, "searchDescription": str(article.get("meta_description", "")).strip()[:150]}).execute()
         print(f"Blogger image repaired for post {post_id}: {hosted}")
         return True
     except Exception as exc:
@@ -451,6 +451,7 @@ def main() -> int:
                             "title": title,
                             "content": content,
                             "labels": labels,
+                            "searchDescription": str(article.get("meta_description", "")).strip()[:150],
                         },
                         isDraft=False,
                     ).execute()
@@ -547,7 +548,7 @@ def main() -> int:
             else:
                 saved = blogger_api.posts().insert(
                     blogId=target_blog_id,
-                    body={"kind": "blogger#post", "title": title, "content": content, "labels": labels},
+                    body={"kind": "blogger#post", "title": title, "content": content, "labels": labels, "searchDescription": str(article.get("meta_description", "")).strip()[:150]},
                     isDraft=False,
                 ).execute()
             saved_id = str(saved.get("id", "") or (existing or {}).get("id", "")).strip()
