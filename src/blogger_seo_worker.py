@@ -248,6 +248,8 @@ def main() -> int:
         status = _clean(row.get("Blogger SEO Status", "")).upper()
         if status == "VERIFIED":
             continue
+        if status == "FAILED" and os.getenv("BLOGGER_SEO_RETRY_FAILED", "false").strip().lower() not in {"1", "true", "yes"}:
+            continue
         if not _clean(row.get("Blogger Post ID", "")):
             continue
         if not _safe_description(row.get("Blogger Meta Description", "")):
@@ -257,6 +259,12 @@ def main() -> int:
     if not candidates:
         print("Blogger SEO worker: no pending posts.")
         return 0
+    candidates.sort(
+        key=lambda item: (
+            0 if "LEGACY SEO BACKFILL" in _clean(item[1].get("ملاحظات", "")).upper() else 1,
+            item[0],
+        )
+    )
 
     resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
     max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "5")))
