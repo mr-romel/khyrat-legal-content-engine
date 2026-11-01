@@ -99,7 +99,8 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
             "impressions": round(total_impressions, 2),
             "ctr": round(total_clicks / total_impressions, 4) if total_impressions else 0,
             "query_opportunities": len(query_opportunities),
-            "page_opportunities": sum(1 for item in priorities["priorities"] if item["priority_score"] > 0),
+            "page_opportunities": sum(1 for item in priorities["priorities"] if any(reason in item["reasons"] for reason in ("HIGH_IMPRESSIONS_LOW_CTR", "RANKING_NEAR_PAGE_ONE"))),
+            "pages_in_technical_backlog": sum(1 for item in priorities["priorities"] if any(reason in item["reasons"] for reason in ("ADD_CONTEXTUAL_INTERNAL_LINKS", "MISSING_META_DESCRIPTION", "MISSING_CANONICAL", "THIN_OR_EMPTY_POST", "DUPLICATE_TITLE", "ARTICLE_HTTP_ERROR", "ARTICLE_NOINDEX"))),
         },
         "important_limit": (
             "Search Console reports sampled/available performance rows, not a complete index inventory. "
