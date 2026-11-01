@@ -988,7 +988,7 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
                     pass
             _wait_for_editor_save(page)
             _click_publish(page)
-            page.wait_for_timeout(1800)
+            page.wait_for_timeout(8000)
             _wait_for_editor_save(page)
             page.goto(editor_url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(900)
