@@ -44,8 +44,12 @@ jobs:
       - name: Install existing free Blogger worker dependencies
         run: |
           python -m pip install --disable-pip-version-check -r requirements-worker.txt
-      - name: Validate scripts
-        run: python -m compileall -q src/blogger_publisher.py scripts/apply_blogger_internal_links.py
+      - name: Validate scripts and jurisdiction-safe link selection
+        env:
+          PYTHONPATH: src:scripts
+        run: |
+          python -m compileall -q src/blogger_publisher.py scripts/apply_blogger_internal_links.py
+          pytest -q tests/test_blogger_internal_link_planner.py
       - name: Apply conservative internal links to current live posts
         env:
           PYTHONPATH: src
