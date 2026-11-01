@@ -14,15 +14,15 @@ from sheets import create_service, ensure_headers, get_values, row_to_dict, upda
 
 
 def _plain_text(value: str) -> str:
-    value = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", str(value or ""), flags=re.I | re.S)
-    value = re.sub(r"<br\\s*/?>|</p\\s*>|</li\\s*>|</h[1-6]\\s*>", ". ", value, flags=re.I)
+    value = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", str(value or ""), flags=re.I | re.S)
+    value = re.sub(r"<br\s*/?>|</p\s*>|</li\s*>|</h[1-6]\s*>", ". ", value, flags=re.I)
     value = re.sub(r"<[^>]+>", " ", value)
     value = html.unescape(value)
-    return re.sub(r"\\s+", " ", value).strip(" .\\t\\r\\n")
+    return re.sub(r"\s+", " ", value).strip(" .\t\r\n")
 
 
 def _first_paragraph(fragment: str) -> str:
-    match = re.search(r"<p\\b[^>]*>(.*?)</p\\s*>", fragment, flags=re.I | re.S)
+    match = re.search(r"<p\b[^>]*>(.*?)</p\s*>", fragment, flags=re.I | re.S)
     return _plain_text(match.group(1) if match else fragment)
 
 
@@ -30,15 +30,15 @@ def build_search_description(content: str, title: str = "") -> str:
     """Derive a truthful snippet from the article's own concise answer or opening paragraph."""
     content = str(content or "")
     answer = re.search(
-        r"<h[2-4]\\b[^>]*>[^<]*(?:الإجابة المختصرة|ملخص الإجابة|الخلاصة)[^<]*</h[2-4]\\s*>(.*?)(?=<h[1-4]\\b|$)",
+        r"<h[2-4]\b[^>]*>[^<]*(?:الإجابة المختصرة|ملخص الإجابة|الخلاصة)[^<]*</h[2-4]\s*>(.*?)(?=<h[1-4]\b|$)",
         content,
         flags=re.I | re.S,
     )
     candidate = _first_paragraph(answer.group(1)) if answer else ""
     if len(candidate) < 70:
         candidate = _first_paragraph(content)
-    candidate = re.sub(r"^" + re.escape(str(title or "").strip()) + r"\\s*[:：—-]?\\s*", "", candidate, flags=re.I)
-    candidate = re.sub(r"\\s+", " ", candidate).strip()
+    candidate = re.sub(r"^" + re.escape(str(title or "").strip()) + r"\s*[:：—-]?\s*", "", candidate, flags=re.I)
+    candidate = re.sub(r"\s+", " ", candidate).strip()
     if len(candidate) <= 150:
         return candidate
     cut = candidate[:150]
