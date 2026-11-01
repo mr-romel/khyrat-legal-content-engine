@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import html
 import json
 import os
 import re
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -150,12 +152,29 @@ def _click_update(page) -> None:
 
 
 def _read_public_meta(page, url: str) -> str:
-    page.goto(url, wait_until="domcontentloaded", timeout=25000)
-    page.wait_for_timeout(1200)
-    locator = page.locator('meta[name="description"]')
-    if not locator.count():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; KhyratLegalSEO/1.0; +https://askmahmoudkhyrat.blogspot.com/)"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=18, allow_redirects=True)
+        if response.status_code == 429:
+            raise RuntimeError("Public Blogger page rate-limited the SEO verification request.")
+        response.raise_for_status()
+        for tag in re.findall(r"<meta\\b[^>]*>", response.text, flags=re.I):
+            if not re.search(r"""\\bname\\s*=\\s*['"]description['"]""", tag, flags=re.I):
+                continue
+            match = re.search(r"""\\bcontent\\s*=\\s*(['"])(.*?)\\1""", tag, flags=re.I | re.S)
+            if match:
+                return _clean(html.unescape(match.group(2)))
         return ""
-    return _clean(locator.first.get_attribute("content") or "")
+    except Exception:
+        # Browser fallback handles transient Blogger throttling or unusual markup.
+        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        page.wait_for_timeout(700)
+        locator = page.locator('meta[name="description"]')
+        if not locator.count():
+            return ""
+        return _clean(locator.first.get_attribute("content") or "")
 
 
 def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_service, sheet_id: str, sheet_name: str) -> bool:
@@ -173,14 +192,14 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
     edit_url = BLOGGER_EDIT_URL.format(blog_id=blog_id, post_id=post_id)
     try:
         page.goto(edit_url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(800)
 
         if "accounts.google.com" in page.url:
             raise RuntimeError("Blogger UI session is not authenticated; storage state has expired or is invalid.")
 
         _fill_description(page, description)
         _click_update(page)
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(1000)
 
         if public_url:
             actual = _read_public_meta(page, public_url)
