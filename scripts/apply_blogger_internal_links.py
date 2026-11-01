@@ -31,8 +31,32 @@ def terms(text: str) -> set[str]:
             if len(x) > 2 and x not in STOPWORDS}
 
 
+FOREIGN_JURISDICTIONS = {
+    "الجزائر": ("الجزائر", "الجزائري", "الجزائرية"),
+    "السعودية": ("السعودية", "السعودي"),
+    "اليمن": ("اليمن", "اليمني", "اليمنية"),
+    "الإمارات": ("الإمارات", "الإماراتي", "الإماراتية"),
+    "الكويت": ("الكويت", "الكويتي", "الكويتية"),
+    "قطر": ("قطر", "القطري", "القطرية"),
+    "الأردن": ("الأردن", "الأردني", "الأردنية"),
+    "لبنان": ("لبنان", "اللبناني", "اللبنانية"),
+    "المغرب": ("المغرب", "المغربي", "المغربية"),
+    "تونس": ("تونس", "التونسي", "التونسية"),
+}
+
+
+def jurisdiction(title: str) -> str:
+    normalized = norm(title)
+    for country, terms_list in FOREIGN_JURISDICTIONS.items():
+        if any(norm(term) in normalized for term in terms_list):
+            return country
+    return "مصر"
+
+
 def choose_related(source: dict, posts: list[dict], max_links: int = 2) -> list[dict]:
-    source_terms = terms(source.get("title", ""))
+    source_title = str(source.get("title", ""))
+    source_jurisdiction = jurisdiction(source_title)
+    source_terms = terms(source_title)
     existing_html = str(source.get("content", "") or "")
     existing_urls = set(re.findall(r'''href\s*=\s*["']([^"']+)["']''', existing_html, flags=re.I))
     candidates = []
@@ -42,6 +66,8 @@ def choose_related(source: dict, posts: list[dict], max_links: int = 2) -> list[
         url = str(target.get("url", "")).strip()
         title = str(target.get("title", "")).strip()
         if not url or not title or url in existing_urls:
+            continue
+        if jurisdiction(title) != source_jurisdiction:
             continue
         overlap = source_terms & terms(title)
         # Conservative relevance gate: at least two non-generic title terms.
@@ -96,7 +122,7 @@ def main() -> int:
         "run_id": run_id, "blog_url": blog_url, "live_posts": len(posts),
         "apply_mode": apply, "backup_file": str(backup_path),
         "updated": [], "skipped": [], "errors": [],
-        "safety": "Only appends a maximum of two links to already published posts, requires at least two meaningful shared title terms, preserves original HTML in the backup, skips posts already having a related section, and changes no titles/body text.",
+        "safety": "Only appends a maximum of two links to already published posts, requires at least two meaningful shared title terms and matching legal jurisdiction, preserves original HTML in the backup, skips posts already having a related section, and changes no titles/body text.",
     }
     for post in posts[:limit]:
         post_id = str(post.get("id", "")).strip()
