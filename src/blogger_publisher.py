@@ -32,26 +32,27 @@ def build_blogger_post_payload(title: str, content: str, labels: list[str]) -> d
     }
 
 
-def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, max_labels: int = 10) -> list[str]:
-    """Return unique Blogger labels below the 200-character combined UI limit."""
+def normalize_blogger_labels(values: list[Any], *, max_total_bytes: int = 180, max_labels: int = 8) -> list[str]:
+    """Return unique Blogger labels within a conservative UTF-8 byte budget."""
     labels: list[str] = []
     seen: set[str] = set()
-    total = 0
+    total_bytes = 0
     for raw in values or []:
-        label = re.sub(r"[\r\n,]+", " ", _clean(raw))
-        label = re.sub(r"\s+", " ", label).strip()[:40].strip()
+        label = re.sub(r"[\\r\\n,]+", " ", _clean(raw))
+        label = re.sub(r"\\s+", " ", label).strip()[:40].strip()
         key = label.casefold()
         if not label or key in seen:
             continue
-        addition = len(label) + (2 if labels else 0)
-        if total + addition > max_total_chars:
+        addition = len(label.encode("utf-8")) + (1 if labels else 0)
+        if total_bytes + addition > max_total_bytes:
             continue
         labels.append(label)
         seen.add(key)
-        total += addition
+        total_bytes += addition
         if len(labels) >= max_labels:
             break
     return labels
+
 
 _EDITORIAL_META_RE = re.compile(
     r"(?:زاوية\s*(?:المحتوى|المقال|أخرى|جديدة)?|الهدف(?:\s*من\s*المحتوى)?|pillar|objective|hook|cta|"
