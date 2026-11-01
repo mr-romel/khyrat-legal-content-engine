@@ -7,7 +7,7 @@ import os
 import re
 import time
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -50,11 +50,28 @@ def _challenge_reason(page, error: str = "") -> str:
     return ""
 
 
+def _defer_error(reason: str) -> str:
+    retry_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    return f"RETRY_AFTER={retry_at} | {reason}"[:1500]
+
+
+def _retry_is_due(error: str) -> bool:
+    match = re.search(r"RETRY_AFTER=([^|]+)", str(error or ""))
+    if not match:
+        return False
+    try:
+        retry_at = datetime.fromisoformat(match.group(1).strip().replace("Z", "+00:00"))
+        return retry_at <= datetime.now(timezone.utc)
+    except ValueError:
+        return False
+
+
 def _mark_deferred(sheet_service, sheet_id: str, sheet_name: str, candidates, reason: str) -> None:
+    deferred_error = _defer_error(reason)
     for row_number, _row in candidates:
         update_row(sheet_service, sheet_id, sheet_name, row_number, {
             "Blogger SEO Status": RATE_LIMIT_STATUS,
-            "Blogger SEO Error": reason[:1500],
+            "Blogger SEO Error": deferred_error,
         })
 
 
@@ -333,7 +350,7 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
             reason = challenge or error or "Blogger rate limit detected."
             update_row(sheet_service, sheet_id, sheet_name, row_number, {
                 "Blogger SEO Status": RATE_LIMIT_STATUS,
-                "Blogger SEO Error": reason[:1500],
+                "Blogger SEO Error": _defer_error(reason),
             })
             print(f"Blogger SEO paused by rate limit: row={row_number}, post={post_id}: {reason}")
             return RATE_LIMIT_STATUS
@@ -390,7 +407,9 @@ def main() -> int:
         if _clean(row.get("Blogger Status", "")).upper() != "PUBLISHED":
             continue
         status = _clean(row.get("Blogger SEO Status", "")).upper()
-        if status in {"VERIFIED", RATE_LIMIT_STATUS}:
+        if status == "VERIFIED":
+            continue
+        if status == RATE_LIMIT_STATUS and not _retry_is_due(row.get("Blogger SEO Error", "")):
             continue
         if status == "FAILED" and os.getenv("BLOGGER_SEO_RETRY_FAILED", "false").strip().lower() not in {"1", "true", "yes"}:
             continue
