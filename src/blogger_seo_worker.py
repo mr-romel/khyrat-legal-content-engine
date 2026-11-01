@@ -160,10 +160,10 @@ def _read_public_meta(page, url: str) -> str:
         if response.status_code == 429:
             raise RuntimeError("Public Blogger page rate-limited the SEO verification request.")
         response.raise_for_status()
-        for tag in re.findall(r"<meta\\b[^>]*>", response.text, flags=re.I):
-            if not re.search(r"""\\bname\\s*=\\s*['"]description['"]""", tag, flags=re.I):
+        for tag in re.findall(r"<meta\b[^>]*>", response.text, flags=re.I):
+            if not re.search(r"""\bname\s*=\s*['"]description['"]""", tag, flags=re.I):
                 continue
-            match = re.search(r"""\\bcontent\\s*=\\s*(['"])(.*?)\\1""", tag, flags=re.I | re.S)
+            match = re.search(r"""\bcontent\s*=\s*(['"])(.*?)\1""", tag, flags=re.I | re.S)
             if match:
                 return _clean(html.unescape(match.group(2)))
         return ""
