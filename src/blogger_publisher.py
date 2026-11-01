@@ -565,7 +565,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     labs=normalize_blogger_labels([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels])
     body={"title":title,"content":content,"labels":labs,"readerComments":"allow"}
     # Blogger API v3 publishes by default when isDraft is omitted.
-    try: result=svc.posts().insert(blogId=bid,body=body,fetchBody=True).execute()
+    try: result=svc.posts().insert(blogId=bid,body=body).execute()
     except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
     pid=_clean(result.get("id")); url=_clean(result.get("url"))
     if not pid or not url: raise BloggerPublishError("Blogger returned incomplete post data.")
