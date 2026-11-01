@@ -569,13 +569,6 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
     pid=_clean(result.get("id")); url=_clean(result.get("url"))
     if not pid or not url: raise BloggerPublishError("Blogger returned incomplete post data.")
-    search_description = str(article.get("meta_description", "")).strip()[:150]
-    if search_description:
-        try:
-            from blogger_ui_publisher import set_search_description_ui
-            set_search_description_ui(blog_id=bid, post_id=pid, search_description=search_description)
-        except Exception as exc:
-            print(f"WARNING: article published but Blogger Search description UI update failed: {exc}")
     target=Path(output_dir); target.mkdir(parents=True,exist_ok=True); base=_safe_filename(title)
     (target/f"{base}.html").write_text(content,encoding="utf-8")
     (target/f"{base}.txt").write_text(f"{title}\n\n{re.sub(r'<[^>]+>','',content)}\n",encoding="utf-8")
