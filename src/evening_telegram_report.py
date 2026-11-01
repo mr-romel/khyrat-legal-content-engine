@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from sheets import HEADERS, create_service, get_values, row_to_dict
 from telegram_bot import send_message
 
-TZ = ZoneInfo("Africa/Cairo")
+TZ = ZoneInfo("Africa/Cairo")  # The worker gates scheduled runs to exactly 22:00 Cairo local time.
 
 PLATFORMS = [
     ("Facebook", "Facebook Status", "Facebook Post URL", "Facebook Post ID"),
