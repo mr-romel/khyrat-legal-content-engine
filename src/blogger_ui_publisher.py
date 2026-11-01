@@ -960,6 +960,15 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             field.click()
             field.type(description, delay=4)
             field.press("Tab")
+            page.wait_for_timeout(400)
+            # Blogger commits the editor-only snippet when its Search description accordion closes.
+            collapse_search = _first_visible(page, ['text=Search description', 'text=وصف البحث'])
+            if collapse_search:
+                try:
+                    collapse_search.click()
+                    page.wait_for_timeout(400)
+                except Exception:
+                    pass
             page.wait_for_timeout(700)
             try:
                 after = field.evaluate("(el) => ({tag: el.tagName, aria: el.getAttribute('aria-label'), placeholder: el.getAttribute('placeholder'), value: el.value || el.innerText || ''})")
