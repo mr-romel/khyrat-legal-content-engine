@@ -920,6 +920,18 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             context = browser.new_context(storage_state=state_path, viewport={"width": 1440, "height": 1000})
             page = context.new_page()
             page.set_default_timeout(15000)
+            settings_url = f"https://www.blogger.com/blog/settings/{blog_id}"
+            page.goto(settings_url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(1000)
+            try:
+                settings_diag = {
+                    "url": page.url,
+                    "body": re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=2000))[:1600],
+                    "controls": page.locator("input,textarea,[role='switch'],[role='checkbox']").evaluate_all("(els) => els.filter(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)).map(el => ({tag:el.tagName,role:el.getAttribute('role'),aria:el.getAttribute('aria-label'),type:el.getAttribute('type'),checked:el.checked,ariaChecked:el.getAttribute('aria-checked'),value:el.value || ''}))"),
+                }
+            except Exception as diag_exc:
+                settings_diag = {"error": str(diag_exc)[:300], "url": page.url}
+            print("Blogger Meta tags settings diagnostics: " + json.dumps(settings_diag, ensure_ascii=False))
             editor_url = f"https://www.blogger.com/blog/post/edit/{blog_id}/{post_id}"
             page.goto(editor_url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(1300)
