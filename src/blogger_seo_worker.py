@@ -150,7 +150,7 @@ def _click_update(page) -> None:
 
 
 def _read_public_meta(page, url: str) -> str:
-    page.goto(url, wait_until="domcontentloaded", timeout=60000)
+    page.goto(url, wait_until="domcontentloaded", timeout=25000)
     page.wait_for_timeout(1200)
     locator = page.locator('meta[name="description"]')
     if not locator.count():
@@ -172,7 +172,7 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
 
     edit_url = BLOGGER_EDIT_URL.format(blog_id=blog_id, post_id=post_id)
     try:
-        page.goto(edit_url, wait_until="domcontentloaded", timeout=60000)
+        page.goto(edit_url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(1500)
 
         if "accounts.google.com" in page.url:
@@ -240,7 +240,7 @@ def main() -> int:
         return 0
 
     resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
-    max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "25")))
+    max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "5")))
     candidates = candidates[:max_posts]
     success = 0
     with sync_playwright() as playwright:
