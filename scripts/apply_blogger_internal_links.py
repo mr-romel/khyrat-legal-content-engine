@@ -4,11 +4,11 @@ import html
 import json
 import os
 import re
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
 from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service
+from legal_jurisdiction import choose_related
 
 BACKUP_DIR = Path(os.getenv("BLOGGER_LINK_BACKUP_DIR", "artifacts/blogger-internal-links/backups"))
 REPORT_DIR = Path(os.getenv("BLOGGER_LINK_REPORT_DIR", "artifacts/blogger-internal-links"))
