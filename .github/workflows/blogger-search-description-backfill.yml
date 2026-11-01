@@ -39,7 +39,7 @@ jobs:
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       BLOGGER_GOOGLE_SHEET_RANGE: ${{ secrets.BLOGGER_GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
       BLOGGER_SEARCH_DESCRIPTION_APPLY: ${{ github.event_name == 'push' && 'true' || inputs.apply_changes }}
-      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '1' || inputs.limit }}
+      BLOGGER_SEARCH_DESCRIPTION_LIMIT: ${{ github.event_name == 'push' && '500' || inputs.limit }}
       BLOGGER_SEARCH_DESCRIPTION_BATCH_SIZE: "5"
     steps:
       - uses: actions/checkout@v4
