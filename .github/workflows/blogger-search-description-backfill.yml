@@ -64,6 +64,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blogger-search-description-backfill
-          path: artifacts/blogger-search-descriptions/
+          path: |
+            artifacts/blogger-search-descriptions/
+            artifacts/blogger-seo-debug/
           if-no-files-found: warn
           retention-days: 90
