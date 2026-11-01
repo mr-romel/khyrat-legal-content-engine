@@ -573,8 +573,33 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     labs=normalize_blogger_labels([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels])
     body=build_blogger_post_payload(title, content, labs)
     # Blogger API v3 publishes by default when isDraft is omitted.
-    try: result=svc.posts().insert(blogId=bid,body=body).execute()
-    except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
+    try:
+        result = svc.posts().insert(blogId=bid, body=body).execute()
+    except Exception as first_error:
+        status = getattr(getattr(first_error, "resp", None), "status", None)
+        if status != 400 or not labs:
+            raise BloggerPublishError(f"Blogger publish failed: {first_error}") from first_error
+        print(
+            "Blogger rejected the full post payload with HTTP 400; retrying title/content only. "
+            f"title_length={len(title)} content_length={len(content)} labels={labs}"
+        )
+        try:
+            result = svc.posts().insert(
+                blogId=bid,
+                body={"title": title, "content": content},
+            ).execute()
+        except Exception as fallback_error:
+            raise BloggerPublishError(
+                f"Blogger rejected both full and title/content-only payloads: {fallback_error}"
+            ) from fallback_error
+        try:
+            svc.posts().patch(
+                blogId=bid,
+                postId=result["id"],
+                body={"labels": labs},
+            ).execute()
+        except Exception as label_error:
+            print(f"WARNING: post published but labels could not be applied: {label_error}")
     pid=_clean(result.get("id")); url=_clean(result.get("url"))
     if not pid or not url: raise BloggerPublishError("Blogger returned incomplete post data.")
     target=Path(output_dir); target.mkdir(parents=True,exist_ok=True); base=_safe_filename(title)
