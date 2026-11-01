@@ -111,8 +111,14 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         if not url:
             continue
         status, final_url, page_html = check("article_page", url, required=False)
+        if status == 429:
+            findings.append({"severity": "LOW", "code": "ARTICLE_FETCH_RATE_LIMITED",
+                             "message": "The audit request was rate-limited; this is not evidence that the public article is unavailable.",
+                             "title": item["title"], "url": url, "final_url": final_url})
+            continue
         if status is None or not (200 <= status < 300):
-            findings.append({"severity": "HIGH", "code": "ARTICLE_HTTP_ERROR",
+            severity = "HIGH" if status is None or status in {401, 403, 404, 410} else "MEDIUM"
+            findings.append({"severity": severity, "code": "ARTICLE_HTTP_ERROR",
                              "message": f"Public article URL returned HTTP {status if status is not None else 'unreachable'}.",
                              "title": item["title"], "url": url, "final_url": final_url})
             continue
