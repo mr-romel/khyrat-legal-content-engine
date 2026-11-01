@@ -701,7 +701,7 @@ def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
     """Return only links from the specific Blogger row that contains this title."""
     result = page.locator("body").evaluate(
         """body => {
-          const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+          const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
           const wanted = norm(TITLE);
           const rows = [];
           const seen = new Set();
@@ -725,7 +725,7 @@ def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
                 aria: a.getAttribute('aria-label') || '',
                 title: a.getAttribute('title') || ''
               }));
-              const edit = links.some(x => /\\/blog\\/post\\/edit\\/\\d+\\/\\d+/.test(x.href));
+              const edit = links.some(x => /\/blog\/post\/edit\/\d+\/\d+/.test(x.href));
               if (!edit || links.length > 12) continue;
               const key = text + '|' + links.map(x => x.href).join('|');
               if (!seen.has(key)) {
@@ -735,7 +735,7 @@ def _dashboard_title_rows(page, title: str) -> list[dict[str, Any]]:
               if (/(draft|published|scheduled|مسودة|منشور|مجدول)/i.test(text)) break;
             }
           }
-          return {candidate_rows: rows.slice(0, 12), body_excerpt: (body.innerText || '').replace(/\\s+/g, ' ').slice(0, 700)};
+          return {candidate_rows: rows.slice(0, 12), body_excerpt: (body.innerText || '').replace(/\s+/g, ' ').slice(0, 700)};
         }""".replace("TITLE", json.dumps(title, ensure_ascii=False))
     )
     return result.get("candidate_rows", []) if isinstance(result, dict) else []
@@ -870,7 +870,7 @@ def _existing_draft_editor_url(page, blog_id: str, title: str) -> str:
 
 def set_search_description_ui(*, blog_id: str, post_id: str, search_description: str) -> str:
     """Set and verify Blogger's editor-only Search description field for an existing live post."""
-    description = re.sub(r"\\s+", " ", str(search_description or "")).strip()[:150]
+    description = re.sub(r"\s+", " ", str(search_description or "")).strip()[:150]
     if not description:
         raise BloggerUIPublishError("Refusing to set an empty Blogger search description.")
     state_path = _storage_state_path()
@@ -928,7 +928,7 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
             field = open_settings(page)
             if not field:
                 try:
-                    excerpt = re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=1500))[:900]
+                    excerpt = re.sub(r"\s+", " ", page.locator("body").inner_text(timeout=1500))[:900]
                 except Exception:
                     excerpt = ""
                 raise BloggerUIPublishError("Search description field not found in Blogger editor. " + excerpt)
