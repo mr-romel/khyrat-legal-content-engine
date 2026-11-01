@@ -2,22 +2,23 @@
   "topic": "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور",
   "provider": "DIRECT_CLOUDFLARE",
   "model": "@cf/bytedance/stable-diffusion-xl-lightning",
-  "prompt": "A medium‑shot of a nervous middle‑aged man standing in a bright, modern daycare room. He holds a smartphone pressed to his ear with his left hand, his right hand gripping a stack of printed paperwork (permits, inspection forms) that he is glancing at. His eyebrows are furrowed, mouth slightly open as if mid‑question, conveying anxiety. Behind him, the daycare’s interior is clearly visible: low‑height tables with colorful building blocks, a wall‑mounted security camera perched in the corner of the ceiling, and a window letting in soft natural daylight that illuminates the space. A few children’s drawings are taped to the wall, and a small bookshelf of picture books sits to the side. The composition centers the man, with the phone, documents, and the ceiling camera forming a visual triangle that highlights the concern about installing surveillance equipment. The lighting is even, warm daylight, with gentle shadows that keep the scene realistic and uncluttered. No text, logos, or extraneous objects appear.",
-  "prompt_sha256": "a2373596829bedc155d5d62764fb4a6dbf72effde9e20db6f70208f899cd9f3c",
-  "image_sha256": "7328b98da094599bb8714ccf0d3f455dd6d4efa72db95f587bafe1dd30a53157",
+  "prompt": "A medium‑shot interior of a bright, modern daycare room. Sunlight streams through large windows, casting soft, even light over colorful walls adorned with children’s drawings and low shelves of toys. In the foreground, a middle‑aged daycare owner—dressed in business‑casual attire—stands slightly turned to the right, holding a multi‑page printed checklist in one hand. Their eyes are focused on a small, dome‑shaped surveillance camera mounted in the ceiling near a play corner, while the other hand rests on the checklist, thumb lightly resting on a highlighted line (the camera‑installation clause). The checklist is visible enough to convey its presence but no legible text is shown. To the left of the owner, a low table with scattered building blocks and a plush rug suggest a typical child‑care environment. The composition places the owner on the left third, the camera on the right third, and the checklist bridging the two, emphasizing the connection between the regulatory document and the installed equipment. The overall lighting is natural and warm, with gentle shadows that give depth without drawing attention away from the focal elements. No signage, logos, or readable text appear in the scene.",
+  "prompt_sha256": "f17fbcf64f00c95aaa21d33ca8aa1d46f31ae1212361aa535cb12288260dc1d9",
+  "image_sha256": "625afb717364838cf93a4d7a25732109232e0c0cc28ed675e4fda446881573e7",
   "image_path": "generated/LEGACY-6653899844760583137.jpg",
-  "visual_description": "A medium‑shot of a nervous middle‑aged man standing in a bright, modern daycare room. He holds a smartphone pressed to his ear with his left hand, his right hand gripping a stack of printed paperwork (permits, inspection forms) that he is glancing at. His eyebrows are furrowed, mouth slightly open as if mid‑question, conveying anxiety. Behind him, the daycare’s interior is clearly visible: low‑height tables with colorful building blocks, a wall‑mounted security camera perched in the corner of the ceiling, and a window letting in soft natural daylight that illuminates the space. A few children’s drawings are taped to the wall, and a small bookshelf of picture books sits to the side. The composition centers the man, with the phone, documents, and the ceiling camera forming a visual triangle that highlights the concern about installing surveillance equipment. The lighting is even, warm daylight, with gentle shadows that keep the scene realistic and uncluttered. No text, logos, or extraneous objects appear.",
+  "visual_description": "A medium‑shot interior of a bright, modern daycare room. Sunlight streams through large windows, casting soft, even light over colorful walls adorned with children’s drawings and low shelves of toys. In the foreground, a middle‑aged daycare owner—dressed in business‑casual attire—stands slightly turned to the right, holding a multi‑page printed checklist in one hand. Their eyes are focused on a small, dome‑shaped surveillance camera mounted in the ceiling near a play corner, while the other hand rests on the checklist, thumb lightly resting on a highlighted line (the camera‑installation clause). The checklist is visible enough to convey its presence but no legible text is shown. To the left of the owner, a low table with scattered building blocks and a plush rug suggest a typical child‑care environment. The composition places the owner on the left third, the camera on the right third, and the checklist bridging the two, emphasizing the connection between the regulatory document and the installed equipment. The overall lighting is natural and warm, with gentle shadows that give depth without drawing attention away from the focal elements. No signage, logos, or readable text appear in the scene.",
   "qa_decision": "PASS",
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 6,
-  "qa_relevance_score": 7,
+  "qa_overall_score": 2,
+  "qa_relevance_score": 2,
   "qa_issues": [
     "Composition advisory below 55.",
     "Relevance advisory below 55.",
     "Overall advisory below 60.",
-    "Severe anatomical distortion of the man's hand and arm.",
-    "The phone position is physically implausible (fused with the side of the head).",
-    "Missing key environmental indicators for the daycare setting (security camera on ceiling, children's educational materials)."
+    "Presence of a child (girl) detected.",
+    "Failure to depict the legal scenario (camera installation checklist).",
+    "Missing key subject (daycare owner).",
+    "High level of visual distortion in objects."
   ],
-  "qa_checked_image_sha256": "7328b98da094599bb8714ccf0d3f455dd6d4efa72db95f587bafe1dd30a53157"
+  "qa_checked_image_sha256": "625afb717364838cf93a4d7a25732109232e0c0cc28ed675e4fda446881573e7"
 }
