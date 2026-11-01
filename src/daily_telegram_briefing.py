@@ -71,6 +71,28 @@ def main() -> int:
 
     lines.extend([
         "",
+        "مقالات Blogger المجدولة من خطة المحتوى:",
+    ])
+    if today_rows:
+        lines.append(f"• عدد المقالات المجدولة في الخطة اليوم: {len(today_rows)}")
+        for row in today_rows:
+            topic = row.get("الموضوع", "موضوع غير محدد").strip() or "موضوع غير محدد"
+            time = row.get("ساعة النشر", "").strip() or "موعد صف النشر"
+            blogger_status = row.get("Blogger Status", "").strip().upper()
+            blogger_url = row.get("Blogger URL", "").strip()
+            social_status = row.get("الحالة", "").strip().upper()
+            if blogger_status == "PUBLISHED" and blogger_url:
+                state = f"منشور بالفعل: {blogger_url}"
+            elif social_status == "PUBLISHED":
+                state = "جاهز لمسار Blogger / في انتظار تنفيذ عامل Blogger"
+            else:
+                state = "مجدول؛ ينتظر نجاح نشر المحتوى الأساسي على المنصات الاجتماعية"
+            lines.append(f"• {time} — {topic} | Blogger: {state}")
+        lines.append("• مقال الخطة مستقل عن مقال الترند، ولا يُحتسبان مقالًا واحدًا.")
+    else:
+        lines.append("• لا توجد مقالات Blogger مجدولة بتاريخ اليوم في صفوف الخطة.")
+    lines.extend([
+        "",
         "مقالات الترند:",
     ])
     try:
