@@ -261,7 +261,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
         "findings": findings,
         "posts_without_internal_links": posts_without_internal_links,
         "feed_urls_missing_from_sitemap": missing_from_sitemap,
-        "posts": entries,\n        "article_pages": page_audits,
+        "posts": entries,
+        "article_pages": page_audits,
     }
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
