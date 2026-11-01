@@ -45,8 +45,8 @@ def _challenge_reason(page, error: str = "") -> str:
     haystack = f"{current_url} {body} {str(error or '').casefold()}"
     if any(marker in haystack for marker in CHALLENGE_MARKERS):
         return "Blogger/Google CAPTCHA or unusual-traffic challenge detected; automated edits paused."
-    if "google.com/sorry" in current_url or "accounts.google.com/signin" in current_url:
-        return "Google challenge or expired Blogger authentication session detected; automated edits paused."
+    if "google.com/sorry" in current_url:
+        return "Google unusual-traffic challenge detected; automated edits paused."
     return ""
 
 
