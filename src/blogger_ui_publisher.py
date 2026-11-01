@@ -976,9 +976,9 @@ def set_search_description_ui(*, blog_id: str, post_id: str, search_description:
                 after = {}
             print("Blogger Search description field after edit: " + json.dumps(after, ensure_ascii=False))
             done = _first_visible(page, [
-                'button:has-text("Done")', '[role="button"]:has-text("Done")',
-                'button:has-text("Save")', '[role="button"]:has-text("Save")',
-                'button:has-text("تم")', '[role="button"]:has-text("تم")',
+                'button:has-text("Done")', '[role="button"]:has-text("Done")', 'text=Done',
+                'button:has-text("Save")', '[role="button"]:has-text("Save")', 'text=Save',
+                'button:has-text("تم")', '[role="button"]:has-text("تم")', 'text=تم',
             ])
             if done:
                 try:
