@@ -44,3 +44,19 @@ def test_page_opportunities_require_observed_search_console_signals():
     result = build_growth_snapshot(audit, [], [], "2026-10-01", "2026-10-28")
     assert result["measurement"]["page_opportunities"] == 0
     assert result["measurement"]["pages_in_technical_backlog"] == 1
+
+
+def test_growth_snapshot_reports_url_inspection_without_assuming_unknown_is_not_indexed():
+    result = build_growth_snapshot(
+        {"summary": {}, "posts": [], "findings": []},
+        [], [], "2026-10-01", "2026-10-28",
+        index_rows=[
+            {"url": "https://example.com/a", "verdict": "PASS", "indexing_state": "INDEXING_ALLOWED"},
+            {"url": "https://example.com/b", "verdict": "FAIL", "indexing_state": "BLOCKED_BY_META_TAG"},
+            {"url": "https://example.com/c", "verdict": "UNKNOWN", "error": "API not enabled"},
+        ],
+    )
+    assert result["url_inspection"]["urls_inspected"] == 3
+    assert result["url_inspection"]["indexed_pass"] == 1
+    assert result["url_inspection"]["not_indexed_or_blocked"] == 1
+    assert result["url_inspection"]["unknown_or_api_error"] == 1
