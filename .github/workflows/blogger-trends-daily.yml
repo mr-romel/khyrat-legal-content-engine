@@ -32,6 +32,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
           pip install -r requirements-reel.txt
+      - name: Test Egyptian jurisdiction filter
+        env:
+          PYTHONPATH: src
+        run: pytest -q tests/test_blogger_trend_worker.py
       - name: Publish one daily Blogger trend article
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
