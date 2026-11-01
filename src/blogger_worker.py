@@ -484,8 +484,18 @@ def main() -> int:
                 )
             result["search_query"] = title
             result["search_candidates"] = json.dumps([title, *labels], ensure_ascii=False)
-            result["meta_description"] = str(article.get("meta_description", "")).strip()[:180]
-            target = Path(f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}")
+            result["meta_description"] = str(article.get("meta_description", "")).strip()[:150]
+            if result.get("publisher") and result.get("post_id") and result["meta_description"]:
+                try:
+                    from blogger_ui_publisher import set_search_description_ui
+                    set_search_description_ui(
+                        blog_id=target_blog_id,
+                        post_id=result["post_id"],
+                        search_description=result["meta_description"],
+                    )
+                except Exception as exc:
+                    print(f"WARNING: article published but Search description UI update failed: {exc}")
+            target = Path(f"${BLOGGER_ARTIFACT_DIR}/row_{row_number}")
             target.mkdir(parents=True, exist_ok=True)
             (target / "article.html").write_text(content, encoding="utf-8")
         else:
