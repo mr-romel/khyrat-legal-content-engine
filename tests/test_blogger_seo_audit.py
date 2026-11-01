@@ -63,3 +63,32 @@ def test_run_reports_duplicate_titles_and_does_not_claim_google_crawl(monkeypatc
     assert (tmp_path / "audit" / "report.md").exists()
 
 # Audit trigger: verify live Blogger canonical/feed/sitemap health after URL repairs.
+
+
+def test_article_http_429_is_reported_as_audit_rate_limit_not_broken_page(monkeypatch, tmp_path):
+    import blogger_seo_audit as audit
+
+    feed = {"feed": {"entry": [{
+        "title": {"$t": "إجراءات قانونية في مصر"},
+        "content": {"$t": "<p>" + ("محتوى قانوني " * 80) + "</p>"},
+        "link": [{"rel": "alternate", "href": "https://askmahmoudkhyrat.blogspot.com/2026/10/rate-limited.html"}],
+    }]}}
+    sitemap = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://askmahmoudkhyrat.blogspot.com/2026/10/rate-limited.html</loc></url></urlset>'
+
+    def fake_get(url, **kwargs):
+        if "feeds/posts/default" in url:
+            return FakeResponse(url, 200, json.dumps(feed, ensure_ascii=False))
+        if "sitemap.xml" in url:
+            return FakeResponse(url, 200, sitemap)
+        if "robots.txt" in url:
+            return FakeResponse(url, 200, "User-agent: *")
+        return FakeResponse("https://www.google.com/sorry/index", 429, "rate limited")
+
+    monkeypatch.setattr(audit.requests, "get", fake_get)
+    monkeypatch.setattr(audit.requests, "Session", lambda: type("Session", (), {
+        "headers": {},
+        "get": staticmethod(fake_get),
+    })())
+    report = run(str(tmp_path / "audit-429"))
+    assert any(x["code"] == "ARTICLE_FETCH_RATE_LIMITED" for x in report["findings"])
+    assert not any(x["code"] == "ARTICLE_HTTP_ERROR" and x.get("severity") == "HIGH" for x in report["findings"])
