@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import hashlib
 from datetime import date, timedelta
 from typing import Any
 from google.oauth2.service_account import Credentials
@@ -89,7 +90,8 @@ def build_opportunities(rows: list[dict[str,Any]]) -> list[list[str]]:
         reason="صفحة بين 8 و20 مع طلب بحث واضح" if action=="REFRESH_EXISTING" else (
             "طلب بحث واعد يحتاج تغطية أو صفحة داعمة" if action=="CREATE_SUPPORTING_ARTICLE"
             else "انطباعات مرتفعة ونسبة نقر منخفضة")
-        oid="OPP-"+str(abs(hash((r["query"],r["page"])))%10**12).zfill(12)
+        stable_key = (r["query"] + "|" + r["page"]).encode("utf-8")
+        oid = "OPP-" + hashlib.sha256(stable_key).hexdigest()[:12].upper()
         output.append([oid,r["query"],r["page"],action,f'{r["opportunity"]:.2f}',reason,action,"OPEN",date.today().isoformat()])
     return output
 
@@ -124,6 +126,24 @@ def _monetization_rows(rows: list[dict[str,Any]]) -> list[list[str]]:
                 break
     return out
 
+def _append_unique_rows(service, spreadsheet_id: str, sheet_name: str, read_range: str,
+                        rows: list[list[str]], key_indexes: tuple[int, ...]) -> int:
+    existing = get_values(service, spreadsheet_id, read_range)
+    seen = {
+        tuple(str(row[index]).strip() if index < len(row) else "" for index in key_indexes)
+        for row in existing[1:]
+    } if existing else set()
+    added = 0
+    for row in rows:
+        key = tuple(str(row[index]).strip() if index < len(row) else "" for index in key_indexes)
+        if key in seen:
+            continue
+        _append(service, spreadsheet_id, sheet_name, row)
+        seen.add(key)
+        added += 1
+    return added
+
+
 def write_snapshot(rows: list[dict[str,Any]], service, spreadsheet_id: str) -> None:
     for name,headers in (("SearchConsole",SEARCH_HEADERS),("KeywordMap",KEYWORD_HEADERS),
                          ("ContentOpportunities",OPPORTUNITY_HEADERS),("ContentRefreshQueue",REFRESH_HEADERS),
@@ -138,10 +158,14 @@ def write_snapshot(rows: list[dict[str,Any]], service, spreadsheet_id: str) -> N
             _append(service,spreadsheet_id,"SearchConsole",[stamp,r["query"],r["page"],f'{r["clicks"]:.2f}',
                 f'{r["impressions"]:.2f}',f'{r["ctr"]:.4f}',f'{r["position"]:.2f}',r["intent"],
                 f'{r["opportunity"]:.2f}',"GOOGLE_SEARCH_CONSOLE"])
-    for r in build_keyword_rows(rows): _append(service,spreadsheet_id,"KeywordMap",r)
-    for r in build_opportunities(rows): _append(service,spreadsheet_id,"ContentOpportunities",r)
-    for r in build_refresh_queue(rows): _append(service,spreadsheet_id,"ContentRefreshQueue",r)
-    for r in _monetization_rows(rows): _append(service,spreadsheet_id,"MonetizationMap",r)
+    _append_unique_rows(service, spreadsheet_id, "KeywordMap", "KeywordMap!A:M",
+                        build_keyword_rows(rows), (0, 1, 12))
+    _append_unique_rows(service, spreadsheet_id, "ContentOpportunities", "ContentOpportunities!A:I",
+                        build_opportunities(rows), (0,))
+    _append_unique_rows(service, spreadsheet_id, "ContentRefreshQueue", "ContentRefreshQueue!A:I",
+                        build_refresh_queue(rows), (0, 1, 8))
+    _append_unique_rows(service, spreadsheet_id, "MonetizationMap", "MonetizationMap!A:F",
+                        _monetization_rows(rows), (0, 1))
 
 def run(days: int=28) -> dict[str,int]:
     from sheets import create_service
