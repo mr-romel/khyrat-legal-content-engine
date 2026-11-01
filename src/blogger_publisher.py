@@ -24,6 +24,15 @@ class BloggerPublishError(RuntimeError): pass
 def _clean(v: Any) -> str: return " ".join(str(v or "").strip().split())
 
 
+def build_blogger_post_payload(title: str, content: str, labels: list[str]) -> dict[str, Any]:
+    return {
+        "title": str(title or "").strip(),
+        "content": str(content or ""),
+        "labels": list(labels or []),
+        "readerComments": "ALLOW",
+    }
+
+
 def normalize_blogger_labels(values: list[Any], *, max_total_chars: int = 180, max_labels: int = 10) -> list[str]:
     """Return unique Blogger labels below the 200-character combined UI limit."""
     labels: list[str] = []
@@ -563,7 +572,7 @@ def publish_article(*,topic:str,post:str,image_url:str="",image_path:str="",lega
     content=build_article_html(title,topic,post,image_url,legal_sources,_related(svc,bid,topic),article=article)
     keyword_labels = [str(x).strip() for x in (article.get("keywords", []) if isinstance(article.get("keywords"), list) else []) if str(x).strip()]
     labs=normalize_blogger_labels([*(labels or []),"قانون مصر","اسأل محمود",*keyword_labels])
-    body={"title":title,"content":content,"labels":labs,"readerComments":"ALLOW"}
+    body=build_blogger_post_payload(title, content, labs)
     # Blogger API v3 publishes by default when isDraft is omitted.
     try: result=svc.posts().insert(blogId=bid,body=body).execute()
     except Exception as exc: raise BloggerPublishError(f"Blogger publish failed: {exc}") from exc
