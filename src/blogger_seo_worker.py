@@ -95,23 +95,49 @@ def _open_post_settings(page):
     description = _find_description(page)
     if description:
         return description
-    buttons = page.get_by_role("button")
-    for label in ("Post settings", "إعدادات المشاركة", "إعدادات المشاركة", "إعدادات المنشور", "Post settings"):
-        locator = buttons.filter(has_text=label)
-        if locator.count():
-            locator.first.click()
-            page.wait_for_timeout(500)
-            description = _find_description(page)
-            if description:
-                return description
-    # Blogger sometimes exposes the settings panel through a button whose
-    # aria-label contains the localized settings text.
+
+    panel_selectors = [
+        "text=Post settings",
+        "text=إعدادات المشاركة",
+        "text=إعدادات المنشور",
+        "text=إعدادات النشر",
+        'button:has-text("Post settings")',
+        'button:has-text("إعدادات المشاركة")',
+        '[aria-label*="Post settings" i]',
+        '[aria-label*="إعدادات المشاركة"]',
+    ]
+    for selector in panel_selectors:
+        try:
+            locator = page.locator(selector)
+            for index in range(min(locator.count(), 5)):
+                candidate = locator.nth(index)
+                if candidate.is_visible():
+                    candidate.click()
+                    page.wait_for_timeout(700)
+                    description = _find_description(page)
+                    if description:
+                        return description
+        except Exception:
+            continue
+
+    for selector in ("text=Search description", "text=وصف البحث"):
+        try:
+            locator = page.locator(selector)
+            if locator.count() and locator.first.is_visible():
+                locator.first.click()
+                page.wait_for_timeout(500)
+                description = _find_description(page)
+                if description:
+                    return description
+        except Exception:
+            continue
+
     for locator in page.locator('button[aria-label], [role="button"][aria-label]').all():
         try:
             aria = _clean(locator.get_attribute("aria-label") or "")
             if re.search(r"settings|إعدادات|المشاركة", aria, re.I):
                 locator.click()
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(700)
                 description = _find_description(page)
                 if description:
                     return description
