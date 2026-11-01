@@ -21,6 +21,18 @@ BLOG = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip(
 LOG_SHEET = "BloggerTrends"
 LOG_HEADERS = ["Date Cairo", "Status", "Trend", "Source Title", "Source URL", "Blogger Title", "Blogger URL", "Blogger Post ID", "Error", "Created At"]
 LEGAL_TERMS = ("قانون", "قانوني", "تشريع", "تشريعات", "محكمة", "قضية", "قضاء", "وزارة العمل", "العمل", "عمال", "موظف", "تأمينات", "ضرائب", "شركات", "استثمار", "إيجار", "عقارات", "مرور", "أحوال شخصية", "نقابة", "قرار وزاري", "مجلس النواب", "النيابة", "التحقيق")
+FOREIGN_JURISDICTION_TERMS = (
+    "سلطنة عمان", "عمان", "الأردن", "الاردن", "السعودية", "السعودي", "السعودية",
+    "الإمارات", "الامارات", "الإماراتي", "الكويت", "الكويتي", "قطر", "القطري",
+    "البحرين", "البحريني", "لبنان", "اللبناني", "المغرب", "المغربي", "تونس",
+    "التونسي", "الجزائر", "الجزائري", "العراق", "العراقي", "اليمن", "اليمني",
+    "ريال عماني", "ريال سعودي", "درهم إماراتي", "دينار كويتي",
+)
+
+
+def _is_foreign_jurisdiction(item: dict) -> bool:
+    text = f"{item.get('title', '')} {item.get('description', '')}".casefold()
+    return any(term.casefold() in text for term in FOREIGN_JURISDICTION_TERMS)
 
 
 def _now():
@@ -87,7 +99,13 @@ def collect_candidates():
                     found.append(item)
         except Exception as exc:
             print(f"Trend source unavailable: {exc}")
-    legal = [x for x in found if any(term in (x["title"] + " " + x["description"]) for term in LEGAL_TERMS)]
+    legal = [
+        item for item in found
+        if any(term in (item["title"] + " " + item["description"]) for term in LEGAL_TERMS)
+        and not _is_foreign_jurisdiction(item)
+    ]
+    rejected_foreign = sum(1 for item in found if _is_foreign_jurisdiction(item))
+    print(f"Trend candidates: found={len(found)}, foreign_jurisdiction_rejected={rejected_foreign}, Egypt_eligible={len(legal)}")
     # Prioritize explicit legal/news coverage over broad search-volume trends.
     legal.sort(key=lambda x: (sum(term in (x["title"] + " " + x["description"]) for term in LEGAL_TERMS), len(x["description"])), reverse=True)
     return legal[:12]
