@@ -40,8 +40,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install Blogger API dependencies
-        run: python -m pip install --disable-pip-version-check "google-api-python-client>=2.0.0" "google-auth>=2.0.0" "google-genai>=2.0.0" pytest
+      - name: Install Blogger UI and API dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --disable-pip-version-check -r requirements-worker.txt -r requirements-browser.txt
+          python -m playwright install --with-deps chromium
       - name: Test grounded search-description extraction
         env:
           PYTHONPATH: src:scripts
