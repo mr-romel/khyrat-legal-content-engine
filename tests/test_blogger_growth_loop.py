@@ -1,4 +1,4 @@
-from run_blogger_growth_loop import build_growth_snapshot
+from scripts.run_blogger_growth_loop import build_growth_snapshot
 
 
 def test_growth_snapshot_uses_observed_page_and_query_data():
