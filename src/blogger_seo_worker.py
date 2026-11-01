@@ -430,8 +430,9 @@ def main() -> int:
     )
 
     resolved_blog_id = _clean(config.get("blogger_blog_id", "")) or blog_id(service, config["blogger_url"])
+    all_candidates = candidates
     max_posts = max(1, int(os.getenv("BLOGGER_SEO_MAX_POSTS", "5")))
-    candidates = candidates[:max_posts]
+    candidates = all_candidates[:max_posts]
     success = 0
     failed = 0
     deferred = 0
@@ -447,7 +448,7 @@ def main() -> int:
             elif outcome == RATE_LIMIT_STATUS:
                 deferred = 1
                 reason = "Batch paused after CAPTCHA/rate-limit detection; retry in a later scheduled run."
-                _mark_deferred(service, config["sheet_id"], sheet_name, candidates[index + 1:], reason)
+                _mark_deferred(service, config["sheet_id"], sheet_name, all_candidates[index + 1:], reason)
                 break
             else:
                 failed += 1
