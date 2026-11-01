@@ -790,7 +790,7 @@ def main() -> int:
             if not existing_api or not str(existing_api.get("id", "")).strip():
                 raise RuntimeError("Exact existing Blogger post could not be located through the API.")
             existing_id = str(existing_api["id"])
-            blogger_api.posts().patch(blogId=target_blog_id, postId=existing_id, body={"content": html, "searchDescription": description[:150]}).execute()
+            blogger_api.posts().patch(blogId=target_blog_id, postId=existing_id, body={"content": html}).execute()
             verified = blogger_api.posts().get(blogId=target_blog_id, postId=existing_id).execute()
             verified_html = str(verified.get("content", "") or "")
             verified_text = " ".join(re.sub(r"<[^>]+>", " ", verified_html).split())
