@@ -3,7 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
+CAIRO = ZoneInfo("Africa/Cairo")
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 
 
@@ -89,7 +91,7 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
     total_clicks = sum(float(row.get("clicks", 0) or 0) for row in page_rows)
     total_impressions = sum(float(row.get("impressions", 0) or 0) for row in page_rows)
     return {
-        "generated_at": date.today().isoformat(),
+        "generated_at": datetime.now(CAIRO).isoformat(),
         "site": os.getenv("SEARCH_CONSOLE_SITE_URL", BLOG_URL).strip(),
         "period": {"start": start, "end": end, "data_state": "final"},
         "measurement": {
@@ -118,8 +120,10 @@ def main() -> int:
     site = os.getenv("SEARCH_CONSOLE_SITE_URL", BLOG_URL).strip()
     if not site:
         raise RuntimeError("SEARCH_CONSOLE_SITE_URL is empty.")
-    end_date = date.today() - timedelta(days=2)
-    start_date = end_date - timedelta(days=27)
+    days = max(7, min(90, int(os.getenv("SEARCH_CONSOLE_DAYS", "28"))))
+    cairo_today = datetime.now(CAIRO).date()
+    end_date = cairo_today - timedelta(days=2)
+    start_date = end_date - timedelta(days=days - 1)
     service = _gsc_service()
     page_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["page"])
     query_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["query", "page"])
