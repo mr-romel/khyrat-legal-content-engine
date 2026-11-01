@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -106,7 +107,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
     # This detects missing/weak snippets, canonical mistakes and index-blocking
     # directives on actual URLs that readers and crawlers can reach.
     page_audits = []
-    for item in entries[:40]:
+    max_article_pages = max(1, min(500, int(os.getenv("SEO_AUDIT_MAX_ARTICLE_PAGES", "150"))))
+    for item in entries[:max_article_pages]:
         url = item.get("url", "")
         if not url:
             continue
@@ -142,6 +144,8 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
                 "images": len(image_tags), "images_missing_alt": images_missing_alt,
                 "noindex": noindex}
         page_audits.append(page)
+        # Keep the audit comprehensive without hammering Blogger's public pages.
+        time.sleep(0.12)
         if noindex:
             findings.append({"severity": "HIGH", "code": "ARTICLE_NOINDEX",
                              "message": "Article page contains a noindex directive.", "title": item["title"], "url": url})
