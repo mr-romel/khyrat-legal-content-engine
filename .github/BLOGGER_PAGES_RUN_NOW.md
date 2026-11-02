@@ -13,3 +13,5 @@ YouTube author Schema and article JSON-LD embedding nonce: 2026-11-02T19:35:00+0
 Blogger-safe microdata and official channel author-profile rollout nonce: 2026-11-02T19:45:00+02:00
 
 Serialized Blogger UI and eventual-consistency verification nonce: 2026-11-02T19:55:00+02:00
+
+Final Blogger identity verification rerun.
