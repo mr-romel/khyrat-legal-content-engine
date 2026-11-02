@@ -404,7 +404,6 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
 
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
     related_html = f'<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>' if rel else ""
-    byline = f'<p class="article-byline">بقلم <a href="{html.escape(author_url, quote=True)}">محمود خيرت</a> — مستشار قانوني للشركات</p>'
     sources_html = ""
     if legal_sources and _clean(legal_sources):
         source_text = str(legal_sources).strip()
@@ -437,7 +436,6 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                 sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
         else:
             sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
-    schema_html = f'<script type="application/ld+json">{schema}</script>'
     return f'<article class="khyrat-legal-article" itemscope itemtype="https://schema.org/BlogPosting"><meta itemprop="headline" content="{html.escape(title, quote=True)}"><meta itemprop="description" content="{html.escape(meta_description or lead[:180], quote=True)}">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
