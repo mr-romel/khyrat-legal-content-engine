@@ -10,6 +10,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: blogger-foundation-pages-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   pages:
     runs-on: ubuntu-latest
