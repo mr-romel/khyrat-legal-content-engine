@@ -392,7 +392,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
         ) + "</section>"
 
     now_iso = datetime.now(timezone.utc).isoformat()
-    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/about-us.html"
+    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page_07.html"  # verified live Blogger contact/profile page
     graph = [
         {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"datePublished":now_iso,"dateModified":now_iso,"author":{"@type":"Person","name":"محمود خيرت","url":author_url,"sameAs":[LINKEDIN_URL,FACEBOOK_URL]},"publisher":{"@type":"Person","name":"محمود خيرت","url":author_url},"keywords":keywords or _tags(topic)},
         {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود","item":DEFAULT_BLOG_URL},{"@type":"ListItem","position":2,"name":title}]}
