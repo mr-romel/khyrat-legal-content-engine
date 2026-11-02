@@ -10,7 +10,7 @@ from typing import Any
 
 from blogger_search_console_prioritizer import prioritize
 from blogger_seo_audit import run as run_public_audit
-from config import _service_account_info
+from config import _service_account_info, _sheet_id
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -47,6 +47,8 @@ def _query(service, site: str, start: str, end: str, dimensions: list[str]) -> l
         }
         for index, dimension in enumerate(dimensions):
             item[dimension] = str(keys[index]) if index < len(keys) else ""
+        if "query" in dimensions and "page" in dimensions:
+            item["query_page_key"] = f'{item.get("query", "")}||{item.get("page", "")}'
         result.append(item)
     return result
 
@@ -76,7 +78,22 @@ def inspect_index_status(service, site: str, urls: list[str], limit: int = 100) 
     return results
 
 
-def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[dict], start: str, end: str, index_rows: list[dict] | None = None) -> dict:
+def _totals(rows: list[dict]) -> dict[str, float]:
+    clicks = sum(float(row.get("clicks", 0) or 0) for row in rows)
+    impressions = sum(float(row.get("impressions", 0) or 0) for row in rows)
+    return {
+        "clicks": round(clicks, 2),
+        "impressions": round(impressions, 2),
+        "ctr": round(clicks / impressions, 5) if impressions else 0,
+    }
+
+
+def build_growth_snapshot(
+    audit: dict, page_rows: list[dict], query_rows: list[dict], start: str, end: str,
+    index_rows: list[dict] | None = None,
+    previous_page_rows: list[dict] | None = None,
+    previous_query_rows: list[dict] | None = None,
+) -> dict:
     page_metrics = [
         {
             "url": row.get("page", ""),
@@ -113,8 +130,10 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
             float(row.get("position", 0)),
         )
     )
-    total_clicks = sum(float(row.get("clicks", 0) or 0) for row in page_rows)
-    total_impressions = sum(float(row.get("impressions", 0) or 0) for row in page_rows)
+    totals = _totals(page_rows)
+    previous_page_rows = previous_page_rows or []
+    previous_query_rows = previous_query_rows or []
+    previous_totals = _totals(previous_page_rows)
     index_rows = index_rows or []
     index_summary = {
         "urls_inspected": len(index_rows),
@@ -127,12 +146,22 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
         "generated_at": datetime.now(CAIRO).isoformat(),
         "site": os.getenv("SEARCH_CONSOLE_SITE_URL", BLOG_URL).strip(),
         "period": {"start": start, "end": end, "data_state": "final"},
+        "comparison": {
+            "previous_start": (date.fromisoformat(start) - timedelta(days=(date.fromisoformat(end) - date.fromisoformat(start)).days + 1)).isoformat(),
+            "previous_end": (date.fromisoformat(start) - timedelta(days=1)).isoformat(),
+            "previous_query_rows": len(previous_query_rows),
+            "previous_page_rows": len(previous_page_rows),
+            "clicks_delta": round(totals["clicks"] - previous_totals["clicks"], 2),
+            "impressions_delta": round(totals["impressions"] - previous_totals["impressions"], 2),
+            "ctr_delta": round(totals["ctr"] - previous_totals["ctr"], 5),
+            "previous_totals": previous_totals,
+        },
         "measurement": {
             "pages_with_data": len(page_rows),
             "queries_with_data": len(query_rows),
-            "clicks": round(total_clicks, 2),
-            "impressions": round(total_impressions, 2),
-            "ctr": round(total_clicks / total_impressions, 4) if total_impressions else 0,
+            "clicks": totals["clicks"],
+            "impressions": totals["impressions"],
+            "ctr": totals["ctr"],
             "query_opportunities": len(query_opportunities),
             "page_opportunities": sum(1 for item in priorities["priorities"] if any(reason in item["reasons"] for reason in ("HIGH_IMPRESSIONS_LOW_CTR", "RANKING_NEAR_PAGE_ONE"))),
             "pages_in_technical_backlog": sum(1 for item in priorities["priorities"] if any(reason != "NO_SEARCH_CONSOLE_ROW" for reason in item["reasons"])),
@@ -147,6 +176,8 @@ def build_growth_snapshot(audit: dict, page_rows: list[dict], query_rows: list[d
         "query_opportunities": query_opportunities[:250],
         "page_metrics": page_rows,
         "query_metrics": query_rows,
+        "previous_page_metrics": previous_page_rows,
+        "previous_query_metrics": previous_query_rows,
     }
 
 
@@ -158,16 +189,25 @@ def main() -> int:
     cairo_today = datetime.now(CAIRO).date()
     end_date = cairo_today - timedelta(days=2)
     start_date = end_date - timedelta(days=days - 1)
+    previous_end = start_date - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=days - 1)
+
     service = _gsc_service()
     page_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["page"])
     query_rows = _query(service, site, start_date.isoformat(), end_date.isoformat(), ["query", "page"])
+    previous_page_rows = _query(service, site, previous_start.isoformat(), previous_end.isoformat(), ["page"])
+    previous_query_rows = _query(service, site, previous_start.isoformat(), previous_end.isoformat(), ["query", "page"])
+
     audit = json.loads(Path("artifacts/seo-audit/report.json").read_text(encoding="utf-8"))
     audit_urls = [row.get("url", "") for row in audit.get("posts", []) if row.get("url")]
     index_limit = max(1, min(200, int(os.getenv("SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT", "100"))))
     index_rows = inspect_index_status(service, site, audit_urls, limit=index_limit)
     snapshot = build_growth_snapshot(
-        audit, page_rows, query_rows, start_date.isoformat(), end_date.isoformat(), index_rows=index_rows
+        audit, page_rows, query_rows, start_date.isoformat(), end_date.isoformat(),
+        index_rows=index_rows, previous_page_rows=previous_page_rows,
+        previous_query_rows=previous_query_rows,
     )
+
     out = Path("artifacts/seo-audit")
     out.mkdir(parents=True, exist_ok=True)
     (out / "search-console-growth.json").write_text(
@@ -177,11 +217,22 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=["page", "clicks", "impressions", "ctr", "position"])
         writer.writeheader()
         writer.writerows(page_rows)
+    with (out / "search-console-queries.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["query", "page", "clicks", "impressions", "ctr", "position"])
+        writer.writeheader()
+        writer.writerows(query_rows)
     (out / "growth-priorities.json").write_text(
         json.dumps(snapshot["page_priorities"], ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+    from search_console_growth_ledger import write_growth_ledger
+    from sheets import create_service
+    sheet_service = create_service(_service_account_info())
+    ledger_result = write_growth_ledger(snapshot, sheet_service, _sheet_id())
     print(json.dumps({
         "measurement": snapshot["measurement"],
+        "comparison": snapshot["comparison"],
+        "ledger": ledger_result,
         "url_inspection": {
             key: value for key, value in snapshot["url_inspection"].items() if key != "results"
         },
