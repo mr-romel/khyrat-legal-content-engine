@@ -81,3 +81,17 @@ A further integration review found a configuration mismatch in the Search GEO ba
 Corrected the GEO runner to use the shared `_sheet_id()` resolver, aligned its default content range with the live sheet schema (`Content!A:BG`), and passed `GOOGLE_SHEET_URL` into the GitHub Actions environment. Added tests for URL fallback and explicit-ID precedence, and included those tests in the organic-growth workflow and its push path filters.
 
 Verification boundary: the files and workflow configuration are committed, but this session has not obtained a GitHub Actions run result or a live Google API execution result. Therefore tests, Search Console extraction, and Google Sheets writes remain unverified until the workflow produces a successful run and its artifact/logs are inspected.
+
+## Free-only automation profile — 2026-11-02
+
+The organic growth workflow is configured to use only the standard `ubuntu-latest` GitHub-hosted runner and built-in/free Google services:
+- Google Search Console API for performance data (Google documents this API as free of charge, subject to quotas).
+- Google Sheets API for the evidence ledger (standard API use is currently documented as no additional cost, subject to per-minute quotas).
+- GitHub Actions on this repository's public visibility, using a standard runner (GitHub documents standard hosted runner usage in public repositories as free).
+- Blogger public site and feed endpoints for technical auditing.
+
+Windsor.ai is not a runtime dependency of this workflow. No paid AI generation API is called by the organic growth workflow. Artifact retention was reduced from 90 to 30 days to limit storage accumulation.
+
+Cost boundary: this statement applies to the organic SEO/GEO measurement and prioritization loop, not every separate content-generation or media-publishing workflow in the repository. Google API quotas and GitHub platform policies still apply. Any paid service used by a separate publishing/media workflow must be audited separately before claiming the entire content engine is free.
+
+Execution boundary remains unchanged: public repository visibility and a configured schedule prove the free execution path is available, not that a live run has succeeded. A successful Actions run, non-empty Search Console data where available, and successful Google Sheets ledger writes are still required for operational certification.
