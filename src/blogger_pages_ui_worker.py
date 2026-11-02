@@ -64,10 +64,25 @@ def main() -> int:
         print(f"Blogger static page {'updated' if page_id else 'published'}: {title}; editor={result.get('editor_url','')}")
         time.sleep(1.0)
 
-    verified = {item["title"].casefold(): item for item in _public_pages()}
-    missing = [page["title"] for page in PAGES if page["title"].casefold() not in verified]
+    verified: dict[str, dict[str, str]] = {}
+    missing: list[str] = []
+    # Blogger's public Pages feed is eventually consistent after UI publication.
+    # Retry before declaring a newly published page missing; this also prevents
+    # duplicate page creation on the next workflow run.
+    for attempt in range(1, 9):
+        try:
+            verified = {item["title"].casefold(): item for item in _public_pages()}
+            missing = [page["title"] for page in PAGES if page["title"].casefold() not in verified]
+        except Exception as exc:
+            missing = [page["title"] for page in PAGES]
+            print(f"Blogger public Pages feed verification attempt {attempt}/8 failed: {exc}")
+        if not missing:
+            break
+        print(f"Blogger public Pages feed is still catching up (attempt {attempt}/8); missing={missing}")
+        if attempt < 8:
+            time.sleep(3)
     if missing:
-        raise RuntimeError("Static-page publication verification failed; pages not found in public Blogger feed: " + ", ".join(missing))
+        raise RuntimeError("Static-page publication verification failed after feed retries; pages not found: " + ", ".join(missing))
     for page in PAGES:
         item = verified[page["title"].casefold()]
         print(f"Blogger static page verified: {page['title']} -> {item.get('url', '')}")
