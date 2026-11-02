@@ -42,6 +42,6 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
-          BLOGGER_SITE_TITLE: "اسأل محمود - مستشار قانوني للشركات"
-          BLOGGER_SITE_DESCRIPTION: "محتوى قانوني عملي للشركات وأصحاب الأعمال والإدارة والموارد البشرية حول العقود والعمل والشركات والمنازعات والإجراءات القانونية في مصر."
+          BLOGGER_SITE_TITLE: "اسأل محمود | محمود خيرت - مستشار قانوني للشركات"
+          BLOGGER_SITE_DESCRIPTION: "اسأل محمود؛ المنصة القانونية لمحمود خيرت رجب، المحامي والمستشار القانوني للشركات في مصر. شروحات عملية للعقود والعمل والشركات والمنازعات."
         run: PYTHONPATH=src python src/blogger_identity_worker.py
