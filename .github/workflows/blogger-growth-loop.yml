@@ -11,6 +11,7 @@ on:
       - "scripts/run_blogger_growth_loop.py"
       - "scripts/run_search_geo.py"
       - "src/search_geo.py"
+      - "src/search_console_growth_ledger.py"
       - "src/blogger_seo_audit.py"
       - "src/blogger_search_console_prioritizer.py"
       - "tests/test_blogger_growth_loop.py"
