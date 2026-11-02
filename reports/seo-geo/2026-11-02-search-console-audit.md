@@ -54,3 +54,22 @@ A forced refresh was also attempted but rejected because the connected Windsor.a
 
 ## Decision
 Do not generate an invented keyword list or report zero traffic based on this connector response. First restore a verified, non-empty Search Console data path; then run the opportunity analysis and publish evidence-linked ledger records.
+
+
+## Implementation update — 2026-11-02
+The repository already contained a direct Google Search Console API client and a scheduled Blogger Organic Growth Loop. The growth loop was extended rather than introducing Windsor.ai as a required dependency.
+
+Implemented:
+- Equal-length current-versus-previous Search Console windows for both page and query/page dimensions.
+- Period comparison metrics for clicks, impressions and CTR.
+- Persistent, idempotent Google Sheets tabs: `SEOOpportunityLog` and `SEOGrowthRuns`.
+- Evidence-linked opportunity rows with observed query, page, clicks, impressions, CTR, average position, legal cluster, intent, opportunity type, priority score, recommended action, baseline values, and period deltas.
+- Stable SHA-256 IDs to prevent duplicate ledger rows on workflow retries.
+- A guard that logs empty source runs as `EMPTY_SOURCE` rather than presenting empty connector data as zero traffic.
+- Query CSV artifact in addition to the existing page CSV and JSON growth snapshot.
+- Regression tests for period comparison, query evidence and baseline deltas.
+
+Existing workflow `.github/workflows/blogger-growth-loop.yml` runs daily in Africa/Cairo and is configured for push-triggered execution when the growth-loop runner changes. It runs tests, the Blogger technical audit, direct Google Search Console API extraction, and the Search GEO backfill.
+
+## Execution boundary
+A GitHub commit is not proof that the Actions workflow completed, and a successful workflow is not proof of search growth. The workflow must complete with non-empty API rows and successfully write to the connected Google Sheet before the live data pipeline is considered operational. If the API returns an access error, grant the service-account email from the configured Google service-account JSON read access to the exact Search Console property. Do not paste private keys or tokens into chat.
