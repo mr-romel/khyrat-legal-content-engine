@@ -31,3 +31,21 @@ def test_blogger_labels_obey_utf8_byte_budget():
     ])
     assert labels
     assert sum(len(label.encode("utf-8")) for label in labels) + len(labels) - 1 <= 180
+
+
+def test_article_schema_uses_live_author_profile_page_and_official_profiles():
+    import json
+    from blogger_publisher import build_article_html
+
+    html = build_article_html(
+        "عنوان قانوني", "موضوع", "نص قانوني", "", "", [],
+        article={"lead": "مقدمة", "meta_description": "وصف قانوني", "sections": []},
+    )
+    raw = html.split('type="application/ld+json">', 1)[1].split("</script>", 1)[0]
+    schema = json.loads(raw)
+    graph = schema["@graph"]
+    post = next(item for item in graph if item.get("@type") == "BlogPosting")
+    author = post["author"]
+    assert author["url"] == "https://askmahmoudkhyrat.blogspot.com/p/blog-page_07.html"
+    assert "https://www.facebook.com/AskMahmoudNow" in author["sameAs"]
+    assert "https://www.linkedin.com/in/mahmoud-khyrat" in author["sameAs"]
