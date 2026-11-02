@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   organic-growth:
+    # Standard GitHub-hosted Linux runner; this repository is public, so Actions minutes are free.
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -61,4 +62,4 @@ jobs:
           name: blogger-organic-growth-report
           path: artifacts/seo-audit/
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: 30
