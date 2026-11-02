@@ -49,3 +49,4 @@ def test_article_schema_uses_live_author_profile_page_and_official_profiles():
     assert author["url"] == "https://askmahmoudkhyrat.blogspot.com/p/blog-page_07.html"
     assert "https://www.facebook.com/AskMahmoudNow" in author["sameAs"]
     assert "https://www.linkedin.com/in/mahmoud-khyrat" in author["sameAs"]
+    assert "https://www.youtube.com/@everything101-mhrm" in author["sameAs"]
