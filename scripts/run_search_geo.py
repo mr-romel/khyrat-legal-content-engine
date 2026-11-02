@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import os
 
-from config import _service_account_info, _required, _optional
+from config import _service_account_info, _sheet_id, _optional
 from sheets import create_service, get_values, row_to_dict, _execute_with_retry, _ensure_sheet
 from search_geo import build_metadata, SEARCH_GEO_HEADERS
 
 
 def main() -> int:
     service = create_service(_service_account_info())
-    spreadsheet_id = _required("GOOGLE_SHEET_ID")
-    content_range = _optional("GOOGLE_SHEET_RANGE", "Content!A:AF")
+    spreadsheet_id = _sheet_id()
+    content_range = _optional("GOOGLE_SHEET_RANGE", "Content!A:BG")
 
     rows = get_values(service, spreadsheet_id, content_range)
     if not rows:
