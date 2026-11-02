@@ -392,26 +392,15 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
             for item in faq if isinstance(item, dict) and str(item.get("question", "")).strip() and str(item.get("answer", "")).strip()
         ) + "</section>"
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page_07.html"  # verified live Blogger contact/profile page
-    graph = [
-        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"datePublished":now_iso,"dateModified":now_iso,"author":{"@type":"Person","name":"محمود خيرت","url":author_url,"sameAs":[LINKEDIN_URL,FACEBOOK_URL,YOUTUBE_URL]},"publisher":{"@type":"Person","name":"محمود خيرت","url":author_url},"keywords":keywords or _tags(topic)},
-        {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود","item":DEFAULT_BLOG_URL},{"@type":"ListItem","position":2,"name":title}]}
-    ]
-    if faq:
-        faq_entities = [
-            {
-                "@type": "Question",
-                "name": str(x.get("question")),
-                "acceptedAnswer": {"@type": "Answer", "text": str(x.get("answer"))},
-            }
-            for x in faq
-            if isinstance(x, dict) and x.get("question") and x.get("answer")
-        ]
-        if faq_entities:
-            graph.append({"@type": "FAQPage", "mainEntity": faq_entities})
-    # JSON-LD is inside a script element; HTML-escaping the JSON can break parsers.
-    schema = json.dumps({"@context":"https://schema.org","@graph":graph}, ensure_ascii=False).replace("</script>", "<\\/script>")
+    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page.html"  # canonical author ProfilePage
+    byline = (
+        f'<p class="article-byline">بقلم '
+        f'<span itemprop="author" itemscope itemtype="https://schema.org/Person">'
+        f'<a itemprop="url" href="{html.escape(author_url, quote=True)}">'
+        f'<span itemprop="name">محمود خيرت رجب</span></a></span>'
+        f' — مستشار قانوني للشركات · '
+        f'<a rel="me" href="{YOUTUBE_URL}">قناة يوتيوب الرسمية</a></p>'
+    )
 
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
     related_html = f'<section><h2>اقرأ أيضًا</h2><ul>{rel}</ul></section>' if rel else ""
@@ -449,7 +438,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
         else:
             sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
     schema_html = f'<script type="application/ld+json">{schema}</script>'
-    return f'{schema_html}<article class="khyrat-legal-article">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
+    return f'<article class="khyrat-legal-article" itemscope itemtype="https://schema.org/BlogPosting"><meta itemprop="headline" content="{html.escape(title, quote=True)}"><meta itemprop="description" content="{html.escape(meta_description or lead[:180], quote=True)}">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
     """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
