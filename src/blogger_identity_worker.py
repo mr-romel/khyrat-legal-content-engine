@@ -8,7 +8,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from blogger_ui_publisher import publish_page_ui, resolve_blog_id_ui
+from blogger_ui_publisher import resolve_blog_id_ui
 from config import load_blogger_config
 
 BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
@@ -528,17 +528,15 @@ def _ensure_static_pages(page, bid: str) -> int:
 
     missing = [title for title in PAGE_TITLES if title not in existing_titles]
     print(f"Blogger static-page audit: existing={sorted(existing_titles)} missing={missing}")
-    created = 0
-    for title in missing:
-        result = publish_page_ui(
-            title=title,
-            content_html=PAGE_CONTENT[title],
-            blog_id=bid,
+    # Static-page creation and updates belong to blogger_pages_ui_worker.py.
+    # This identity worker already runs inside a Playwright Sync context; calling
+    # publish_page_ui here would nest a second Sync Playwright manager and crash.
+    if missing:
+        raise RuntimeError(
+            "Required Blogger pages must be created/updated by blogger_pages_ui_worker.py first: "
+            + ", ".join(missing)
         )
-        if not result.get("page_id"):
-            raise RuntimeError(f"Blogger static page was not assigned an ID after publication: {title}")
-        created += 1
-        print(f"Blogger static page created: {title} -> {result.get('editor_url', '')}")
+    created = 0
 
     # Reload and verify that every required page is now represented in the page list.
     page.goto(dashboard_url, wait_until="domcontentloaded", timeout=60000)
