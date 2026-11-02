@@ -73,3 +73,11 @@ Existing workflow `.github/workflows/blogger-growth-loop.yml` runs daily in Afri
 
 ## Execution boundary
 A GitHub commit is not proof that the Actions workflow completed, and a successful workflow is not proof of search growth. The workflow must complete with non-empty API rows and successfully write to the connected Google Sheet before the live data pipeline is considered operational. If the API returns an access error, grant the service-account email from the configured Google service-account JSON read access to the exact Search Console property. Do not paste private keys or tokens into chat.
+
+## Follow-up hardening — 2026-11-02
+
+A further integration review found a configuration mismatch in the Search GEO backfill: the main growth runner accepted either `GOOGLE_SHEET_ID` or the verified `GOOGLE_SHEET_URL`, while `scripts/run_search_geo.py` required only the ID secret. This could allow the Search Console ledger step to run and then fail at the GEO backfill when deployments store only the spreadsheet URL.
+
+Corrected the GEO runner to use the shared `_sheet_id()` resolver, aligned its default content range with the live sheet schema (`Content!A:BG`), and passed `GOOGLE_SHEET_URL` into the GitHub Actions environment. Added tests for URL fallback and explicit-ID precedence, and included those tests in the organic-growth workflow and its push path filters.
+
+Verification boundary: the files and workflow configuration are committed, but this session has not obtained a GitHub Actions run result or a live Google API execution result. Therefore tests, Search Console extraction, and Google Sheets writes remain unverified until the workflow produces a successful run and its artifact/logs are inspected.
