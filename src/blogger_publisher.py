@@ -15,6 +15,7 @@ BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
 DEFAULT_BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
 FACEBOOK_URL = "https://www.facebook.com/AskMahmoudNow"
 LINKEDIN_URL = "https://www.linkedin.com/in/mahmoud-khyrat"
+YOUTUBE_URL = "https://www.youtube.com/@everything101-mhrm"
 BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 WHATSAPP_URL = "https://wa.me/201022718375"
 SUGGEST_URL = "https://suggestqueries.google.com/complete/search"
@@ -394,7 +395,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
     now_iso = datetime.now(timezone.utc).isoformat()
     author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page_07.html"  # verified live Blogger contact/profile page
     graph = [
-        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"datePublished":now_iso,"dateModified":now_iso,"author":{"@type":"Person","name":"محمود خيرت","url":author_url,"sameAs":[LINKEDIN_URL,FACEBOOK_URL]},"publisher":{"@type":"Person","name":"محمود خيرت","url":author_url},"keywords":keywords or _tags(topic)},
+        {"@type":"BlogPosting","headline":title,"description":meta_description or lead[:180],"image":[image_url] if image_url else [],"datePublished":now_iso,"dateModified":now_iso,"author":{"@type":"Person","name":"محمود خيرت","url":author_url,"sameAs":[LINKEDIN_URL,FACEBOOK_URL,YOUTUBE_URL]},"publisher":{"@type":"Person","name":"محمود خيرت","url":author_url},"keywords":keywords or _tags(topic)},
         {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"اسأل محمود","item":DEFAULT_BLOG_URL},{"@type":"ListItem","position":2,"name":title}]}
     ]
     if faq:
@@ -447,7 +448,8 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                 sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
         else:
             sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
-    return f'<article class="khyrat-legal-article">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
+    schema_html = f'<script type="application/ld+json">{schema}</script>'
+    return f'{schema_html}<article class="khyrat-legal-article">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
     """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
