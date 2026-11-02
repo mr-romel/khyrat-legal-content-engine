@@ -35,6 +35,7 @@ jobs:
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
     steps:
       - uses: actions/checkout@v4
