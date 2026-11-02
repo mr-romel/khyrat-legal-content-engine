@@ -13,3 +13,5 @@ Run nonce: 2026-10-28T18:55:00Z
 Run nonce: 2026-11-01T15:45:00+02:00
 
 Run all live posts with strict legal-jurisdiction matching and complete pre-change backup: 2026-11-01T18:05:00+02:00
+
+Brand and internal-link maintenance run: 2026-11-02T19:00:00+02:00
