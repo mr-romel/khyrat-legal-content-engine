@@ -509,7 +509,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
         if not topic or not post:
             continue
         try:
-            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
             editorial = _keep_variable_comments_separate(editorial)
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "Facebook Comment Queue": json.dumps(editorial["facebook_comments"], ensure_ascii=False),
