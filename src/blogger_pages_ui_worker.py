@@ -15,6 +15,14 @@ BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").st
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID", "").strip()
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPages/1.0)"}
 
+SITE_NAV = '<nav aria-label="روابط الموقع" style="margin:0 0 22px;padding:12px 16px;border:1px solid #ddd;border-radius:10px;display:flex;flex-wrap:wrap;gap:12px"><a href="https://askmahmoudkhyrat.blogspot.com/">الرئيسية</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_03.html">الهوية الرسمية</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page.html">من نحن</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_980.html">فهرس الموضوعات</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_07.html">تواصل معنا</a></nav>'
+
+def _page_content(page):
+    content = str(page.get("content", "") or "")
+    return content if 'aria-label="روابط الموقع"' in content else SITE_NAV + content
+
+
+
 
 def _clean(value: object) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
@@ -64,7 +72,7 @@ def _publish_pages_via_api() -> bool:
 
     for page in PAGES:
         title = _clean(page.get("title", ""))
-        payload = {"title": title, "content": str(page.get("content", "") or "")}
+        payload = {"title": title, "content": _page_content(page)}
         current = existing.get(title.casefold())
         if current and str(current.get("id", "")).strip():
             if str(current.get("content", "") or "") != payload["content"]:
@@ -131,7 +139,7 @@ def main() -> int:
     by_title = {item["title"].casefold(): item for item in current_pages}
     for page in PAGES:
         title = _clean(page.get("title", ""))
-        content = str(page.get("content", "") or "")
+        content = _page_content(page)
         existing = by_title.get(title.casefold())
         if existing and re.sub(r"\s+", " ", existing.get("content", "")).strip() == re.sub(r"\s+", " ", content).strip():
             print(f"Blogger static page already current: {title} -> {existing.get('url', '')}")
