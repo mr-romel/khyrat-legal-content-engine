@@ -18,7 +18,7 @@ from facebook_publisher import FacebookPublishError, delete_post as delete_faceb
 from gemini import generate_post, generate_image_scene_from_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
-from legal_research import research_legal_topic
+from legal_research import research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
 from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -254,6 +254,21 @@ def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_s
         if len(body) > budget:
             body = body[:budget].rsplit(" ", 1)[0].rstrip()
         reviewed["linkedin_post"] = f"{body}\n\n{tag_suffix}".strip()
+
+    # Hard legal-citation gate: inspect the final platform copy and generated
+    # comments after every rewrite/fallback, immediately before returning assets.
+    publication_text = "\n".join([
+        str(reviewed.get("facebook_post", "")),
+        str(reviewed.get("linkedin_post", "")),
+        *[str(x) for x in reviewed.get("facebook_comments", [])],
+        *[str(x) for x in reviewed.get("linkedin_comments", [])],
+    ])
+    citation_issues = validate_legal_citations(publication_text, legal_sources)
+    if citation_issues:
+        details = " | ".join(citation_issues)
+        print(f"LEGAL CITATION GATE: BLOCK — {details}")
+        raise RuntimeError("LEGAL_CITATION_GATE_BLOCKED: " + details)
+    print("LEGAL CITATION GATE: PASS — no unsupported precise statutory/case references detected.")
     return reviewed
 
 
@@ -759,14 +774,12 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
             editorial = _keep_variable_comments_separate(editorial)
         except Exception as editorial_exc:
-            print(f"Editorial/comment generation unavailable — publishing post without generated engagement bundle: {editorial_exc}")
-            # Never silently publish Facebook copy verbatim as LinkedIn when editorial AI fails.
-            editorial = {
-                "facebook_post": post,
-                "linkedin_post": _linkedin_native_fallback(topic=topic, source_post=post),
-                "facebook_comments": [],
-                "linkedin_comments": [],
-            }
+            # Legal/editorial review is mandatory. Never fail open into publication
+            # when the reviewer, its evidence gate, or the deterministic citation
+            # validator fails.
+            raise RuntimeError(
+                f"MANDATORY_LEGAL_REVIEW_BLOCKED_PUBLICATION: {editorial_exc}"
+            ) from editorial_exc
         editorial["facebook_comments"] = [sanitize_social_copy(x) for x in editorial.get("facebook_comments", []) if sanitize_social_copy(x)]
         editorial["linkedin_comments"] = [sanitize_social_copy(x) for x in editorial.get("linkedin_comments", []) if sanitize_social_copy(x)]
         facebook_post = append_hashtags(sanitize_social_copy(_remove_facebook_page_link(editorial["facebook_post"])), topic)
