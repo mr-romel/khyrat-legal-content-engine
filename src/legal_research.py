@@ -113,7 +113,7 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
     """Block unsupported or fabricated precise citations before social publication."""
     value = str(text or "")
     normalized_post = _norm_legal_text(value)
-    normalized_evidence = _norm_legal_text(research_packet)
+    # Spreadsheet/user-supplied notes are leads, not verification evidence.\n    verified_packet = str(research_packet or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]\n    normalized_evidence = _norm_legal_text(verified_packet)
 
     issues: list[str] = []
     if "قانون الادارة العامة" in normalized_post:
