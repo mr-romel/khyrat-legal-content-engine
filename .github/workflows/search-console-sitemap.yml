@@ -1,0 +1,37 @@
+name: Submit Blogger Sitemap to Google Search Console
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/SEARCH_CONSOLE_SITEMAP_RUN_NOW.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-console-blogger-sitemap
+  cancel-in-progress: false
+
+jobs:
+  submit-sitemap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_SITEMAP_URL: ${{ secrets.BLOGGER_SITEMAP_URL || 'https://askmahmoudkhyrat.blogspot.com/sitemap.xml' }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Google API client
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Submit and verify Blogger sitemap
+        run: PYTHONPATH=src python src/search_console_sitemap.py
