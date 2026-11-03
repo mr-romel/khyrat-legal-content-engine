@@ -32,6 +32,7 @@ jobs:
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
           BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
           BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
         run: PYTHONPATH=src python src/blogger_pages_ui_worker.py
