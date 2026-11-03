@@ -8,6 +8,7 @@ from html import unescape
 import requests
 
 from blogger_site_setup import PAGES
+from blogger_publisher import blog_id as resolve_blog_id_api, service as blogger_service
 from blogger_ui_publisher import publish_page_ui, resolve_blog_id_ui
 
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
@@ -40,12 +41,88 @@ def _public_pages() -> list[dict[str, str]]:
     return pages
 
 
+
+def _publish_pages_via_api() -> bool:
+    """Prefer Blogger's authenticated REST API; UI automation is a fallback only."""
+    if not os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+        return False
+
+    svc = blogger_service()
+    target_blog_id = BLOG_ID or resolve_blog_id_api(svc, BLOG_URL)
+    existing: dict[str, dict] = {}
+    token = None
+    while True:
+        kwargs = {"blogId": target_blog_id, "maxResults": 100}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.pages().list(**kwargs).execute()
+        for item in data.get("items", []) or []:
+            existing[_clean(item.get("title", "")).casefold()] = item
+        token = data.get("nextPageToken")
+        if not token:
+            break
+
+    for page in PAGES:
+        title = _clean(page.get("title", ""))
+        payload = {"title": title, "content": str(page.get("content", "") or "")}
+        current = existing.get(title.casefold())
+        if current and str(current.get("id", "")).strip():
+            if str(current.get("content", "") or "") != payload["content"]:
+                result = svc.pages().update(
+                    blogId=target_blog_id,
+                    pageId=str(current["id"]),
+                    body={**current, **payload},
+                ).execute()
+                print(f"Blogger static page updated through REST API: {title}; url={result.get('url', '')}")
+            else:
+                print(f"Blogger static page already current through REST API: {title}; url={current.get('url', '')}")
+        else:
+            result = svc.pages().insert(
+                blogId=target_blog_id,
+                body=payload,
+                isDraft=False,
+            ).execute()
+            print(f"Blogger static page created through REST API: {title}; url={result.get('url', '')}")
+
+    # Verify persistence against Blogger's authenticated source of truth, not
+    # only the eventually-consistent public Pages feed.
+    verified: dict[str, dict] = {}
+    token = None
+    while True:
+        kwargs = {"blogId": target_blog_id, "maxResults": 100}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.pages().list(**kwargs).execute()
+        for item in data.get("items", []) or []:
+            verified[_clean(item.get("title", "")).casefold()] = item
+        token = data.get("nextPageToken")
+        if not token:
+            break
+
+    missing = [
+        page["title"] for page in PAGES
+        if page["title"].casefold() not in verified
+        or not str(verified[page["title"].casefold()].get("url", "")).startswith(BLOG_URL)
+    ]
+    if missing:
+        raise RuntimeError(
+            "Blogger REST API publication verification failed; missing pages or public URLs: "
+            + ", ".join(missing)
+        )
+    for page in PAGES:
+        item = verified[page["title"].casefold()]
+        print(f"Blogger static page REST-verified: {page['title']} -> {item.get('url', '')}")
+    return True
+
+
 def main() -> int:
     if os.getenv("BLOGGER_ENABLED", "true").strip().lower() not in {"1", "true", "yes", "on"}:
         print("Blogger disabled; static pages skipped.")
         return 0
+    if _publish_pages_via_api():
+        return 0
     if not os.getenv("BLOGGER_UI_STORAGE_STATE_B64", "").strip():
-        raise RuntimeError("BLOGGER_UI_STORAGE_STATE_B64 is required for UI-based Blogger static-page management.")
+        raise RuntimeError("Set BLOGGER_OAUTH_JSON for REST API publication or BLOGGER_UI_STORAGE_STATE_B64 for the UI fallback.")
     blog_id = BLOG_ID or resolve_blog_id_ui()
 
     # Read the public page feed first so retries update existing pages instead
