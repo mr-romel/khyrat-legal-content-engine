@@ -81,6 +81,51 @@ def _quote(t,topic,max_words=24):
 def _allowed(u):
     d=_domain(u); return d in COURT or d in ADMIN or d in LAWS
 
+
+
+def _norm_legal_text(value: str) -> str:
+    value = str(value or "").casefold()
+    value = re.sub(r"[إأآٱ]", "ا", value).replace("ى", "ي")
+    value = re.sub(r"[٠-٩]", lambda m: str("٠١٢٣٤٥٦٧٨٩".index(m.group(0))), value)
+    value = re.sub(r"[\u064B-\u065F\u0670ـ]", "", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def extract_precise_legal_claims(text: str) -> list[str]:
+    """Return precise legal references that must be supported by retrieved source text."""
+    value = str(text or "")
+    claims: list[str] = []
+    patterns = [
+        r"قانون\s+(?:رقم\s*)?[٠-٩0-9]+\s+لسنة\s+[٠-٩0-9]+",
+        r"المادة\s+(?:رقم\s*)?[٠-٩0-9]+(?:\s+من\s+قانون\s+[^،؛.\n]{2,100})?",
+        r"(?:الطعن|الطعن رقم)\s*(?:رقم\s*)?[٠-٩0-9]+\s+لسنة\s+[٠-٩0-9]+\s+ق(?:ضائية)?",
+        r"جلسة\s*[٠-٩0-9]{1,2}[./-][٠-٩0-9]{1,2}[./-][٠-٩0-9]{2,4}",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, value, flags=re.I):
+            claim = _clean(match.group(0))
+            if claim and claim not in claims:
+                claims.append(claim)
+    return claims
+
+
+def validate_legal_citations(text: str, research_packet: str) -> list[str]:
+    """Block unsupported or fabricated precise citations before social publication."""
+    value = str(text or "")
+    normalized_post = _norm_legal_text(value)
+    normalized_evidence = _norm_legal_text(research_packet)
+
+    issues: list[str] = []
+    if "قانون الادارة العامة" in normalized_post:
+        issues.append("اسم تشريع غير موثق/مريب: قانون الإدارة العامة؛ احذف الإسناد أو استبدله بنص مصري محدد تم التحقق منه.")
+
+    for claim in extract_precise_legal_claims(value):
+        if _norm_legal_text(claim) not in normalized_evidence:
+            issues.append(f"إحالة قانونية دقيقة لم تظهر حرفيًا في أدلة المصادر المسترجعة: {claim}")
+    return list(dict.fromkeys(issues))
+
+
+
 def research_legal_topic(topic, existing=""):
     topic=_clean(topic)
     if not topic:return _clean(existing)
@@ -106,9 +151,9 @@ def research_legal_topic(topic, existing=""):
         d=_domain(x["url"]); court="محكمة النقض" if d in COURT else ("المحكمة الإدارية العليا" if d in ADMIN else "")
         case=_case(body)
         if case and court:
-            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"]))
+            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],body[:3000]))
         elif d in LAWS:
-            records.append(("current_legislation_source","تشريع","",_date(body),_effective(body),x["title"],"",x["url"]))
+            records.append(("current_legislation_source","تشريع","",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
         f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
@@ -124,7 +169,7 @@ def research_legal_topic(topic, existing=""):
         ""
     ]
     if not records: lines.append("No sufficiently verified topic-specific court/legislation source was retrieved automatically.")
-    for i,(typ,court,case,date,effective,title,quote,url) in enumerate(records[:6],1):
-        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"URL: {url}",""]
+    for i,(typ,court,case,date,effective,title,quote,url,evidence) in enumerate(records[:6],1):
+        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"VERIFIED SOURCE TEXT (retrieved): {evidence}",f"URL: {url}",""]
     if existing: lines += ["EXISTING SHEET LEGAL SOURCES:",_clean(existing)[:8000]]
     return "\n".join(lines)
