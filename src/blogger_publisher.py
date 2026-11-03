@@ -321,7 +321,7 @@ def _tags(topic: str) -> list[str]:
 
 def _footer(topic: str) -> str:
     tags=" ".join(_tags(topic))
-    return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>للتواصل المباشر:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a></p><p>المعلومة للتوعية العامة؛ تقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
+    return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>للتواصل المباشر:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a><br><a href="{BLOGGER_URL.rstrip("/")}/p/blog-page_03.html" rel="author">الهوية الرسمية: محمود خيرت رجب</a></p><p>المعلومة للتوعية العامة؛ تقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
 
 def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
     """Find only contextually plausible published posts for future-article links."""
@@ -392,14 +392,16 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
             for item in faq if isinstance(item, dict) and str(item.get("question", "")).strip() and str(item.get("answer", "")).strip()
         ) + "</section>"
 
-    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page.html"  # canonical author ProfilePage
+    author_url = f"{DEFAULT_BLOG_URL.rstrip('/')}/p/blog-page_03.html"  # canonical author identity ProfilePage
     byline = (
         f'<p class="article-byline">بقلم '
         f'<span itemprop="author" itemscope itemtype="https://schema.org/Person">'
         f'<a itemprop="url" href="{html.escape(author_url, quote=True)}">'
         f'<span itemprop="name">محمود خيرت رجب</span></a></span>'
-        f' — مستشار قانوني للشركات · '
-        f'<a rel="me" href="{YOUTUBE_URL}">قناة يوتيوب الرسمية</a></p>'
+        f' — محامٍ ومستشار قانوني للشركات · '
+        f'<a rel="me" href="{FACEBOOK_URL}">فيسبوك</a> · '
+        f'<a rel="me" href="{LINKEDIN_URL}">لينكدإن</a> · '
+        f'<a rel="me" href="{YOUTUBE_URL}">يوتيوب الرسمي</a></p>'
     )
 
     rel = "".join(f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>' for item in related)
