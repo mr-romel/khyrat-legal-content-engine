@@ -1,0 +1,32 @@
+name: Blogger Identity Deduplication
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/IDENTITY_DEDUP_RUN_NOW.md"
+      - "src/blogger_identity_deduplicate.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: blogger-identity-deduplication
+  cancel-in-progress: false
+jobs:
+  deduplicate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Deduplicate and verify identity page
+        run: PYTHONPATH=src python src/blogger_identity_deduplicate.py
