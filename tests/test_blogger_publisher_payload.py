@@ -43,7 +43,7 @@ def test_article_schema_uses_blogger_safe_microdata_and_canonical_author_profile
     assert 'itemscope itemtype="https://schema.org/BlogPosting"' in content
     assert 'itemprop="author"' in content
     assert 'itemtype="https://schema.org/Person"' in content
-    assert 'https://askmahmoudkhyrat.blogspot.com/p/blog-page.html' in content
+    assert 'https://askmahmoudkhyrat.blogspot.com/p/blog-page_03.html' in content
     assert 'https://www.youtube.com/@everything101-mhrm' in content
     assert "<script" not in content.lower()
 
