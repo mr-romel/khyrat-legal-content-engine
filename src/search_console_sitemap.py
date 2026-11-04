@@ -19,9 +19,10 @@ def safe_call(label, callback):
         print(f"WARNING: {label} unavailable: {type(exc).__name__}: {exc}")
         return None
 
-def inspect_urls(client):
+def inspect_urls(client, extra_urls=None):
     results = []
-    for url in INSPECT_URLS:
+    urls = list(dict.fromkeys([*INSPECT_URLS, *(extra_urls or [])]))
+    for url in urls:
         data = safe_call(f"URL Inspection {url}", lambda url=url: client.urlInspection().index().inspect(body={"inspectionUrl": url, "siteUrl": BLOG_URL}).execute())
         if data is None:
             results.append({"url": url, "status": "inspection_unavailable"})
@@ -49,6 +50,19 @@ def _query_phrase(client, phrase, start, end):
                                  "position": row.get("position")} for row in rows]}
 
 
+def _query_dimension(client, dimension, start, end, limit=100):
+    body = {"startDate": start.isoformat(), "endDate": end.isoformat(),
+            "dimensions": [dimension], "rowLimit": limit}
+    data = safe_call(f"Search Analytics {dimension}", lambda: client.searchanalytics().query(siteUrl=BLOG_URL, body=body).execute())
+    rows = (data or {}).get("rows", []) or []
+    return {"dimension": dimension, "dataAvailable": data is not None,
+            "rows": [{"value": (row.get("keys") or [""])[0],
+                      "clicks": row.get("clicks", 0),
+                      "impressions": row.get("impressions", 0),
+                      "ctr": row.get("ctr", 0),
+                      "position": row.get("position")} for row in rows]}
+
+
 def query_name_visibility(client):
     end = date.today() - timedelta(days=2)
     start = end - timedelta(days=27)
@@ -72,6 +86,12 @@ def write_report(payload):
     for row in payload["analytics"].get("contentGroups", []):
         pos = f"{row['averagePosition']:.1f}" if row["averagePosition"] is not None else "—"
         lines.append(f"| {row['phrase']} | {row['clicks']} | {row['impressions']} | {row['ctr']:.1%} | {pos} |")
+    lines += ["", "## Top pages by impressions", "| Page URL | Clicks | Impressions | CTR | Average position |", "|---|---:|---:|---:|---:|"]
+    for row in payload["analytics"].get("topPages", {}).get("rows", []):
+        lines.append(f"| {row['value']} | {row['clicks']} | {row['impressions']} | {row['ctr']:.1%} | {row.get('position') if row.get('position') is not None else '—'} |")
+    lines += ["", "## Top search queries", "| Query | Clicks | Impressions | CTR | Average position |", "|---|---:|---:|---:|---:|"]
+    for row in payload["analytics"].get("topQueries", {}).get("rows", []):
+        lines.append(f"| {row['value']} | {row['clicks']} | {row['impressions']} | {row['ctr']:.1%} | {row.get('position') if row.get('position') is not None else '—'} |")
     lines += ["", "## Measurement notes", *[f"- {note}" for note in payload["analytics"].get("measurementNotes", [])]]
     lines += ["", "## URL inspection", "| URL | Verdict | Coverage | Last crawl |", "|---|---|---|---|"]
     for row in payload["urlInspection"]: lines.append(f"| {row['url']} | {row.get('verdict', row.get('status', 'unknown'))} | {row.get('coverageState', '—')} | {row.get('lastCrawlTime', '—')} |")
@@ -98,7 +118,14 @@ def main():
     sitemap = next((x for x in verified if str(x.get("path", "")).rstrip("/") == SITEMAP_URL.rstrip("/")), None)
     if sitemap is None: raise RuntimeError("Search Console did not return the sitemap after submission.")
     sitemap_report = {"path": sitemap.get("path"), "lastSubmitted": sitemap.get("lastSubmitted"), "lastDownloaded": sitemap.get("lastDownloaded"), "isPending": sitemap.get("isPending"), "warnings": sitemap.get("warnings"), "errors": sitemap.get("errors")}
-    payload = {"site": BLOG_URL, "permission": permission, "sitemap": sitemap_report, "urlInspection": inspect_urls(client), "analytics": query_name_visibility(client)}
+    analytics = query_name_visibility(client)
+    end = date.today() - timedelta(days=2)
+    start = end - timedelta(days=27)
+    analytics["topPages"] = _query_dimension(client, "page", start, end, limit=100)
+    analytics["topQueries"] = _query_dimension(client, "query", start, end, limit=100)
+    top_page_urls = [row["value"] for row in analytics["topPages"]["rows"][:20] if row.get("value")]
+    payload = {"site": BLOG_URL, "permission": permission, "sitemap": sitemap_report,
+               "urlInspection": inspect_urls(client, top_page_urls), "analytics": analytics}
     write_report(payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
