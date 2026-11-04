@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/SEARCH_CONSOLE_SITEMAP_RUN_NOW.md"
   workflow_dispatch:
+  schedule:
+    - cron: '15 4 * * 1'
 
 permissions:
   contents: read
