@@ -375,6 +375,17 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
     sections = article.get("sections") if isinstance(article.get("sections"), list) else []
     faq = article.get("faq") if isinstance(article.get("faq"), list) else []
     keywords = [str(x).strip() for x in article.get("keywords", []) if str(x).strip()] if isinstance(article.get("keywords"), list) else []
+    from search_geo import build_live_page_metadata
+    live_metadata = build_live_page_metadata(
+        title=title,
+        description=meta_description,
+        answer=lead,
+        topic=topic,
+        keywords=keywords,
+    )
+    meta_description = str(live_metadata["description"])
+    lead = str(live_metadata["answer"])
+    keywords = list(live_metadata["keywords"])
 
     img = ""
     if image_url:
