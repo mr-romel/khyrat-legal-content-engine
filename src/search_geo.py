@@ -58,9 +58,9 @@ def _clean(value: Any, limit: int = 500) -> str:
 def _slug(text: str) -> str:
     # Arabic Unicode block includes punctuation marks (including ؟), so strip
     # punctuation explicitly before applying the Arabic-letter allowlist.
-    normalized = re.sub(r"[؟،؛：:!,.…()\\[\\]{}<>«»“”‘’\\"'ـ]+", " ", str(text or "").casefold())
-    value = re.sub(r"[^\\w\\u0621-\\u064a\\u0660-\\u0669\\s-]", "", normalized)
-    value = re.sub(r"[-\\s]+", "-", value).strip("-")
+    normalized = re.sub(r"[؟،؛：:!,.…()\[\]{}<>«»“”‘’\"'ـ]+", " ", str(text or "").casefold())
+    value = re.sub(r"[^\w\u0621-\u064a\u0660-\u0669\s-]", "", normalized)
+    value = re.sub(r"[-\s]+", "-", value).strip("-")
     return value[:90] or "legal-question"
 def infer_legal_entity(topic: str, post: str = "") -> str:
     text = f"{topic} {post}"
