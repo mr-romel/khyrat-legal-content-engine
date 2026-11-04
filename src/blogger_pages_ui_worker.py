@@ -57,7 +57,7 @@ def _publish_pages_via_api() -> bool:
 
     svc = blogger_service()
     target_blog_id = BLOG_ID or resolve_blog_id_api(svc, BLOG_URL)
-    existing: dict[str, dict] = {}
+    existing: dict[str, list[dict]] = {}
     token = None
     while True:
         kwargs = {"blogId": target_blog_id, "maxResults": 100}
@@ -65,7 +65,7 @@ def _publish_pages_via_api() -> bool:
             kwargs["pageToken"] = token
         data = svc.pages().list(**kwargs).execute()
         for item in data.get("items", []) or []:
-            existing[_clean(item.get("title", "")).casefold()] = item
+            existing.setdefault(_clean(item.get("title", "")).casefold(), []).append(item)
         token = data.get("nextPageToken")
         if not token:
             break
@@ -73,7 +73,14 @@ def _publish_pages_via_api() -> bool:
     for page in PAGES:
         title = _clean(page.get("title", ""))
         payload = {"title": title, "content": _page_content(page)}
-        current = existing.get(title.casefold())
+        matches = existing.get(title.casefold(), [])
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"Duplicate Blogger pages detected for managed title {title!r}: "
+                + ", ".join(str(item.get("url", item.get("id", ""))) for item in matches)
+                + ". Refusing to publish until duplicates are resolved."
+            )
+        current = matches[0] if matches else None
         if current and str(current.get("id", "")).strip():
             if str(current.get("content", "") or "") != payload["content"]:
                 result = svc.pages().update(
