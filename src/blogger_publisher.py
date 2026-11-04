@@ -438,7 +438,26 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                 sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
         else:
             sources_html = f'<section><h2>المصادر القانونية</h2>{_paragraph_html(source_text)}</section>'
-    return f'<article class="khyrat-legal-article" itemscope itemtype="https://schema.org/BlogPosting"><meta itemprop="headline" content="{html.escape(title, quote=True)}"><meta itemprop="description" content="{html.escape(meta_description or lead[:180], quote=True)}">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
+    published_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    image_meta = f'<meta itemprop="image" content="{html.escape(image_url, quote=True)}">' if image_url else ""
+    keyword_meta = "".join(
+        f'<meta itemprop="keywords" content="{html.escape(keyword, quote=True)}">'
+        for keyword in keywords[:12]
+    )
+    publisher_meta = (
+        '<span itemprop="publisher" itemscope itemtype="https://schema.org/Organization">'
+        '<meta itemprop="name" content="مدونة اسأل محمود">'
+        f'<meta itemprop="url" content="{html.escape(DEFAULT_BLOG_URL, quote=True)}">'
+        '</span>'
+    )
+    provenance_meta = (
+        '<meta itemprop="inLanguage" content="ar-EG">'
+        f'<meta itemprop="articleSection" content="{html.escape(_clean(topic), quote=True)}">'
+        f'<meta itemprop="datePublished" content="{published_at}">'
+        f'<meta itemprop="dateModified" content="{published_at}">'
+        f'{image_meta}{keyword_meta}{publisher_meta}'
+    )
+    return f'<article class="khyrat-legal-article" itemscope itemtype="https://schema.org/BlogPosting">{provenance_meta}<meta itemprop="headline" content="{html.escape(title, quote=True)}"><meta itemprop="description" content="{html.escape(meta_description or lead[:180], quote=True)}">{img}{byline}<section class="answer-first"><h2>الإجابة المختصرة</h2>{_paragraph_html(lead)}</section>{sections_html}{faq_html}{sources_html}{related_html}{_footer(topic)}</article>'
 
 def _fallback_article(topic: str, post: str, legal_sources: str) -> dict[str, Any]:
     """Independent Blogger article; spreadsheet title/angle labels never become article copy."""
