@@ -6,6 +6,8 @@ on:
       - ".github/IDENTITY_DEDUP_RUN_NOW.md"
       - "src/blogger_identity_deduplicate.py"
   workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * *'
 permissions:
   contents: read
 concurrency:
