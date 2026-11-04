@@ -146,7 +146,7 @@ jobs:
           assert "linkedin.com/in/mahmoud-khyrat" in html
           assert "youtube.com/@everything101-mhrm" in html
           assert 'itemscope itemtype="https://schema.org/BlogPosting"' in html
-          assert "askmahmoudkhyrat.blogspot.com/p/blog-page.html" in html
+          assert "askmahmoudkhyrat.blogspot.com/p/blog-page_03.html" in html
           assert "askmahmoudkhyrat.blogspot.com" in html
           title, source, candidates = build_search_title("إنهاء عقد العمل")
           assert title
