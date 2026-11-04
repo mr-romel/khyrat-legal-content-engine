@@ -49,10 +49,10 @@ def _now() -> str:
 
 def _clean(value: Any, limit: int = 500) -> str:
     text = str(value or "")
-    text = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", text, flags=re.I | re.S)
     text = re.sub(r"<[^>]+>", " ", text)
     text = html.unescape(text)
-    text = re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
     return text[:limit]
 
 def _slug(text: str) -> str:
