@@ -151,6 +151,24 @@ def build_metadata(*, post_id: str, topic: str, post: str, platform: str, legal_
         "Updated At": _now(),
     }
 
+def build_live_page_metadata(*, title: str, description: str, answer: str, topic: str, keywords: list[str] | None = None) -> dict[str, str | list[str]]:
+    """Normalize metadata from the actual reviewed article; never invent legal claims or sources."""
+    clean_title = _clean(title, 110)
+    clean_answer = _clean(answer, 1200)
+    clean_description = _clean(description, 180) or _clean(clean_answer, 155)
+    clean_keywords = list(dict.fromkeys(_clean(item, 60) for item in (keywords or []) if _clean(item, 60)))[:12]
+    if not clean_title or not clean_answer:
+        raise ValueError("Live page metadata requires a real article title and answer-first lead.")
+    return {
+        "title": clean_title,
+        "description": clean_description,
+        "answer": clean_answer,
+        "topic": _clean(topic, 180),
+        "keywords": clean_keywords,
+        "jurisdiction": JURISDICTION,
+    }
+
+
 def record_search_geo(service, spreadsheet_id: str, *, post_id: str, topic: str, post: str, platform: str, legal_sources: str = "") -> None:
     from content_system import _append, _ensure_sheet
     from sheets import get_values
