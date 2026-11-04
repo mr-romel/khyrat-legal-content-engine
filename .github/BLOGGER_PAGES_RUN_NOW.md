@@ -25,3 +25,5 @@ Identity page internal-link rollout: 2026-11-03T16:47:00Z
 Duplicate cleanup and canonical-page republish verification: 2026-11-04T14:40:00Z
 
 Republish after disabling theme/layout UI step; navigation is managed inside page content only.
+
+Republish all managed Blogger pages after unified SEO/GEO pipeline changes: 2026-11-04T17:36:00Z
