@@ -1,0 +1,1 @@
+Run the identity-page deduplication worker and verify exactly one identity page remains.
