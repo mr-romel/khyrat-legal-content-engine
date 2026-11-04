@@ -27,3 +27,5 @@ Duplicate cleanup and canonical-page republish verification: 2026-11-04T14:40:00
 Republish after disabling theme/layout UI step; navigation is managed inside page content only.
 
 Republish all managed Blogger pages after unified SEO/GEO pipeline changes: 2026-11-04T17:36:00Z
+
+Publish and inspect canonical ProfilePage entity markup: 2026-11-04T17:45:00Z
