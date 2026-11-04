@@ -36,16 +36,3 @@ jobs:
           BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
           BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
         run: PYTHONPATH=src python src/blogger_pages_ui_worker.py
-      - name: Configure and verify visible page navigation
-        env:
-          BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
-          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
-          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
-          BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
-          BLOGGER_SITE_TITLE: "اسأل محمود | محمود خيرت - مستشار قانوني للشركات"
-          BLOGGER_SITE_DESCRIPTION: "اسأل محمود؛ المنصة القانونية لمحمود خيرت رجب، المحامي والمستشار القانوني للشركات في مصر. شروحات عملية للعقود والعمل والشركات والمنازعات."
-        run: PYTHONPATH=src python src/blogger_identity_worker.py
