@@ -1,0 +1,23 @@
+{
+  "topic": "التهديد الإلكتروني — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A modern home office desk bathed in soft natural light from a window on the right. In the foreground a mid‑20s person sits upright, gender‑neutral, wearing casual clothing. Their right hand holds a pen and is writing in a spiral notebook that lies open, the pages filled with neat, dated handwritten notes. Next to the notebook is a small USB flash drive and a coffee mug. On the left side of the desk a smartphone lies screen‑up, its display showing a chat conversation with a series of message bubbles—some marked with a red exclamation icon—to indicate an ongoing electronic threat. The phone is untouched; no fingers are scrolling or deleting. Directly above the phone, a second device—a tablet or compact digital camera—is positioned on a small stand, its lens aimed at the phone screen as if taking a photo for backup. Centered on the desk, a thin laptop is open, its screen displaying a file‑explorer window with a folder (the folder name is not readable) that suggests the user is saving the captured evidence. A sticky note with a handwritten date peeks out from the notebook’s edge. The composition is a slightly elevated, angled view that captures the phone, tablet/camera, laptop, notebook, and the person’s thoughtful expression. The lighting is warm and even, casting gentle shadows that emphasize the careful, methodical arrangement of devices and notes, conveying the act of preserving digital evidence rather than reacting impulsively.",
+  "prompt_sha256": "689f2f6e68e4901365c0baef480ff682a5390dc4da4e4f724441b61b2ba46e04",
+  "image_sha256": "fc9ef3535e296d21c42304e21dbedde2b8ea9d3b1959097e78dc32f5e790dc40",
+  "image_path": "generated/20261104-1100-R004.jpg",
+  "visual_description": "A modern home office desk bathed in soft natural light from a window on the right. In the foreground a mid‑20s person sits upright, gender‑neutral, wearing casual clothing. Their right hand holds a pen and is writing in a spiral notebook that lies open, the pages filled with neat, dated handwritten notes. Next to the notebook is a small USB flash drive and a coffee mug. On the left side of the desk a smartphone lies screen‑up, its display showing a chat conversation with a series of message bubbles—some marked with a red exclamation icon—to indicate an ongoing electronic threat. The phone is untouched; no fingers are scrolling or deleting. Directly above the phone, a second device—a tablet or compact digital camera—is positioned on a small stand, its lens aimed at the phone screen as if taking a photo for backup. Centered on the desk, a thin laptop is open, its screen displaying a file‑explorer window with a folder (the folder name is not readable) that suggests the user is saving the captured evidence. A sticky note with a handwritten date peeks out from the notebook’s edge. The composition is a slightly elevated, angled view that captures the phone, tablet/camera, laptop, notebook, and the person’s thoughtful expression. The lighting is warm and even, casting gentle shadows that emphasize the careful, methodical arrangement of devices and notes, conveying the act of preserving digital evidence rather than reacting impulsively.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 2,
+  "qa_relevance_score": 3,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Violation of mandatory NO WOMEN OR GIRLS rule.",
+    "Failure to include key objects defined in the brief (evidence-displaying phone, camera for backup, legal evidence documentation).",
+    "Anatomy: The person's hand and arm posture at the desk appears somewhat distorted."
+  ],
+  "qa_checked_image_sha256": "fc9ef3535e296d21c42304e21dbedde2b8ea9d3b1959097e78dc32f5e790dc40"
+}
