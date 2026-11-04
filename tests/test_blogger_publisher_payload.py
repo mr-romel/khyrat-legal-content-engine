@@ -45,6 +45,11 @@ def test_article_schema_uses_blogger_safe_microdata_and_canonical_author_profile
     assert 'itemtype="https://schema.org/Person"' in content
     assert 'https://askmahmoudkhyrat.blogspot.com/p/blog-page_03.html' in content
     assert 'https://www.youtube.com/@everything101-mhrm' in content
+    assert 'itemprop="datePublished"' in content
+    assert 'itemprop="dateModified"' in content
+    assert 'itemprop="publisher"' in content
+    assert 'itemprop="inLanguage" content="ar-EG"' in content
+    assert 'itemprop="articleSection"' in content
     assert "<script" not in content.lower()
 
 
