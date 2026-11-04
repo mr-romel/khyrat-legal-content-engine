@@ -21,3 +21,5 @@ REST API publication path enabled; rerun foundation pages: 2026-11-03T16:35:00+0
 Execution trigger corrected: 2026-11-03T16:42:31.082Z
 
 Identity page internal-link rollout: 2026-11-03T16:47:00Z
+
+Duplicate cleanup and canonical-page republish verification: 2026-11-04T14:40:00Z
