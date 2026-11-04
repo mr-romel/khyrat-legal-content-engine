@@ -11,6 +11,7 @@ IDENTITY_URL = BLOG_URL.rstrip("/") + "/p/blog-page_03.html"
 ABOUT_URL = BLOG_URL.rstrip("/") + "/p/blog-page.html"
 INSPECT_URLS = [BLOG_URL, IDENTITY_URL, ABOUT_URL]
 NAME_VARIANTS = ["محمود خيرت المحامي", "محمود خيرت", "محمود خيرت رجب", "اسأل محمود", "إسأل محمود", "اسال محمود", "مدونة اسأل محمود", "قناة اسأل محمود"]
+CONTENT_GROUPS = ["قانون الشركات", "قانون العمل", "العقود التجارية", "مراجعة عقود الشركات", "حقوق صاحب العمل", "إنهاء عقد العمل"]
 
 def safe_call(label, callback):
     try: return callback()
@@ -29,19 +30,37 @@ def inspect_urls(client):
         results.append({"url": url, "verdict": index.get("verdict"), "coverageState": index.get("coverageState"), "indexingState": index.get("indexingState"), "robotsTxtState": index.get("robotsTxtState"), "pageFetchState": index.get("pageFetchState"), "googleCanonical": index.get("googleCanonical"), "userCanonical": index.get("userCanonical"), "lastCrawlTime": index.get("lastCrawlTime"), "referringUrls": index.get("referringUrls", [])})
     return results
 
+def _query_phrase(client, phrase, start, end):
+    body = {"startDate": start.isoformat(), "endDate": end.isoformat(),
+            "dimensions": ["query"],
+            "dimensionFilterGroups": [{"filters": [{"dimension": "query", "operator": "contains", "expression": phrase}]}],
+            "rowLimit": 100}
+    data = safe_call(f"Search Analytics {phrase}", lambda: client.searchanalytics().query(siteUrl=BLOG_URL, body=body).execute())
+    rows = (data or {}).get("rows", []) or []
+    clicks = sum(int(row.get("clicks", 0)) for row in rows)
+    impressions = sum(int(row.get("impressions", 0)) for row in rows)
+    weighted = sum(float(row.get("position", 0)) * int(row.get("impressions", 0)) for row in rows)
+    return {"phrase": phrase, "clicks": clicks, "impressions": impressions,
+            "ctr": clicks / impressions if impressions else 0,
+            "averagePosition": weighted / impressions if impressions else None,
+            "dataAvailable": data is not None,
+            "matchingQueries": [{"query": (row.get("keys") or [""])[0], "clicks": row.get("clicks", 0),
+                                 "impressions": row.get("impressions", 0), "ctr": row.get("ctr", 0),
+                                 "position": row.get("position")} for row in rows]}
+
+
 def query_name_visibility(client):
     end = date.today() - timedelta(days=2)
     start = end - timedelta(days=27)
-    phrases = []
-    for phrase in NAME_VARIANTS:
-        body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "dimensions": ["query"], "dimensionFilterGroups": [{"filters": [{"dimension": "query", "operator": "contains", "expression": phrase}]}], "rowLimit": 100}
-        data = safe_call(f"Search Analytics {phrase}", lambda body=body: client.searchanalytics().query(siteUrl=BLOG_URL, body=body).execute())
-        rows = (data or {}).get("rows", []) or []
-        clicks = sum(int(row.get("clicks", 0)) for row in rows)
-        impressions = sum(int(row.get("impressions", 0)) for row in rows)
-        weighted = sum(float(row.get("position", 0)) * int(row.get("impressions", 0)) for row in rows)
-        phrases.append({"phrase": phrase, "clicks": clicks, "impressions": impressions, "ctr": clicks / impressions if impressions else 0, "averagePosition": weighted / impressions if impressions else None, "dataAvailable": data is not None, "matchingQueries": [{"query": (row.get("keys") or [""])[0], "clicks": row.get("clicks", 0), "impressions": row.get("impressions", 0), "ctr": row.get("ctr", 0), "position": row.get("position")} for row in rows]})
-    return {"startDate": start.isoformat(), "endDate": end.isoformat(), "phrases": phrases}
+    return {"startDate": start.isoformat(), "endDate": end.isoformat(),
+            "phrases": [_query_phrase(client, phrase, start, end) for phrase in NAME_VARIANTS],
+            "contentGroups": [_query_phrase(client, phrase, start, end) for phrase in CONTENT_GROUPS],
+            "measurementNotes": [
+                "Search Console query rows may omit anonymized low-volume searches.",
+                "Contains filters overlap; phrase totals are separate views and must not be added together.",
+                "The reporting window excludes the latest two days because recent Search Analytics data may be incomplete.",
+            ]}
+
 
 def write_report(payload):
     with open("search-visibility-report.json", "w", encoding="utf-8") as f: json.dump(payload, f, ensure_ascii=False, indent=2)
