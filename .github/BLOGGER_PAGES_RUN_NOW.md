@@ -23,3 +23,5 @@ Execution trigger corrected: 2026-11-03T16:42:31.082Z
 Identity page internal-link rollout: 2026-11-03T16:47:00Z
 
 Duplicate cleanup and canonical-page republish verification: 2026-11-04T14:40:00Z
+
+Republish after disabling theme/layout UI step; navigation is managed inside page content only.
