@@ -68,6 +68,11 @@ def write_report(payload):
     for row in payload["analytics"]["phrases"]:
         pos = f"{row['averagePosition']:.1f}" if row["averagePosition"] is not None else "—"
         lines.append(f"| {row['phrase']} | {row['clicks']} | {row['impressions']} | {row['ctr']:.1%} | {pos} |")
+    lines += ["", "## Legal-content query groups", "| Query group | Clicks | Impressions | CTR | Avg. position |", "|---|---:|---:|---:|---:|"]
+    for row in payload["analytics"].get("contentGroups", []):
+        pos = f"{row['averagePosition']:.1f}" if row["averagePosition"] is not None else "—"
+        lines.append(f"| {row['phrase']} | {row['clicks']} | {row['impressions']} | {row['ctr']:.1%} | {pos} |")
+    lines += ["", "## Measurement notes", *[f"- {note}" for note in payload["analytics"].get("measurementNotes", [])]]
     lines += ["", "## URL inspection", "| URL | Verdict | Coverage | Last crawl |", "|---|---|---|---|"]
     for row in payload["urlInspection"]: lines.append(f"| {row['url']} | {row.get('verdict', row.get('status', 'unknown'))} | {row.get('coverageState', '—')} | {row.get('lastCrawlTime', '—')} |")
     report = "\n".join(lines) + "\n"
