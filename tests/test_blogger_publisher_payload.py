@@ -65,3 +65,15 @@ def test_official_profile_page_schema_connects_youtube_identity():
     assert "https://www.youtube.com/@everything101-mhrm" in person["sameAs"]
     assert "https://www.facebook.com/AskMahmoudNow" in person["sameAs"]
     assert "https://www.linkedin.com/in/mahmoud-khyrat" in person["sameAs"]
+
+
+def test_canonical_identity_page_has_profilepage_person_entity():
+    from blogger_site_setup import PAGES
+
+    identity = next(page for page in PAGES if page["title"] == "هوية اسأل محمود")
+    assert '"@type":"ProfilePage"' in identity["content"]
+    assert '"@type":"Person"' in identity["content"]
+    assert 'blog-page_03.html#person' in identity["content"]
+    assert "facebook.com/AskMahmoudNow" in identity["content"]
+    assert "linkedin.com/in/mahmoud-khyrat" in identity["content"]
+    assert "youtube.com/@everything101-mhrm" in identity["content"]
