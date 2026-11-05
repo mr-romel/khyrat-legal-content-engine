@@ -16,6 +16,7 @@
     "2445512979193235461",
     "2552616241019305008",
     "257380329521850840",
+    "25783500817642201",
     "2607229777577527437",
     "2693088943540723493",
     "2872138824328948416",
@@ -109,14 +110,8 @@
     "9173586986861106759",
     "961694497190134881"
   ],
-  "failed_ids": [
-    {
-      "id": "25783500817642201",
-      "title": "خطوات التعامل القانوني مع التهديد الإلكتروني وكيف تحمي أدلتك الرقمية؟",
-      "error": "All configured text AI providers failed or could not support this request. groq: RuntimeError (429) | openrouter: RuntimeError (no HTTP status)"
-    }
-  ],
-  "last_batch_success_count": 2,
-  "last_title": "كيفية حماية أجرك وتعامل مع تأخير المرتب وفق قانون العمل المصري",
-  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/11/blog-post_373.html"
+  "failed_ids": [],
+  "last_batch_success_count": 1,
+  "last_title": "الإجراءات القانونية للتعامل مع التهديد الإلكتروني وحماية الدليل الرقمي في مصر",
+  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/11/blog-post_04.html"
 }
