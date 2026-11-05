@@ -1,0 +1,23 @@
+{
+  "topic": "السلطة المقيدة للإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A mid‑30s manager in business‑casual attire sits at a modern office desk, leaning slightly forward with a thoughtful expression. The camera is positioned at eye level, angled just to the right so the viewer sees the manager’s profile, the desk surface, and the stack of papers in front of them. On the desk, three distinct documents are visible: 1. A printed regulation sheet turned slightly toward the manager; a bold, underlined passage is highlighted with a bright yellow marker, and the manager’s index finger rests on that clause, emphasizing its mandatory nature. 2. An open thick manual titled “Technical Guidelines” (cover shows an abstract gear diagram, no text readable). The pages are fanned, revealing a detailed diagram and a small checklist with checkmarks, suggesting precise procedural requirements. 3. A separate sheet partially covered by the manual, bearing a large red circular stamp with a diagonal line across it, clearly indicating that the document has been cancelled or invalidated. A sleek laptop sits to the right of the papers, its screen displaying a blank spreadsheet. A ceramic coffee mug, a pen holder, and a small potted succulent add everyday office details. Soft natural light streams in from a window on the left, casting gentle shadows across the desk and highlighting the documents. The overall composition centers on the manager’s focused posture and the three papers, visually conveying the need to verify mandatory language, technical guidelines, and a prior cancelled decision before finalizing a choice.",
+  "prompt_sha256": "491e44598f6ae30c4914d635f859384a46195cfba67c7ffd415d350c45e29e16",
+  "image_sha256": "3429e1749175691bea3bb99fed3233fb3ef53b37348ba28b11278269a882098a",
+  "image_path": "generated/20261105-2000-R005.jpg",
+  "visual_description": "A mid‑30s manager in business‑casual attire sits at a modern office desk, leaning slightly forward with a thoughtful expression. The camera is positioned at eye level, angled just to the right so the viewer sees the manager’s profile, the desk surface, and the stack of papers in front of them. On the desk, three distinct documents are visible: 1. A printed regulation sheet turned slightly toward the manager; a bold, underlined passage is highlighted with a bright yellow marker, and the manager’s index finger rests on that clause, emphasizing its mandatory nature. 2. An open thick manual titled “Technical Guidelines” (cover shows an abstract gear diagram, no text readable). The pages are fanned, revealing a detailed diagram and a small checklist with checkmarks, suggesting precise procedural requirements. 3. A separate sheet partially covered by the manual, bearing a large red circular stamp with a diagonal line across it, clearly indicating that the document has been cancelled or invalidated. A sleek laptop sits to the right of the papers, its screen displaying a blank spreadsheet. A ceramic coffee mug, a pen holder, and a small potted succulent add everyday office details. Soft natural light streams in from a window on the left, casting gentle shadows across the desk and highlighting the documents. The overall composition centers on the manager’s focused posture and the three papers, visually conveying the need to verify mandatory language, technical guidelines, and a prior cancelled decision before finalizing a choice.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 6,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Severe hand anatomy defect: The fingers appear fused, distorted, and lack proper definition.",
+    "The specific document markers requested (red stamp, yellow highlight) are not clearly rendered or identifiable.",
+    "The person's tie design and sleeve area show minor generative artifacting."
+  ],
+  "qa_checked_image_sha256": "3429e1749175691bea3bb99fed3233fb3ef53b37348ba28b11278269a882098a"
+}
