@@ -112,7 +112,15 @@ def build_evidence(topic: str, post: str = "") -> str:
     return "لم تُرفق مصادر قانونية محددة في سجل المحتوى؛ يلزم التحقق من النص الرسمي أو الجهة المختصة قبل الاعتماد."
 
 def build_local_intent(topic: str, post: str = "") -> str:
-    return "EGYPT | CAIRO" if any(x in f"{topic} {post}" for x in ("القاهرة", "مصر", "محكمة", "نيابة", "وزارة", "مأمورية")) else "EGYPT"
+    """Represent the firm's real delivery model without implying nationwide court attendance."""
+    text = f"{topic} {post}"
+    online_markers = ("أونلاين", "اونلاين", "عن بعد", "عن بُعد", "استشارة", "استشارات", "استفسار")
+    case_markers = ("قضية", "دعوى", "محكمة", "ترافع", "حضور", "تنفيذ", "جنائي", "مدني", "أسرة", "عمالي")
+    if any(marker in text for marker in online_markers) and not any(marker in text for marker in case_markers):
+        return "ONLINE_CONSULTATIONS | ALL_EGYPT"
+    if any(marker in text for marker in case_markers):
+        return "CASEWORK_AND_COURT_ATTENDANCE | CAIRO_AND_GIZA"
+    return "CAIRO_AND_GIZA_CASEWORK | ALL_EGYPT_ONLINE_CONSULTATIONS"
 
 def build_page_type(intent: str, entity: str) -> str:
     if intent == "HOW_TO":
@@ -148,7 +156,11 @@ def build_metadata(*, post_id: str, topic: str, post: str, platform: str, legal_
         "SEO Title": title,
         "Meta Description": description,
         "Slug": _slug(question),
-        "GEO Summary": _clean(f"سؤال: {question} | جواب مختصر: {extract} | الاختصاص: {JURISDICTION} | المجال: {entity}", 700),
+        "GEO Summary": _clean(
+            f"سؤال: {question} | جواب مختصر: {extract} | الاختصاص: {JURISDICTION} | المجال: {entity} | "
+            "نطاق الخدمة: متابعة القضايا والحضور والترافع في القاهرة والجيزة؛ الاستشارات القانونية أونلاين لجميع محافظات مصر.",
+            700,
+        ),
         "Author/Provenance": "اسأل محمود | مسودة مولدة آليًا وتستلزم مراجعة قانونية بشرية قبل الاعتماد",
         "Updated At": _now(),
     }
