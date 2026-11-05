@@ -115,7 +115,13 @@ def build_local_intent(topic: str, post: str = "") -> str:
     """Represent the firm's real delivery model without implying nationwide court attendance."""
     text = f"{topic} {post}"
     online_markers = ("أونلاين", "اونلاين", "عن بعد", "عن بُعد", "استشارة", "استشارات", "استفسار")
-    case_markers = ("قضية", "دعوى", "محكمة", "ترافع", "حضور", "تنفيذ", "جنائي", "مدني", "أسرة", "عمالي")
+    case_markers = (
+        "قضية", "قضايا", "دعوى", "محكمة", "ترافع", "حضور", "تنفيذ",
+        "جنائي", "جريمة", "بلاغ", "محضر", "مدني", "تعويض", "مسؤولية",
+        "أسرة", "طلاق", "نفقة", "حضانة", "ميراث", "عامل", "عمال",
+        "موظف", "فصل", "مرتب", "أجر", "عقد", "شركة", "شريك", "تأسيس",
+        "نزاع تجاري", "منازعة", "إيجار",
+    )
     if any(marker in text for marker in online_markers) and not any(marker in text for marker in case_markers):
         return "ONLINE_CONSULTATIONS | ALL_EGYPT"
     if any(marker in text for marker in case_markers):
