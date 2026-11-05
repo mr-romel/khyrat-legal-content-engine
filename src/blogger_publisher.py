@@ -15,7 +15,7 @@ BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger"
 DEFAULT_BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
 FACEBOOK_URL = "https://www.facebook.com/AskMahmoudNow"
 LINKEDIN_URL = "https://www.linkedin.com/in/mahmoud-khyrat"
-YOUTUBE_URL = "https://www.youtube.com/@everything101-mhrm"
+YOUTUBE_URL = "https://www.youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA"
 BLOGGER_URL = "https://askmahmoudkhyrat.blogspot.com/"
 WHATSAPP_URL = "https://wa.me/201022718375"
 SUGGEST_URL = "https://suggestqueries.google.com/complete/search"
@@ -321,7 +321,7 @@ def _tags(topic: str) -> list[str]:
 
 def _footer(topic: str) -> str:
     tags=" ".join(_tags(topic))
-    return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>نطاق تقديم الخدمات:</strong> متابعة القضايا والحضور والترافع في القاهرة والجيزة. والاستشارات القانونية أونلاين متاحة للأفراد والشركات في جميع محافظات مصر.</p><p><strong>للتواصل المباشر وحجز موعد:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a><br><a href="{BLOGGER_URL.rstrip("/")}/p/blog-page_03.html" rel="author">الهوية الرسمية: محمود خيرت رجب</a></p><p>الاستفسار الأولي مجاني، أما الاستشارة التفصيلية ومراجعة المستندات فتُحدد أتعابها وفق طبيعة الموضوع. المعلومة للتوعية العامة؛ وتقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
+    return f'''<section style="margin-top:32px;padding:24px;border:1px solid #ddd;border-radius:12px"><h2>محتاج تعرف موقفك القانوني بشكل عملي؟</h2><p>لو عندك واقعة حقيقية، عقد، مشكلة أو إجراء قانوني، ابعت التفاصيل وخلّي تقييم الموقف القانوني يسبق الخطوة.</p><p><strong>نطاق تقديم الخدمات:</strong> متابعة القضايا والحضور والترافع في القاهرة والجيزة. والاستشارات القانونية أونلاين متاحة للأفراد والشركات في جميع محافظات مصر.</p><p><strong>للتواصل المباشر وحجز موعد:</strong><br><a href="{WHATSAPP_URL}" target="_blank" rel="noopener">واتساب: +20 102 271 8375</a><br><a href="{FACEBOOK_URL}" target="_blank" rel="noopener">صفحة اسأل محمود على فيسبوك</a><br><a href="{LINKEDIN_URL}" target="_blank" rel="noopener">لينكدإن: محمود خيرت</a><br><a href="{YOUTUBE_URL}" target="_blank" rel="noopener">قناة يوتيوب الرسمية</a><br><a href="{BLOGGER_URL}" target="_blank" rel="noopener">مدونة اسأل محمود</a><br><a href="{BLOGGER_URL.rstrip("/")}/p/blog-page_03.html" rel="author">الهوية الرسمية: محمود خيرت رجب</a></p><p>الاستفسار الأولي مجاني، أما الاستشارة التفصيلية ومراجعة المستندات فتُحدد أتعابها وفق طبيعة الموضوع. المعلومة للتوعية العامة؛ وتقييم الحالة الفعلية يعتمد على الوقائع والمستندات والاختصاص القانوني.</p><p>{html.escape(tags)}</p></section>'''
 
 def _related(svc, bid: str, topic: str) -> list[dict[str,str]]:
     """Find only contextually plausible published posts for future-article links."""
@@ -409,7 +409,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
         f'<span itemprop="author" itemscope itemtype="https://schema.org/Person">'
         f'<a itemprop="url" href="{html.escape(author_url, quote=True)}">'
         f'<span itemprop="name">محمود خيرت رجب</span></a></span>'
-        f' — محامٍ ومستشار قانوني للشركات · '
+        f' — محامٍ ومستشار قانوني للأفراد والشركات · '
         f'<a rel="me" href="{FACEBOOK_URL}">فيسبوك</a> · '
         f'<a rel="me" href="{LINKEDIN_URL}">لينكدإن</a> · '
         f'<a rel="me" href="{YOUTUBE_URL}">يوتيوب الرسمي</a></p>'
