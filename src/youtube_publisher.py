@@ -146,3 +146,71 @@ def publish_youtube_short_comment(video_id: str, message: str) -> dict[str, str]
     if not comment_id:
         raise RuntimeError("YouTube API returned no comment thread ID.")
     return {"comment_id": comment_id}
+
+
+
+def update_youtube_short_description(video_id: str, description: str) -> dict[str, str]:
+    """Backfill an existing Short's description without uploading the video again.
+
+    Uses the separately authorized metadata/comment refresh token because the
+    upload-only OAuth grant does not imply permission to edit existing videos.
+    """
+    client_id = os.getenv("YOUTUBE_CLIENT_ID", "").strip()
+    client_secret = os.getenv("YOUTUBE_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip()
+    video_id = str(video_id or "").strip()
+    description = str(description or "").strip()
+    if not all((client_id, client_secret, refresh_token)):
+        raise RuntimeError(
+            "Updating existing Shorts needs YOUTUBE_COMMENT_REFRESH_TOKEN authorized with "
+            "https://www.googleapis.com/auth/youtube.force-ssl."
+        )
+    if not video_id or not description:
+        raise ValueError("YouTube video ID and non-empty description are required.")
+
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=30,
+    )
+    if not token_response.ok:
+        raise RuntimeError(
+            f"YouTube metadata OAuth refresh failed: HTTP {token_response.status_code} "
+            f"{token_response.text[:700]}"
+        )
+    access_token = token_response.json().get("access_token", "")
+    if not access_token:
+        raise RuntimeError("YouTube metadata OAuth refresh returned no access token.")
+
+    from google.oauth2.credentials import Credentials
+    credentials = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=["https://www.googleapis.com/auth/youtube.force-ssl"],
+    )
+    youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+    current = youtube.videos().list(part="snippet", id=video_id).execute()
+    items = current.get("items") or []
+    if not items:
+        raise RuntimeError(f"YouTube video {video_id} was not found or is not accessible to this channel.")
+    snippet = dict(items[0].get("snippet") or {})
+    snippet["description"] = description[:5000]
+    # Preserve all editable metadata returned by YouTube; do not overwrite title,
+    # category, tags, or language with defaults during a description-only repair.
+    snippet.setdefault("title", "معلومة قانونية #Shorts")
+    snippet.setdefault("categoryId", "25")
+    response = youtube.videos().update(
+        part="snippet",
+        body={"id": video_id, "snippet": snippet},
+    ).execute()
+    if str(response.get("id", "")).strip() != video_id:
+        raise RuntimeError("YouTube did not confirm the requested Short metadata update.")
+    return {"status": "PUBLISHED"}
