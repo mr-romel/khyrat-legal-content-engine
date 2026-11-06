@@ -167,6 +167,7 @@ def create_legal_image(
     api_key: str | None = None,
     cloudflare_account_id: str | None = None,
     cloudflare_api_token: str | None = None,
+    aspect_ratio: str = "4:5",
 ) -> str:
     """
     Generate ONE fresh editorial image for every post.
@@ -236,8 +237,13 @@ def create_legal_image(
         if account_id and api_token else ""
     )
 
-    width = 1024
-    height = 1280
+    if aspect_ratio == "9:16":
+        # Portrait-friendly dimensions supported by common diffusion backends.
+        width, height = 576, 1024
+    elif aspect_ratio == "4:5":
+        width, height = 1024, 1280
+    else:
+        raise ImageGenerationError(f"Unsupported image aspect ratio: {aspect_ratio}")
     try:
         num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "20")), 20))
     except ValueError:
@@ -339,6 +345,9 @@ def create_legal_image(
         "image_sha256": image_sha256,
         "image_path": str(output),
         "visual_description": visual_description,
+        "aspect_ratio": aspect_ratio,
+        "width": width,
+        "height": height,
         "qa_decision": "PENDING",
     }
     provenance_path = output.with_suffix(output.suffix + ".provenance.json")
