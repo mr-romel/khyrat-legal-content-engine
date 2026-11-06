@@ -199,7 +199,8 @@ jobs:
           import json, os
           from pathlib import Path
           from config import load_video_config
-          from sheets import create_service, get_values, row_to_dict, update_row
+          from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
+          from video_comments import build_video_comment_bundle, parse_published_comment_ids, valid_blogger_article_url
           from reel_publishers import publish_facebook_video, publish_facebook_video_comment
           from youtube_publisher import publish_youtube_short, publish_youtube_short_comment
 
