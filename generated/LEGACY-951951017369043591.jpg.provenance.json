@@ -1,0 +1,22 @@
+{
+  "topic": "مدى أثر القرارات المالية الحكومية الأجنبية على الشراكات والشركات في مصر: قراءة قانونية",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A modern, well‑lit office in Cairo with floor‑to‑ceiling windows letting in bright daylight. At a sleek glass‑top conference table sit two people: a middle‑aged Egyptian business executive in a crisp white shirt and dark trousers, and a legal consultant in a navy blazer, both looking intently at a spread of documents. On the table lies an open multi‑page contract; several clauses are highlighted with yellow sticky tabs and a red “Force Majeure” stamp is visible on the page. Next to the contract are a handful of foreign banknotes (U.S. dollars) and a stack of Egyptian pound notes, emphasizing currency issues. A thin laptop is open to a news‑feed screen showing a blurred headline about “foreign financial restrictions” and a small line graph with a downward arrow, suggesting recent changes in international transfer rules. A coffee mug and a digital tablet rest nearby, adding to the contemporary business setting. The composition is centered on the table, with the two figures slightly offset to the left, the contract and highlighted clauses occupying the foreground, and the laptop screen providing a subtle background cue of external financial decisions. The lighting is natural, casting soft shadows that give depth without obscuring any of the key visual elements.",
+  "prompt_sha256": "068b1830ebbd081fa7d8bf8af4cf54d4339d1fe49f390043b9902662b8e2a8b9",
+  "image_sha256": "99a991faa4c8adbc4dad294878d03ebd999498820c6eb6f689e4161b01b8480f",
+  "image_path": "generated/LEGACY-951951017369043591.jpg",
+  "visual_description": "A modern, well‑lit office in Cairo with floor‑to‑ceiling windows letting in bright daylight. At a sleek glass‑top conference table sit two people: a middle‑aged Egyptian business executive in a crisp white shirt and dark trousers, and a legal consultant in a navy blazer, both looking intently at a spread of documents. On the table lies an open multi‑page contract; several clauses are highlighted with yellow sticky tabs and a red “Force Majeure” stamp is visible on the page. Next to the contract are a handful of foreign banknotes (U.S. dollars) and a stack of Egyptian pound notes, emphasizing currency issues. A thin laptop is open to a news‑feed screen showing a blurred headline about “foreign financial restrictions” and a small line graph with a downward arrow, suggesting recent changes in international transfer rules. A coffee mug and a digital tablet rest nearby, adding to the contemporary business setting. The composition is centered on the table, with the two figures slightly offset to the left, the contract and highlighted clauses occupying the foreground, and the laptop screen providing a subtle background cue of external financial decisions. The lighting is natural, casting soft shadows that give depth without obscuring any of the key visual elements.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 3,
+  "qa_relevance_score": 7,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "A woman is clearly visible seated at the desk in the background.",
+    "The prompt explicitly requires no women or girls."
+  ],
+  "qa_checked_image_sha256": "99a991faa4c8adbc4dad294878d03ebd999498820c6eb6f689e4161b01b8480f"
+}
