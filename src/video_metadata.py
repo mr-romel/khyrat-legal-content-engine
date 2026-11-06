@@ -22,22 +22,22 @@ SUBJECT_FAMILIES = {
 
 
 def _clean(value: str, limit: int = 700) -> str:
-    text = re.sub(r"https?://\\S+", "", str(value or ""))
-    text = re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"https?://\S+", "", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip()
     return text[:limit].rstrip(" ،؛:.")
 
 
 def _public_topic(value: str) -> str:
     """Convert internal Sheet labels into a clean, audience-facing legal subject."""
     text = sanitize_topic(str(value or ""))
-    text = re.sub(r"(?i)^\\s*(?:سؤال\\s+عن|استفسار\\s+عن|موضوع)\\s+", "", text)
+    text = re.sub(r"(?i)^\s*(?:سؤال\s+عن|استفسار\s+عن|موضوع)\s+", "", text)
     text = re.sub(
-        r"(?i)\\s*(?:[—–|:؛-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
-        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle).*$",
+        r"(?i)\s*(?:[—–|:؛-]\s*)?(?:زاوية\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\s*[-_ ]?\s*list|checklist|content\s*angle|editorial\s*angle).*$",
         "",
         text,
     )
-    text = re.sub(r"\\s{2,}", " ", text).strip(" —–-:|،")
+    text = re.sub(r"\s{2,}", " ", text).strip(" —–-:|،")
     return _clean(text, 180) or "معلومة قانونية"
 
 
@@ -60,8 +60,8 @@ def _topic_family(topic: str) -> str:
 
 def _topic_aligned_body(text: str, topic: str, limit: int = 900) -> str:
     """Keep narration sentences aligned to the Reel's actual legal subject."""
-    raw = re.sub(r"https?://\\S+", "", str(text or ""))
-    sentences = [part.strip() for part in re.split(r"(?<=[؟.!])\\s+|\\n+", raw) if part.strip()]
+    raw = re.sub(r"https?://\S+", "", str(text or ""))
+    sentences = [part.strip() for part in re.split(r"(?<=[؟.!])\s+|\n+", raw) if part.strip()]
     family = _topic_family(topic)
     unrelated_families = [name for name in SUBJECT_FAMILIES if name != family]
     kept: list[str] = []
@@ -74,11 +74,11 @@ def _topic_aligned_body(text: str, topic: str, limit: int = 900) -> str:
             # A sentence that introduces a second legal subject is not copied into
             # this Reel's public metadata, even if it appeared in the same Sheet cell.
             continue
-        sentence = re.sub(r"(?i)^🎬\\s*", "", sentence).strip()
+        sentence = re.sub(r"(?i)^🎬\s*", "", sentence).strip()
         if sentence and sentence not in kept:
             kept.append(sentence)
     body = " ".join(kept)
-    body = re.sub(r"\\s{2,}", " ", body).strip()
+    body = re.sub(r"\s{2,}", " ", body).strip()
     if len(body) > limit:
         body = body[:limit].rsplit(" ", 1)[0].rstrip(" ،؛:") + "…"
     return body
@@ -123,7 +123,7 @@ def build_video_description(*, topic: str, post: str, script: str, article_url: 
         elif any(word in topic_lower for word in ("تصوير", "تسجيل", "خصوصية")):
             tags.append("#الحق_في_الخصوصية")
         lines += ["", " ".join(tags)]
-    description = "\\n".join(lines).strip()
+    description = "\n".join(lines).strip()
     if len(description) < 100:
         raise ValueError("Generated video description is unexpectedly short.")
     return description[:4900]
