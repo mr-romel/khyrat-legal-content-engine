@@ -28,8 +28,8 @@ def test_comment_bundle_has_three_to_five_comments_and_required_roles(platform):
     )
     assert 3 <= len(comments) <= 5
     assert any("askmahmoudkhyrat.blogspot.com/2026/11/work-rights.html" in item for item in comments)
-    assert any("سؤال" in item or "إيه" in item or "ما المستند" in item for item in comments)
-    assert any("الإجابة" in item or "مفيش إجابة" in item for item in comments)
+    assert any(item.startswith(("ما ", "في واقعة")) for item in comments)
+    assert any("التقييم القانوني" in item or "يتوقف" in item or "العبرة" in item for item in comments)
 
 
 def test_bundle_is_stable_for_retry_but_varies_by_video_and_platform():
@@ -60,3 +60,33 @@ def test_comment_bundle_refuses_to_run_without_the_matching_blog_article():
 def test_comment_ids_parser_is_safe():
     assert parse_published_comment_ids('["c1", "c2"]') == ["c1", "c2"]
     assert parse_published_comment_ids("not-json") == []
+
+
+
+def test_public_comments_never_echo_spreadsheet_editorial_title():
+    editorial_title = "سؤال عن التهديد بإفشاء الأسرار — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
+    comments = build_video_comment_bundle(
+        topic=editorial_title,
+        article_url="https://askmahmoudkhyrat.blogspot.com/2026/11/confidentiality.html",
+        video_id="secret_threat_reel",
+        platform="facebook",
+    )
+    combined = " ".join(comments)
+    assert "زاوية جديدة" not in combined
+    assert "Checklist" not in combined
+    assert "سؤال عن التهديد بإفشاء الأسرار" not in combined
+    assert any("الدليل" in item and "تاريخه" in item for item in comments)
+    assert any("التقييم القانوني" in item or "العبرة" in item for item in comments)
+    assert any("askmahmoudkhyrat.blogspot.com" in item for item in comments)
+
+
+def test_public_comments_are_standalone_and_professional_for_secret_threat_topic():
+    comments = build_video_comment_bundle(
+        topic="التهديد بإفشاء الأسرار — زاوية جديدة: Checklist عملية",
+        article_url="https://askmahmoudkhyrat.blogspot.com/2026/11/confidentiality.html",
+        video_id="secret_threat_reel_youtube",
+        platform="youtube",
+    )
+    assert any("مضمون التهديد" in item and "تاريخه" in item for item in comments)
+    assert any("الدليل الإلكتروني" in item or "الدليل" in item for item in comments)
+    assert all("سؤال عن" not in item and "زاوية جديدة" not in item for item in comments)
