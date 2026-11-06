@@ -76,4 +76,4 @@ def test_canonical_identity_page_has_profilepage_person_entity():
     assert 'blog-page_03.html#person' in identity["content"]
     assert "facebook.com/AskMahmoudNow" in identity["content"]
     assert "linkedin.com/in/mahmoud-khyrat" in identity["content"]
-    assert "youtube.com/@everything101-mhrm" in identity["content"]
+    assert "youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA" in identity["content"]
