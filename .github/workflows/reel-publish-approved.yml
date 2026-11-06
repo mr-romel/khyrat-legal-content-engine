@@ -99,6 +99,7 @@ jobs:
           published_fb_ids=[]
           published_yt_ids=[]
           published_without_ids=[]
+          published_records=[]
           review_rows=[]
           for _n, _raw in enumerate(values[1:], start=2):
               _row=mapped(_raw)
@@ -113,12 +114,19 @@ jobs:
                   if _fb: published_fb_ids.append(_n)
                   if _yt: published_yt_ids.append(_n)
                   if not _fb and not _yt: published_without_ids.append(_n)
+                  published_records.append({
+                      "row":_n,
+                      "topic":str(_row.get("الموضوع","")).strip(),
+                      "facebook_video_id":_fb,
+                      "youtube_url":str(_row.get("Reel YouTube URL","")).strip(),
+                  })
               if _status == "REVIEW":
                   review_rows.append(_n)
           print("REEL_QUEUE_SNAPSHOT="+json.dumps(queue_snapshot,ensure_ascii=False,sort_keys=True))
           print("REEL_PUBLISHED_ID_AUDIT="+json.dumps({
               "facebook_id_count":len(published_fb_ids),"youtube_id_count":len(published_yt_ids),
               "published_without_any_video_id":published_without_ids[:30],
+              "published_reels":published_records[:30],
               "review_rows_waiting_approval":review_rows[:30],
           },ensure_ascii=False,sort_keys=True))
           # Prioritize oldest new approvals, then partial retries, then metadata/comment backfills.
