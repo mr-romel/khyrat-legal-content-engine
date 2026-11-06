@@ -62,7 +62,7 @@ def build_video_description(*, topic: str, post: str, script: str, article_url: 
         elif any(word in topic_lower for word in ("جنائي", "جريمة", "ابتزاز")):
             tags.append("#القانون_الجنائي")
         lines += ["", " ".join(tags)]
-    description = "\\n".join(lines).strip()
+    description = "\n".join(lines).strip()
     if len(description) < 100:
         raise ValueError("Generated video description is unexpectedly short.")
     return description[:4900]
