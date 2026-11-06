@@ -201,10 +201,13 @@ def update_youtube_short_description(video_id: str, description: str) -> dict[st
     items = current.get("items") or []
     if not items:
         raise RuntimeError(f"YouTube video {video_id} was not found or is not accessible to this channel.")
-    snippet = dict(items[0].get("snippet") or {})
+    current_snippet = dict(items[0].get("snippet") or {})
+    # videos.update accepts only writable snippet fields. Preserve the existing
+    # title/category/tags/language, but omit read-only fields such as publishedAt,
+    # channelId, thumbnails, localized, and liveBroadcastContent.
+    writable_fields = ("title", "description", "tags", "categoryId", "defaultLanguage", "defaultAudioLanguage")
+    snippet = {key: current_snippet[key] for key in writable_fields if key in current_snippet}
     snippet["description"] = description[:5000]
-    # Preserve all editable metadata returned by YouTube; do not overwrite title,
-    # category, tags, or language with defaults during a description-only repair.
     snippet.setdefault("title", "معلومة قانونية #Shorts")
     snippet.setdefault("categoryId", "25")
     response = youtube.videos().update(
