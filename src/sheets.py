@@ -23,10 +23,10 @@ HEADERS = [
     "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
     "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel Last Error",
     "Reel Published At", "Reel QA Score", "Reel QA Issues",
-    "Reel YouTube ID", "Reel YouTube URL", "Facebook Post URL", "LinkedIn Post URL",
+    "Reel YouTube ID", "Reel YouTube URL", "Facebook Post URL", "LinkedIn Post URL",\n    "Reel Facebook Comments Status", "Reel Facebook Comment IDs",\n    "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
 ]
 
-SHEET_LAST_COLUMN = "BG"
+SHEET_LAST_COLUMN = "BK"
 
 T = TypeVar("T")
 
