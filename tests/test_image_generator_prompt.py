@@ -38,6 +38,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
 
     assert output.read_bytes() == b"fake-image-bytes"
     assert "negative_prompt" not in captured
+    assert (captured["width"], captured["height"]) == (1024, 1280)
     prompt = captured["prompt"]
     assert "A worker reviewing a modern employment document beside a phone at a desk." in prompt
     assert "نزاع بشأن مستندات عمل" in prompt
@@ -50,3 +51,32 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     assert provenance["prompt_sha256"]
     assert provenance["image_sha256"]
     assert provenance["qa_decision"] == "PENDING"
+
+
+
+def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured.update(json)
+        return FakeResponse()
+
+    monkeypatch.setattr(image_generator.requests, "post", fake_post)
+    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: b"vertical-image")
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    output = tmp_path / "reel-scene.jpg"
+    image_generator.create_legal_image(
+        topic="إثبات ساعات العمل",
+        image_brief="A close-up of dated work records beside a phone.",
+        visual_description="A close-up of dated work records beside a phone.",
+        post_context="The post explains how to preserve work records.",
+        output_path=str(output),
+        cloudflare_account_id="test-account",
+        cloudflare_api_token="test-token",
+        aspect_ratio="9:16",
+    )
+    assert (captured["width"], captured["height"]) == (576, 1024)
+    import json
+    provenance = json.loads((tmp_path / "reel-scene.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["aspect_ratio"] == "9:16"
