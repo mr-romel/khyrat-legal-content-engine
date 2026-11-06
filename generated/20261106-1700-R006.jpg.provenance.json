@@ -1,0 +1,23 @@
+{
+  "topic": "التهديد بإفشاء الأسرار — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/bytedance/stable-diffusion-xl-lightning",
+  "prompt": "A tense, close‑up scene set in a modest living‑room during late afternoon. A gender‑neutral young adult sits on a couch, hunched over a smartphone held in both hands. The phone’s screen is visible from an over‑the‑shoulder angle: a generic instant‑messaging chat window with a single incoming message bubble highlighted in red, containing an ominous warning icon (exclamation mark) that suggests a threat to expose private material. The user’s face is drawn, eyes wide, brows furrowed, lips slightly open as if caught between anger and fear. To the right of the couch, a slim laptop rests on a coffee table, its open display showing a file‑manager window with a folder icon labeled “Conversation Backup” and a highlighted file representing the saved chat log. A second hand, the user’s left, hovers above the phone’s screen, fingers poised over a virtual “screenshot” button on the phone’s UI, while the right hand lingers near a trash‑can icon on the screen, indicating the temptation to delete the conversation. The room is lit by soft natural light spilling through a nearby window, casting gentle shadows that emphasize the subject’s tense posture. A single desk lamp adds a warm glow to the laptop, highlighting the saved evidence. The composition centers on the phone and the user’s conflicted gestures, conveying the critical moment of deciding whether to preserve digital proof or impulsively erase it.",
+  "prompt_sha256": "337c074adcdb3c6c1dfa82fa1dbe251bd5211ee171c008d7080b7c6013b7970d",
+  "image_sha256": "de0cb7c6d4bfe8606c98538d96005f7063cf960bdf20247a7857e779896c4de7",
+  "image_path": "generated/20261106-1700-R006.jpg",
+  "visual_description": "A tense, close‑up scene set in a modest living‑room during late afternoon. A gender‑neutral young adult sits on a couch, hunched over a smartphone held in both hands. The phone’s screen is visible from an over‑the‑shoulder angle: a generic instant‑messaging chat window with a single incoming message bubble highlighted in red, containing an ominous warning icon (exclamation mark) that suggests a threat to expose private material. The user’s face is drawn, eyes wide, brows furrowed, lips slightly open as if caught between anger and fear. To the right of the couch, a slim laptop rests on a coffee table, its open display showing a file‑manager window with a folder icon labeled “Conversation Backup” and a highlighted file representing the saved chat log. A second hand, the user’s left, hovers above the phone’s screen, fingers poised over a virtual “screenshot” button on the phone’s UI, while the right hand lingers near a trash‑can icon on the screen, indicating the temptation to delete the conversation. The room is lit by soft natural light spilling through a nearby window, casting gentle shadows that emphasize the subject’s tense posture. A single desk lamp adds a warm glow to the laptop, highlighting the saved evidence. The composition centers on the phone and the user’s conflicted gestures, conveying the critical moment of deciding whether to preserve digital proof or impulsively erase it.",
+  "qa_decision": "PASS",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 4,
+  "qa_relevance_score": 6,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Violates gender policy: A woman is depicted.",
+    "Style mismatch: The generated image is a loose sketch/illustration, not the requested close-up photographic scene.",
+    "Content mismatch: Missing the technical requirements of the screen view, laptop, and specific interface details."
+  ],
+  "qa_checked_image_sha256": "de0cb7c6d4bfe8606c98538d96005f7063cf960bdf20247a7857e779896c4de7"
+}
