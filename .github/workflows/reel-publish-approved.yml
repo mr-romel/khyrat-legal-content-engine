@@ -7,7 +7,7 @@ on:
       - ".github/workflows/reel-publish-approved.yml"
       - "workers/telegram-control/src/index.js"
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BK' }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BM' }}
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
@@ -64,7 +64,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BK' }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BM' }}
         run: |
           python - <<'PY'
           import json, os
@@ -111,6 +111,12 @@ jobs:
                       str(row.get("Blogger Status","")).strip().upper() == "PUBLISHED"
                       and valid_blogger_article_url(str(row.get("Blogger URL","")).strip())
                   )
+                  fb_description_status = str(row.get("Reel Facebook Description Status","")).strip().upper()
+                  yt_description_status = str(row.get("Reel YouTube Description Status","")).strip().upper()
+                  metadata_pending = status == "PUBLISHED" and (
+                      (bool(fb_id) and fb_description_status != "PUBLISHED")
+                      or (bool(yt_id) and yt_description_status != "PUBLISHED")
+                  )
                   comments_pending = status == "PUBLISHED" and blogger_ready and (
                       (bool(fb_id) and fb_comment_status != "PUBLISHED")
                       or (bool(yt_id) and yt_comment_status != "PUBLISHED")
@@ -118,10 +124,11 @@ jobs:
                   # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
                   backfill_youtube = status == "PUBLISHED" and bool(fb_id) and not yt_id
-                  if (eligible_status or backfill_youtube or comments_pending) and run_id:
+                  if (eligible_status or backfill_youtube or comments_pending or metadata_pending) and run_id:
+                      task = "metadata" if metadata_pending and not backfill_youtube else "comments" if comments_pending and not backfill_youtube else "publish"
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                          out.write(f"row_number={n}\nrun_id={run_id}\ntask={'comments' if comments_pending and not backfill_youtube else 'publish'}\n")
-                      print(f"Approved Reel/comment task found at row {n}; status={status}; comments_pending={comments_pending}; run_id={run_id}")
+                          out.write(f"row_number={n}\\nrun_id={run_id}\\ntask={task}\\n")
+                      print(f"Approved Reel queue item row={n}; status={status}; task={task}; metadata_pending={metadata_pending}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
           # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
           # Telegram's callback did not persist Reel Approval, so reconcile only this exact run ID.
@@ -156,7 +163,7 @@ jobs:
           exit 0
 
       - name: Download reviewed reel package
-        if: ${{ steps.target.outputs.row_number != '' && steps.target.outputs.task != 'comments' }}
+        if: ${{ steps.target.outputs.row_number != '' && steps.target.outputs.task == 'publish' }}
         env:
           GH_TOKEN: ${{ github.token }}
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
@@ -202,20 +209,20 @@ jobs:
           from config import load_video_config
           from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
           from video_comments import build_video_comment_bundle, parse_published_comment_ids, valid_blogger_article_url
-          from reel_publishers import publish_facebook_video, publish_facebook_video_comment
-          from youtube_publisher import publish_youtube_short, publish_youtube_short_comment
+          from reel_publishers import publish_facebook_video, publish_facebook_video_comment, update_facebook_video_description
+          from youtube_publisher import publish_youtube_short, publish_youtube_short_comment, update_youtube_short_description\n          from video_metadata import build_video_description
 
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
           sheet=cfg['sheet_range'].split('!',1)[0]
           ensure_headers(svc,cfg['sheet_id'],sheet)
-          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BK')
+          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BM')
           headers=values[0] if values else []
           row_number=int(os.environ['ROW_NUMBER'])
           row=row_to_dict(values[row_number-1], headers)
           run_id=str(os.environ.get('RUN_ID','')).strip()
           task=str(os.environ.get('TASK','publish')).strip().lower()
-          if task == 'comments':
+          if task in {'comments','metadata'}:
               video=None
               plan={}
           else:
@@ -240,7 +247,7 @@ jobs:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
           if task != 'comments':
               plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
-          fb_caption=str(plan.get('facebook_caption','') or row.get('المحتوى','')).strip()
+          topic=str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))).strip()\n          source_post=str(row.get('المحتوى','')).strip()\n          script=str(plan.get('script', row.get('Reel Script',''))).strip()\n          article_url=str(row.get('Blogger URL','')).strip()\n          fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')\n          yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
@@ -261,7 +268,7 @@ jobs:
                       fb=publish_facebook_video(str(video), fb_caption)
                       result['facebook']=fb
                       fresh_facebook=True
-                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Facebook Description Status':'PUBLISHED', 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
                   except Exception as exc:
                       errors.append('Facebook: '+str(exc))
     
@@ -276,10 +283,27 @@ jobs:
                       yt=publish_youtube_short(str(video), title, description)
                       result['youtube']=yt
                       fresh_youtube=True
-                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel YouTube Description Status':'PUBLISHED','Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
                   except Exception as exc:
                       errors.append('YouTube: '+str(exc))
     
+          # Backfill descriptions on existing videos without re-uploading either platform.
+          if task in {'publish','metadata'}:
+              fb_existing_id=str(result['facebook'].get('video_id','')).strip()
+              yt_existing_id=str(result['youtube'].get('video_id','')).strip()
+              if fb_existing_id and str(row.get('Reel Facebook Description Status','')).strip().upper() != 'PUBLISHED':
+                  try:
+                      update_facebook_video_description(fb_existing_id, fb_caption)
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook Description Status':'PUBLISHED'})
+                  except Exception as exc:
+                      errors.append('Facebook description: '+str(exc))
+              if yt_existing_id and str(row.get('Reel YouTube Description Status','')).strip().upper() != 'PUBLISHED':
+                  try:
+                      update_youtube_short_description(yt_existing_id, yt_description)
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Description Status':'PUBLISHED'})
+                  except Exception as exc:
+                      errors.append('YouTube description: '+str(exc))
+
           # Publish 3-5 first-party comments per platform: topic-linked Q&A plus the exact Blogger article CTA.
           # Persist each returned ID so scheduled retries resume without duplicate comments.
           topic=str(row.get('الموضوع', plan.get('title', 'المعلومة القانونية'))).strip()
@@ -356,7 +380,7 @@ jobs:
               update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Status':status,'Reel Last Error':' | '.join(errors)[:1500],
                   'Reel Review':'Facebook published; inspect missing publication metadata' if fb_ok else 'Facebook publish failed; inspect Reel Last Error'})
               raise SystemExit(' | '.join(errors))
-          if task != 'comments' and not fb_ok: raise SystemExit('Facebook publication incomplete; not marking as published.')
+          if task == 'publish' and not fb_ok: raise SystemExit('Facebook publication incomplete; not marking as published.')
           PY
 
 
