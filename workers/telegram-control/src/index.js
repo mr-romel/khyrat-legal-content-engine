@@ -11,6 +11,9 @@ const HEADERS = [
   "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
   "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel YouTube ID", "Reel YouTube URL", "Reel Last Error",
   "Reel Published At", "Reel QA Score", "Reel QA Issues",
+  "Reel Facebook Comments Status", "Reel Facebook Comment IDs",
+  "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
+  "Reel Facebook Description Status", "Reel YouTube Description Status",
 ];
 
 const REVIEW_STATUSES = new Set(["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"]);
