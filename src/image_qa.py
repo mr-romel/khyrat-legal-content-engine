@@ -103,7 +103,7 @@ The published image must contain no women or girls, including people in the back
 
 BRAND OVERLAY RULE:
 A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_DESCRIPTOR}" is intentionally
-added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text. No platform-specific icon is used.
+added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text. No platform-specific icon is used. No platform-specific icon is used.
 Any other visible generated text, fake Arabic/English lettering, gibberish, watermark, logo, headline,
 caption, sign, document writing, or typography is a defect.
 
