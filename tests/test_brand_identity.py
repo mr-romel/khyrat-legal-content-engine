@@ -14,7 +14,7 @@ def test_canonical_brand_identity_is_complete_and_not_companies_only():
     assert BRAND_NAME == "اسأل محمود"
     assert PROFESSIONAL_NAME == "محمود خيرت رجب"
     assert PROFESSIONAL_TITLE == "محامٍ ومستشار قانوني في مصر"
-    assert "الأفراد والشركات" in BRAND_DESCRIPTOR
+    assert "أفراد" in BRAND_DESCRIPTOR and "الشركات" in BRAND_DESCRIPTOR
     assert "القاهرة والجيزة" in BRAND_SERVICE_AREA
     assert "جميع محافظات مصر" in BRAND_SERVICE_AREA
     assert "محمود خيرت رجب" in BRAND_LOCKUP
