@@ -210,7 +210,8 @@ jobs:
           from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
           from video_comments import build_video_comment_bundle, parse_published_comment_ids, valid_blogger_article_url
           from reel_publishers import publish_facebook_video, publish_facebook_video_comment, update_facebook_video_description
-          from youtube_publisher import publish_youtube_short, publish_youtube_short_comment, update_youtube_short_description\n          from video_metadata import build_video_description
+          from youtube_publisher import publish_youtube_short, publish_youtube_short_comment, update_youtube_short_description
+          from video_metadata import build_video_description
 
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
@@ -247,7 +248,12 @@ jobs:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
           if task == 'publish':
               plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
-          topic=str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))).strip()\n          source_post=str(row.get('المحتوى','')).strip()\n          script=str(plan.get('script', row.get('Reel Script',''))).strip()\n          article_url=str(row.get('Blogger URL','')).strip()\n          fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')\n          yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
+          topic=str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))).strip()
+          source_post=str(row.get('المحتوى','')).strip()
+          script=str(plan.get('script', row.get('Reel Script',''))).strip()
+          article_url=str(row.get('Blogger URL','')).strip()
+          fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')
+          yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
