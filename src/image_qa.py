@@ -102,8 +102,8 @@ NO WOMEN OR GIRLS RULE:
 The published image must contain no women or girls, including people in the background, reflections, photographs, screens, silhouettes, or illustrations. Prefer no human figures when the relevant documents, objects, devices, or location can clearly convey the legal issue. If a person is essential, only adult men may appear. For topics about women or incidents where a woman would normally be central, inspect the scene for evidence and context without depicting a woman; do not replace her with an unrelated man. If any woman or girl is visible or likely visible, set women_or_girls_detected=true and decision=REGENERATE.
 
 BRAND OVERLAY RULE:
-A small bottom-right overlay reading "{ALLOWED_BRAND_TEXT}" plus the Facebook "f" badge is intentionally
-added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text.
+A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_DESCRIPTOR}" is intentionally
+added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text. No platform-specific icon is used.
 Any other visible generated text, fake Arabic/English lettering, gibberish, watermark, logo, headline,
 caption, sign, document writing, or typography is a defect.
 
