@@ -57,17 +57,21 @@ jobs:
         run: |
           # Remove any checkout-restored video so this run cannot pass on stale output.
           rm -rf generated/reels
+          # This persisted one-off lock once pinned daily generation to an already-published row.
+          rm -f generated/reel_source.json
           PYTHONPATH=src python src/reel_pipeline.py
           if ! find generated/reels -maxdepth 3 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
             echo "::error::Daily Reel worker completed without producing a new MP4; treating this run as failed."
             exit 1
           fi
+          # Source locks are run-local only; never commit a stale row pointer.
+          rm -f generated/reel_source.json
       - name: Persist reel package
         if: ${{ success() }}
         run: |
           git config user.name "Khyrat Legal Content Engine"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add generated/reels/
+          git add -A generated/reels/ generated/reel_source.json
           if git diff --cached --quiet; then
             echo "No reel package changes."
           else
