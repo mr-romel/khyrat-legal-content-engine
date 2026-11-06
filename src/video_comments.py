@@ -103,14 +103,10 @@ def build_video_comment_bundle(
     answer = rng.choice(answers)
     article_cta = rng.choice(article_ctas)
 
-    # Three mandatory roles: a real topic-linked question, a cautious answer, and the exact article CTA.
+    # Keep the conversation readable: question, answer, then the mandatory article CTA.
     optional = [rng.choice(extra_ctas), rng.choice(extra_questions)]
     rng.shuffle(optional)
-    comments = [article_cta, question, answer, *optional[: max(0, count - 3)]]
-    # Vary order without losing the mandatory article link or the Q&A pair.
-    fixed = comments[:3]
-    rng.shuffle(fixed)
-    return fixed + comments[3:]
+    return [question, answer, article_cta, *optional[: max(0, count - 3)]]
 
 
 def parse_published_comment_ids(value: str) -> list[str]:
