@@ -8,7 +8,7 @@
 - Service area: **متابعة القضايا في القاهرة والجيزة | استشارات أونلاين في جميع محافظات مصر**
 - Spoken sign-off: **خليك فاكر دايما ... اسأل محمود**
 
-## Visual system
+## Canonical profile bio\n\n> محمود خيرت رجب، محامٍ ومستشار قانوني في مصر. خدمات قانونية للأفراد والشركات في القضايا المدنية والجنائية والأسرة والعمل والعقود ومنازعات الشركات. متابعة القضايا بالقاهرة والجيزة واستشارات أونلاين في جميع المحافظات.\n\nUse this same bio as the baseline for Facebook, LinkedIn, YouTube, and the website. Shorten only when a platform character limit requires it; do not change the professional name, title, service scope, or geographic scope.\n\n## Visual system
 - Primary: deep navy `#0C1C30`
 - Accent: muted gold `#BE974C`
 - Text: white `#FFFFFF`
