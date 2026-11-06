@@ -30,7 +30,7 @@ jobs:
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BE' }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BK' }}
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
@@ -64,27 +64,29 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BE' }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BK' }}
         run: |
           python - <<'PY'
           import json, os
-          from sheets import create_service, get_values, row_to_dict
+          from sheets import create_service, ensure_headers, get_values, row_to_dict
+          from video_comments import valid_blogger_article_url
           credentials_raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
           if not credentials_raw:
               raise SystemExit("Google service-account credentials are missing.")
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
-          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BE").strip()
+          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BK").strip()
           # Reel control fields live after the core social columns. Always read through BC,
           # even when the shared GOOGLE_SHEET_RANGE secret is configured for a shorter workflow.
           if "!" in sheet_range:
               tab, _cols = sheet_range.split("!", 1)
           else:
               tab = "Content"
-          sheet_range = f"{tab}!A:BE"
+          sheet_range = f"{tab}!A:BK"
           if not sheet_id:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
+          ensure_headers(svc, sheet_id, tab)
           values=get_values(svc,sheet_id,sheet_range)
           if not values:
               raise SystemExit("Google Sheet returned no rows; verify the configured tab/range.")
@@ -102,13 +104,24 @@ jobs:
                   candidates.append((n,status,approval,run_id))
                   fb_id = str(row.get("Reel Facebook ID","")).strip()
                   yt_id = str(row.get("Reel YouTube ID","")).strip()
+                  # Resume pending first-party comment bundles only after the matching Blogger article is live.
+                  fb_comment_status = str(row.get("Reel Facebook Comments Status","")).strip().upper()
+                  yt_comment_status = str(row.get("Reel YouTube Comments Status","")).strip().upper()
+                  blogger_ready = (
+                      str(row.get("Blogger Status","")).strip().upper() == "PUBLISHED"
+                      and valid_blogger_article_url(str(row.get("Blogger URL","")).strip())
+                  )
+                  comments_pending = status == "PUBLISHED" and blogger_ready and (
+                      (bool(fb_id) and fb_comment_status != "PUBLISHED")
+                      or (bool(yt_id) and yt_comment_status != "PUBLISHED")
+                  )
                   # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
                   backfill_youtube = status == "PUBLISHED" and bool(fb_id) and not yt_id
-                  if (eligible_status or backfill_youtube) and run_id:
+                  if (eligible_status or backfill_youtube or comments_pending) and run_id:
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
                           out.write(f"row_number={n}\nrun_id={run_id}\n")
-                      print(f"Approved Reel found at row {n}; status={status}; run_id={run_id}")
+                      print(f"Approved Reel/comment task found at row {n}; status={status}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
           # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
           # Telegram's callback did not persist Reel Approval, so reconcile only this exact run ID.
@@ -165,7 +178,7 @@ jobs:
           cfg=load_video_config()
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
-          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BE")
+          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BK")
           headers=values[0] if values else []
           rows=[row_to_dict(r, headers) for r in values[1:]]
           n=int(os.environ["ROW_NUMBER"])
@@ -193,7 +206,7 @@ jobs:
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
           sheet=cfg['sheet_range'].split('!',1)[0]
-          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BE')
+          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BK')
           headers=values[0] if values else []
           row_number=int(os.environ['ROW_NUMBER'])
           row=row_to_dict(values[row_number-1], headers)
@@ -210,7 +223,7 @@ jobs:
           if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
           if video.stat().st_size < 100_000: raise SystemExit(f'Approved reel file is unexpectedly small ({video.stat().st_size} bytes): {video}')
           # Re-check the exact row immediately before any external publication to avoid stale approvals.
-          latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BE')
+          latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BK')
           latest_headers=latest_values[0] if latest_values else []
           latest_row=row_to_dict(latest_values[row_number-1], latest_headers)
           if str(latest_row.get('Reel Approval','')).strip().upper() != 'APPROVED':
