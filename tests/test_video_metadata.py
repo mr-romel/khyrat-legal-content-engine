@@ -46,3 +46,47 @@ def test_description_does_not_insert_invalid_or_unrelated_article_url():
 def test_description_requires_actual_content():
     with pytest.raises(ValueError, match="without approved topic content"):
         build_video_description(topic="موضوع قانوني", post="", script="", platform="youtube")
+
+def test_description_strips_internal_sheet_title_and_angle_suffix():
+    result = build_video_description(
+        topic="سؤال عن التهديد بإفشاء الأسرار — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+        post="التهديد بإفشاء الأسرار قد يستلزم فحص مضمون الرسالة وتوقيتها.",
+        script="التهديد بإفشاء الأسرار قد يستلزم فحص مضمون الرسالة وتوقيتها.",
+        platform="facebook",
+    )
+    assert "🎬 التهديد بإفشاء الأسرار" in result
+    assert "سؤال عن" not in result
+    assert "زاوية جديدة" not in result
+    assert "Checklist" not in result
+
+
+def test_description_drops_unrelated_photography_subject_from_secret_threat_reel():
+    result = build_video_description(
+        topic="التهديد بإفشاء الأسرار — زاوية جديدة: Checklist عملية",
+        post=(
+            "التهديد بإفشاء الأسرار قد يستلزم فحص مضمون الرسالة وتوقيتها. "
+            "إيه اللي يحسم موضوع التصوير دون إذن؟ "
+            "وجود الشخص في مكان عام لا يحسم وحده مشروعية التصوير."
+        ),
+        script=(
+            "التهديد بإفشاء الأسرار قد يستلزم فحص مضمون الرسالة وتوقيتها. "
+            "إيه اللي يحسم موضوع التصوير دون إذن؟ "
+            "وجود الشخص في مكان عام لا يحسم وحده مشروعية التصوير."
+        ),
+        platform="youtube",
+    )
+    assert "التهديد بإفشاء الأسرار" in result
+    assert "التصوير دون إذن" not in result
+    assert "مكان عام" not in result
+    assert "زاوية جديدة" not in result
+
+
+def test_description_does_not_leak_editorial_title_or_spreadsheet_instructions():
+    result = build_video_description(
+        topic="سؤال عن التهديد بإفشاء الأسرار — Checklist قبل اتخاذ إجراء",
+        post="احتفظ بالرسائل الأصلية وتحقق من توقيت إرسالها.",
+        script="احتفظ بالرسائل الأصلية وتحقق من توقيت إرسالها.",
+        platform="facebook",
+    )
+    for forbidden in ("Checklist", "زاوية جديدة", "سؤال عن"):
+        assert forbidden not in result
