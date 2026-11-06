@@ -75,14 +75,14 @@ jobs:
               raise SystemExit("Google service-account credentials are missing.")
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
-          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BK").strip()
+          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BM").strip()
           # Reel control fields live after the core social columns. Always read through BK,
           # even when the shared GOOGLE_SHEET_RANGE secret is configured for a shorter workflow.
           if "!" in sheet_range:
               tab, _cols = sheet_range.split("!", 1)
           else:
               tab = "Content"
-          sheet_range = f"{tab}!A:BK"
+          sheet_range = f"{tab}!A:BM"
           if not sheet_id:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
@@ -185,7 +185,7 @@ jobs:
           cfg=load_video_config()
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
-          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BK")
+          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BM")
           headers=values[0] if values else []
           rows=[row_to_dict(r, headers) for r in values[1:]]
           n=int(os.environ["ROW_NUMBER"])
@@ -245,7 +245,7 @@ jobs:
               raise SystemExit('Approval was revoked or changed before publication; no platform was called.')
           if str(latest_row.get('Reel Run ID','')).strip() != run_id:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
-          if task != 'comments':
+          if task == 'publish':
               plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
           topic=str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))).strip()\n          source_post=str(row.get('المحتوى','')).strip()\n          script=str(plan.get('script', row.get('Reel Script',''))).strip()\n          article_url=str(row.get('Blogger URL','')).strip()\n          fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')\n          yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
@@ -257,7 +257,7 @@ jobs:
           fresh_youtube=False
           fb_ok=bool(result['facebook'].get('video_id'))
 
-          if task != 'comments':
+          if task == 'publish':
               # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
               # Its Facebook ID was not persisted. Never blindly repost that specific reel.
               facebook_outcome_uncertain = (run_id == '39073320925' and not result['facebook']['video_id'])
@@ -279,8 +279,7 @@ jobs:
                   try:
                       title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
                       # YouTube description must match the approved post copy for this exact Reel.
-                      description=fb_caption
-                      yt=publish_youtube_short(str(video), title, description)
+                      yt=publish_youtube_short(str(video), title, yt_description)
                       result['youtube']=yt
                       fresh_youtube=True
                       update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel YouTube Description Status':'PUBLISHED','Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
