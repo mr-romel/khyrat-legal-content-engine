@@ -12,6 +12,11 @@ from PIL import Image, ImageDraw, ImageFont
 import arabic_reshaper
 from bidi.algorithm import get_display
 
+from brand_identity import (
+    BRAND_ACCENT, BRAND_DESCRIPTOR, BRAND_LOCKUP, BRAND_OVERLAY_TEXT,
+    BRAND_PRIMARY, BRAND_WHITE, build_editorial_image_prompt,
+)
+
 
 CLOUDFLARE_IMAGE_MODEL = (
     "@cf/bytedance/stable-diffusion-xl-lightning"
@@ -111,7 +116,7 @@ def _draw_arabic_text(draw, xy, text: str, *, font, fill, anchor=None):
 
 
 def brand_published_image(image_path: str) -> str:
-    """Apply the mandatory Ask Mahmoud brand mark to every published image."""
+    """Apply the unified Ask Mahmoud professional identity to every published image."""
     path = Path(image_path)
     if not path.is_file() or path.stat().st_size == 0:
         raise ImageGenerationError("Cannot brand a missing image.")
@@ -120,76 +125,29 @@ def brand_published_image(image_path: str) -> str:
         image = Image.open(path).convert("RGB")
         width, height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
+        strip_h = max(108, int(height * 0.13))
+        y0 = height - strip_h
+        navy = (*BRAND_PRIMARY, 232)
+        gold = (*BRAND_ACCENT, 255)
+        white = (*BRAND_WHITE, 255)
+        draw.rectangle((0, y0, width, height), fill=navy)
+        draw.rectangle((0, y0, width, y0 + max(4, int(height * 0.006))), fill=gold)
 
         font_candidates = [
             "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         ]
-        bold_path = next((p for p in font_candidates if Path(p).exists()), None)
-        if bold_path:
-            bold = ImageFont.truetype(bold_path, max(28, int(width * 0.038)))
-        else:
-            bold = ImageFont.load_default()
-
-        strip_h = max(92, int(height * 0.115))
-        y0 = height - strip_h
-        draw.rectangle((0, y0, width, height), fill=(8, 16, 30, 215))
-
-        radius = max(22, int(strip_h * 0.27))
-        cx = max(radius + 18, int(width * 0.075))
-        cy = y0 + strip_h // 2
-        fb_blue = (24, 119, 242, 255)
-        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=fb_blue)
-
-        f_font = ImageFont.truetype(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            max(26, int(radius * 1.35)),
-        )
-        f_bbox = draw.textbbox((0, 0), "f", font=f_font)
-        fw, fh = f_bbox[2] - f_bbox[0], f_bbox[3] - f_bbox[1]
-        draw.text(
-            (cx - fw / 2, cy - fh / 2 - max(2, int(radius * 0.10))),
-            "f", font=f_font, fill=(255, 255, 255, 255)
-        )
-
-        brand = "اسأل محمود - مستشار قانوني للشركات"
-        # Keep logical Arabic text intact for RAQM. On older Pillow builds,
-        # shape/reorder once and draw that fallback string without RTL flags.
-        display_brand = brand
-        use_raqm = True
-        try:
-            bbox = draw.textbbox((0, 0), brand, font=bold, direction="rtl", language="ar")
-        except (TypeError, ValueError):
-            use_raqm = False
-            display_brand = get_display(arabic_reshaper.reshape(brand))
-            bbox = draw.textbbox((0, 0), display_brand, font=bold)
-        tw = bbox[2] - bbox[0]
-        if cx + radius + 18 + tw > width - 18:
-            if bold_path:
-                bold = ImageFont.truetype(bold_path, max(18, int(width * 0.028)))
-            measure_text = brand if use_raqm else display_brand
-            try:
-                bbox = draw.textbbox((0, 0), measure_text, font=bold, direction="rtl", language="ar") if use_raqm else draw.textbbox((0, 0), measure_text, font=bold)
-            except (TypeError, ValueError):
-                use_raqm = False
-                display_brand = get_display(arabic_reshaper.reshape(brand))
-                bbox = draw.textbbox((0, 0), display_brand, font=bold)
-            tw = bbox[2] - bbox[0]
-
-        # Center vertically and align to the right edge; 'rm' is a middle
-        # anchor, unlike 'ra' which anchors at the ascender line.
-        try:
-            if use_raqm:
-                draw.text((width - 18, cy), brand, font=bold, fill=(255, 255, 255, 255),
-                          anchor="rm", direction="rtl", language="ar")
-            else:
-                draw.text((width - 18, cy), display_brand, font=bold, fill=(255, 255, 255, 255),
-                          anchor="rm")
-        except (TypeError, ValueError):
-            display_brand = get_display(arabic_reshaper.reshape(brand))
-            draw.text((width - 18, cy), display_brand, font=bold, fill=(255, 255, 255, 255))
-
+        font_path = next((p for p in font_candidates if Path(p).exists()), None)
+        main_size = max(22, int(width * 0.032))
+        sub_size = max(15, int(width * 0.019))
+        main_font = ImageFont.truetype(font_path, main_size) if font_path else ImageFont.load_default()
+        sub_font = ImageFont.truetype(font_path, sub_size) if font_path else ImageFont.load_default()
+        right = width - max(22, int(width * 0.035))
+        _draw_arabic_text(draw, (right, y0 + int(strip_h * 0.34)), BRAND_OVERLAY_TEXT,
+                          font=main_font, fill=white, anchor="rm")
+        _draw_arabic_text(draw, (right, y0 + int(strip_h * 0.72)), BRAND_DESCRIPTOR,
+                          font=sub_font, fill=gold, anchor="rm")
 
         image.save(path, quality=94, optimize=True)
         return str(path)
@@ -197,8 +155,6 @@ def brand_published_image(image_path: str) -> str:
         raise ImageGenerationError(
             f"Failed to apply mandatory image branding: {exc}"
         ) from exc
-
-
 
 
 def create_legal_image(
@@ -228,7 +184,14 @@ def create_legal_image(
 
     # Use the post-derived visual description directly as requested. Avoid extra
     # negative prompts and arbitrary subject restrictions that can block generation.
-    prompt = visual_description
+    try:
+        prompt = build_editorial_image_prompt(
+            topic=topic,
+            post_context=post_context,
+            visual_description=visual_description,
+        )
+    except ValueError as exc:
+        raise ImageGenerationError(str(exc)) from exc
     negative_prompt = ""
 
     def _generate_with_gemini() -> bytes:
