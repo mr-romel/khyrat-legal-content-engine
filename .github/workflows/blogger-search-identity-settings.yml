@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - ".github/BLOGGER_SETTINGS_RUN_NOW"
+      - "src/blogger_settings_worker.py"
+      - ".github/workflows/blogger-search-identity-settings.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,20 +15,22 @@ concurrency:
 jobs:
   update-settings:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install browser dependencies
+      - name: Install Python and browser dependencies
+        timeout-minutes: 8
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Update and verify Blogger title and description
+        timeout-minutes: 10
         env:
           BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
           BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
