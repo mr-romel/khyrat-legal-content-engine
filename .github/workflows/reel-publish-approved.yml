@@ -263,6 +263,7 @@ jobs:
           source_post=str(row.get('المحتوى','')).strip()
           script=str(plan.get('script', row.get('Reel Script',''))).strip()
           article_url=str(row.get('Blogger URL','')).strip()
+          youtube_management_ready=bool(os.getenv('YOUTUBE_COMMENT_REFRESH_TOKEN','').strip())
           fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')
           yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
@@ -313,7 +314,7 @@ jobs:
                       update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook Description Status':'PUBLISHED'})
                   except Exception as exc:
                       errors.append('Facebook description: '+str(exc))
-              if yt_existing_id and not fresh_youtube and str(row.get('Reel YouTube Description Status','')).strip().upper() != 'PUBLISHED':
+              if yt_existing_id and youtube_management_ready and not fresh_youtube and str(row.get('Reel YouTube Description Status','')).strip().upper() != 'PUBLISHED':
                   try:
                       update_youtube_short_description(yt_existing_id, yt_description)
                       update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Description Status':'PUBLISHED'})
@@ -341,10 +342,16 @@ jobs:
                       result['comments'][platform]={'status':'WAITING_BLOGGER','error':'Matching Blogger article is not published or its URL is invalid.'}
                       update_row(svc,cfg['sheet_id'],sheet,row_number,{status_key:'WAITING_BLOGGER'})
           else:
-              platform_jobs=(
+              platform_jobs=[
                   ('facebook', result['facebook'], 'Reel Facebook Comments Status', 'Reel Facebook Comment IDs', publish_facebook_video_comment),
-                  ('youtube', result['youtube'], 'Reel YouTube Comments Status', 'Reel YouTube Comment IDs', publish_youtube_short_comment),
-              )
+              ]
+              if youtube_management_ready:
+                  platform_jobs.append(
+                      ('youtube', result['youtube'], 'Reel YouTube Comments Status', 'Reel YouTube Comment IDs', publish_youtube_short_comment)
+                  )
+              elif result['youtube'].get('video_id') and result['comments']['youtube']['status'] != 'PUBLISHED':
+                  result['comments']['youtube']={'status':'WAITING_SCOPE','error':'Add YOUTUBE_COMMENT_REFRESH_TOKEN with youtube.force-ssl scope.'}
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Comments Status':'WAITING_SCOPE'})
               for platform, video_data, status_key, ids_key, publisher in platform_jobs:
                   video_id=str(video_data.get('video_id','')).strip()
                   if not video_id:
