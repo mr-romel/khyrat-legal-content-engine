@@ -1,0 +1,33 @@
+name: Blogger Search Identity Settings
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_SETTINGS_RUN_NOW"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: blogger-search-identity-settings
+  cancel-in-progress: false
+jobs:
+  update-settings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install browser dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+          pip install -r requirements-browser.txt
+          python -m playwright install --with-deps chromium
+      - name: Update and verify Blogger title and description
+        env:
+          BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
+        run: PYTHONPATH=src python src/blogger_settings_worker.py
