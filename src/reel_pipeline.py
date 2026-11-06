@@ -526,55 +526,181 @@ def add_motion_graphics_layer(
                    check=True, timeout=300)
     return output_video
 
-def post_visual_terms(post: str, topic: str) -> list[str]:
-    """Build visual searches from the actual post first; topic is only a fallback."""
-    text = " ".join(str(post or "").split()).lower()
-    groups = [
-        (("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"), [
-            "person receiving a threatening private message on a smartphone, realistic modern home setting",
-            "close-up of a smartphone displaying a blurred threatening message, no readable text",
-            "person carefully preserving an original digital message and its timestamp on a phone",
-            "confidential paper files being secured in a locked office drawer",
-            "laptop screen showing a password-protected private folder, contemporary desk",
-            "person documenting a sequence of threatening messages with dates and times",
-            "close-up of a phone, printed message record and handwritten incident timeline",
-            "two people in a tense private conversation in a modern office, non-violent documentary realism",
-        ]),
-        (("عقد", "توقيع", "اتفاق"), ["two people signing a business agreement at a modern office desk", "hands reviewing a printed contract beside a laptop", "two colleagues discussing contract clauses at a meeting table", "legal document signature close up", "modern company department reviewing a file at a desk", "contract dispute evidence documents"]),
-        (("إيجار", "مؤجر", "مستأجر", "شقة"), ["landlord and tenant reviewing a lease at a modern apartment table", "rental contract document close up", "tenant and landlord discussing a property issue in a contemporary apartment", "apartment keys lease agreement", "rental notice document close up", "legal adviser reviewing a rental dispute file in a modern office"]),
-        (("عمل", "موظف", "فصل", "مرتب", "راتب"), ["two coworkers discussing an employment issue in a modern workplace", "employee employment contract review", "termination letter workplace document", "salary dispute documents office", "HR reviewing a personnel file in a contemporary office", "workplace meeting employment issue"]),
-        (("شيك", "إيصال", "دفع", "تحويل", "فلوس", "مبلغ"), ["customer reviewing a bank payment record at a modern desk", "cheque financial document close up", "payment receipt evidence close up", "bank transfer smartphone evidence", "financial dispute paperwork office", "legal adviser reviewing payment documents in a contemporary office"]),
-        (("رسالة", "واتساب", "موبايل", "دليل", "إثبات"), ["smartphone message evidence close up realistic", "digital evidence phone screen unreadable", "person preserving phone evidence in a contemporary setting", "legal evidence documents smartphone", "complaint evidence collection realistic", "lawyer reviewing digital evidence"]),
-        (("طلاق", "نفقة", "حضانة", "أسرة", "زوج", "زوجة"), ["family members discussing a sensitive issue at a modern home table", "family legal documents close up", "family-related paperwork on a desk in a modern office", "child custody documents legal consultation", "two adults discussing a family matter in a contemporary private setting", "alimony financial documents consultation"]),
+def _visual_topic_family(topic: str) -> str:
+    """Resolve one authoritative visual family from the public legal topic."""
+    value = " ".join(str(topic or "").split()).casefold()
+    families = [
+        ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
+        ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
+        ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
+        ("employment", ("عمل", "عامل", "عمال", "موظف", "فصل", "مرتب", "راتب", "أجر", "استقالة")),
+        ("family", ("طلاق", "خلع", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة")),
+        ("companies", ("شركة", "شركات", "شريك", "شراكة", "تأسيس", "مساهم")),
+        ("contracts", ("عقد", "عقود", "تعاقد", "فسخ", "إخلال", "اتفاق")),
+        ("rent", ("إيجار", "ايجار", "مؤجر", "مستأجر", "طرد", "إخلاء")),
+        ("payments", ("شيك", "إيصال", "ايصال", "دفع", "تحويل", "مديونية", "مبلغ")),
+        ("inheritance", ("ميراث", "تركة", "ورثة", "وصية")),
+        ("compensation", ("تعويض", "إصابة", "اصابة", "ضرر", "مسؤولية مدنية")),
+        ("criminal", ("جريمة", "جنائي", "سرقة", "ضرب", "قتل", "سب", "قذف", "نصب", "احتيال")),
     ]
-    for keys, terms in groups:
-        if any(k in text for k in keys):
-            return terms + topic_visual_terms(topic)[:2]
-    return topic_visual_terms(topic)
+    for family, terms in families:
+        if any(term in value for term in terms):
+            return family
+    return "general"
+
+
+_VISUAL_SCENES = {
+    "secret_threat": [
+        "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
+        "A person carefully preserving the original threatening message and its timestamp on a smartphone.",
+        "A smartphone beside a printed digital-message evidence record and a dated incident timeline.",
+        "A locked drawer containing confidential personal files, emphasizing protection of private information.",
+        "A laptop showing a password-protected private folder, with no readable screen text.",
+        "A close-up of a phone notification and message metadata, with all words obscured.",
+        "A person documenting the date and time of a sequence of private messages.",
+        "A private office desk with a secured phone and confidential file folder, contemporary documentary realism.",
+    ],
+    "unauthorized_recording": [
+        "A modern smartphone camera pointed toward a person in a public place, with the person's face not visible.",
+        "A close-up of a phone camera recording indicator in a contemporary public setting.",
+        "A person noticing a smartphone being used to record them without consent, faces kept out of frame.",
+        "A privacy-focused scene showing a smartphone camera and a person creating distance from the device.",
+        "A CCTV-style camera mounted in a modern building corridor, clearly distinct from a phone recording.",
+        "A smartphone beside a written incident timeline about recording without permission, no readable text.",
+        "A modern public-space scene with a phone held up for recording, documentary realism.",
+        "A close-up of a phone's camera lens and privacy shutter in a contemporary setting.",
+    ],
+    "harassment": [
+        "A smartphone displaying a blurred unwanted message notification, no readable text.",
+        "A person preserving a sequence of unwanted messages on a phone, screen text obscured.",
+        "A modern building corridor with a person keeping distance from another person, no faces visible.",
+        "A phone beside a dated incident log documenting repeated unwanted contact.",
+        "A close-up of a call log with all names and numbers blurred.",
+        "A person blocking an unknown contact on a smartphone, interface unreadable.",
+        "A public-place scene focused on personal safety and unwanted following, no identifiable faces.",
+        "A secured digital evidence folder on a laptop, no readable text.",
+    ],
+    "employment": [
+        "An employee reviewing a modern employment contract at a workplace desk.",
+        "A close-up of dated attendance and working-hours records beside a phone.",
+        "A payroll statement and bank transfer record on a contemporary office desk, text unreadable.",
+        "An employee collecting personal belongings after a workplace meeting, no visible employer branding.",
+        "A modern HR file folder and employment documents arranged for review.",
+        "A worker reviewing a termination notice with all text blurred.",
+        "A smartphone showing a blurred work-related message notification beside an employee file.",
+        "A contemporary workplace desk with employee records and a calendar, documentary realism.",
+    ],
+    "family": [
+        "A private family-law consultation setting with two adult men reviewing a folder, no women or children visible.",
+        "A close-up of organized family-court paperwork with all text unreadable.",
+        "A calendar and financial records arranged beside a sealed family case file.",
+        "A close-up of child-related documents and a closed folder, no child or woman depicted.",
+        "A modern desk with marriage or divorce paperwork, text and personal data blurred.",
+        "A man reviewing financial records related to family support in a private setting.",
+        "A neutral family-court building exterior in contemporary Egypt, no people identifiable.",
+        "A secured folder containing family case documents on a modern office desk.",
+    ],
+    "companies": [
+        "Two adult business partners reviewing a company shareholding agreement at a modern meeting table.",
+        "A close-up of company incorporation documents and a corporate registry folder, text unreadable.",
+        "A modern boardroom table with company financial statements and a laptop.",
+        "Business partners reviewing a shareholder dispute file, no logos or readable text.",
+        "A company registration folder beside official-looking blank forms, no invented seals.",
+        "A close-up of corporate accounting records and a calculator on a desk.",
+        "A modern office meeting focused on a company governance document.",
+        "A secured corporate file cabinet with labeled folders but no readable writing.",
+    ],
+    "contracts": [
+        "A close-up of two parties reviewing a printed contract with all text blurred.",
+        "A signed document folder beside a pen and laptop on a modern desk.",
+        "A person comparing two versions of a business agreement, text unreadable.",
+        "A contract file and dated email printouts arranged as evidence of a dispute.",
+        "A close-up of a pen beside an unsigned agreement, contemporary office setting.",
+        "A modern desk with contract pages and a calendar showing a deadline, no readable text.",
+        "Two adult men discussing an agreement at a neutral meeting table.",
+        "A secured folder containing contract correspondence and supporting documents.",
+    ],
+    "rent": [
+        "A landlord and tenant's lease documents on a modern apartment table, no people visible.",
+        "Apartment keys beside a rental agreement with all text blurred.",
+        "A tenant reviewing a rent payment receipt beside a smartphone.",
+        "A modern apartment doorway and a sealed rental notice, no readable text.",
+        "A close-up of a lease folder and dated payment records.",
+        "A property handover scene with keys and an inspection checklist without readable writing.",
+        "A modern apartment interior with a rental contract file on a table.",
+        "A desk with rent receipts and a calendar, contemporary documentary realism.",
+    ],
+    "payments": [
+        "A close-up of a bank transfer confirmation on a smartphone, all text and amounts blurred.",
+        "A cheque and payment receipt arranged on a contemporary desk, no readable text.",
+        "A person reviewing a bank statement beside a calculator.",
+        "A payment receipt folder and dated transaction records, personal data obscured.",
+        "A smartphone beside a bank transfer printout, screen unreadable.",
+        "A close-up of a cheque being placed into a secure document folder.",
+        "A modern desk with financial evidence and a laptop, no visible logos.",
+        "A person organizing proof of payment in a contemporary office.",
+    ],
+    "inheritance": [
+        "A sealed inheritance case folder beside property ownership papers, text unreadable.",
+        "A close-up of family estate documents and a calculator on a modern desk.",
+        "A property title folder and a family estate inventory sheet with no readable text.",
+        "A modern office desk with a will document inside a sealed folder.",
+        "A set of property keys beside an estate file, contemporary setting.",
+        "A person reviewing estate asset records, hands only and no faces.",
+        "A secured cabinet containing inheritance and property documents.",
+        "A neutral contemporary office scene with estate paperwork and a calendar.",
+    ],
+    "compensation": [
+        "A damaged vehicle and a carefully documented accident scene, no injured people visible.",
+        "A close-up of a repair estimate and insurance correspondence with text blurred.",
+        "A damaged household object photographed as evidence for a civil compensation claim.",
+        "A medical expense folder and receipts arranged on a desk, no patient depicted.",
+        "A car damage inspection with a measuring tool and evidence camera.",
+        "A close-up of dated photographs and a compensation claim folder.",
+        "A modern office desk with repair invoices and an incident report, text unreadable.",
+        "A person organizing evidence of financial loss in a contemporary setting.",
+    ],
+    "criminal": [
+        "A police complaint folder and a smartphone containing blurred evidence, no readable text.",
+        "A close-up of a damaged personal item documented as evidence, no violence shown.",
+        "A secured evidence bag and incident paperwork on a modern desk.",
+        "A person preserving a digital transaction record on a phone, screen blurred.",
+        "A modern building entrance with a security camera, documentary realism.",
+        "A close-up of a complaint document and dated evidence photographs, text unreadable.",
+        "A locked drawer containing a case file and digital evidence device.",
+        "A neutral contemporary investigation desk with organized evidence folders.",
+    ],
+    "general": [
+        "A close-up of the specific document or evidence named in the legal topic, with all text unreadable.",
+        "A contemporary everyday setting directly related to the legal issue, with no generic courtroom imagery.",
+        "A smartphone displaying a blurred notification relevant to the legal topic.",
+        "A person organizing the exact records or evidence relevant to the legal topic, no faces visible.",
+        "A modern office desk with the specific object or paperwork named in the legal topic.",
+        "A close-up of a dated record or receipt relevant to the legal topic, text blurred.",
+        "A contemporary home or workplace scene directly illustrating the stated legal issue.",
+        "A secured folder containing documents relevant to the stated legal topic.",
+    ],
+}
+
+
+def post_visual_terms(post: str, topic: str) -> list[str]:
+    """Return eight scenes from the topic's single legal family; never trust mixed post/model keywords."""
+    family = _visual_topic_family(topic)
+    scenes = list(_VISUAL_SCENES[family])
+    post_text = " ".join(str(post or "").split()).casefold()
+    # Add narrow evidence detail only within the already-selected family.
+    if family == "secret_threat" and any(word in post_text for word in ("واتساب", "رسائل", "رسالة")):
+        scenes[5] = "A smartphone beside a blurred private-message thread and timestamp evidence, no readable text."
+    elif family == "unauthorized_recording" and any(word in post_text for word in ("مكان عام", "شارع", "مواصلات")):
+        scenes[6] = "A contemporary street or public-place scene with a phone recording from a distance, faces not visible."
+    elif family == "employment" and any(word in post_text for word in ("أجر", "راتب", "مرتب")):
+        scenes[2] = "A payroll statement and dated salary-payment records beside a calculator, all text blurred."
+    return scenes
+
 
 def topic_visual_terms(topic: str) -> list[str]:
-    t = (topic or "").lower()
-    groups = [
-        (("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"), [
-            "person receiving a threatening private message on a smartphone, realistic modern home setting",
-            "close-up of a smartphone displaying a blurred threatening message, no readable text",
-            "person preserving the original message with visible date and time metadata",
-            "confidential paper files secured in a locked office drawer",
-            "password-protected private folder on a laptop at a contemporary desk",
-            "person documenting a sequence of messages and their timestamps",
-            "phone beside printed digital evidence and a handwritten incident timeline",
-            "two people in a tense private conversation in a modern office, non-violent documentary realism",
-        ]),
-        (("تحرش", "تحرش جنسي"), ["person preserving smartphone messages in a public place","woman documenting harassment on smartphone","security camera footage street evidence","official complaint paperwork on a contemporary desk","lawyer explaining harassment case to client","digital messages evidence smartphone close up"]),
-        (("طلاق", "خلع", "نفقة", "حضانة"), ["family law consultation in a modern office","divorce papers legal documents close up","legal adviser meeting a client in a contemporary office","child custody legal documents family court","alimony financial documents legal consultation","lawyer explaining family court procedure"]),
-        (("إيجار", "طرد", "عقد إيجار"), ["rental agreement signing in a modern apartment","tenant landlord lease documents close up","rental contract legal dispute lawyer","apartment keys lease agreement close up","legal adviser reviewing a rental contract","eviction legal notice document close up"]),
-        (("شيك", "نصب", "احتيال", "خيانة أمانة"), ["bank cheque legal dispute close up","fraud evidence smartphone financial transaction","financial documents lawyer investigation","police complaint financial fraud paperwork","lawyer explaining fraud case documents","court evidence financial dispute"]),
-        (("عمل", "فصل", "موظف", "عمال", "مرتب"), ["employee employment contract office close up","worker reviewing employment documents","termination letter legal document close up","salary dispute paperwork lawyer consultation","employment-law adviser meeting an employee in a modern office","workplace rights legal consultation"]),
-    ]
-    for keys, terms in groups:
-        if any(k in t for k in keys): return terms
-    return [f"modern everyday scene showing {topic}", f"{topic} evidence on a contemporary desk", f"person handling {topic} paperwork in a modern setting", f"{topic} smartphone or document evidence", f"contemporary workplace scene related to {topic}", f"two people discussing {topic} in an ordinary modern setting", "close-up of relevant evidence and documents", "realistic contemporary legal situation"]
-
+    """Return a deterministic, topic-family-specific scene pack."""
+    return list(_VISUAL_SCENES[_visual_topic_family(topic)])
 
 def add_motion_graphics(video_path: Path, topic: str, work_dir: Path) -> Path:
     """Add text-free kinetic graphics over the footage."""
@@ -700,15 +826,9 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         return deterministic_brief(topic, post)
     script = sanitize_social_copy(str(data.get("script", "")).strip())
     script = _bound_reel_script(script, max_words=75)
-    terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
-    # For subjects with a known evidence pattern, prefer verified scene concepts
-    # over generic AI stock-scene suggestions so the footage matches the legal issue.
-    visual_source = " ".join((str(post or ""), str(topic or ""))).lower()
-    topic_visual_match = any(term in visual_source for term in (
-        "تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"
-    ))
-    if topic_visual_match or len(terms) < 8:
-        terms = post_visual_terms(post, topic)
+    # Ignore model-suggested search terms: they can hallucinate a different legal subject.
+    # The reviewed public topic is the sole authority for the visual family.
+    terms = post_visual_terms(post, topic)
     if not 55 <= len(script.split()) <= 75 or len(terms) < 8:
         raise RuntimeError("Reel package is incomplete.")
     return {
@@ -1146,16 +1266,16 @@ def main() -> int:
                 scenes.append(image_path)
                 print(f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true")
         except Exception as image_exc:
-            print(f"REEL_STAGE ai_scene_generation_unavailable reason={image_exc}")
-            scenes = []
-        if len(scenes) < 8:
-            print("REEL_STAGE media=fetch_openverse_topic_matched_fallback")
-            scenes = fetch_openverse_images(brief["video_terms"], scene_dir)
-            if len(scenes) < 8:
-                scenes.extend(fetch_wikimedia_images(brief["video_terms"], scene_dir, target=8-len(scenes)))
-        # Never recycle unrelated cached imagery or generic legal cards into a Reel.
-        if len(scenes) < 8:
-            raise RuntimeError(f"لم يتم إنشاء أو العثور على 8 مشاهد مرخصة ومطابقة للموضوع؛ المتاح {len(scenes)}. لن أملأ النقص بكروت عامة مضللة.")
+            # Do not silently replace failed topic-specific generations with
+            # unrelated catalog stock photos. A missing scene blocks review delivery.
+            raise RuntimeError(
+                "REEL_STAGE topic_specific_image_generation_failed; refusing off-topic stock fallback: "
+                + str(image_exc)
+            ) from image_exc
+        if len(scenes) != 8:
+            raise RuntimeError(
+                f"REEL_STAGE image_pack_incomplete: expected 8 topic-specific AI scenes, got {len(scenes)}."
+            )
 
         # Normalize externally sourced WebP assets to JPEG because the current
         # MPT local-material validator accepts JPG/PNG but not WebP.
