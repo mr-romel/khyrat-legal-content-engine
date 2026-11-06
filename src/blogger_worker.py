@@ -214,6 +214,26 @@ def main() -> int:
         return 0
 
     rows = [row_to_dict(row) for row in values[1:]]
+    # Emit a compact, non-sensitive eligibility report so a green workflow cannot
+    # conceal why a social-published row was not eligible for Blogger publication.
+    published_rows = [row for row in rows if str(row.get("الحالة", "")).strip().upper() == "PUBLISHED"]
+    blogger_done_rows = [row for row in published_rows if str(row.get("Blogger Status", "")).strip().upper() == "PUBLISHED"]
+    missing_body_rows = [row for row in published_rows if not str(row.get("المحتوى", "")).strip()]
+    print(
+        "Blogger eligibility diagnostics: "
+        f"sheet_rows={len(rows)}; social_published={len(published_rows)}; "
+        f"blogger_already_published={len(blogger_done_rows)}; "
+        f"missing_article_body={len(missing_body_rows)}"
+    )
+    for diagnostic_row in published_rows[-10:]:
+        if str(diagnostic_row.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
+            print(
+                "Blogger candidate diagnostic: "
+                f"id={str(diagnostic_row.get('ID', '')).strip()}; "
+                f"date={str(diagnostic_row.get('تاريخ النشر', '')).strip()}; "
+                f"body_chars={len(str(diagnostic_row.get('المحتوى', '')).strip())}; "
+                f"blogger_status={str(diagnostic_row.get('Blogger Status', '')).strip() or 'EMPTY'}"
+            )
     from datetime import datetime
     from zoneinfo import ZoneInfo
     today_cairo = datetime.now(ZoneInfo("Africa/Cairo")).date()
