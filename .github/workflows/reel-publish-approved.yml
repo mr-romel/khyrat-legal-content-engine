@@ -96,14 +96,31 @@ jobs:
               return {header: (raw[i] if i < len(raw) else "") for i, header in enumerate(headers) if header}
           candidates=[]
           queue_snapshot={}
+          published_fb_ids=[]
+          published_yt_ids=[]
+          published_without_ids=[]
+          review_rows=[]
           for _n, _raw in enumerate(values[1:], start=2):
               _row=mapped(_raw)
               _status=str(_row.get("Reel Status","")).strip().upper() or "EMPTY"
               _approval=str(_row.get("Reel Approval","")).strip().upper() or "NO_APPROVAL"
+              _fb=str(_row.get("Reel Facebook ID","")).strip()
+              _yt=str(_row.get("Reel YouTube ID","")).strip()
               if _status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"} or _approval == "APPROVED":
                   _key=_status+"/"+_approval
                   queue_snapshot[_key]=queue_snapshot.get(_key,0)+1
+              if _status == "PUBLISHED":
+                  if _fb: published_fb_ids.append(_n)
+                  if _yt: published_yt_ids.append(_n)
+                  if not _fb and not _yt: published_without_ids.append(_n)
+              if _status == "REVIEW":
+                  review_rows.append(_n)
           print("REEL_QUEUE_SNAPSHOT="+json.dumps(queue_snapshot,ensure_ascii=False,sort_keys=True))
+          print("REEL_PUBLISHED_ID_AUDIT="+json.dumps({
+              "facebook_id_count":len(published_fb_ids),"youtube_id_count":len(published_yt_ids),
+              "published_without_any_video_id":published_without_ids[:30],
+              "review_rows_waiting_approval":review_rows[:30],
+          },ensure_ascii=False,sort_keys=True))
           # Prioritize oldest new approvals, then partial retries, then metadata/comment backfills.
           ordered_rows = sorted(
               enumerate(values[1:], start=2),
