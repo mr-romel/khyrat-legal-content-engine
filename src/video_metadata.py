@@ -8,8 +8,8 @@ WHATSAPP_URL = "https://wa.me/201022718375"
 
 
 def _clean(value: str, limit: int = 700) -> str:
-    text = re.sub(r"https?://\\S+", "", str(value or ""))
-    text = re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"https?://\S+", "", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip()
     return text[:limit].rstrip(" ،؛:.")
 
 
