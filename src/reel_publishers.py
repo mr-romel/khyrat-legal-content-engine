@@ -152,3 +152,29 @@ def publish_facebook_video_comment(video_id: str, message: str) -> dict[str, str
     if not comment_id:
         raise RuntimeError("Facebook returned no comment ID.")
     return {"comment_id": comment_id}
+
+
+
+def update_facebook_video_description(video_id: str, description: str) -> dict[str, str]:
+    """Update the description of an already-published Page Reel without re-uploading it."""
+    page_id = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    token = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "").strip()
+    if not page_id or not token:
+        raise RuntimeError("Facebook video metadata credentials are incomplete.")
+    video_id = str(video_id or "").strip()
+    description = str(description or "").strip()
+    if not video_id or not description:
+        raise ValueError("Facebook video ID and non-empty description are required.")
+    version = os.getenv("FACEBOOK_GRAPH_VERSION", "26.0").strip().lstrip("v")
+    response = requests.post(
+        f"https://graph.facebook.com/v{version}/{video_id}",
+        data={"access_token": token, "description": description},
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Facebook Reel description update failed: HTTP {response.status_code} {response.text[:1000]}")
+    if response.json().get("success") is not True:
+        raise RuntimeError("Facebook Reel description update returned no success confirmation.")
+    return {"status": "PUBLISHED"}
+
+
