@@ -16,8 +16,11 @@ BRAND_SLOGAN = "خليك فاكر دايما ... اسأل محمود"
 BRAND_PRIMARY = (12, 28, 48)       # deep navy
 BRAND_ACCENT = (190, 151, 76)     # muted legal gold
 BRAND_WHITE = (255, 255, 255)
-BRAND_OVERLAY_TEXT = BRAND_LOCKUP
-BRAND_OVERLAY_SUBTEXT = f"{PROFESSIONAL_TITLE} | {BRAND_DESCRIPTOR}"
+BRAND_OVERLAY_TEXT = "اسأل محمود خيرت"
+BRAND_OVERLAY_SUBTEXT = PROFESSIONAL_TITLE
+FACEBOOK_BADGE_BLUE = (24, 119, 242)
+BLOGGER_BADGE_GREEN = (76, 175, 80)
+BRAND_PLATFORM_BADGES = ("facebook", "blogger")
 
 
 def build_editorial_image_prompt(*, topic: str, post_context: str, visual_description: str) -> str:
