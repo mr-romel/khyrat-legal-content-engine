@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from pathlib import Path
@@ -16,86 +15,113 @@ DESCRIPTION = (
 )
 
 
-def _visible_controls(page):
-    # Blogger's Polymer/Material settings controls may be custom elements with
-    # shadow-DOM textboxes rather than ordinary input/textarea nodes.
-    return page.locator("body").evaluate(
-        """body => {
-          const out = [];
-          const seen = new Set();
-          const walk = root => {
-            for (const e of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
-              if (seen.has(e)) continue;
-              seen.add(e);
-              const r = e.getBoundingClientRect();
-              const visible = r.width > 0 && r.height > 0;
-              const role = e.getAttribute('role') || '';
-              const tag = e.tagName.toLowerCase();
-              const interesting = visible && (
-                ['input','textarea'].includes(tag) || e.isContentEditable ||
-                ['textbox','combobox','searchbox'].includes(role) ||
-                e.hasAttribute('aria-label') || e.hasAttribute('aria-labelledby') ||
-                /paper-input|mdc|material|settings/i.test(tag)
-              );
-              if (interesting && out.length < 100) out.push({
-                tag, role, aria:e.getAttribute('aria-label'),
-                labelledby:e.getAttribute('aria-labelledby'),
-                placeholder:e.getAttribute('placeholder'),
-                name:e.getAttribute('name'), id:e.id || '',
-                value:('value' in e ? e.value : ''),
-                text:(e.innerText || '').trim().slice(0,100),
-                html:e.outerHTML.slice(0,500)
-              });
-              if (e.shadowRoot) walk(e.shadowRoot);
-            }
-          };
-          walk(body);
-          return out;
-        }"""
-    )
-
-
-def _diagnostics(page, label):
-    try:
-        data = {
-            "label": label,
-            "url": page.url,
-            "title": page.title(),
-            "body": re.sub(r"\\s+", " ", page.locator("body").inner_text(timeout=2500))[:1800],
-            "controls": _visible_controls(page),
-            "links": page.locator("a").evaluate_all(
-                "es => es.filter(e => e.getClientRects().length).map(e => ({text:(e.innerText||'').trim(),href:e.href})).slice(0,35)"
-            ),
-            "buttons": page.locator("button,[role='button']").evaluate_all(
-                "es => es.filter(e => e.getClientRects().length).map(e => ({text:(e.innerText||'').trim(),aria:e.getAttribute('aria-label')})).slice(0,35)"
-            ),
-        }
-    except Exception as exc:
-        data = {"label": label, "url": page.url, "error": str(exc)[:500]}
-    print("BLOGGER_SETTINGS_DIAGNOSTICS=" + json.dumps(data, ensure_ascii=False))
-
-
-def _find_field(page, patterns):
+def _visible_editors(page):
     candidates = []
-    for selector in ("input", "textarea", "[contenteditable='true']"):
+    for selector in ("input:not([type=hidden])", "textarea", "[contenteditable=true]", "[role=textbox]"):
         loc = page.locator(selector)
-        for i in range(min(loc.count(), 80)):
+        for i in range(min(loc.count(), 40)):
             el = loc.nth(i)
             try:
-                if not el.is_visible(timeout=250):
-                    continue
-                meta = " ".join([
-                    el.get_attribute("aria-label") or "",
-                    el.get_attribute("placeholder") or "",
-                    el.get_attribute("name") or "",
-                    el.get_attribute("data-placeholder") or "",
-                    el.get_attribute("id") or "",
-                ])
-                if any(re.search(pattern, meta, re.I) for pattern in patterns):
+                if el.is_visible(timeout=250) and el.is_enabled():
                     candidates.append(el)
             except Exception:
                 continue
-    return candidates[0] if len(candidates) == 1 else None
+    # Deduplicate elements that match more than one selector.
+    unique = []
+    keys = set()
+    for el in candidates:
+        try:
+            key = el.evaluate("(e) => e.tagName + '|' + (e.getAttribute('aria-label')||'') + '|' + (e.getAttribute('name')||'') + '|' + (e.getAttribute('type')||'')")
+            if key not in keys:
+                keys.add(key)
+                unique.append(el)
+        except Exception:
+            continue
+    return unique
+
+
+def _editor_value(el):
+    try:
+        return el.input_value(timeout=1000)
+    except Exception:
+        try:
+            return el.inner_text(timeout=1000)
+        except Exception:
+            return el.get_attribute("value") or ""
+
+
+def _edit_setting(page, label: str, value: str):
+    # Blogger Settings renders Basic > Title/Description as clickable setting rows.
+    row = page.get_by_text(label, exact=True)
+    if row.count() != 1:
+        raise BloggerUIPublishError(f"Expected one '{label}' setting row; found {row.count()}.")
+    row.click()
+    page.wait_for_timeout(500)
+
+    editors = _visible_editors(page)
+    if len(editors) != 1:
+        # Prefer the editor inside the active dialog when the page exposes other
+        # accessible text controls in its navigation or settings surface.
+        dialogs = page.get_by_role("dialog")
+        if dialogs.count() == 1:
+            scoped = []
+            for selector in ("input:not([type=hidden])", "textarea", "[contenteditable=true]", "[role=textbox]"):
+                loc = dialogs.locator(selector)
+                for i in range(min(loc.count(), 20)):
+                    el = loc.nth(i)
+                    try:
+                        if el.is_visible(timeout=250) and el.is_enabled():
+                            scoped.append(el)
+                    except Exception:
+                        continue
+            editors = scoped
+    if len(editors) != 1:
+        raise BloggerUIPublishError(f"'{label}' edit dialog did not expose exactly one editable field (found {len(editors)}).")
+
+    editor = editors[0]
+    editor.fill(value)
+    if _editor_value(editor) != value:
+        raise BloggerUIPublishError(f"'{label}' value did not remain in the editor; refusing to save.")
+
+    dialogs = page.get_by_role("dialog")
+    scope = dialogs if dialogs.count() == 1 else page
+    save = scope.get_by_role("button", name=re.compile(r"^(save|حفظ)$", re.I))
+    if save.count() != 1 or not save.is_visible():
+        raise BloggerUIPublishError(f"Could not uniquely identify the Save button for '{label}'.")
+    save.click()
+    page.wait_for_timeout(1200)
+
+
+def _verify_setting(page, label: str, expected: str):
+    row = page.get_by_text(label, exact=True)
+    if row.count() != 1:
+        raise BloggerUIPublishError(f"Could not find the '{label}' row during verification.")
+    row.click()
+    page.wait_for_timeout(400)
+    editors = _visible_editors(page)
+    if len(editors) != 1:
+        dialogs = page.get_by_role("dialog")
+        if dialogs.count() == 1:
+            editors = []
+            for selector in ("input:not([type=hidden])", "textarea", "[contenteditable=true]", "[role=textbox]"):
+                loc = dialogs.locator(selector)
+                for i in range(min(loc.count(), 20)):
+                    el = loc.nth(i)
+                    try:
+                        if el.is_visible(timeout=250) and el.is_enabled():
+                            editors.append(el)
+                    except Exception:
+                        continue
+    if len(editors) != 1 or _editor_value(editors[0]) != expected:
+        actual = _editor_value(editors[0])[:180] if len(editors) == 1 else f"{len(editors)} editors"
+        raise BloggerUIPublishError(f"'{label}' verification mismatch: {actual!r}")
+    # Close the read-only verification dialog without modifying the setting.
+    close = page.get_by_role("button", name=re.compile(r"^(cancel|close|إلغاء|إغلاق)$", re.I))
+    if close.count() == 1 and close.is_visible():
+        close.click()
+    else:
+        page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
 
 
 def main():
@@ -104,55 +130,41 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                context = browser.new_context(storage_state=state, locale="ar-EG", viewport={"width": 1440, "height": 1000})
+                context = browser.new_context(
+                    storage_state=state,
+                    locale="en-GB",
+                    viewport={"width": 1440, "height": 1000},
+                )
                 try:
                     page = context.new_page()
-                    page.set_default_timeout(15000)
-                    page.goto("https://www.blogger.com/", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2500)
+                    page.set_default_timeout(12000)
+                    page.goto("https://draft.blogger.com/", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(1800)
                     if "accounts.google.com" in page.url or "signin" in page.url.lower():
-                        _diagnostics(page, "authentication")
-                        raise BloggerUIPublishError("Blogger authentication expired or storage state is no longer valid.")
+                        raise BloggerUIPublishError("Blogger authentication expired; no settings were changed.")
 
                     bid = _blog_id_from_url(page.url)
                     if not bid:
-                        hrefs = page.locator('a[href*="/blog/posts/"],a[href*="/blog/pages/"],a[href*="/blog/settings/"]').evaluate_all("es=>es.map(e=>e.href)")
-                        for href in hrefs:
+                        links = page.locator('a[href*="/blog/settings/"]').evaluate_all("es => es.map(e => e.href)")
+                        for href in links:
                             bid = _blog_id_from_url(href)
                             if bid:
                                 break
                     if not bid:
-                        _diagnostics(page, "dashboard-blog-id-resolution")
-                        raise BloggerUIPublishError("Could not resolve Blogger blog ID from authenticated dashboard.")
+                        raise BloggerUIPublishError("Could not resolve the authenticated Blogger blog ID.")
 
-                    settings_url = f"https://www.blogger.com/blog/settings/{bid}"
-                    page.goto(settings_url, wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(5000)
-                    _diagnostics(page, "settings-page-before-edit")
+                    page.goto(f"https://draft.blogger.com/blog/settings/{bid}", wait_until="domcontentloaded", timeout=60000)
+                    page.get_by_text("Title", exact=True).wait_for(state="visible", timeout=20000)
+                    page.get_by_text("Description", exact=True).wait_for(state="visible", timeout=20000)
 
-                    title = _find_field(page, [r"blog.?title", r"^title$", r"عنوان المدونة", r"اسم المدونة"])
-                    desc = _find_field(page, [r"blog.?description", r"^description$", r"وصف المدونة"])
-                    if title is None or desc is None:
-                        raise BloggerUIPublishError(
-                            "Settings controls were not uniquely identified. No values were changed; inspect BLOGGER_SETTINGS_DIAGNOSTICS."
-                        )
+                    _edit_setting(page, "Title", TITLE)
+                    _edit_setting(page, "Description", DESCRIPTION)
 
-                    title.fill(TITLE)
-                    desc.fill(DESCRIPTION)
-                    save_candidates = page.get_by_role("button", name=re.compile(r"save|حفظ", re.I))
-                    if save_candidates.count() != 1 or not save_candidates.is_visible():
-                        _diagnostics(page, "save-control-not-unique")
-                        raise BloggerUIPublishError("Could not uniquely identify Save button; no changes submitted.")
-
-                    save_candidates.click()
-                    page.wait_for_timeout(3000)
                     page.reload(wait_until="domcontentloaded")
-                    page.wait_for_timeout(3000)
-                    _diagnostics(page, "settings-page-after-save")
-                    title2 = _find_field(page, [r"blog.?title", r"^title$", r"عنوان المدونة", r"اسم المدونة"])
-                    desc2 = _find_field(page, [r"blog.?description", r"^description$", r"وصف المدونة"])
-                    if not title2 or not desc2 or title2.input_value() != TITLE or desc2.input_value() != DESCRIPTION:
-                        raise BloggerUIPublishError("Settings save could not be verified after reload.")
+                    page.get_by_text("Title", exact=True).wait_for(state="visible", timeout=20000)
+                    _verify_setting(page, "Title", TITLE)
+                    _verify_setting(page, "Description", DESCRIPTION)
+
                     print("BLOGGER_TITLE_DESCRIPTION_UPDATED_AND_VERIFIED")
                 finally:
                     context.close()
