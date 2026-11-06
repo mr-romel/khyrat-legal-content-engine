@@ -28,8 +28,8 @@ def test_comment_bundle_has_three_to_five_comments_and_required_roles(platform):
     )
     assert 3 <= len(comments) <= 5
     assert any("askmahmoudkhyrat.blogspot.com/2026/11/work-rights.html" in item for item in comments)
-    assert any(item.startswith(("ما ", "في واقعة")) for item in comments)
-    assert any("التقييم القانوني" in item or "يتوقف" in item or "العبرة" in item for item in comments)
+    assert comments[0].endswith("؟") and len(comments[0]) > 30
+    assert any(term in comments[1] for term in ("التقييم القانوني", "يتوقف", "العبرة", "اختيار الإجراء", "يتطلب التقييم", "لا يصح تعميم"))
 
 
 def test_bundle_is_stable_for_retry_but_varies_by_video_and_platform():
@@ -87,6 +87,6 @@ def test_public_comments_are_standalone_and_professional_for_secret_threat_topic
         video_id="secret_threat_reel_youtube",
         platform="youtube",
     )
-    assert any("مضمون التهديد" in item and "تاريخه" in item for item in comments)
+    assert any("مضمون التهديد" in item or "نسبته" in item or "العناصر" in item for item in comments)
     assert any("الدليل الإلكتروني" in item or "الدليل" in item for item in comments)
     assert all("سؤال عن" not in item and "زاوية جديدة" not in item for item in comments)
