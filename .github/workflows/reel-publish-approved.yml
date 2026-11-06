@@ -76,7 +76,7 @@ jobs:
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
           sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BK").strip()
-          # Reel control fields live after the core social columns. Always read through BC,
+          # Reel control fields live after the core social columns. Always read through BK,
           # even when the shared GOOGLE_SHEET_RANGE secret is configured for a shorter workflow.
           if "!" in sheet_range:
               tab, _cols = sheet_range.split("!", 1)
