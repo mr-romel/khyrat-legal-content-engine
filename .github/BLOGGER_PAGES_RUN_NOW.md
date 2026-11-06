@@ -31,3 +31,5 @@ Republish all managed Blogger pages after unified SEO/GEO pipeline changes: 2026
 Publish and inspect canonical ProfilePage entity markup: 2026-11-04T17:45:00Z
 
 Publish final integrated SEO GEO and canonical identity build: 2026-11-04T17:55:00Z
+
+Canonical YouTube channel ID correction: 2026-11-06T19:15:00+02:00
