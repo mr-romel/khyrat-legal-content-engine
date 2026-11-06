@@ -248,6 +248,7 @@ jobs:
           comment_warnings=[]
           fresh_facebook=False
           fresh_youtube=False
+          fb_ok=bool(result['facebook'].get('video_id'))
 
           if task != 'comments':
               # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
