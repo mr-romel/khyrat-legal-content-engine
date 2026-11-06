@@ -191,6 +191,11 @@ def create_legal_image(
             post_context=post_context,
             visual_description=visual_description,
         )
+        prompt += (
+            f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
+            "frame the key action and evidence safely inside the central area, "
+            "with enough headroom and no critical details near the crop edges."
+        )
     except ValueError as exc:
         raise ImageGenerationError(str(exc)) from exc
     negative_prompt = ""
