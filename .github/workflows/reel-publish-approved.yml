@@ -208,6 +208,7 @@ jobs:
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
           sheet=cfg['sheet_range'].split('!',1)[0]
+          ensure_headers(svc,cfg['sheet_id'],sheet)
           values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BK')
           headers=values[0] if values else []
           row_number=int(os.environ['ROW_NUMBER'])
@@ -278,24 +279,73 @@ jobs:
                   except Exception as exc:
                       errors.append('YouTube: '+str(exc))
     
-          # Add one useful, first-party discussion prompt only for videos published in THIS run.
-          # Comment failures must not turn a successful video upload into a false publish failure.
-          title=str(plan.get('title', row.get('الموضوع', 'المعلومة القانونية'))).strip()
-          comment_text=(f"إيه أكتر نقطة في موضوع «{title}» محتاج توضيحها؟ "
-                        "اكتب سؤالك، واحفظ الفيديو للرجوع للمعلومة وقت الحاجة")[:900]
-          result['comments']={'facebook': {'status':'NOT_NEEDED'}, 'youtube': {'status':'NOT_NEEDED'}}
-          if fresh_facebook:
-              try:
-                  result['comments']['facebook']={'status':'PUBLISHED', **publish_facebook_video_comment(result['facebook']['video_id'], comment_text)}
-              except Exception as exc:
-                  result['comments']['facebook']={'status':'FAILED','error':str(exc)[:700]}
-                  comment_warnings.append('Facebook comment: '+str(exc))
-          if fresh_youtube:
-              try:
-                  result['comments']['youtube']={'status':'PUBLISHED', **publish_youtube_short_comment(result['youtube']['video_id'], comment_text)}
-              except Exception as exc:
-                  result['comments']['youtube']={'status':'FAILED','error':str(exc)[:700]}
-                  comment_warnings.append('YouTube comment: '+str(exc))
+          # Publish 3-5 first-party comments per platform: topic-linked Q&A plus the exact Blogger article CTA.
+          # Persist each returned ID so scheduled retries resume without duplicate comments.
+          topic=str(row.get('الموضوع', plan.get('title', 'المعلومة القانونية'))).strip()
+          article_url=str(row.get('Blogger URL','')).strip()
+          blogger_ready=(
+              str(row.get('Blogger Status','')).strip().upper() == 'PUBLISHED'
+              and valid_blogger_article_url(article_url)
+          )
+          result['comments']={
+              'facebook': {'status':str(row.get('Reel Facebook Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
+              'youtube': {'status':str(row.get('Reel YouTube Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
+          }
+          if not blogger_ready:
+              for platform, video_data, status_key in (
+                  ('facebook', result['facebook'], 'Reel Facebook Comments Status'),
+                  ('youtube', result['youtube'], 'Reel YouTube Comments Status'),
+              ):
+                  if video_data.get('video_id') and result['comments'][platform]['status'] != 'PUBLISHED':
+                      result['comments'][platform]={'status':'WAITING_BLOGGER','error':'Matching Blogger article is not published or its URL is invalid.'}
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{status_key:'WAITING_BLOGGER'})
+          else:
+              platform_jobs=(
+                  ('facebook', result['facebook'], 'Reel Facebook Comments Status', 'Reel Facebook Comment IDs', publish_facebook_video_comment),
+                  ('youtube', result['youtube'], 'Reel YouTube Comments Status', 'Reel YouTube Comment IDs', publish_youtube_short_comment),
+              )
+              for platform, video_data, status_key, ids_key, publisher in platform_jobs:
+                  video_id=str(video_data.get('video_id','')).strip()
+                  if not video_id:
+                      result['comments'][platform]={'status':'NOT_PUBLISHED'}
+                      continue
+                  current_status=str(row.get(status_key,'')).strip().upper()
+                  comment_ids=parse_published_comment_ids(row.get(ids_key,''))
+                  if current_status == 'PUBLISHED':
+                      result['comments'][platform]={'status':'PUBLISHED','count':len(comment_ids),'comment_ids':comment_ids}
+                      continue
+                  bundle=build_video_comment_bundle(
+                      topic=topic, article_url=article_url, video_id=video_id, platform=platform
+                  )
+                  failed=False
+                  for index, message in enumerate(bundle):
+                      if index < len(comment_ids):
+                          continue
+                      try:
+                          published=publisher(video_id, message)
+                          comment_id=str(published.get('comment_id','')).strip()
+                          if not comment_id:
+                              raise RuntimeError('Comment API returned no comment ID')
+                          comment_ids.append(comment_id)
+                          update_row(svc,cfg['sheet_id'],sheet,row_number,{
+                              ids_key:json.dumps(comment_ids,ensure_ascii=False),
+                              status_key:'PARTIAL',
+                          })
+                      except Exception as exc:
+                          failed=True
+                          error_text=str(exc)[:700]
+                          comment_warnings.append(platform+' comment '+str(index+1)+': '+error_text)
+                          print('VIDEO_COMMENT_FAILED platform='+platform+' index='+str(index+1)+' error='+error_text)
+                          break
+                  final_status='PARTIAL' if failed else 'PUBLISHED'
+                  update_row(svc,cfg['sheet_id'],sheet,row_number,{
+                      ids_key:json.dumps(comment_ids,ensure_ascii=False),
+                      status_key:final_status,
+                  })
+                  result['comments'][platform]={
+                      'status':final_status,'count':len(comment_ids),'target_count':len(bundle),
+                      'comment_ids':comment_ids,
+                  }
           if comment_warnings:
               print('Video upload succeeded but one or more first-party comments failed: '+' | '.join(comment_warnings))
           Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
