@@ -12,6 +12,30 @@ Create a Google Cloud OAuth client for a Desktop/Web application and enable YouT
 
 Optional repository variable/secret: `YOUTUBE_PRIVACY_STATUS` (defaults to `public`; use `private` for the first end-to-end test). The uploader appends `#Shorts` to the title and records the returned video ID and URL. Google may apply API quota or unverified-app restrictions.
 
+## First-party comments on Reels and Shorts
+
+The approved publishing workflow adds a stable, per-video bundle of 3-5 comments to each newly published Facebook Reel and YouTube Short. The bundle contains a topic-specific question, a cautious practical answer, and a CTA linking to the exact Blogger article URL saved on the same Google Sheets content row. Optional fourth/fifth comments vary between a practical CTA and another audience question.
+
+Facebook uses the existing Page access token and `publish_facebook_video_comment` endpoint. YouTube comments require a separate refresh token because the upload-only OAuth grant does not automatically include comment permissions.
+
+After authorizing the same channel with this additional scope:
+
+`https://www.googleapis.com/auth/youtube.force-ssl`
+
+add this repository Actions secret:
+
+- `YOUTUBE_COMMENT_REFRESH_TOKEN`
+
+Keep `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` unchanged. Do not paste refresh tokens into source code or chat. If the secret is absent, YouTube comment publication is recorded as partial and retried by the 15-minute workflow without re-uploading the Short or duplicating already recorded comments.
+
+Comment tracking columns are appended to the Content sheet:
+- `Reel Facebook Comments Status`
+- `Reel Facebook Comment IDs`
+- `Reel YouTube Comments Status`
+- `Reel YouTube Comment IDs`
+
+Comments remain queued until the same content row has `Blogger Status=PUBLISHED` and a valid post URL on `askmahmoudkhyrat.blogspot.com`. This prevents unrelated or homepage links from being posted.
+
 ## TikTok
 
 Register an app at TikTok for Developers, configure Login Kit and Content Posting API, request/obtain the `video.publish` scope, and authorize the target TikTok account. Add:
