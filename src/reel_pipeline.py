@@ -1114,6 +1114,7 @@ def main() -> int:
                     api_key=cfg["gemini_api_key"],
                     cloudflare_account_id=cloudflare_account,
                     cloudflare_api_token=cloudflare_token,
+                    aspect_ratio="9:16",
                 )
                 scenes.append(image_path)
                 print(f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true")
