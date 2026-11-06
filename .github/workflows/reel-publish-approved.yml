@@ -136,7 +136,7 @@ jobs:
                   if (eligible_status or backfill_youtube or comments_pending or metadata_pending) and run_id:
                       task = "metadata" if metadata_pending and not backfill_youtube else "comments" if comments_pending and not backfill_youtube else "publish"
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                          out.write(f"row_number={n}\\nrun_id={run_id}\\ntask={task}\\n")
+                          out.write(f"row_number={n}\nrun_id={run_id}\ntask={task}\n")
                       print(f"Approved Reel queue item row={n}; status={status}; task={task}; metadata_pending={metadata_pending}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
           # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
