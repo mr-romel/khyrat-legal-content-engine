@@ -120,7 +120,7 @@ jobs:
                   backfill_youtube = status == "PUBLISHED" and bool(fb_id) and not yt_id
                   if (eligible_status or backfill_youtube or comments_pending) and run_id:
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                          out.write(f"row_number={n}\nrun_id={run_id}\n")
+                          out.write(f"row_number={n}\nrun_id={run_id}\ntask={'comments' if comments_pending and not backfill_youtube else 'publish'}\n")
                       print(f"Approved Reel/comment task found at row {n}; status={status}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
           # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
@@ -138,7 +138,7 @@ jobs:
                       "Reel Review": "اعتماد يدوي مؤكد من المستخدم؛ تمت استعادة تسجيل الاعتماد",
                   })
                   with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                      out.write(f"row_number={n}\nrun_id={run_id}\n")
+                      out.write(f"row_number={n}\nrun_id={run_id}\ntask=publish\n")
                   print(f"Recovered explicit Telegram approval for row {n}; run_id={run_id}")
                   raise SystemExit(0)
           print("Sheet tab/range used: " + sheet_range)
@@ -146,7 +146,7 @@ jobs:
           print("Reel row diagnostics (last 20 rows): " + repr([(n, str(mapped(raw).get("Reel Status","")).strip(), str(mapped(raw).get("Reel Approval","")).strip(), str(mapped(raw).get("Reel Run ID","")).strip()) for n, raw in list(enumerate(values[1:], start=2))[-20:]]))
           print("No publishable approved Reel found. Approval rows: " + repr(candidates))
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-              out.write("row_number=\nrun_id=\n")
+              out.write("row_number=\nrun_id=\ntask=\n")
           PY
 
       - name: Skip when no approved Reel is waiting
@@ -156,7 +156,7 @@ jobs:
           exit 0
 
       - name: Download reviewed reel package
-        if: ${{ steps.target.outputs.row_number != '' }}
+        if: ${{ steps.target.outputs.row_number != '' && steps.target.outputs.task != 'comments' }}
         env:
           GH_TOKEN: ${{ github.token }}
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
@@ -194,6 +194,7 @@ jobs:
         env:
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
+          TASK: ${{ steps.target.outputs.task }}
         run: |
           python - <<'PY'
           import json, os
@@ -212,17 +213,22 @@ jobs:
           row_number=int(os.environ['ROW_NUMBER'])
           row=row_to_dict(values[row_number-1], headers)
           run_id=str(os.environ.get('RUN_ID','')).strip()
-          root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))
-          if root.exists():
-              video=root/'daily-reel.mp4'
-              plan_path=root/'reel_plan.json'
+          task=str(os.environ.get('TASK','publish')).strip().lower()
+          if task == 'comments':
+              video=None
+              plan={}
           else:
-              matches=list(Path('review-package').rglob('daily-reel.mp4'))
-              if not matches: raise SystemExit('Approved reel MP4 was not found in downloaded artifact.')
-              video=matches[0]
-              plan_path=video.with_name('reel_plan.json')
-          if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
-          if video.stat().st_size < 100_000: raise SystemExit(f'Approved reel file is unexpectedly small ({video.stat().st_size} bytes): {video}')
+              root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))
+              if root.exists():
+                  video=root/'daily-reel.mp4'
+                  plan_path=root/'reel_plan.json'
+              else:
+                  matches=list(Path('review-package').rglob('daily-reel.mp4'))
+                  if not matches: raise SystemExit('Approved reel MP4 was not found in downloaded artifact.')
+                  video=matches[0]
+                  plan_path=video.with_name('reel_plan.json')
+              if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
+              if video.stat().st_size < 100_000: raise SystemExit(f'Approved reel file is unexpectedly small ({video.stat().st_size} bytes): {video}')
           # Re-check the exact row immediately before any external publication to avoid stale approvals.
           latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BK')
           latest_headers=latest_values[0] if latest_values else []
@@ -231,7 +237,8 @@ jobs:
               raise SystemExit('Approval was revoked or changed before publication; no platform was called.')
           if str(latest_row.get('Reel Run ID','')).strip() != run_id:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
-          plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
+          if task != 'comments':
+              plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
           fb_caption=str(plan.get('facebook_caption','') or row.get('المحتوى','')).strip()
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
@@ -241,34 +248,36 @@ jobs:
           fresh_facebook=False
           fresh_youtube=False
 
-          # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
-          # Its Facebook ID was not persisted. Never blindly repost that specific reel.
-          facebook_outcome_uncertain = (run_id == '39073320925' and not result['facebook']['video_id'])
-          if not result['facebook']['video_id'] and facebook_outcome_uncertain:
-              errors.append('Facebook skipped: previous run may have published before failing; verify the Page before retrying to avoid a duplicate.')
-          elif not result['facebook']['video_id']:
-              try:
-                  fb=publish_facebook_video(str(video), fb_caption)
-                  result['facebook']=fb
-                  fresh_facebook=True
-                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
-              except Exception as exc:
-                  errors.append('Facebook: '+str(exc))
-
-          fb_ok=bool(result['facebook'].get('video_id'))
-          # Publish to YouTube only after Facebook is confirmed. YouTube failure is recorded
-          # independently so the successful Facebook publication is never repeated blindly.
-          if fb_ok and not result['youtube'].get('video_id'):
-              try:
-                  title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
-                  # YouTube description must match the approved post copy for this exact Reel.
-                  description=fb_caption
-                  yt=publish_youtube_short(str(video), title, description)
-                  result['youtube']=yt
-                  fresh_youtube=True
-                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
-              except Exception as exc:
-                  errors.append('YouTube: '+str(exc))
+          if task != 'comments':
+              # The prior failed run posted to Facebook before LinkedIn returned an expired-token error.
+              # Its Facebook ID was not persisted. Never blindly repost that specific reel.
+              facebook_outcome_uncertain = (run_id == '39073320925' and not result['facebook']['video_id'])
+              if not result['facebook']['video_id'] and facebook_outcome_uncertain:
+                  errors.append('Facebook skipped: previous run may have published before failing; verify the Page before retrying to avoid a duplicate.')
+              elif not result['facebook']['video_id']:
+                  try:
+                      fb=publish_facebook_video(str(video), fb_caption)
+                      result['facebook']=fb
+                      fresh_facebook=True
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Facebook ID': fb['video_id'], 'Reel Status':'PUBLISHED_PARTIAL', 'Reel Last Error':'', 'Reel Review':'Facebook published; YouTube is being processed'})
+                  except Exception as exc:
+                      errors.append('Facebook: '+str(exc))
+    
+              fb_ok=bool(result['facebook'].get('video_id'))
+              # Publish to YouTube only after Facebook is confirmed. YouTube failure is recorded
+              # independently so the successful Facebook publication is never repeated blindly.
+              if fb_ok and not result['youtube'].get('video_id'):
+                  try:
+                      title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
+                      # YouTube description must match the approved post copy for this exact Reel.
+                      description=fb_caption
+                      yt=publish_youtube_short(str(video), title, description)
+                      result['youtube']=yt
+                      fresh_youtube=True
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube ID':yt['video_id'],'Reel YouTube URL':yt['url'],'Reel Status':'PUBLISHED_PARTIAL','Reel Last Error':'','Reel Review':'Facebook and YouTube published; confirm final status'})
+                  except Exception as exc:
+                      errors.append('YouTube: '+str(exc))
+    
           # Add one useful, first-party discussion prompt only for videos published in THIS run.
           # Comment failures must not turn a successful video upload into a false publish failure.
           title=str(plan.get('title', row.get('الموضوع', 'المعلومة القانونية'))).strip()
