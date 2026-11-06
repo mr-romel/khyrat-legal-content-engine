@@ -46,6 +46,12 @@ def test_visual_prompt_requires_a_concrete_brief():
 
 
 def test_image_brand_lockup_and_platform_colors_are_fixed():
-    assert BRAND_OVERLAY_TEXT == "اسأل محمود خيرت"
+    assert BRAND_OVERLAY_TEXT == "اسال محمود خيرت - محام ومستشار قانوني"
     assert FACEBOOK_BADGE_BLUE == (24, 119, 242)
     assert BLOGGER_BADGE_GREEN == (76, 175, 80)
+
+
+
+def test_image_overlay_contains_only_the_approved_line():
+    from brand_identity import BRAND_OVERLAY_SUBTEXT
+    assert BRAND_OVERLAY_SUBTEXT == ""
