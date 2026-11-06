@@ -12,7 +12,7 @@ WHATSAPP_URL = "https://wa.me/201022718375"
 # topics merely because the source Sheet cell accidentally contains both.
 SUBJECT_FAMILIES = {
     "secret_threat": ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة"),
-    "unauthorized_recording": ("تصوير", "التصوير", "كاميرا", "تسجيل", "التسجيل", "خصوصية الصورة"),
+    "unauthorized_recording": ("تصوير", "التصوير", "كاميرا", "خصوصية الصورة", "تصوير الأشخاص", "تصوير دون إذن"),
     "employment": ("عمل", "عامل", "عمال", "موظف", "موظفين", "أجر", "فصل", "استقالة"),
     "family": ("طلاق", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة", "ميراث"),
     "companies": ("شركة", "شركات", "شريك", "شراكة", "تأسيس", "تجاري"),
@@ -27,7 +27,7 @@ def _clean(value: str, limit: int = 700) -> str:
     return text[:limit].rstrip(" ،؛:.")
 
 
-def _public_topic(value: str) -> str:
+def clean_video_topic(value: str) -> str:
     """Convert internal Sheet labels into a clean, audience-facing legal subject."""
     text = sanitize_topic(str(value or ""))
     text = re.sub(r"(?i)^\s*(?:سؤال\s+عن|استفسار\s+عن|موضوع)\s+", "", text)
@@ -86,7 +86,7 @@ def _topic_aligned_body(text: str, topic: str, limit: int = 900) -> str:
 
 def build_video_description(*, topic: str, post: str, script: str, article_url: str = "", platform: str = "facebook") -> str:
     """Build platform metadata from a clean topic and matching narration, never raw Sheet labels."""
-    clean_topic = _public_topic(topic)
+    clean_topic = clean_video_topic(topic)
     platform = str(platform or "").strip().lower()
     if platform not in {"facebook", "youtube"}:
         raise ValueError("platform must be facebook or youtube")
