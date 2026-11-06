@@ -65,6 +65,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BM' }}
+          YOUTUBE_COMMENT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_COMMENT_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
           import json, os
@@ -122,13 +123,14 @@ jobs:
                   )
                   fb_description_status = str(row.get("Reel Facebook Description Status","")).strip().upper()
                   yt_description_status = str(row.get("Reel YouTube Description Status","")).strip().upper()
+                  youtube_management_ready = bool(os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip())
                   metadata_pending = status == "PUBLISHED" and (
                       (bool(fb_id) and fb_description_status != "PUBLISHED")
-                      or (bool(yt_id) and yt_description_status != "PUBLISHED")
+                      or (youtube_management_ready and bool(yt_id) and yt_description_status != "PUBLISHED")
                   )
                   comments_pending = status == "PUBLISHED" and blogger_ready and (
                       (bool(fb_id) and fb_comment_status != "PUBLISHED")
-                      or (bool(yt_id) and yt_comment_status != "PUBLISHED")
+                      or (youtube_management_ready and bool(yt_id) and yt_comment_status != "PUBLISHED")
                   )
                   # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
