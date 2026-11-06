@@ -27,3 +27,44 @@ def test_secret_disclosure_topic_visual_fallback_is_not_generic_legal_stock():
     assert any("threatening" in item for item in terms)
     assert any("confidential" in item for item in terms)
     assert any("smartphone" in item for item in terms)
+
+
+
+def test_secret_threat_visual_pack_never_mixes_unauthorized_recording():
+    terms = post_visual_terms(
+        "التهديد بإفشاء الأسرار عبر رسائل خاصة. كما ورد في الملف موضوع تصوير دون إذن في مكان عام.",
+        "التهديد بإفشاء الأسرار",
+    )
+    joined = " ".join(terms).lower()
+    assert len(terms) == 8
+    assert "threatening private message" in joined
+    assert "timestamp" in joined
+    assert "recording" not in joined
+    assert "camera" not in joined
+    assert "public place" not in joined
+
+
+def test_unauthorized_recording_visual_pack_does_not_use_secret_threat_scenes():
+    terms = post_visual_terms(
+        "التصوير دون إذن في مكان عام واستخدام الهاتف لتسجيل الأشخاص.",
+        "التصوير دون إذن",
+    )
+    joined = " ".join(terms).lower()
+    assert len(terms) == 8
+    assert "smartphone camera" in joined or "phone camera" in joined
+    assert "public-place" in joined or "public place" in joined
+    assert "threatening private message" not in joined
+    assert "confidential files" not in joined
+
+
+def test_model_or_mixed_post_terms_cannot_override_authoritative_topic_family():
+    terms = post_visual_terms(
+        "موضوع مختلط عن عقد عمل وتصوير دون إذن وتهديد بإفشاء الأسرار.",
+        "حقوق العامل عند الفصل",
+    )
+    joined = " ".join(terms).lower()
+    assert len(terms) == 8
+    assert "employment contract" in joined
+    assert "payroll" in joined or "attendance" in joined
+    assert "threatening private message" not in joined
+    assert "smartphone camera" not in joined
