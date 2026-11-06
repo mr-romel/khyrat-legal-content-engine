@@ -192,7 +192,7 @@ def create_legal_image(
             visual_description=visual_description,
         )
         prompt += (
-            f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
+            f"\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
             "frame the key action and evidence safely inside the central area, "
             "with enough headroom and no critical details near the crop edges."
         )
