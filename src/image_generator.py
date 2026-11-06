@@ -13,7 +13,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 
 from brand_identity import (
-    BRAND_ACCENT, BRAND_DESCRIPTOR, BRAND_LOCKUP, BRAND_OVERLAY_TEXT,
+    BRAND_ACCENT, BRAND_DESCRIPTOR, BRAND_LOCKUP, BRAND_OVERLAY_TEXT, BRAND_OVERLAY_SUBTEXT,
     BRAND_PRIMARY, BRAND_WHITE, build_editorial_image_prompt,
 )
 
@@ -140,13 +140,13 @@ def brand_published_image(image_path: str) -> str:
         ]
         font_path = next((p for p in font_candidates if Path(p).exists()), None)
         main_size = max(22, int(width * 0.032))
-        sub_size = max(15, int(width * 0.019))
+        sub_size = max(13, int(width * 0.016))
         main_font = ImageFont.truetype(font_path, main_size) if font_path else ImageFont.load_default()
         sub_font = ImageFont.truetype(font_path, sub_size) if font_path else ImageFont.load_default()
         right = width - max(22, int(width * 0.035))
         _draw_arabic_text(draw, (right, y0 + int(strip_h * 0.34)), BRAND_OVERLAY_TEXT,
                           font=main_font, fill=white, anchor="rm")
-        _draw_arabic_text(draw, (right, y0 + int(strip_h * 0.72)), BRAND_DESCRIPTOR,
+        _draw_arabic_text(draw, (right, y0 + int(strip_h * 0.72)), BRAND_OVERLAY_SUBTEXT,
                           font=sub_font, fill=gold, anchor="rm")
 
         image.save(path, quality=94, optimize=True)
