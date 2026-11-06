@@ -10,6 +10,8 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
+from brand_identity import BRAND_OVERLAY_TEXT, BRAND_DESCRIPTOR
+
 DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
 # QA is advisory. Only clearly unusable or materially unrelated images should regenerate.
 QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
@@ -19,7 +21,7 @@ QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE"
 QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "10"))
 QA_HARD_REJECT_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_COMPOSITION", "15"))
 QA_MAX_RETRIES = max(1, int(os.getenv("KHYRAT_IMAGE_QA_MAX_RETRIES", "1")))
-ALLOWED_BRAND_TEXT = "اسأل محمود - مستشار قانوني للشركات"
+ALLOWED_BRAND_TEXT = BRAND_OVERLAY_TEXT
 
 
 class ImageQAError(RuntimeError):
