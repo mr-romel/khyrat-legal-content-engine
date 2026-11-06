@@ -11,7 +11,8 @@ BRAND_SLOGAN = "خليك فاكر دايما ... اسأل محمود"
 BRAND_PRIMARY = (12, 28, 48)       # deep navy
 BRAND_ACCENT = (190, 151, 76)     # muted legal gold
 BRAND_WHITE = (255, 255, 255)
-BRAND_OVERLAY_TEXT = f"{BRAND_NAME} | {PROFESSIONAL_TITLE}"
+BRAND_OVERLAY_TEXT = BRAND_LOCKUP
+BRAND_OVERLAY_SUBTEXT = f"{PROFESSIONAL_TITLE} | {BRAND_DESCRIPTOR}"
 
 
 def build_editorial_image_prompt(*, topic: str, post_context: str, visual_description: str) -> str:
