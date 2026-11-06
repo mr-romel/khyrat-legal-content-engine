@@ -256,7 +256,7 @@ jobs:
           from video_comments import build_video_comment_bundle, parse_published_comment_ids, valid_blogger_article_url
           from reel_publishers import publish_facebook_video, publish_facebook_video_comment, update_facebook_video_description
           from youtube_publisher import publish_youtube_short, publish_youtube_short_comment, update_youtube_short_description
-          from video_metadata import build_video_description
+          from video_metadata import build_video_description, clean_video_topic
 
           cfg=load_video_config()
           svc=create_service(cfg['service_account_info'])
@@ -293,7 +293,7 @@ jobs:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
           if task == 'publish':
               plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
-          topic=str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))).strip()
+          topic=clean_video_topic(str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))))
           source_post=str(row.get('المحتوى','')).strip()
           script=str(plan.get('script', row.get('Reel Script',''))).strip()
           article_url=str(row.get('Blogger URL','')).strip()
@@ -329,7 +329,7 @@ jobs:
               # independently so the successful Facebook publication is never repeated blindly.
               if fb_ok and not result['youtube'].get('video_id'):
                   try:
-                      title=str(plan.get('title', row.get('الموضوع', 'معلومة قانونية'))).strip()
+                      title=topic
                       # YouTube description must match the approved post copy for this exact Reel.
                       yt=publish_youtube_short(str(video), title, yt_description)
                       result['youtube']=yt
