@@ -5,7 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from brand_identity import (
     BRAND_DESCRIPTOR, BRAND_LOCKUP, BRAND_NAME, BRAND_SERVICE_AREA,
-    BRAND_SLOGAN, PROFESSIONAL_NAME, PROFESSIONAL_TITLE,
+    BRAND_SLOGAN, PROFESSIONAL_NAME, PROFESSIONAL_TITLE, BRAND_OVERLAY_TEXT,
+    FACEBOOK_BADGE_BLUE, BLOGGER_BADGE_GREEN,
     build_editorial_image_prompt,
 )
 
@@ -41,3 +42,10 @@ def test_visual_prompt_requires_a_concrete_brief():
         assert "visual description" in str(exc)
     else:
         raise AssertionError("A generic topic must not be enough to generate an image.")
+
+
+
+def test_image_brand_lockup_and_platform_colors_are_fixed():
+    assert BRAND_OVERLAY_TEXT == "اسأل محمود خيرت"
+    assert FACEBOOK_BADGE_BLUE == (24, 119, 242)
+    assert BLOGGER_BADGE_GREEN == (76, 175, 80)
