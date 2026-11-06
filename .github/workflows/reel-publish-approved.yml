@@ -356,7 +356,7 @@ jobs:
               update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel Status':status,'Reel Last Error':' | '.join(errors)[:1500],
                   'Reel Review':'Facebook published; inspect missing publication metadata' if fb_ok else 'Facebook publish failed; inspect Reel Last Error'})
               raise SystemExit(' | '.join(errors))
-          if not fb_ok: raise SystemExit('Facebook publication incomplete; not marking as published.')
+          if task != 'comments' and not fb_ok: raise SystemExit('Facebook publication incomplete; not marking as published.')
           PY
 
 
