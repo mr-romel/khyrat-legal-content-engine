@@ -17,12 +17,41 @@ DESCRIPTION = (
 
 
 def _visible_controls(page):
-    return page.locator("input,textarea,[contenteditable='true']").evaluate_all(
-        """els => els.filter(e => e.getClientRects().length).map(e => ({
-          tag:e.tagName, type:e.getAttribute('type'), aria:e.getAttribute('aria-label'),
-          placeholder:e.getAttribute('placeholder'), name:e.getAttribute('name'),
-          role:e.getAttribute('role'), value:e.value || '', text:(e.innerText || '').slice(0,100)
-        })).slice(0,60)"""
+    # Blogger's Polymer/Material settings controls may be custom elements with
+    # shadow-DOM textboxes rather than ordinary input/textarea nodes.
+    return page.locator("body").evaluate(
+        """body => {
+          const out = [];
+          const seen = new Set();
+          const walk = root => {
+            for (const e of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
+              if (seen.has(e)) continue;
+              seen.add(e);
+              const r = e.getBoundingClientRect();
+              const visible = r.width > 0 && r.height > 0;
+              const role = e.getAttribute('role') || '';
+              const tag = e.tagName.toLowerCase();
+              const interesting = visible && (
+                ['input','textarea'].includes(tag) || e.isContentEditable ||
+                ['textbox','combobox','searchbox'].includes(role) ||
+                e.hasAttribute('aria-label') || e.hasAttribute('aria-labelledby') ||
+                /paper-input|mdc|material|settings/i.test(tag)
+              );
+              if (interesting && out.length < 100) out.push({
+                tag, role, aria:e.getAttribute('aria-label'),
+                labelledby:e.getAttribute('aria-labelledby'),
+                placeholder:e.getAttribute('placeholder'),
+                name:e.getAttribute('name'), id:e.id || '',
+                value:('value' in e ? e.value : ''),
+                text:(e.innerText || '').trim().slice(0,100),
+                html:e.outerHTML.slice(0,500)
+              });
+              if (e.shadowRoot) walk(e.shadowRoot);
+            }
+          };
+          walk(body);
+          return out;
+        }"""
     )
 
 
