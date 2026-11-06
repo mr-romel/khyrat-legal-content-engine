@@ -33,7 +33,10 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     )
     assert "identity source" not in prompt
     assert "generated scene must be new" in prompt
-    assert "bottom-right overlay" in prompt
+    assert "bottom overlay" in prompt
+    assert "اسأل محمود" in prompt
+    assert "محامٍ ومستشار قانوني في مصر" in prompt
+    assert "No platform-specific icon is used" in prompt
     assert "legal situation" in prompt
     assert "period-drama styling" in prompt
     assert "antiquity-inspired decoration" in prompt
