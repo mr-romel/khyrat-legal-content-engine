@@ -530,6 +530,16 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
     """Build visual searches from the actual post first; topic is only a fallback."""
     text = " ".join(str(post or "").split()).lower()
     groups = [
+        (("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"), [
+            "person receiving a threatening private message on a smartphone, realistic modern home setting",
+            "close-up of a smartphone displaying a blurred threatening message, no readable text",
+            "person carefully preserving an original digital message and its timestamp on a phone",
+            "confidential paper files being secured in a locked office drawer",
+            "laptop screen showing a password-protected private folder, contemporary desk",
+            "person documenting a sequence of threatening messages with dates and times",
+            "close-up of a phone, printed message record and handwritten incident timeline",
+            "two people in a tense private conversation in a modern office, non-violent documentary realism",
+        ]),
         (("عقد", "توقيع", "اتفاق"), ["two people signing a business agreement at a modern office desk", "hands reviewing a printed contract beside a laptop", "two colleagues discussing contract clauses at a meeting table", "legal document signature close up", "modern company department reviewing a file at a desk", "contract dispute evidence documents"]),
         (("إيجار", "مؤجر", "مستأجر", "شقة"), ["landlord and tenant reviewing a lease at a modern apartment table", "rental contract document close up", "tenant and landlord discussing a property issue in a contemporary apartment", "apartment keys lease agreement", "rental notice document close up", "legal adviser reviewing a rental dispute file in a modern office"]),
         (("عمل", "موظف", "فصل", "مرتب", "راتب"), ["two coworkers discussing an employment issue in a modern workplace", "employee employment contract review", "termination letter workplace document", "salary dispute documents office", "HR reviewing a personnel file in a contemporary office", "workplace meeting employment issue"]),
@@ -545,6 +555,16 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
 def topic_visual_terms(topic: str) -> list[str]:
     t = (topic or "").lower()
     groups = [
+        (("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"), [
+            "person receiving a threatening private message on a smartphone, realistic modern home setting",
+            "close-up of a smartphone displaying a blurred threatening message, no readable text",
+            "person preserving the original message with visible date and time metadata",
+            "confidential paper files secured in a locked office drawer",
+            "password-protected private folder on a laptop at a contemporary desk",
+            "person documenting a sequence of messages and their timestamps",
+            "phone beside printed digital evidence and a handwritten incident timeline",
+            "two people in a tense private conversation in a modern office, non-violent documentary realism",
+        ]),
         (("تحرش", "تحرش جنسي"), ["person preserving smartphone messages in a public place","woman documenting harassment on smartphone","security camera footage street evidence","official complaint paperwork on a contemporary desk","lawyer explaining harassment case to client","digital messages evidence smartphone close up"]),
         (("طلاق", "خلع", "نفقة", "حضانة"), ["family law consultation in a modern office","divorce papers legal documents close up","legal adviser meeting a client in a contemporary office","child custody legal documents family court","alimony financial documents legal consultation","lawyer explaining family court procedure"]),
         (("إيجار", "طرد", "عقد إيجار"), ["rental agreement signing in a modern apartment","tenant landlord lease documents close up","rental contract legal dispute lawyer","apartment keys lease agreement close up","legal adviser reviewing a rental contract","eviction legal notice document close up"]),
@@ -681,7 +701,14 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     script = sanitize_social_copy(str(data.get("script", "")).strip())
     script = _bound_reel_script(script, max_words=75)
     terms = data.get("video_terms") if isinstance(data.get("video_terms"), list) else []
-    if len(terms) < 8: terms = post_visual_terms(post, topic)
+    # For subjects with a known evidence pattern, prefer verified scene concepts
+    # over generic AI stock-scene suggestions so the footage matches the legal issue.
+    visual_source = " ".join((str(post or ""), str(topic or ""))).lower()
+    topic_visual_match = any(term in visual_source for term in (
+        "تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز"
+    ))
+    if topic_visual_match or len(terms) < 8:
+        terms = post_visual_terms(post, topic)
     if not 55 <= len(script.split()) <= 75 or len(terms) < 8:
         raise RuntimeError("Reel package is incomplete.")
     return {
