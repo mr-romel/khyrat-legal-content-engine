@@ -948,11 +948,9 @@ def main() -> int:
                 continue
             reel_status = str(row.get("Reel Status", "")).strip().upper()
             reel_file = str(row.get("Reel File", "")).strip()
-            if reel_status == "PUBLISHED":
-                continue
-            if reel_status == "GENERATING" and reel_file:
-                continue
-            if reel_status in {"REVIEW", "APPROVED"} and reel_file:
+            # Review/approval/generation states belong to an existing Telegram item.
+            # Never pick them as fresh source rows merely because their local MP4 is absent.
+            if reel_status in {"PUBLISHED", "GENERATING", "REVIEW", "APPROVED", "REGENERATING"}:
                 continue
             recovered.append((row_number, row))
         if not recovered:
@@ -1027,7 +1025,9 @@ def main() -> int:
                 valid_file = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
                 if not source_id or not post_text or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
                     continue
-                if reel_status == "PUBLISHED" or valid_file:
+                # Existing review/approval locks are not fresh Reel work, even when
+                # the runner's ephemeral filesystem cannot see their stored MP4.
+                if reel_status in {"PUBLISHED", "GENERATING", "REVIEW", "APPROVED", "REGENERATING"} or valid_file:
                     continue
                 if review.startswith("TELEGRAM_SENDING"):
                     print(f"Reel recovery fallback skips row {row_number}: Telegram delivery is already in progress.")
