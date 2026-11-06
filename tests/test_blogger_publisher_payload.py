@@ -44,7 +44,7 @@ def test_article_schema_uses_blogger_safe_microdata_and_canonical_author_profile
     assert 'itemprop="author"' in content
     assert 'itemtype="https://schema.org/Person"' in content
     assert 'https://askmahmoudkhyrat.blogspot.com/p/blog-page_03.html' in content
-    assert 'https://www.youtube.com/@everything101-mhrm' in content
+    assert 'https://www.youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA' in content
     assert 'itemprop="datePublished"' in content
     assert 'itemprop="dateModified"' in content
     assert 'itemprop="publisher"' in content
@@ -62,7 +62,7 @@ def test_official_profile_page_schema_connects_youtube_identity():
     schema = json.loads(raw)
     person = schema["mainEntity"]
     assert person["name"] == "محمود خيرت رجب"
-    assert "https://www.youtube.com/@everything101-mhrm" in person["sameAs"]
+    assert "https://www.youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA" in person["sameAs"]
     assert "https://www.facebook.com/AskMahmoudNow" in person["sameAs"]
     assert "https://www.linkedin.com/in/mahmoud-khyrat" in person["sameAs"]
 
