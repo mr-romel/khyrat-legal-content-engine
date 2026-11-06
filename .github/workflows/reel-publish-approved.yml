@@ -95,7 +95,16 @@ jobs:
           def mapped(raw):
               return {header: (raw[i] if i < len(raw) else "") for i, header in enumerate(headers) if header}
           candidates=[]
-          # Prefer the newest approved work first; do not let an old partial publication starve new reels.
+          queue_snapshot={}
+          for _n, _raw in enumerate(values[1:], start=2):
+              _row=mapped(_raw)
+              _status=str(_row.get("Reel Status","")).strip().upper() or "EMPTY"
+              _approval=str(_row.get("Reel Approval","")).strip().upper() or "NO_APPROVAL"
+              if _status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"} or _approval == "APPROVED":
+                  _key=_status+"/"+_approval
+                  queue_snapshot[_key]=queue_snapshot.get(_key,0)+1
+          print("REEL_QUEUE_SNAPSHOT="+json.dumps(queue_snapshot,ensure_ascii=False,sort_keys=True))
+          # Prioritize oldest new approvals, then partial retries, then metadata/comment backfills.
           ordered_rows = sorted(
               enumerate(values[1:], start=2),
               key=lambda item: (
