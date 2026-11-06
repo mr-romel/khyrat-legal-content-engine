@@ -44,6 +44,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     assert "نزاع بشأن مستندات عمل" in prompt
     assert "preserving employment records and messages" in prompt
     assert "do not substitute a generic lawyer portrait" in prompt
+    assert "COMPOSITION FORMAT: portrait 4:5" in prompt
 
     import json
     provenance = json.loads((tmp_path / "legal.jpg.provenance.json").read_text(encoding="utf-8"))
@@ -77,6 +78,7 @@ def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_
         aspect_ratio="9:16",
     )
     assert (captured["width"], captured["height"]) == (576, 1024)
+    assert "COMPOSITION FORMAT: portrait 9:16" in captured["prompt"]
     import json
     provenance = json.loads((tmp_path / "reel-scene.jpg.provenance.json").read_text(encoding="utf-8"))
     assert provenance["aspect_ratio"] == "9:16"
