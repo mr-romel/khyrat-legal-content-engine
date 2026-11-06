@@ -95,7 +95,16 @@ jobs:
               return {header: (raw[i] if i < len(raw) else "") for i, header in enumerate(headers) if header}
           candidates=[]
           # Prefer the newest approved work first; do not let an old partial publication starve new reels.
-          for n, raw in reversed(list(enumerate(values[1:], start=2))):
+          ordered_rows = sorted(
+              enumerate(values[1:], start=2),
+              key=lambda item: (
+                  0 if str(mapped(item[1]).get("Reel Status","")).strip().upper() in {"REVIEW","APPROVED","READY_TO_PUBLISH"}
+                  else 1 if str(mapped(item[1]).get("Reel Status","")).strip().upper() in {"PUBLISHED_PARTIAL","PUBLISH_FAILED"}
+                  else 2,
+                  item[0],
+              ),
+          )
+          for n, raw in ordered_rows:
               row=mapped(raw)
               status=str(row.get("Reel Status","")).strip().upper()
               approval=str(row.get("Reel Approval","")).strip().upper()
