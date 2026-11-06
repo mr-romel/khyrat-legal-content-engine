@@ -36,6 +36,12 @@ Comment tracking columns are appended to the Content sheet:
 
 Comments remain queued until the same content row has `Blogger Status=PUBLISHED` and a valid post URL on `askmahmoudkhyrat.blogspot.com`. This prevents unrelated or homepage links from being posted.
 
+## Reel and Short descriptions
+
+Every newly uploaded Facebook Reel receives a description built from its approved topic and narration. Every YouTube Short receives its own description, including the topic, explanation, relevant article link when available, contact CTA, and topic-specific hashtags. The approved workflow also backfills descriptions on previously published videos without uploading the video again.
+
+Facebook description updates use the Page token. Updating an existing YouTube Short requires `YOUTUBE_COMMENT_REFRESH_TOKEN` authorized with `https://www.googleapis.com/auth/youtube.force-ssl`; the same token is used for first-party YouTube comments. New Shorts still receive their description during upload using the existing upload token.
+
 ## TikTok
 
 Register an app at TikTok for Developers, configure Login Kit and Content Posting API, request/obtain the `video.publish` scope, and authorize the target TikTok account. Add:
