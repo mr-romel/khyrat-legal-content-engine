@@ -1,0 +1,89 @@
+name: Queue Audited Reel Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reel-bulk-recovery-queue.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khyrat-reel-recovery-queue
+  cancel-in-progress: false
+
+jobs:
+  queue:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'QUEUE_REEL_RECOVERY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: src
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Sheet dependencies
+        run: pip install -r requirements-worker.txt
+      - name: Queue only the rows proven contaminated by the audit
+        run: |
+          python - <<'PY'
+          import json, os
+          from sheets import create_service, get_values, row_to_dict, update_row
+
+          TARGET_ROWS = [169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 255]
+          raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
+          if not raw or not os.getenv("GOOGLE_SHEET_ID"):
+              raise SystemExit("Missing Google Sheets credentials or sheet ID.")
+          sheet_id = os.environ["GOOGLE_SHEET_ID"]
+          full_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BZ")
+          tab = full_range.split("!", 1)[0]
+          service = create_service(json.loads(raw))
+          values = get_values(service, sheet_id, f"{tab}!A:BZ")
+          if not values:
+              raise SystemExit("Google Sheet is empty or inaccessible.")
+          headers = [str(x or "").strip() for x in values[0]]
+          queued, skipped = [], []
+          for number in TARGET_ROWS:
+              idx = number - 2
+              if idx < 0 or idx >= len(values) - 1:
+                  skipped.append({"row": number, "reason": "row outside current sheet"})
+                  continue
+              row = row_to_dict(values[idx + 1], headers)
+              topic = str(row.get("الموضوع", "") or "").strip()
+              source_id = str(row.get("ID", "") or "").strip()
+              content = str(row.get("المحتوى", "") or "").strip()
+              social_ok = any(str(row.get(k, "") or "").strip().upper() == "PUBLISHED" for k in ("Facebook Status", "LinkedIn Status"))
+              if not (topic and source_id and content and social_ok):
+                  skipped.append({"row": number, "topic": topic, "reason": "missing ID/topic/content or no successful source social post"})
+                  continue
+              status = str(row.get("Reel Status", "") or "").strip().upper()
+              if status in {"GENERATING", "REGENERATING"}:
+                  skipped.append({"row": number, "topic": topic, "reason": f"already {status}"})
+                  continue
+              update_row(service, sheet_id, tab, number, {
+                  "Reel Status": "REGENERATE_REQUESTED",
+                  "Reel Approval": "",
+                  "Reel Review": "BULK_RECOVERY_QUEUED | audited duplicate/stale artifact",
+                  "Reel Last Error": "",
+                  "Reel File": "",
+                  "Reel Run ID": "",
+                  "Reel Video SHA256": "",
+                  "Reel Facebook ID": "",
+                  "Reel YouTube ID": "",
+                  "Reel YouTube URL": "",
+                  "Reel Facebook Status": "",
+                  "Reel YouTube Status": "",
+              })
+              queued.append({"row": number, "topic": topic, "previous_status": status})
+          print("REEL_RECOVERY_QUEUE=" + json.dumps({"queued": queued, "skipped": skipped}, ensure_ascii=False))
+          if not queued:
+              raise SystemExit("No audited rows were safely queued.")
+          PY
