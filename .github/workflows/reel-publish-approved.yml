@@ -169,30 +169,15 @@ jobs:
                   # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
                   backfill_youtube = status == "PUBLISHED" and bool(fb_id) and not yt_id
-                  if (eligible_status or backfill_youtube or comments_pending or metadata_pending) and run_id:
+                  video_sha256 = str(row.get("Reel Video SHA256","")).strip().lower()
+                  fresh_publish_ready = status != "PUBLISHED" and len(video_sha256) == 64 and all(ch in "0123456789abcdef" for ch in video_sha256)
+                  if ((eligible_status and fresh_publish_ready) or backfill_youtube or comments_pending or metadata_pending) and run_id:
                       task = "metadata" if metadata_pending and not backfill_youtube else "comments" if comments_pending and not backfill_youtube else "publish"
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
                           out.write(f"row_number={n}\nrun_id={run_id}\ntask={task}\n")
                       print(f"Approved Reel queue item row={n}; status={status}; task={task}; metadata_pending={metadata_pending}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
-          # One-time recovery for the reel the owner explicitly confirmed was approved in Telegram.
-          # Telegram's callback did not persist Reel Approval, so reconcile only this exact run ID.
-          recovery_run_id = "39073320925"
-          for n, raw in enumerate(values[1:], start=2):
-              row = mapped(raw)
-              status = str(row.get("Reel Status","")).strip().upper()
-              approval = str(row.get("Reel Approval","")).strip().upper()
-              run_id = str(row.get("Reel Run ID","")).strip()
-              if run_id == recovery_run_id and status == "REVIEW" and not approval:
-                  from sheets import update_row
-                  update_row(svc, sheet_id, tab, n, {
-                      "Reel Approval": "APPROVED",
-                      "Reel Review": "اعتماد يدوي مؤكد من المستخدم؛ تمت استعادة تسجيل الاعتماد",
-                  })
-                  with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                      out.write(f"row_number={n}\nrun_id={run_id}\ntask=publish\n")
-                  print(f"Recovered explicit Telegram approval for row {n}; run_id={run_id}")
-                  raise SystemExit(0)
+          # Legacy row-only approval recovery intentionally removed: approvals must carry a video fingerprint.
           print("Sheet tab/range used: " + sheet_range)
           print("Relevant headers: " + repr([(i+1, h) for i, h in enumerate(headers) if "reel" in h.lower() or "approval" in h.lower()]))
           print("Reel row diagnostics (last 20 rows): " + repr([(n, str(mapped(raw).get("Reel Status","")).strip(), str(mapped(raw).get("Reel Approval","")).strip(), str(mapped(raw).get("Reel Run ID","")).strip()) for n, raw in list(enumerate(values[1:], start=2))[-20:]]))
@@ -272,17 +257,14 @@ jobs:
               video=None
               plan={}
           else:
-              root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))
-              if root.exists():
-                  video=root/'daily-reel.mp4'
-                  plan_path=root/'reel_plan.json'
-              else:
-                  matches=list(Path('review-package').rglob('daily-reel.mp4'))
-                  if not matches: raise SystemExit('Approved reel MP4 was not found in downloaded artifact.')
-                  video=matches[0]
-                  plan_path=video.with_name('reel_plan.json')
-              if not video.exists(): raise SystemExit(f'Approved reel file is missing: {video}')
-              if video.stat().st_size < 100_000: raise SystemExit(f'Approved reel file is unexpectedly small ({video.stat().st_size} bytes): {video}')
+              import hashlib, re
+              source_id=re.sub(r'[^A-Za-z0-9._-]+','_',str(row.get('ID','')).strip())
+              if not source_id: raise SystemExit('Immutable source ID is missing; refusing to publish.')
+              root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))/source_id/('run_'+run_id)
+              video=root/'daily-reel.mp4'
+              plan_path=root/'reel_plan.json'
+              if not video.exists(): raise SystemExit('Exact approved Reel artifact is missing for row='+str(row_number)+', source_id='+source_id+', run_id='+run_id+': '+str(video))
+              if video.stat().st_size < 100_000: raise SystemExit('Approved reel MP4 is unexpectedly small: '+str(video.stat().st_size)+' bytes')
           # Re-check the exact row immediately before any external publication to avoid stale approvals.
           latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BM')
           latest_headers=latest_values[0] if latest_values else []
@@ -292,8 +274,17 @@ jobs:
           if str(latest_row.get('Reel Run ID','')).strip() != run_id:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
           if task == 'publish':
-              plan=json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else {}
-          topic=clean_video_topic(str(row.get('الموضوع', plan.get('title', 'معلومة قانونية'))))
+              if not plan_path.is_file(): raise SystemExit('Exact Reel plan is missing from the approved run artifact.')
+              plan=json.loads(plan_path.read_text(encoding='utf-8'))
+              expected_sha=str(row.get('Reel Video SHA256','')).strip().lower()
+              actual_sha=hashlib.sha256(video.read_bytes()).hexdigest()
+              if len(expected_sha) != 64 or actual_sha != expected_sha:
+                  raise SystemExit('REEL_ARTIFACT_FINGERPRINT_MISMATCH: approved video SHA256='+ (expected_sha or 'missing') +' but downloaded artifact SHA256='+actual_sha+'; no upload attempted.')
+              if str(latest_row.get('Reel Video SHA256','')).strip().lower() != expected_sha:
+                  raise SystemExit('Reel video fingerprint changed after approval selection; refusing publication.')
+          topic=clean_video_topic(str(row.get('الموضوع', plan.get('topic', 'معلومة قانونية'))))
+          if task == 'publish' and clean_video_topic(str(plan.get('topic',''))) != topic:
+              raise SystemExit('REEL_ARTIFACT_TOPIC_MISMATCH: approved video plan topic does not match the Google Sheet topic.')
           source_post=str(row.get('المحتوى','')).strip()
           script=str(plan.get('script', row.get('Reel Script',''))).strip()
           article_url=str(row.get('Blogger URL','')).strip()
