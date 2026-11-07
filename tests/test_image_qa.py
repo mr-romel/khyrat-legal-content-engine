@@ -35,7 +35,7 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "generated scene must be new" in prompt
     assert "bottom overlay" in prompt
     assert "BRAND OVERLAY RULE" in prompt
-    assert "محامٍ ومستشار قانوني في مصر" in prompt
+    assert "اسال محمود خيرت - محام ومستشار قانوني" in prompt
     assert "No platform-specific icon is used" in prompt
     assert "legal situation" in prompt
     assert "period-drama styling" in prompt
