@@ -238,7 +238,8 @@ async function sendReviewList(env) {
     }
     await send(env, `🎬 Reel جاهز للمراجعة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nبصمة الفيديو: ${fingerprint}\nالحالة: ${row["Reel Status"]}`,
       inlineButtons([[{ text: "✅ اعتماد الريل", data: `reel_approve:${rowNumber}:${fingerprint}` }, { text: "❌ رفض الريل", data: `reel_reject:${rowNumber}:${fingerprint}` }]]));
-  }}
+  }
+}
 
 async function sendFailedList(env) {
   const values = await sheetValues(env);
@@ -344,7 +345,8 @@ async function handleCallback(env, callback) {
         show_alert: true,
       });
     }
-    const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();    const reelApproval = String(row["Reel Approval"] || "").trim().toUpperCase();
+    const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();
+    const reelApproval = String(row["Reel Approval"] || "").trim().toUpperCase();
     if (reelStatus !== "REVIEW" || reelApproval === "APPROVED" || reelApproval === "REJECTED") {
       return telegram(env, "answerCallbackQuery", {
         callback_query_id: callback.id,
