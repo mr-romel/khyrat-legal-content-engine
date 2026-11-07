@@ -13,7 +13,7 @@ const HEADERS = [
   "Reel Published At", "Reel QA Score", "Reel QA Issues",
   "Reel Facebook Comments Status", "Reel Facebook Comment IDs",
   "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
-  "Reel Facebook Description Status", "Reel YouTube Description Status",
+  "Reel Facebook Description Status", "Reel YouTube Description Status", "Reel Video SHA256",
 ];
 
 const REVIEW_STATUSES = new Set(["NEEDS_REVIEW", "PENDING_REVIEW", "REVIEW"]);
@@ -67,7 +67,7 @@ async function googleAccessToken(env) {
   return data.access_token;
 }
 
-async function sheetValues(env, range = "A:BC", sheetOverride = null) {
+async function sheetValues(env, range = "A:BZ", sheetOverride = null) {
   const token = await googleAccessToken(env);
   const sheetName = sheetOverride || env.GOOGLE_SHEET_NAME || "Content";
   const encoded = encodeURIComponent(`${sheetName}!${range}`);
@@ -90,14 +90,14 @@ function rowToDict(row, headerRow = HEADERS) {
 async function updateSheetRow(env, rowNumber, patch) {
   const token = await googleAccessToken(env);
   const sheetName = env.GOOGLE_SHEET_NAME || "Content";
-  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:BC${rowNumber}`);
+  const encoded = encodeURIComponent(`${sheetName}!A${rowNumber}:BZ${rowNumber}`);
   const read = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const readData = await read.json();
   if (!read.ok) throw new Error(`Google Sheets row read failed: ${JSON.stringify(readData)}`);
   const existing = (readData.values?.[0] || []).slice();
-  const headerResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encodeURIComponent(`${sheetName}!A1:BC1`)}`, {
+  const headerResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encodeURIComponent(`${sheetName}!A1:BZ1`)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const headerData = await headerResponse.json();
@@ -111,7 +111,7 @@ async function updateSheetRow(env, rowNumber, patch) {
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID)}/values/${encoded}?valueInputOption=RAW`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:BC${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
+    body: JSON.stringify({ range: `${sheetName}!A${rowNumber}:BZ${rowNumber}`, majorDimension: "ROWS", values: [existing] }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(`Google Sheets row update failed: ${JSON.stringify(data)}`);
