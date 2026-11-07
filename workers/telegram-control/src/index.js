@@ -231,10 +231,14 @@ async function sendReviewList(env) {
       inlineButtons([[{ text: "✅ موافقة", data: `approve:${rowNumber}` }, { text: "❌ رفض", data: `reject:${rowNumber}` }]]));
   }
   for (const { rowNumber, row } of reels.slice(0, 10)) {
-    await send(env, `🎬 Reel جاهز للمراجعة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nالصوت: ar-EG-ShakirNeural — رجل مصري\nالحالة: ${row["Reel Status"]}`,
-      inlineButtons([[{ text: "✅ اعتماد الريل", data: `reel_approve:${rowNumber}` }, { text: "❌ رفض الريل", data: `reel_reject:${rowNumber}` }]]));
-  }
-}
+    const fingerprint = String(row["Reel Video SHA256"] || "").trim().slice(0, 16);
+    if (!/^[a-f0-9]{16}$/i.test(fingerprint)) {
+      await send(env, `⛔ لا يمكن اعتماد الريل — الصف ${rowNumber}\nلا توجد بصمة فيديو صالحة محفوظة لهذه النسخة. أعد توليدها من مسار الريل.`);
+      continue;
+    }
+    await send(env, `🎬 Reel جاهز للمراجعة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nبصمة الفيديو: ${fingerprint}\nالحالة: ${row["Reel Status"]}`,
+      inlineButtons([[{ text: "✅ اعتماد الريل", data: `reel_approve:${rowNumber}:${fingerprint}` }, { text: "❌ رفض الريل", data: `reel_reject:${rowNumber}:${fingerprint}` }]]));
+  }}
 
 async function sendFailedList(env) {
   const values = await sheetValues(env);
@@ -320,7 +324,7 @@ async function handleCallback(env, callback) {
   if (userId !== String(env.TELEGRAM_ADMIN_USER_ID)) {
     return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "⛔ غير مصرح لك.", show_alert: false });
   }
-  const [action, rawRow] = String(callback.data || "").split(":");
+  const [action, rawRow, callbackFingerprint] = String(callback.data || "").split(":");
   const rowNumber = Number(rawRow);
   if (!Number.isInteger(rowNumber) || rowNumber < 2) {
     return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "بيانات الصف غير صالحة.", show_alert: false });
@@ -331,8 +335,16 @@ async function handleCallback(env, callback) {
   const current = String(row["الحالة"] || "").trim().toUpperCase();
 
   if (action === "reel_approve" || action === "reel_reject") {
-    const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();
-    const reelApproval = String(row["Reel Approval"] || "").trim().toUpperCase();
+    const storedFingerprint = String(row["Reel Video SHA256"] || "").trim().toLowerCase();
+    const suppliedFingerprint = String(callbackFingerprint || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{16}$/.test(suppliedFingerprint) || storedFingerprint.slice(0, 16) !== suppliedFingerprint) {
+      return telegram(env, "answerCallbackQuery", {
+        callback_query_id: callback.id,
+        text: "⛔ زر المراجعة يخص نسخة فيديو قديمة أو غير مطابقة. لن يتم اعتمادها.",
+        show_alert: true,
+      });
+    }
+    const reelStatus = String(row["Reel Status"] || "").trim().toUpperCase();    const reelApproval = String(row["Reel Approval"] || "").trim().toUpperCase();
     if (reelStatus !== "REVIEW" || reelApproval === "APPROVED" || reelApproval === "REJECTED") {
       return telegram(env, "answerCallbackQuery", {
         callback_query_id: callback.id,
