@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import urllib.request
 import os
@@ -1225,7 +1226,13 @@ def main() -> int:
             "REEL_SOURCE_TOPIC_MISMATCH: Sheet الموضوع and published المحتوى resolve to different legal subjects "
             f"(topic_family={topic_family}, post_family={post_family}); refusing to generate or publish a mismatched Reel."
         )
-    output_dir = OUTPUT_ROOT / ("row_" + str(row_number))
+    run_id = str(os.getenv("GITHUB_RUN_ID", "") or "").strip() or __import__("uuid").uuid4().hex
+    safe_source_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(source_context.get("source_id", "")).strip())
+    if not safe_source_id:
+        raise RuntimeError("REEL_SOURCE_ID_MISSING: refusing to build a reviewable Reel without an immutable source ID.")
+    # Every execution gets an isolated directory; no prior topic can leave an MP4
+    # at a path that a later topic or approval can accidentally reuse.
+    output_dir = OUTPUT_ROOT / ("row_" + str(row_number)) / safe_source_id / ("run_" + run_id)
     output_dir.mkdir(parents=True, exist_ok=True)
     # Never trust an MP4 left by a previous run; it may be a partial 7-second
     # artifact. Every run must produce and QA its own final file.
@@ -1561,11 +1568,15 @@ def main() -> int:
         # callback webhook can be faster than this workflow: publishing REVIEW
         # first prevents a valid approval from being rejected while status is
         # still GENERATING, and prevents a later Sheet write from erasing it.
+        video_sha256 = hashlib.sha256(video_path.read_bytes()).hexdigest()
+        if len(video_sha256) != 64:
+            raise RuntimeError("REEL_VIDEO_FINGERPRINT_FAILED: generated MP4 has no valid SHA-256 digest.")
         review_payload = {
             "Reel Status": "REVIEW",
             "Reel Script": brief["script"],
-            "Reel File": str(output_dir / "daily-reel.mp4"),
-            "Reel Run ID": os.getenv("GITHUB_RUN_ID", ""),
+            "Reel File": str(video_path),
+            "Reel Run ID": run_id,
+            "Reel Video SHA256": video_sha256,
             "Reel Approval": "",
             "Reel Review": "REVIEW_READY | awaiting Telegram decision",
             "Reel Last Error": "",
@@ -1598,7 +1609,15 @@ def main() -> int:
             review_video_delivered = True
         else:
             update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
-            telegram_result = send_video(str(video_path), caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية", reply_markup={"inline_keyboard": [[{"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}"}, {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}"}]]})
+            callback_fingerprint = video_sha256[:16]
+            telegram_result = send_video(
+                str(video_path),
+                caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية\nبصمة النسخة: {callback_fingerprint}",
+                reply_markup={"inline_keyboard": [[
+                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}:{callback_fingerprint}"},
+                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}:{callback_fingerprint}"},
+                ]]},
+            )
             message_id = str((telegram_result or {}).get("message_id", ""))
             # Update only the delivery metadata. Never overwrite Reel Approval:
             # the owner may have approved/rejected while sendVideo was in flight.
