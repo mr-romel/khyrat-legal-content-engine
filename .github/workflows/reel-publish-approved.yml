@@ -71,6 +71,7 @@ jobs:
           import json, os
           from sheets import create_service, ensure_headers, get_values, row_to_dict
           from video_comments import valid_blogger_article_url
+          from video_metadata import clean_video_topic, _topic_family
           credentials_raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
           if not credentials_raw:
               raise SystemExit("Google service-account credentials are missing.")
@@ -158,10 +159,15 @@ jobs:
                   fb_description_status = str(row.get("Reel Facebook Description Status","")).strip().upper()
                   yt_description_status = str(row.get("Reel YouTube Description Status","")).strip().upper()
                   youtube_management_ready = bool(os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip())
-                  metadata_pending = status == "PUBLISHED" and (
+                  row_topic_family = _topic_family(clean_video_topic(str(row.get("الموضوع",""))))
+                  narration_family = _topic_family(str(row.get("Reel Script","")))
+                  metadata_topic_aligned = not row_topic_family or not narration_family or row_topic_family == narration_family
+                  metadata_pending = status == "PUBLISHED" and metadata_topic_aligned and (
                       (bool(fb_id) and fb_description_status != "PUBLISHED")
                       or (youtube_management_ready and bool(yt_id) and yt_description_status != "PUBLISHED")
                   )
+                  if status == "PUBLISHED" and not metadata_topic_aligned:
+                      print(f"Skipping legacy metadata backfill for row={n}: topic_family={row_topic_family}, narration_family={narration_family}; no descriptions will be overwritten.")
                   comments_pending = status == "PUBLISHED" and blogger_ready and (
                       (bool(fb_id) and fb_comment_status != "PUBLISHED")
                       or (youtube_management_ready and bool(yt_id) and yt_comment_status != "PUBLISHED")
@@ -297,8 +303,12 @@ jobs:
           script=str(plan.get('script', row.get('Reel Script',''))).strip()
           article_url=str(row.get('Blogger URL','')).strip()
           youtube_management_ready=bool(os.getenv('YOUTUBE_COMMENT_REFRESH_TOKEN','').strip())
-          fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')
-          yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
+          if task in {'publish','metadata'}:
+              fb_caption=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='facebook')
+              yt_description=build_video_description(topic=topic, post=source_post, script=script, article_url=article_url, platform='youtube')
+          else:
+              fb_caption=''
+              yt_description=''
           result={'facebook': {'video_id': str(row.get('Reel Facebook ID','')).strip()},
                   'youtube': {'video_id': str(row.get('Reel YouTube ID','')).strip(), 'url': str(row.get('Reel YouTube URL','')).strip()},
                   'run_id': run_id, 'row_number': row_number}
