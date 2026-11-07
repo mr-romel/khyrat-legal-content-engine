@@ -73,7 +73,7 @@ def _topic_aligned_body(text: str, topic: str, limit: int = 900) -> str:
     kept: list[str] = []
     for sentence in sentences:
         lower = sentence.casefold()
-        if family and any(
+        if family and not any(term in lower for term in SUBJECT_FAMILIES[family]) and any(
             any(term in lower for term in SUBJECT_FAMILIES[other])
             for other in unrelated_families
         ):
