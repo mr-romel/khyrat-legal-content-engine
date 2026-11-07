@@ -23,6 +23,8 @@ def test_publisher_requires_exact_run_artifact_and_sha256():
     workflow = (ROOT / '.github' / 'workflows' / 'reel-publish-approved.yml').read_text(encoding='utf-8')
     assert "('run_'+run_id)" in workflow
     assert 'REEL_ARTIFACT_FINGERPRINT_MISMATCH' in workflow
+    assert "rglob('daily-reel.mp4')" not in workflow
+    assert "root=Path('review-package')/('row_'+str(row_number))/source_id/('run_'+run_id)" in workflow
     assert 'REEL_ARTIFACT_PATH_MISMATCH' in workflow
     assert 'REEL_MANIFEST_IDENTITY_MISMATCH' in workflow
     assert 'REEL_MANIFEST_FINGERPRINT_MISMATCH' in workflow
