@@ -12,6 +12,12 @@ WHATSAPP_URL = "https://wa.me/201022718375"
 # topics merely because the source Sheet cell accidentally contains both.
 SUBJECT_FAMILIES = {
     "secret_threat": ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة"),
+    "harassment": ("تحرش", "مضايقة", "ملاحقة"),
+    "unauthorized_recording": ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة"),
+    "rent": ("إيجار", "ايجار", "مؤجر", "مستأجر", "طرد", "إخلاء"),
+    "payments": ("شيك", "إيصال", "ايصال", "دفع", "تحويل", "مديونية", "مبلغ"),
+    "inheritance": ("ميراث", "تركة", "ورثة", "وصية"),
+    "compensation": ("تعويض", "إصابة", "اصابة", "ضرر", "مسؤولية مدنية"),
     "unauthorized_recording": ("تصوير", "التصوير", "كاميرا", "خصوصية الصورة", "تصوير الأشخاص", "تصوير دون إذن"),
     "employment": ("عمل", "عامل", "عمال", "موظف", "موظفين", "أجر", "فصل", "استقالة"),
     "family": ("طلاق", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة", "ميراث"),
@@ -52,7 +58,7 @@ def _valid_article_url(value: str) -> bool:
 def _topic_family(topic: str) -> str:
     normalized = str(topic or "").casefold()
     # More specific families must win over broad families.
-    for family in ("secret_threat", "unauthorized_recording", "employment", "family", "companies", "contracts", "criminal"):
+    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "family", "companies", "contracts", "rent", "payments", "inheritance", "compensation", "criminal"):
         if any(term in normalized for term in SUBJECT_FAMILIES[family]):
             return family
     return ""
@@ -87,6 +93,13 @@ def _topic_aligned_body(text: str, topic: str, limit: int = 900) -> str:
 def build_video_description(*, topic: str, post: str, script: str, article_url: str = "", platform: str = "facebook") -> str:
     """Build platform metadata from a clean topic and matching narration, never raw Sheet labels."""
     clean_topic = clean_video_topic(topic)
+    topic_family = _topic_family(clean_topic)
+    script_family = _topic_family(script)
+    if topic_family and script_family and topic_family != script_family:
+        raise ValueError(
+            "Video metadata topic mismatch: approved Reel topic and narration refer to different legal subjects "
+            f"({topic_family} != {script_family})."
+        )
     platform = str(platform or "").strip().lower()
     if platform not in {"facebook", "youtube"}:
         raise ValueError("platform must be facebook or youtube")
