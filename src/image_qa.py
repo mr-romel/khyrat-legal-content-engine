@@ -165,7 +165,7 @@ def qa_image(
     # prevent publication of an otherwise valid generated image.
     if not api_key:
         return {
-            "decision": "PASS",
+            "decision": "QA_UNAVAILABLE",
             "composition_score": 100,
             "relevance_score": 100,
             "reference_score": 100,
@@ -177,7 +177,7 @@ def qa_image(
             "composition_findings": [],
             "relevance_findings": [],
             "reference_findings": [],
-            "issues": ["Visual QA skipped: no QA API key; publication remains unblocked."],
+            "issues": ["Visual QA unavailable: no QA API key; image cannot be cleared for publication."],
             "regeneration_prompt": "",
             "hard_checks": hard,
             "image_mode": image_mode,
@@ -225,7 +225,7 @@ def qa_image(
             "composition_findings": [],
             "relevance_findings": [],
             "reference_findings": [],
-            "issues": [f"Visual QA unavailable ({type(exc).__name__}); publication remains unblocked."],
+            "issues": [f"Visual QA unavailable ({type(exc).__name__}); image cannot be cleared for publication."],
             "regeneration_prompt": "",
             "hard_checks": hard,
             "image_mode": image_mode,
