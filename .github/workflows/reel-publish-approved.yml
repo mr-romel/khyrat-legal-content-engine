@@ -282,6 +282,13 @@ jobs:
                   raise SystemExit('REEL_ARTIFACT_FINGERPRINT_MISMATCH: approved video SHA256='+ (expected_sha or 'missing') +' but downloaded artifact SHA256='+actual_sha+'; no upload attempted.')
               if str(latest_row.get('Reel Video SHA256','')).strip().lower() != expected_sha:
                   raise SystemExit('Reel video fingerprint changed after approval selection; refusing publication.')
+              expected_file=str(row.get('Reel File','')).replace('\\\\','/').strip()
+              if not expected_file or not str(video).replace('\\\\','/').endswith(expected_file):
+                  raise SystemExit('REEL_ARTIFACT_PATH_MISMATCH: downloaded file path is not the exact file recorded for the approved Reel.')
+              if str(plan.get('source_id','')).strip() != source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != row_number:
+                  raise SystemExit('REEL_MANIFEST_IDENTITY_MISMATCH: run manifest does not belong to the approved source row and workflow run.')
+              if str(plan.get('video_sha256','')).strip().lower() != expected_sha:
+                  raise SystemExit('REEL_MANIFEST_FINGERPRINT_MISMATCH: manifest and approved video fingerprint differ.')
           topic=clean_video_topic(str(row.get('الموضوع', plan.get('topic', 'معلومة قانونية'))))
           if task == 'publish' and clean_video_topic(str(plan.get('topic',''))) != topic:
               raise SystemExit('REEL_ARTIFACT_TOPIC_MISMATCH: approved video plan topic does not match the Google Sheet topic.')
