@@ -44,6 +44,10 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     assert "نزاع بشأن مستندات عمل" in prompt
     assert "preserving employment records and messages" in prompt
     assert "do not substitute a generic lawyer portrait" in prompt
+    assert "present-day Egypt in the 2020s" in prompt
+    assert "ABSOLUTE STYLE BAN" in prompt
+    assert "NOT Pharaonic" in prompt
+    assert "pyramids" in prompt
     assert "COMPOSITION FORMAT: portrait 4:5" in prompt
 
     import json
