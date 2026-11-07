@@ -1,0 +1,90 @@
+name: Audit Reel Artifact Identity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reel-artifact-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: .:src
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Sheet reader dependencies
+        run: pip install -r requirements-worker.txt
+      - name: Audit recent Reel artifacts without changing publication state
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, re, subprocess, tempfile
+          from pathlib import Path
+          from config import load_video_config
+          from sheets import create_service, get_values, row_to_dict
+          cfg=load_video_config()
+          svc=create_service(cfg['service_account_info'])
+          tab=cfg['sheet_range'].split('!',1)[0]
+          values=get_values(svc,cfg['sheet_id'],f'{tab}!A:BZ')
+          headers=values[0] if values else []
+          rows=[(n,row_to_dict(raw,headers)) for n,raw in enumerate(values[1:],start=2)]
+          candidates=[(n,row) for n,row in rows if str(row.get('Reel Run ID','')).strip() and str(row.get('Reel Status','')).strip().upper() in {'REVIEW','APPROVED','PUBLISHED','PUBLISHED_PARTIAL','PUBLISH_FAILED'}]
+          candidates=candidates[-20:]
+          report=[]
+          for row_number,row in candidates:
+              run_id=str(row.get('Reel Run ID','')).strip()
+              source_id=re.sub(r'[^A-Za-z0-9._-]+','_',str(row.get('ID','')).strip())
+              topic=str(row.get('الموضوع','')).strip()
+              item={'row':row_number,'source_id':source_id,'run_id':run_id,'status':str(row.get('Reel Status','')).strip(),'topic':topic,'stored_sha256':str(row.get('Reel Video SHA256','')).strip(),'artifact_sha256':None,'artifact_files':[],'plan_topic':None,'error':None}
+              with tempfile.TemporaryDirectory(prefix='reel-audit-') as temp:
+                  result=subprocess.run(['gh','run','download',run_id,'-n','khyrat-daily-reel','-D',temp],capture_output=True,text=True,timeout=180)
+                  if result.returncode != 0:
+                      item['error']='artifact unavailable: '+(result.stderr or result.stdout)[-500:]
+                  else:
+                      files=list(Path(temp).rglob('daily-reel.mp4'))
+                      item['artifact_files']=[str(p.relative_to(temp)) for p in files]
+                      exact=[p for p in files if ('row_'+str(row_number)) in p.parts and source_id in p.parts and ('run_'+run_id) in p.parts]
+                      selected=exact[0] if len(exact)==1 else (files[0] if len(files)==1 else None)
+                      if selected is None:
+                          item['error']='ambiguous or missing MP4 in artifact; no file selected'
+                      else:
+                          digest=hashlib.sha256(selected.read_bytes()).hexdigest()
+                          item['artifact_sha256']=digest
+                          plan=selected.with_name('reel_plan.json')
+                          if plan.is_file():
+                              data=json.loads(plan.read_text(encoding='utf-8'))
+                              item['plan_topic']=str(data.get('topic',''))
+                              item['manifest_run_id']=str(data.get('run_id',''))
+                              item['manifest_source_id']=str(data.get('source_id',''))
+                              item['manifest_sha256']=str(data.get('video_sha256',''))
+              report.append(item)
+          hashes={}
+          for item in report:
+              if item.get('artifact_sha256'): hashes.setdefault(item['artifact_sha256'],[]).append({'row':item['row'],'topic':item['topic'],'run_id':item['run_id']})
+          duplicates={key:items for key,items in hashes.items() if len(items)>1}
+          output={'audited_rows':len(report),'duplicate_video_hashes_across_rows':duplicates,'records':report}
+          Path('reel-artifact-audit.json').write_text(json.dumps(output,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('REEL_ARTIFACT_AUDIT='+json.dumps(output,ensure_ascii=False,sort_keys=True))
+          PY
+      - name: Upload read-only audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-artifact-audit-report
+          path: reel-artifact-audit.json
+          if-no-files-found: ignore
+          retention-days: 14
