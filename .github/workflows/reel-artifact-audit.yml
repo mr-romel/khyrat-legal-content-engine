@@ -57,6 +57,15 @@ jobs:
                   else:
                       files=list(Path(temp).rglob('daily-reel.mp4'))
                       item['artifact_files']=[str(p.relative_to(temp)) for p in files]
+                      item['artifact_candidates']=[]
+                      for candidate in files:
+                          candidate_digest=hashlib.sha256(candidate.read_bytes()).hexdigest()
+                          candidate_plan=candidate.with_name('reel_plan.json')
+                          candidate_meta={'path':str(candidate.relative_to(temp)),'sha256':candidate_digest,'plan_topic':None,'plan_source_id':None,'plan_run_id':None}
+                          if candidate_plan.is_file():
+                              candidate_data=json.loads(candidate_plan.read_text(encoding='utf-8'))
+                              candidate_meta.update({'plan_topic':str(candidate_data.get('topic','')),'plan_source_id':str(candidate_data.get('source_id','')),'plan_run_id':str(candidate_data.get('run_id',''))})
+                          item['artifact_candidates'].append(candidate_meta)
                       exact=[p for p in files if ('row_'+str(row_number)) in p.parts and source_id in p.parts and ('run_'+run_id) in p.parts]
                       selected=exact[0] if len(exact)==1 else (files[0] if len(files)==1 else None)
                       if selected is None:
@@ -74,7 +83,10 @@ jobs:
               report.append(item)
           hashes={}
           for item in report:
-              if item.get('artifact_sha256'): hashes.setdefault(item['artifact_sha256'],[]).append({'row':item['row'],'topic':item['topic'],'run_id':item['run_id']})
+              for candidate in item.get('artifact_candidates',[]):
+                  hashes.setdefault(candidate['sha256'],[]).append({'sheet_row':item['row'],'sheet_topic':item['topic'],'sheet_run_id':item['run_id'],'artifact_path':candidate['path'],'artifact_topic':candidate.get('plan_topic'),'artifact_run_id':candidate.get('plan_run_id')})
+              if item.get('artifact_sha256') and not item.get('artifact_candidates'):
+                  hashes.setdefault(item['artifact_sha256'],[]).append({'sheet_row':item['row'],'sheet_topic':item['topic'],'sheet_run_id':item['run_id']})
           duplicates={key:items for key,items in hashes.items() if len(items)>1}
           output={'audited_rows':len(report),'duplicate_video_hashes_across_rows':duplicates,'records':report}
           Path('reel-artifact-audit.json').write_text(json.dumps(output,ensure_ascii=False,indent=2),encoding='utf-8')
