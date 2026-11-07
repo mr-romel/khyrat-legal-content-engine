@@ -260,7 +260,7 @@ jobs:
               import hashlib, re
               source_id=re.sub(r'[^A-Za-z0-9._-]+','_',str(row.get('ID','')).strip())
               if not source_id: raise SystemExit('Immutable source ID is missing; refusing to publish.')
-              root=Path('review-package')/'generated'/'reels'/('row_'+str(row_number))/source_id/('run_'+run_id)
+              root=Path('review-package')/('row_'+str(row_number))/source_id/('run_'+run_id)
               video=root/'daily-reel.mp4'
               plan_path=root/'reel_plan.json'
               if not video.exists(): raise SystemExit('Exact approved Reel artifact is missing for row='+str(row_number)+', source_id='+source_id+', run_id='+run_id+': '+str(video))
@@ -282,7 +282,7 @@ jobs:
                   raise SystemExit('REEL_ARTIFACT_FINGERPRINT_MISMATCH: approved video SHA256='+ (expected_sha or 'missing') +' but downloaded artifact SHA256='+actual_sha+'; no upload attempted.')
               if str(latest_row.get('Reel Video SHA256','')).strip().lower() != expected_sha:
                   raise SystemExit('Reel video fingerprint changed after approval selection; refusing publication.')
-              expected_file=str(row.get('Reel File','')).replace('\\\\','/').strip()
+              expected_file=str(row.get('Reel File','')).replace('\\\\','/').strip()\n              if 'generated/reels/' in expected_file: expected_file=expected_file.split('generated/reels/',1)[1]
               if not expected_file or not str(video).replace('\\\\','/').endswith(expected_file):
                   raise SystemExit('REEL_ARTIFACT_PATH_MISMATCH: downloaded file path is not the exact file recorded for the approved Reel.')
               if str(plan.get('source_id','')).strip() != source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != row_number:
