@@ -26,10 +26,10 @@ HEADERS = [
     "Reel YouTube ID", "Reel YouTube URL", "Facebook Post URL", "LinkedIn Post URL",
     "Reel Facebook Comments Status", "Reel Facebook Comment IDs",
     "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
-    "Reel Facebook Description Status", "Reel YouTube Description Status",
+    "Reel Facebook Description Status", "Reel YouTube Description Status", "Reel Video SHA256",
 ]
 
-SHEET_LAST_COLUMN = "BM"
+SHEET_LAST_COLUMN = "BZ"
 
 T = TypeVar("T")
 
