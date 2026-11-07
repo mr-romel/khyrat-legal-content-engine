@@ -58,7 +58,7 @@ def _valid_article_url(value: str) -> bool:
 def _topic_family(topic: str) -> str:
     normalized = str(topic or "").casefold()
     # More specific families must win over broad families.
-    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "family", "companies", "contracts", "rent", "payments", "inheritance", "compensation", "criminal"):
+    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "family", "companies", "rent", "contracts", "payments", "inheritance", "compensation", "criminal"):
         if any(term in normalized for term in SUBJECT_FAMILIES[family]):
             return family
     return ""
