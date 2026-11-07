@@ -35,8 +35,8 @@ def test_youtube_description_adds_relevant_topic_tags():
 def test_description_does_not_insert_invalid_or_unrelated_article_url():
     result = build_video_description(
         topic="نزاع تجاري بين شركتين",
-        post="راجع شروط العقد.",
-        script="راجع شروط العقد والمراسلات.",
+        post="نزاع الشركاء في إدارة الشركة يتطلب مراجعة اتفاق التأسيس والمراسلات.",
+        script="في نزاع الشركاء، راجع اتفاق التأسيس وصلاحيات الإدارة والمراسلات.",
         article_url="https://example.com/unrelated",
         platform="facebook",
     )
