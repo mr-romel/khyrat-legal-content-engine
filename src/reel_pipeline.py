@@ -1216,6 +1216,15 @@ def main() -> int:
         print(f"Reel row {row_number}: stale Telegram delivery lock detected before generation; new final video will be delivered.")
     topic = sanitize_topic(str(row.get("الموضوع", "")).strip())
     post = sanitize_social_copy(str(row.get("المحتوى", "")).strip())
+    # Fail closed when the Sheet title and the actual published post describe different legal subjects.
+    # The Reel must never be generated from one source while its title/metadata comes from another.
+    topic_family = _visual_topic_family(topic)
+    post_family = _visual_topic_family(post)
+    if topic_family != post_family and (topic_family != "general" or post_family != "general"):
+        raise RuntimeError(
+            "REEL_SOURCE_TOPIC_MISMATCH: Sheet الموضوع and published المحتوى resolve to different legal subjects "
+            f"(topic_family={topic_family}, post_family={post_family}); refusing to generate or publish a mismatched Reel."
+        )
     output_dir = OUTPUT_ROOT / ("row_" + str(row_number))
     output_dir.mkdir(parents=True, exist_ok=True)
     # Never trust an MP4 left by a previous run; it may be a partial 7-second
@@ -1233,6 +1242,12 @@ def main() -> int:
         print(f"REEL_STAGE start row={row_number} topic={topic!r}")
         brief = make_brief(cfg["gemini_api_key"], os.getenv("GEMINI_MODEL", "gemini-3.6-flash"), topic, post)
         brief["script"] = sanitize_social_copy(brief["script"])
+        script_family = _visual_topic_family(brief["script"])
+        if topic_family != "general" and script_family not in {"general", topic_family}:
+            raise RuntimeError(
+                "REEL_SCRIPT_TOPIC_MISMATCH: generated narration does not match the approved post topic "
+                f"(topic_family={topic_family}, script_family={script_family}); refusing to render."
+            )
         print("REEL_STAGE brief=ok")
         output_dir.mkdir(parents=True, exist_ok=True)
         brief["script"] = prepare_tts_script(brief["script"])
