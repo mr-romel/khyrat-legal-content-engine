@@ -30,7 +30,7 @@ jobs:
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BM' }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
       FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
       FACEBOOK_GRAPH_VERSION: ${{ secrets.FACEBOOK_GRAPH_VERSION || '26.0' }}
@@ -64,7 +64,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BM' }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
           YOUTUBE_COMMENT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_COMMENT_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
@@ -76,14 +76,14 @@ jobs:
               raise SystemExit("Google service-account credentials are missing.")
           service_account_info = json.loads(credentials_raw)
           sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
-          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BM").strip()
+          sheet_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BZ").strip()
           # Reel control fields live after the core social columns. Always read through BK,
           # even when the shared GOOGLE_SHEET_RANGE secret is configured for a shorter workflow.
           if "!" in sheet_range:
               tab, _cols = sheet_range.split("!", 1)
           else:
               tab = "Content"
-          sheet_range = f"{tab}!A:BM"
+          sheet_range = f"{tab}!A:BZ"
           if not sheet_id:
               raise SystemExit("GOOGLE_SHEET_ID is missing.")
           svc=create_service(service_account_info)
@@ -215,7 +215,7 @@ jobs:
           cfg=load_video_config()
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
-          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BM")
+          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BZ")
           headers=values[0] if values else []
           rows=[row_to_dict(r, headers) for r in values[1:]]
           n=int(os.environ["ROW_NUMBER"])
@@ -247,7 +247,7 @@ jobs:
           svc=create_service(cfg['service_account_info'])
           sheet=cfg['sheet_range'].split('!',1)[0]
           ensure_headers(svc,cfg['sheet_id'],sheet)
-          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BM')
+          values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BZ')
           headers=values[0] if values else []
           row_number=int(os.environ['ROW_NUMBER'])
           row=row_to_dict(values[row_number-1], headers)
@@ -266,7 +266,7 @@ jobs:
               if not video.exists(): raise SystemExit('Exact approved Reel artifact is missing for row='+str(row_number)+', source_id='+source_id+', run_id='+run_id+': '+str(video))
               if video.stat().st_size < 100_000: raise SystemExit('Approved reel MP4 is unexpectedly small: '+str(video.stat().st_size)+' bytes')
           # Re-check the exact row immediately before any external publication to avoid stale approvals.
-          latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BM')
+          latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BZ')
           latest_headers=latest_values[0] if latest_values else []
           latest_row=row_to_dict(latest_values[row_number-1], latest_headers)
           if str(latest_row.get('Reel Approval','')).strip().upper() != 'APPROVED':
