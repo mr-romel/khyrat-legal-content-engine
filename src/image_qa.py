@@ -242,14 +242,14 @@ def qa_image(
     data["text_detected"] = bool(data.get("text_detected", False))
     data["women_or_girls_detected"] = bool(data.get("women_or_girls_detected", False))
     data["historical_style_detected"] = bool(data.get("historical_style_detected", False))
-    if data["historical_style_detected"]:
-        data["decision"] = "REGENERATE"
-        data["issues"].append("HARD REJECT: Pharaonic/ancient-Egyptian visual style is not permitted for present-day legal content.")
     for field in ("detected_text", "composition_findings", "relevance_findings", "reference_findings", "issues"):
         value = data.get(field, [])
         if not isinstance(value, list):
             value = [str(value)] if value else []
         data[field] = [str(item).strip() for item in value if str(item).strip()]
+    if data["historical_style_detected"]:
+        data["decision"] = "REGENERATE"
+        data["issues"].append("HARD REJECT: Pharaonic/ancient-Egyptian visual style is not permitted for present-day legal content.")
     data["regeneration_prompt"] = str(data.get("regeneration_prompt", "")).strip()
     data["hard_checks"] = hard
     data["image_mode"] = image_mode
