@@ -79,5 +79,5 @@ def test_image_qa_without_key_does_not_block_publication(tmp_path):
     path = tmp_path / "image.jpg"
     Image.new("RGB", (1024, 1024), "white").save(path)
     result = qa_image(api_key="", image_path=str(path), topic="test", image_brief="test")
-    assert result["decision"] == "PASS"
-    assert "publication remains unblocked" in result["issues"][0]
+    assert result["decision"] == "QA_UNAVAILABLE"
+    assert "cannot be cleared for publication" in result["issues"][0]
