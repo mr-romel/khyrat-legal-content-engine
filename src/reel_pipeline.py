@@ -1273,7 +1273,7 @@ def main() -> int:
                         topic=topic,
                         image_brief=active_prompt,
                     )
-                    if not visual_qa.get("historical_style_detected", False):
+                    if visual_qa.get("decision") == "PASS" and not visual_qa.get("historical_style_detected", False):
                         accepted = True
                         print(
                             f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
