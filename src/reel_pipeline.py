@@ -1248,23 +1248,56 @@ def main() -> int:
         scenes = []
         try:
             from image_generator import create_legal_image
+            from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
             for scene_index, scene_prompt in enumerate(brief["video_terms"][:8], start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
-                create_legal_image(
-                    topic=topic,
-                    image_brief=str(scene_prompt),
-                    visual_description=str(scene_prompt),
-                    post_context=post,
-                    output_path=str(image_path),
-                    api_key=cfg["gemini_api_key"],
-                    cloudflare_account_id=cloudflare_account,
-                    cloudflare_api_token=cloudflare_token,
-                    aspect_ratio="9:16",
-                )
+                accepted = False
+                active_prompt = str(scene_prompt)
+                for visual_attempt in range(1, 3):
+                    create_legal_image(
+                        topic=topic,
+                        image_brief=active_prompt,
+                        visual_description=active_prompt,
+                        post_context=post,
+                        output_path=str(image_path),
+                        api_key=cfg["gemini_api_key"],
+                        cloudflare_account_id=cloudflare_account,
+                        cloudflare_api_token=cloudflare_token,
+                        aspect_ratio="9:16",
+                    )
+                    visual_qa = qa_image(
+                        api_key=cfg["gemini_api_key"],
+                        image_path=str(image_path),
+                        topic=topic,
+                        image_brief=active_prompt,
+                    )
+                    if not visual_qa.get("historical_style_detected", False):
+                        accepted = True
+                        print(
+                            f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
+                            f"historical_style=clear attempt={visual_attempt}"
+                        )
+                        break
+                    print(
+                        f"REEL_STAGE ai_scene={scene_index}/8 rejected=pharaonic "
+                        f"attempt={visual_attempt}"
+                    )
+                    active_prompt = (
+                        str(scene_prompt)
+                        + " STRICT MODERN-DAY VISUAL OVERRIDE: depict only an ordinary 2020s Cairo/Giza "
+                        "home, office, street, or current everyday setting with modern devices, furniture, "
+                        "vehicles, clothing and materials. Absolutely no ancient Egypt, Pharaonic art, "
+                        "pyramids, sphinxes, hieroglyphics, temples, obelisks, papyrus, tombs, royal costume, "
+                        "historical architecture, heritage motifs, or period styling. This is a present-day "
+                        "legal situation, not a historical scene."
+                    )
+                if not accepted:
+                    raise RuntimeError(
+                        f"Scene {scene_index} remained Pharaonic/ancient after two generations; refusing to use it."
+                    )
                 scenes.append(image_path)
-                print(f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true")
         except Exception as image_exc:
             # Do not silently replace failed topic-specific generations with
             # unrelated catalog stock photos. A missing scene blocks review delivery.
