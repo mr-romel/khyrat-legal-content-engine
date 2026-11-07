@@ -1259,7 +1259,14 @@ def main() -> int:
         output_dir.mkdir(parents=True, exist_ok=True)
         brief["script"] = prepare_tts_script(brief["script"])
         (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
-        (output_dir / "reel_plan.json").write_text(json.dumps({"topic": topic, **brief}, ensure_ascii=False, indent=2), encoding="utf-8")
+        reel_plan = {
+            "topic": topic,
+            "source_id": safe_source_id,
+            "row_number": row_number,
+            "run_id": run_id,
+            **brief,
+        }
+        (output_dir / "reel_plan.json").write_text(json.dumps(reel_plan, ensure_ascii=False, indent=2), encoding="utf-8")
         (output_dir / "delivery_map.json").write_text(json.dumps(brief.get("emotion_map", []), ensure_ascii=False, indent=2), encoding="utf-8")
 
         scene_dir = output_dir / "scenes"
@@ -1568,9 +1575,17 @@ def main() -> int:
         # callback webhook can be faster than this workflow: publishing REVIEW
         # first prevents a valid approval from being rejected while status is
         # still GENERATING, and prevents a later Sheet write from erasing it.
-        video_sha256 = hashlib.sha256(video_path.read_bytes()).hexdigest()
+        video_digest = hashlib.sha256()
+        with video_path.open("rb") as video_handle:
+            for chunk in iter(lambda: video_handle.read(1024 * 1024), b""):
+                video_digest.update(chunk)
+        video_sha256 = video_digest.hexdigest()
         if len(video_sha256) != 64:
             raise RuntimeError("REEL_VIDEO_FINGERPRINT_FAILED: generated MP4 has no valid SHA-256 digest.")
+        reel_plan["video_sha256"] = video_sha256
+        (output_dir / "reel_plan.json").write_text(
+            json.dumps(reel_plan, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         review_payload = {
             "Reel Status": "REVIEW",
             "Reel Script": brief["script"],
