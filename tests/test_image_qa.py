@@ -40,6 +40,9 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "legal situation" in prompt
     assert "period-drama styling" in prompt
     assert "antiquity-inspired decoration" in prompt
+    assert "Pharaonic or ancient-Egyptian styling is an automatic hard failure" in prompt
+    assert "historical_style_detected=true" in prompt
+    assert "present-day Cairo/Giza daily life in the 2020s" in prompt
     assert "no women or girls" in prompt.lower()
     assert "women_or_girls_detected=true" in prompt.lower()
 
