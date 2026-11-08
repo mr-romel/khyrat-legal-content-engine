@@ -87,7 +87,7 @@ jobs:
               status = str(row.get("Reel Status", "")).strip().upper()
               last_error = str(row.get("Reel Last Error", "") or "").strip()
               review = str(row.get("Reel Review", "") or "").strip()
-              retry_match = re.search(r"retry=(\\d+)", review, flags=re.IGNORECASE)
+              retry_match = re.search(r"retry=(\d+)", review, flags=re.IGNORECASE)
               retry_count = int(retry_match.group(1)) if retry_match else 0
               requested = status == "REGENERATE_REQUESTED"
               retryable_image_failure = (
