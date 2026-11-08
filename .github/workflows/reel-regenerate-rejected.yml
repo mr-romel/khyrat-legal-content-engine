@@ -22,7 +22,7 @@ jobs:
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:AY' }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -61,12 +61,25 @@ jobs:
               raise SystemExit("Google Sheets credentials or sheet ID are missing.")
           service = create_service(json.loads(raw))
           sheet_id = os.environ["GOOGLE_SHEET_ID"]
-          full_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:AY")
+          full_range = os.getenv("GOOGLE_SHEET_RANGE", "Content!A:BZ")
           sheet_name = full_range.split("!", 1)[0]
-          values = get_values(service, sheet_id, full_range)
+          # Always map against the live header row. HEADERS is only a fallback
+          # for legacy tabs with no header row; relying on positional defaults
+          # silently misses recovery flags when columns have moved.
+          values = get_values(service, sheet_id, f"{sheet_name}!A:BZ")
+          if not values:
+              raise SystemExit("Google Sheet returned no rows; verify the configured tab/range.")
+          headers = [str(value or "").strip() for value in values[0]]
+          if not headers or not any(headers):
+              raise SystemExit("Google Sheet header row is empty; refusing positional row selection.")
           target = None
+          requested_rows = []
           for number, raw_row in enumerate(values[1:], start=2):
-              row = row_to_dict(raw_row)
+              row = row_to_dict(raw_row, headers)
+              if str(row.get("Reel Status", "")).strip().upper() == "REGENERATE_REQUESTED":
+                  requested_rows.append({"row": number, "topic": str(row.get("الموضوع", "") or "").strip()})
+              else:
+                  continue
               if str(row.get("Reel Status", "")).strip().upper() != "REGENERATE_REQUESTED":
                   continue
               source_id = str(row.get("ID", "") or "").strip()
@@ -85,8 +98,9 @@ jobs:
                   continue
               target = (number, row, source_id, topic)
               break
+          print("REEL_REGENERATION_REQUESTS=" + json.dumps(requested_rows, ensure_ascii=False))
           if not target:
-              print("No rejected Reel is waiting for regeneration.")
+              print("No REGENERATE_REQUESTED row passed source-data validation; inspect request list and row diagnostics.")
               with open(os.environ["GITHUB_OUTPUT"], "a") as out:
                   out.write("found=false\n")
               raise SystemExit(0)
@@ -102,7 +116,7 @@ jobs:
               json.dump({"row_number": number, "source_id": source_id, "topic": topic}, f, ensure_ascii=False, indent=2)
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               out.write(f"found=true\nrow_number={number}\n")
-          print(f"Locked row {number} / source ID {source_id} for a single regeneration.")
+          print(f"REEL_REGENERATION_SELECTED row={number} source_id={source_id} topic={topic!r}")
           PY
       - name: Generate and send replacement for review
         if: steps.target.outputs.found == 'true'
