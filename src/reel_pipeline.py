@@ -1064,7 +1064,10 @@ def main() -> int:
     if source_context is None and os.getenv("REEL_RECOVERY", "").strip().lower() in {"1", "true", "yes", "on"}:
         now = now_cairo()
         today = now.date().isoformat()
-        rows = [row_to_dict(row) for row in values[1:]]
+        headers = [str(value or "").strip() for value in values[0]] if values else []
+        if not headers or not any(headers):
+            raise RuntimeError("Reel Sheet header row is empty in recovery mode; refusing positional column mapping.")
+        rows = [row_to_dict(row, headers) for row in values[1:]]
         today_prefix = today.replace("-", "") + "-"
         today_id_matches = [(idx + 2, str(row.get("ID", "")).strip()) for idx, row in enumerate(rows) if str(row.get("ID", "")).strip().startswith(today_prefix)]
         print("Reel recovery source check: cairo_now=" + now.isoformat() + " today_id_matches=" + str(today_id_matches))
