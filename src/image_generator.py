@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -19,14 +19,13 @@ from brand_identity import (
 )
 
 
-CLOUDFLARE_IMAGE_MODEL = (
-    "@cf/bytedance/stable-diffusion-xl-lightning"
-)
+# FLUX follows detailed editorial prompts more reliably than SDXL Lightning.
+CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 
 CLOUDFLARE_IMAGE_ENDPOINT = (
     "https://api.cloudflare.com/client/v4/accounts/"
     "{account_id}/ai/run/"
-    "@cf/bytedance/stable-diffusion-xl-lightning"
+    "@cf/black-forest-labs/flux-1-schnell"
 )
 
 
@@ -296,10 +295,8 @@ def create_legal_image(
 
     request_body = {
         "prompt": prompt,
-        "width": width,
-        "height": height,
-        "num_steps": num_steps,
-        "guidance": guidance,
+        # FLUX.1 schnell accepts only prompt and steps (4–8).
+        "steps": max(4, min(num_steps, 8)),
     }
 
     headers = {
@@ -368,6 +365,19 @@ def create_legal_image(
 
     if not output.exists() or output.stat().st_size == 0:
         raise ImageGenerationError("Generated image file is empty.")
+
+    # FLUX returns a square canvas; crop to the requested Reel portrait ratio.
+    try:
+        with Image.open(output) as generated:
+            portrait = ImageOps.fit(
+                generated.convert("RGB"),
+                (width, height),
+                method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.45),
+            )
+            portrait.save(output, format="JPEG", quality=94, optimize=True)
+    except Exception as exc:
+        raise ImageGenerationError(f"Could not normalize generated image to portrait format: {exc}") from exc
 
     brand_published_image(str(output))
     image_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
