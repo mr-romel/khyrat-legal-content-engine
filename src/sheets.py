@@ -101,8 +101,14 @@ def row_to_dict(row: list[str], headers: list[str] | None = None) -> dict[str, s
 
 
 def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") -> None:
+    """Initialize an empty sheet header, but never overwrite a live/reordered header row.
+
+    Existing tabs may contain additional columns or a deliberate column order.
+    Replacing that row with HEADERS would silently remap every stored value.
+    Named-column writers and row_to_dict use the live header row instead.
+    """
     existing = get_values(service, spreadsheet_id, f"{sheet_name}!A1:{SHEET_LAST_COLUMN}1")
-    if existing and existing[0][:len(HEADERS)] == HEADERS:
+    if existing and any(str(value or "").strip() for value in existing[0]):
         return
     _execute_with_retry(
         lambda: service.spreadsheets().values().update(
@@ -111,7 +117,7 @@ def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") ->
             valueInputOption="RAW",
             body={"values": [HEADERS]},
         ),
-        f"updating headers in {sheet_name}",
+        f"initializing headers in {sheet_name}",
     )
 
 
