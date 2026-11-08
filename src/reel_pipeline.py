@@ -582,12 +582,12 @@ _VISUAL_SCENES = {
         "A secured digital evidence folder on a laptop, no readable text.",
     ],
     "employment": [
-        "An employee reviewing a modern employment contract at a workplace desk.",
-        "A close-up of dated attendance and working-hours records beside a phone.",
-        "A payroll statement and bank transfer record on a contemporary office desk, text unreadable.",
-        "An employee collecting personal belongings after a workplace meeting, no visible employer branding.",
-        "A modern HR file folder and employment documents arranged for review.",
-        "A worker reviewing a termination notice with all text blurred.",
+        "A plain employment contract folder beside blank paper and a capped pen on a modern office desk, no people or readable writing.",
+        "A close-up of a simple desk calendar and an attendance-record folder, all dates and text out of focus.",
+        "A payroll folder beside a calculator and a bank card, no visible numbers, names, or writing.",
+        "A closed employee file beside a small stack of blank leave-request forms, no people or legible text.",
+        "A modern HR folder beside a desk calendar and capped pen, clean still-life composition.",
+        "A blank leave-request sheet clipped to a plain employment folder, no handwriting or readable text.",
         "A smartphone showing a blurred work-related message notification beside an employee file.",
         "A contemporary workplace desk with employee records and a calendar, documentary realism.",
     ],
@@ -694,25 +694,37 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
     # Specific legal situations take precedence over broad criminal-family stock scenes.
     if family == "criminal" and any(word in topic_text for word in ("التنازل", "التصالح", "صلح")):
         scenes = [
-            "Two adult parties seated across a neutral meeting table, carefully reviewing a settlement document related to a criminal dispute, no readable text.",
-            "Close-up of a settlement and waiver document beside a pen and an organized case folder, all writing blurred.",
-            "One party handing a closed document folder to the other across a contemporary office table, calm non-confrontational scene.",
-            "A police complaint file placed beside a separate settlement document to show the distinction between the report and reconciliation, no readable text.",
-            "Two adults reviewing the terms of a written settlement with a neutral legal adviser, no logos and no readable text.",
-            "A close-up of dated receipts and supporting papers being arranged beside a criminal case folder.",
-            "A person checking a settlement document carefully before signing, hands and document clearly visible, no readable writing.",
-            "A secured case file with a settlement paper clipped to its cover on a modern office desk, documentary realism.",
+            "A closed criminal case folder beside a separate blank settlement document and a capped pen on a clean office desk, no people, no readable writing, documentary realism.",
+            "A close-up of two neatly arranged blank paper sheets representing a settlement and waiver, beside a plain case folder, no text, no hands.",
+            "A sealed document envelope placed beside a criminal case folder and a simple calendar with no legible numbers or words.",
+            "A police complaint folder beside a separate unsigned blank settlement sheet, clearly distinct documents, no people or readable text.",
+            "A tidy desk with a plain document folder, blank paper, and capped pen, visual focus on formal reconciliation paperwork, no hands.",
+            "A close-up of an empty document sleeve and neatly stacked blank papers beside a closed case file, no writing or logos.",
+            "A neutral office tabletop with a blank settlement sheet clipped to a plain folder, no people, no hands, no symbols.",
+            "A secured criminal case folder beside a blank signed-document area with no visible handwriting, clean contemporary still life.",
         ]
     elif family == "secret_threat" and any(word in (topic_text + " " + post_text) for word in ("قتل", "تهديد بالقتل")):
         scenes = [
-            "A smartphone receiving a threatening private message, screen content blurred and unreadable, present-day setting.",
-            "A person carefully preserving a threatening message and its timestamp on a smartphone, no readable words.",
-            "A close-up of a phone call log and message timestamps arranged as digital evidence, names and numbers obscured.",
-            "A police complaint folder beside a smartphone containing blurred threat-message evidence, contemporary desk.",
-            "A person documenting the date and time of repeated threatening calls in a private incident log, no readable text.",
-            "A secured digital evidence folder on a laptop beside the phone used to receive the threat, screen blurred.",
-            "A close-up of a hand saving a threatening voice-message file on a smartphone, interface unreadable.",
-            "A calm, safe home-office scene with a secured phone and complaint papers organized for reporting, no violence shown.",
+            "A modern smartphone on a plain desk with a single incoming message bubble completely blurred, visual context of a serious threat, no legible text or people.",
+            "A smartphone beside a closed incident-report folder, screen fully defocused and unreadable, clean contemporary still life.",
+            "A close-up of a phone with an obscured call-history screen beside a blank evidence note, no readable names, numbers, or writing.",
+            "A closed police complaint folder beside a smartphone with its display turned away, no people, no readable text.",
+            "A phone and a plain desk calendar with dates not legible, representing a record of repeated threatening calls, no hands.",
+            "A secured digital evidence drive beside a closed complaint folder, modern office tabletop, no text or logos.",
+            "A smartphone beside a sealed evidence envelope and plain case folder, no visible screen text or people.",
+            "A calm home-office tabletop with a secured phone and closed complaint papers, no violence, no people, no readable writing.",
+        ]
+    # For employment leave/rest topics, use concrete leave and attendance evidence rather than generic workplace portraits.
+    elif family == "employment" and any(word in (topic_text + " " + post_text) for word in ("إجاز", "راحة", "عطلة", "راحة أسبوعية")):
+        scenes = [
+            "A plain employee leave-request form with no readable writing beside a simple desk calendar, a capped pen, and a closed HR folder.",
+            "A clean attendance register with all text and dates blurred beside a weekly calendar, no people or hands.",
+            "A closed employment folder beside a blank leave-balance sheet and calculator, no legible numbers or writing.",
+            "A desk calendar with one day subtly marked by a plain paper tab beside a closed employee file, no readable text.",
+            "A blank leave approval sheet clipped to a plain folder beside a capped pen, contemporary office still life.",
+            "A weekly planner beside an attendance-record folder and a calculator, all writing out of focus.",
+            "A stack of blank leave forms beside a closed HR folder and simple wall clock, no people.",
+            "A plain employment file beside a calendar and attendance folder, documentary still-life realism, no readable text.",
         ]
     # Add narrow evidence detail only within the already-selected family.
     elif family == "secret_threat" and any(word in post_text for word in ("واتساب", "رسائل", "رسالة")):
