@@ -95,9 +95,18 @@ jobs:
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
                   and retry_count < 1
               )
-              if not (requested or retryable_image_failure):
+              # One post-fix retry is allowed for the earlier topic mismatch,
+              # because that failure happened before the pipeline used live headers.
+              # If it still mismatches with live mapping, it remains FAILED.
+              retryable_legacy_mapping_failure = (
+                  status == "FAILED"
+                  and last_error.startswith("REEL_SOURCE_TOPIC_MISMATCH")
+                  and retry_count < 1
+              )
+              retryable_failure = retryable_image_failure or retryable_legacy_mapping_failure
+              if not (requested or retryable_failure):
                   continue
-              next_retry = retry_count + 1 if retryable_image_failure else retry_count
+              next_retry = retry_count + 1 if retryable_failure else retry_count
               requested_rows.append({
                   "row": number,
                   "status": status,
