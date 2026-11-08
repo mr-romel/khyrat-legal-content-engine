@@ -1045,9 +1045,12 @@ def main() -> int:
     service = create_service(cfg["service_account_info"])
     sheet_name = cfg["sheet_range"].split("!", 1)[0]
     ensure_headers(service, cfg["sheet_id"], sheet_name)
-    values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
+    values = get_values(service, cfg["sheet_id"], f"{sheet_name}!A:BZ")
     print("Reel Sheet source: range=" + str(cfg["sheet_range"]) + " rows_loaded=" + str(max(0, len(values) - 1)) + " headers_width=" + str(len(values[0]) if values else 0))
-    rows = [row_to_dict(row) for row in values[1:]]
+    headers = [str(value or "").strip() for value in values[0]] if values else []
+    if not headers or not any(headers):
+        raise RuntimeError("Reel Sheet header row is empty; refusing positional column mapping.")
+    rows = [row_to_dict(row, headers) for row in values[1:]]
     source_path = Path("generated/reel_source.json")
     source_context = None
     force_telegram_review = os.getenv("REEL_FORCE_TELEGRAM_REVIEW", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -1106,8 +1109,11 @@ def main() -> int:
             # Re-read once before refusing the exact current-day row; never fall back to older rows.
             import time
             time.sleep(5)
-            values = get_values(service, cfg["sheet_id"], cfg["sheet_range"])
-            rows = [row_to_dict(row) for row in values[1:]]
+            values = get_values(service, cfg["sheet_id"], f"{sheet_name}!A:BZ")
+            headers = [str(value or "").strip() for value in values[0]] if values else []
+            if not headers or not any(headers):
+                raise RuntimeError("Reel Sheet header row is empty after recovery re-read.")
+            rows = [row_to_dict(row, headers) for row in values[1:]]
             print("Reel recovery retry: re-read Sheet after 5s.")
             for row_number, row in enumerate(rows, start=2):
                 source_id = str(row.get("ID", "")).strip()
@@ -1580,6 +1586,9 @@ def main() -> int:
             for chunk in iter(lambda: video_handle.read(1024 * 1024), b""):
                 video_digest.update(chunk)
         video_sha256 = video_digest.hexdigest()
+        forbidden_sha = str(os.getenv("REEL_FORBIDDEN_VIDEO_SHA256", "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd")).strip().lower()
+        if video_sha256.lower() == forbidden_sha:
+            raise RuntimeError("REEL_CONTAMINATED_VIDEO_FINGERPRINT: generated MP4 matches the known contaminated video; refusing Telegram delivery.")
         if len(video_sha256) != 64:
             raise RuntimeError("REEL_VIDEO_FINGERPRINT_FAILED: generated MP4 has no valid SHA-256 digest.")
         reel_plan["video_sha256"] = video_sha256
