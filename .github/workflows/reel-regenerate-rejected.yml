@@ -8,6 +8,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/reel-regenerate-rejected.yml"
+      - "src/reel_pipeline.py"
+      - "src/image_generator.py"
+      - "src/sheets.py"
 
 permissions:
   contents: read
@@ -59,7 +62,7 @@ jobs:
         id: target
         run: |
           python - <<'PY'
-          import json, os
+          import json, os, re
           from sheets import create_service, get_values, row_to_dict, update_row
           raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
           if not raw or not os.getenv("GOOGLE_SHEET_ID"):
@@ -81,12 +84,26 @@ jobs:
           requested_rows = []
           for number, raw_row in enumerate(values[1:], start=2):
               row = row_to_dict(raw_row, headers)
-              if str(row.get("Reel Status", "")).strip().upper() == "REGENERATE_REQUESTED":
-                  requested_rows.append({"row": number, "topic": str(row.get("الموضوع", "") or "").strip()})
-              else:
+              status = str(row.get("Reel Status", "")).strip().upper()
+              last_error = str(row.get("Reel Last Error", "") or "").strip()
+              review = str(row.get("Reel Review", "") or "").strip()
+              retry_match = re.search(r"retry=(\\d+)", review, flags=re.IGNORECASE)
+              retry_count = int(retry_match.group(1)) if retry_match else 0
+              requested = status == "REGENERATE_REQUESTED"
+              retryable_image_failure = (
+                  status == "FAILED"
+                  and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
+                  and retry_count < 1
+              )
+              if not (requested or retryable_image_failure):
                   continue
-              if str(row.get("Reel Status", "")).strip().upper() != "REGENERATE_REQUESTED":
-                  continue
+              next_retry = retry_count + 1 if retryable_image_failure else retry_count
+              requested_rows.append({
+                  "row": number,
+                  "status": status,
+                  "retry": next_retry,
+                  "topic": str(row.get("الموضوع", "") or "").strip(),
+              })
               source_id = str(row.get("ID", "") or "").strip()
               topic = str(row.get("الموضوع", "") or "").strip()
               if not source_id or not topic or not str(row.get("المحتوى", "") or "").strip():
@@ -113,7 +130,7 @@ jobs:
           update_row(service, sheet_id, sheet_name, number, {
               "Reel Status": "REGENERATING",
               "Reel Approval": "",
-              "Reel Review": "REGENERATING | Telegram rejection",
+              "Reel Review": f"REGENERATING | retry={next_retry} | Telegram rejection",
               "Reel Last Error": "",
           })
           os.makedirs("generated", exist_ok=True)
