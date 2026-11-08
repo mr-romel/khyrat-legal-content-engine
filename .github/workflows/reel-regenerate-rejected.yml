@@ -93,7 +93,7 @@ jobs:
               retryable_image_failure = (
                   status == "FAILED"
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
-                  and retry_count < 1
+                  and retry_count < 3
               )
               # One post-fix retry is allowed for the earlier topic mismatch,
               # because that failure happened before the pipeline used live headers.
