@@ -685,12 +685,37 @@ _VISUAL_SCENES = {
 
 
 def post_visual_terms(post: str, topic: str) -> list[str]:
-    """Return eight scenes from the topic's single legal family; never trust mixed post/model keywords."""
+    """Return eight concrete, topic-specific scenes from the approved legal post."""
     family = _visual_topic_family(topic)
     scenes = list(_VISUAL_SCENES[family])
+    topic_text = " ".join(str(topic or "").split()).casefold()
     post_text = " ".join(str(post or "").split()).casefold()
+
+    # Specific legal situations take precedence over broad criminal-family stock scenes.
+    if family == "criminal" and any(word in topic_text for word in ("التنازل", "التصالح", "صلح")):
+        scenes = [
+            "Two adult parties seated across a neutral meeting table, carefully reviewing a settlement document related to a criminal dispute, no readable text.",
+            "Close-up of a settlement and waiver document beside a pen and an organized case folder, all writing blurred.",
+            "One party handing a closed document folder to the other across a contemporary office table, calm non-confrontational scene.",
+            "A police complaint file placed beside a separate settlement document to show the distinction between the report and reconciliation, no readable text.",
+            "Two adults reviewing the terms of a written settlement with a neutral legal adviser, no logos and no readable text.",
+            "A close-up of dated receipts and supporting papers being arranged beside a criminal case folder.",
+            "A person checking a settlement document carefully before signing, hands and document clearly visible, no readable writing.",
+            "A secured case file with a settlement paper clipped to its cover on a modern office desk, documentary realism.",
+        ]
+    elif family == "secret_threat" and any(word in (topic_text + " " + post_text) for word in ("قتل", "تهديد بالقتل")):
+        scenes = [
+            "A smartphone receiving a threatening private message, screen content blurred and unreadable, present-day setting.",
+            "A person carefully preserving a threatening message and its timestamp on a smartphone, no readable words.",
+            "A close-up of a phone call log and message timestamps arranged as digital evidence, names and numbers obscured.",
+            "A police complaint folder beside a smartphone containing blurred threat-message evidence, contemporary desk.",
+            "A person documenting the date and time of repeated threatening calls in a private incident log, no readable text.",
+            "A secured digital evidence folder on a laptop beside the phone used to receive the threat, screen blurred.",
+            "A close-up of a hand saving a threatening voice-message file on a smartphone, interface unreadable.",
+            "A calm, safe home-office scene with a secured phone and complaint papers organized for reporting, no violence shown.",
+        ]
     # Add narrow evidence detail only within the already-selected family.
-    if family == "secret_threat" and any(word in post_text for word in ("واتساب", "رسائل", "رسالة")):
+    elif family == "secret_threat" and any(word in post_text for word in ("واتساب", "رسائل", "رسالة")):
         scenes[5] = "A smartphone beside a blurred private-message thread and timestamp evidence, no readable text."
     elif family == "unauthorized_recording" and any(word in post_text for word in ("مكان عام", "شارع", "مواصلات")):
         scenes[6] = "A contemporary street or public-place scene with a phone recording from a distance, faces not visible."
