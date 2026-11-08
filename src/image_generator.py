@@ -223,17 +223,14 @@ def create_legal_image(
             post_context=post_context,
             visual_description=visual_description,
         )
-        # Reserve room for mandatory contemporary-setting constraints so
-        # truncation can never remove the anti-pharaonic instruction.
-        prompt = prompt[:1450]
+        # Keep the generated scene anchored to the legal issue in the post.
+        # Do not impose a country, culture, era, cast, or decorative art direction.
         prompt += (
             f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
-            "frame the key action and evidence safely inside the central area, "
-            "with enough headroom and no critical details near the crop edges. "
-            "Contemporary Egyptian legal-office editorial photography, "
-            "modern people and present-day office interiors. Strictly exclude "
-            "pharaonic or ancient Egyptian motifs, pyramids, temples, statues, "
-            "hieroglyphs, museums, historical costumes, fantasy, and antique scenes."
+            "show a clear, concrete visual representation of the specific "
+            "legal problem, evidence, action, document, or consequence described "
+            "in the post. Avoid generic legal clichés and unrelated decoration. "
+            "No added text or labels; keep the main subject clearly framed."
         )
         # Cloudflare FLUX accepts a maximum of 2048 prompt characters.
         prompt = prompt[:2048]
