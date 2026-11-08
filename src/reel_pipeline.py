@@ -1312,29 +1312,25 @@ def main() -> int:
                         topic=topic,
                         image_brief=active_prompt,
                     )
-                    if visual_qa.get("decision") == "PASS" and not visual_qa.get("historical_style_detected", False):
+                    if visual_qa.get("decision") == "PASS":
                         accepted = True
                         print(
                             f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
-                            f"historical_style=clear attempt={visual_attempt}"
+                            f"legal_relevance=passed attempt={visual_attempt}"
                         )
                         break
                     print(
-                        f"REEL_STAGE ai_scene={scene_index}/8 rejected=pharaonic "
-                        f"attempt={visual_attempt}"
+                        f"REEL_STAGE ai_scene={scene_index}/8 rejected=visual_qa "
+                        f"attempt={visual_attempt} issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}"
                     )
-                    active_prompt = (
-                        str(scene_prompt)
-                        + " STRICT MODERN-DAY VISUAL OVERRIDE: depict only an ordinary 2020s Cairo/Giza "
-                        "home, office, street, or current everyday setting with modern devices, furniture, "
-                        "vehicles, clothing and materials. Absolutely no ancient Egypt, Pharaonic art, "
-                        "pyramids, sphinxes, hieroglyphics, temples, obelisks, papyrus, tombs, royal costume, "
-                        "historical architecture, heritage motifs, or period styling. This is a present-day "
-                        "legal situation, not a historical scene."
+                    regeneration_hint = str(visual_qa.get("regeneration_prompt", "") or "").strip()
+                    active_prompt = str(scene_prompt) + (
+                        f" VISUAL QA FEEDBACK: {regeneration_hint}" if regeneration_hint else
+                        " Make the scene more directly depict the specific legal problem and evidence in the post."
                     )
                 if not accepted:
                     raise RuntimeError(
-                        f"Scene {scene_index} remained Pharaonic/ancient after two generations; refusing to use it."
+                        f"Scene {scene_index} failed legal-relevance/visual-quality QA after retries; refusing to use it."
                     )
                 scenes.append(image_path)
         except Exception as image_exc:
