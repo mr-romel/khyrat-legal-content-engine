@@ -1280,7 +1280,7 @@ def main() -> int:
 
         scene_dir = output_dir / "scenes"
         scene_dir.mkdir(parents=True, exist_ok=True)
-        # Each scene illustrates its legal issue; no nationality, culture, era, or cast is prescribed.
+        # Each scene illustrates its legal issue; visual QA adds no nationality, culture, era, or cast restriction.
         # Generate eight distinct scene images from the eight scene-specific prompts.
         # Existing credentials are reused; if image generation is unavailable, use
         # only topic-matched openly licensed photos, never generic placeholder cards.
