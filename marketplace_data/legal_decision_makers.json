@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "name": "Hessen Elhadad",
+    "title": "Hessen Elhadad - Founder, Golden Pyramid Clothing LLC - LinkedIn",
+    "normalized_role": "Founder",
+    "company": "LinkedIn",
+    "linkedin_url": "https://www.linkedin.com/in/hessen-elhadad-63b96743b",
+    "location": "Egypt",
+    "industry": "manufacturing",
+    "company_size": "",
+    "company_url": "",
+    "public_email": "",
+    "public_phone": "",
+    "legal_need": "عقود الشركات، تأسيس الشركات، الاستشارات المستمرة",
+    "score": 91,
+    "source": "public_search",
+    "evidence": "I am the Founder of Golden Pyramid Clothing LLC, a U.S.-based apparel sourcing and wholesale company connecting brands, retailers and wholesalers with independent manufacturing partners in Egypt .",
+    "status": "READY"
+  }
+]
