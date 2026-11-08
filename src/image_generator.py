@@ -224,10 +224,16 @@ def create_legal_image(
             visual_description=visual_description,
         )
         prompt += (
-            f"\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
+            f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
             "frame the key action and evidence safely inside the central area, "
-            "with enough headroom and no critical details near the crop edges."
+            "with enough headroom and no critical details near the crop edges. "
+            "Contemporary Egyptian legal-office editorial photography, "
+            "modern people and present-day office interiors. Strictly exclude "
+            "pharaonic or ancient Egyptian motifs, pyramids, temples, statues, "
+            "hieroglyphs, museums, historical costumes, fantasy, and antique scenes."
         )
+        # Cloudflare FLUX accepts a maximum of 2048 prompt characters.
+        prompt = prompt[:2048]
     except ValueError as exc:
         raise ImageGenerationError(str(exc)) from exc
     negative_prompt = ""
