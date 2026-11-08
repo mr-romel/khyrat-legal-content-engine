@@ -10,6 +10,7 @@ on:
       - ".github/workflows/reel-regenerate-rejected.yml"
       - "src/reel_pipeline.py"
       - "src/image_generator.py"
+      - "src/image_qa.py"
       - "src/sheets.py"
 
 permissions:
@@ -107,7 +108,7 @@ jobs:
               # Automatic retries are restricted to the exact rows audited as
               # contaminated. Never let an unrelated historical FAILED row
               # enter the recovery queue merely because its error text matches.
-              audited_recovery_rows = {169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 255}
+              audited_recovery_rows = {24, 169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 255}
               if retryable_failure and number not in audited_recovery_rows:
                   retryable_failure = False
               if not (requested or retryable_failure):
