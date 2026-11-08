@@ -350,6 +350,13 @@ def create_legal_image(
                 time.sleep(delay)
 
     if image_bytes is None:
+        # Recovery runs explicitly select Cloudflare FLUX. Do not call the
+        # exhausted Gemini free-tier image model as a hidden second provider.
+        if provider_preference == "cloudflare":
+            raise ImageGenerationError(
+                "Cloudflare FLUX image generation failed; Gemini image fallback "
+                f"was intentionally disabled for this attempt. Cloudflare={cloudflare_error}"
+            )
         print(
             "Cloudflare image generation failed; trying Gemini with the SAME "
             f"post-derived prompt: {cloudflare_error}"
