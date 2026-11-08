@@ -1304,7 +1304,7 @@ def main() -> int:
                         cloudflare_account_id=cloudflare_account,
                         cloudflare_api_token=cloudflare_token,
                         aspect_ratio="9:16",
-                        provider=("cloudflare" if visual_attempt == 1 else "gemini"),
+                        provider="cloudflare",
                     )
                     visual_qa = qa_image(
                         api_key=cfg["gemini_api_key"],
