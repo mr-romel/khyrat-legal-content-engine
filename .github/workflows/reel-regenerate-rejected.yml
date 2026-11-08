@@ -38,6 +38,7 @@ jobs:
       REEL_RECOVERY: "true"
       REEL_FORCE_REGENERATE: "true"
       REEL_FORCE_TELEGRAM_REVIEW: "true"
+      REEL_FORBIDDEN_VIDEO_SHA256: "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd"
       REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -127,7 +128,7 @@ jobs:
         run: |
           rm -rf generated/reels
           PYTHONPATH=src python src/reel_pipeline.py
-          if ! find generated/reels -maxdepth 3 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+          if ! find generated/reels -maxdepth 6 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
             echo "::error::Regeneration finished without a new MP4."
             exit 1
           fi
