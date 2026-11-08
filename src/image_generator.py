@@ -223,6 +223,9 @@ def create_legal_image(
             post_context=post_context,
             visual_description=visual_description,
         )
+        # Reserve room for mandatory contemporary-setting constraints so
+        # truncation can never remove the anti-pharaonic instruction.
+        prompt = prompt[:1450]
         prompt += (
             f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
             "frame the key action and evidence safely inside the central area, "
