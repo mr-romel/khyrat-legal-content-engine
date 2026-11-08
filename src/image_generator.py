@@ -200,6 +200,7 @@ def create_legal_image(
     cloudflare_account_id: str | None = None,
     cloudflare_api_token: str | None = None,
     aspect_ratio: str = "4:5",
+    provider: str = "auto",
 ) -> str:
     """
     Generate ONE fresh editorial image for every post.
@@ -269,9 +270,12 @@ def create_legal_image(
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
+    provider_preference = str(provider or "auto").strip().lower()
+    if provider_preference not in {"auto", "cloudflare", "gemini"}:
+        raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     endpoint = (
         CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id)
-        if account_id and api_token else ""
+        if account_id and api_token and provider_preference != "gemini" else ""
     )
 
     if aspect_ratio == "9:16":
@@ -307,7 +311,7 @@ def create_legal_image(
     cloudflare_error = None
     image_bytes = None
     if not endpoint:
-        cloudflare_error = "Cloudflare credentials unavailable."
+        cloudflare_error = ("Gemini explicitly selected after visual QA rejection." if provider_preference == "gemini" else "Cloudflare credentials unavailable.")
     else:
         import time
         for attempt in range(1, 4):
