@@ -73,7 +73,7 @@ def _normalize_score(value: Any, fallback: int = 0) -> int:
 
 def _build_prompt(topic: str, image_brief: str, hard: dict[str, Any], reference_count: int, image_mode: str) -> str:
     return f"""
-You are the final visual QA editor for a professional Egyptian legal-content publishing engine.
+You are the final visual QA editor for a professional legal-content publishing engine.
 
 Inspect the FINAL rendered image, not the original generation response.
 
@@ -209,7 +209,6 @@ def qa_image(
             "reference_score": 100,
             "overall_score": 100,
             "text_detected": False,
-            "women_or_girls_detected": False,
             "detected_text": [],
             "composition_findings": [],
             "relevance_findings": [],
