@@ -63,3 +63,16 @@ def test_remove_blogger_link_from_replies_and_contextual_comments():
     assert remove_blogger_link("اقرأ التفاصيل https://askmahmoudkhyrat.blogspot.com/2026/10/post.html") == "اقرأ التفاصيل"
     assert remove_blogger_link("الرابط askmahmoudkhyrat.blogspot.com/") == "الرابط"
     assert "askmahmoudkhyrat.blogspot.com" not in remove_blogger_link("شرح إضافي: https://www.askmahmoudkhyrat.blogspot.com/")
+
+def test_blog_cta_hides_internal_sheet_angle_and_uses_natural_copy():
+    comment = blog_cta_comment(
+        "facebook",
+        topic="الصفة في دعوى التعويض — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+        post_text="شرح عملي عن الصفة في دعوى التعويض",
+        post_key="sheet-title-regression",
+    )
+    assert "الصفة في دعوى التعويض" in comment
+    assert "زاوية جديدة" not in comment
+    assert "3 علامات تحذيرية" not in comment
+    assert "قبل اتخاذ القرار" not in comment
+    assert "شرحًا عمليًا" in comment or "أمثلة عملية" in comment or "شرح وأمثلة" in comment
