@@ -1,5 +1,5 @@
 from __future__ import annotations
-import html as html_lib, re
+import html as html_lib, re, io
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, unquote, urlparse
@@ -11,7 +11,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=18000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-LAWS=("cc.gov.eg","www.cc.gov.eg","manshurat.org")
+LAWS=("cc.gov.eg","www.cc.gov.eg","manshurat.org","fra.gov.eg")
 
 class _P(HTMLParser):
     def __init__(self): super().__init__(); self.parts=[]; self.skip=0
@@ -46,7 +46,17 @@ def _search(q):
 def _fetch(u):
     try:
         r=requests.get(u,headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
-        r.raise_for_status(); p=_P(); p.feed(r.text); return _clean(" ".join(p.parts))[:MAX_SOURCE_CHARS]
+        r.raise_for_status()
+        content_type = r.headers.get("content-type", "").lower()
+        if "pdf" in content_type or urlparse(u).path.lower().endswith(".pdf"):
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(io.BytesIO(r.content))
+                return _clean(" ".join(page.extract_text() or "" for page in reader.pages))[:MAX_SOURCE_CHARS]
+            except Exception as pdf_exc:
+                print(f"Legal PDF text extraction unavailable: {u} :: {pdf_exc}")
+                return ""
+        p=_P(); p.feed(r.text); return _clean(" ".join(p.parts))[:MAX_SOURCE_CHARS]
     except Exception as e:
         print(f"Legal research source unavailable: {u} :: {e}"); return ""
 
@@ -141,7 +151,18 @@ def research_legal_topic(topic, existing=""):
         f'site:manshurat.org {topic} قانون {CURRENT_YEAR}',
         f'site:manshurat.org {topic} قانون {CURRENT_YEAR - 1}',
     ]
+    # Law 175/2018 is frequently cited in cybercrime content. Retrieve its
+    # official FRA-hosted PDF directly so exact statutory references can be
+    # checked against primary government text rather than user notes.
+    topic_norm = _norm_legal_text(topic)
+    cybercrime_topic = any(term in topic_norm for term in ("جرائم الكترونيه", "جرائم تقنيه المعلومات", "الابتزاز الالكتروني", "الجرائم المعلوماتيه"))
+    if cybercrime_topic:
+        queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
     cand=[]; seen=set()
+    if cybercrime_topic:
+        official_law_pdf = "https://fra.gov.eg/wp-content/uploads/2025/01/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018-%D8%A8%D8%AA%D8%A7%D8%B1%D9%8A%D8%AE-2018-08-14.pdf"
+        cand.append({"url": official_law_pdf, "title": "القانون رقم 175 لسنة 2018 — النسخة المنشورة على موقع الهيئة العامة للرقابة المالية"})
+        seen.add(official_law_pdf)
     for q in queries:
         for x in _search(q):
             if x["url"] in seen or not _allowed(x["url"]): continue
