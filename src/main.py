@@ -532,7 +532,7 @@ def _backfill_latest_three_comment_queues(*, service, config, sheet_name: str, r
 def _is_bad_published_image(row: dict[str, str]) -> bool:
     mode = str(row.get("Image Mode", "") or "").strip().upper()
     qa = str(row.get("Image QA Status", "") or "").strip().upper()
-    repair_attempted = qa in {"REPAIRED_SINGLE_GENERATION", "IMAGE_REPAIR_COMPLETE"}"
+    repair_attempted = qa in {"REPAIRED_SINGLE_GENERATION", "IMAGE_REPAIR_COMPLETE"}
     if repair_attempted:
         return False
     source_id = str(row.get("ID", "") or "").strip()
