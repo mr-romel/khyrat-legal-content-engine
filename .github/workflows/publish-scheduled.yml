@@ -191,6 +191,7 @@ jobs:
           REEL_GOOGLE_SHEET_RANGE: 'Content!A:BG'
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
