@@ -46,12 +46,16 @@ def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     assert "valid generated image accepted" in main_source
 
 
-def test_image_generation_failure_never_blocks_social_publication():
+def test_image_generation_failure_uses_generic_legal_image_and_keeps_publication_image_required():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert '"Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK"' in main_source
-    assert "publishing text-only and continuing" in main_source
-    assert "No usable image available; continuing with text-only publication" in main_source
-    assert "refusing text-only social publication" not in main_source
+    generator_source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert "create_generic_legal_fallback_image(" in main_source
+    assert '"Image QA Status": image_qa_status' in main_source
+    assert '"Image Mode": "GENERIC_LEGAL_FALLBACK"' in main_source
+    assert "def create_generic_legal_fallback_image(" in generator_source
+    assert "brand_published_image(output_path)" in generator_source
+    assert "publish_text(" not in main_source
+    assert "publish_text_to_linkedin" not in main_source
 
 
 
