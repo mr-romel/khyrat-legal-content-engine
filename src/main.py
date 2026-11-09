@@ -417,7 +417,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             if bool(image_qa.get("women_or_girls_detected", False)):
                 image_path.unlink(missing_ok=True)
                 raise ImageGenerationError(
-                    "Image contains a woman or girl; using text-only fallback rather than blocking publication."
+                    "Image contains a woman or girl; rejecting the image and blocking publication."
                 )
             if str(image_qa.get("decision", "")).upper() == "PASS":
                 image_qa_status = "PASS"
@@ -460,25 +460,30 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # Publishing must never be blocked by image generation or image QA.
-        # Fall back to text-only if no usable image could be produced.
+        # Fail closed: an image is a required publication asset on BOTH platforms.
+        # Never silently downgrade a social post to text-only.
         image_url = ""
         generated_image_path = None
         image_path.unlink(missing_ok=True)
+        state_error = ""
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": "",
                 "Image QA Attempt": str(locals().get("image_qa_attempt", 1)),
-                "Image QA Status": "IMAGE_UNAVAILABLE_TEXT_FALLBACK",
+                "Image QA Status": "IMAGE_UNAVAILABLE_BLOCKED",
                 "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "TEXT_ONLY_FALLBACK",
+                "Image Mode": "IMAGE_REQUIRED_BLOCKED",
                 "المحتوى": post,
+                "الحالة": "FAILED",
+                "آخر خطأ": f"IMAGE_REQUIRED_BLOCKED: {image_exc}"[:1500],
                 "وقت آخر تشغيل": current.isoformat(),
-                "آخر خطأ": f"Image unavailable; publishing text-only and continuing: {image_exc}"[:1500],
             })
         except Exception as state_exc:
-            print(f"Image fallback state update unavailable: {state_exc}")
-        print(f"IMAGE OPTIONAL: proceeding with text-only publication: {image_exc}")
+            state_error = f"; Sheet state update also failed: {state_exc}"
+            print(f"Image failure state update unavailable: {state_exc}")
+        raise ImageGenerationError(
+            f"IMAGE_REQUIRED_BLOCKED: refusing text-only publication. {image_exc}{state_error}"
+        ) from image_exc
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
@@ -767,7 +772,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Canonical post content persistence unavailable for row {row_number}: {content_state_exc}")
         image_available = bool(image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0)
         if not image_available:
-            print("No usable image available; continuing with text-only publication as requested.")
+            raise ImageGenerationError("IMAGE_REQUIRED_BLOCKED: no valid image file is available; text-only publishing is disabled.")
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
@@ -807,10 +812,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Idempotency: Facebook already published as {facebook_post_id}; skipping duplicate publish.")
         else:
             try:
-                if image_available:
-                    facebook = publish_photo(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], image_path=image_path, caption=facebook_post)
-                else:
-                    facebook = publish_text(page_id=config["facebook_page_id"], page_access_token=config["facebook_page_access_token"], graph_version=config["facebook_graph_version"], message=facebook_post)
+                facebook = publish_photo(
+                    page_id=config["facebook_page_id"],
+                    page_access_token=config["facebook_page_access_token"],
+                    graph_version=config["facebook_graph_version"],
+                    image_path=image_path,
+                    caption=facebook_post,
+                )
                 facebook_post_id = facebook["post_id"]
                 row["Facebook Status"] = "PUBLISHED"
                 try:
@@ -839,10 +847,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             try:
                 token = config["linkedin_access_token"]
                 author = (config.get("linkedin_author_urn", "") or "").strip() or resolve_member_urn(token)
-                if image_available:
-                    linkedin = publish_to_linkedin(token=token, author_urn=author, image_path=image_path, commentary=linkedin_post, first_comment="")
-                else:
-                    linkedin = publish_text_to_linkedin(token=token, author_urn=author, commentary=linkedin_post)
+                linkedin = publish_to_linkedin(
+                    token=token,
+                    author_urn=author,
+                    image_path=image_path,
+                    commentary=linkedin_post,
+                    first_comment="",
+                )
                 linkedin_post_id = linkedin["post_urn"]
                 row["LinkedIn Status"] = "PUBLISHED"
                 comment_result = linkedin.get("comment") or {}
