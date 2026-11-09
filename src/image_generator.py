@@ -4,6 +4,7 @@ import os
 import re
 import json
 import hashlib
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any
 
@@ -292,6 +293,26 @@ def create_legal_image(
         raise ImageGenerationError(str(exc)) from exc
     negative_prompt = ""
 
+    def _generate_with_pollinations() -> bytes:
+        """Generate a topic-specific image through Pollinations using a server-side key."""
+        pollinations_key = os.getenv("POLLINATIONS_API_KEY", "").strip()
+        if not pollinations_key:
+            raise ImageGenerationError("POLLINATIONS_API_KEY is missing; add it as a GitHub Actions secret.")
+        model = os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell").strip()
+        encoded_prompt = quote(prompt, safe="")
+        url = f"https://gen.pollinations.ai/image/{encoded_prompt}"
+        params = {"model": model, "width": width, "height": height, "nologo": "true"}
+        try:
+            response = requests.get(url, params=params, headers={"Authorization": f"Bearer {pollinations_key}", "Accept": "image/*"}, timeout=(20, 240))
+            if not response.ok:
+                raise ImageGenerationError(f"Pollinations image request failed: HTTP {response.status_code} - {response.text[:1200]}")
+            content_type = response.headers.get("content-type", "").lower()
+            if not content_type.startswith("image/") or not response.content:
+                raise ImageGenerationError(f"Pollinations returned no image bytes (content-type={content_type or 'missing'}).")
+            return response.content
+        except requests.RequestException as exc:
+            raise ImageGenerationError(f"Pollinations image request error: {exc}") from exc
+
     def _generate_with_gemini() -> bytes:
         if not gemini_key:
             raise ImageGenerationError("GEMINI_API_KEY is missing for image fallback.")
@@ -330,11 +351,11 @@ def create_legal_image(
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "gemini"}:
+    if provider_preference not in {"auto", "cloudflare", "gemini", "pollinations"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     endpoint = (
         CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id)
-        if account_id and api_token and provider_preference != "gemini" else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -368,7 +389,7 @@ def create_legal_image(
     cloudflare_error = None
     image_bytes = None
     if not endpoint:
-        cloudflare_error = ("Gemini explicitly selected after visual QA rejection." if provider_preference == "gemini" else "Cloudflare credentials unavailable.")
+        cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations"} else "Cloudflare credentials unavailable.")
     else:
         import time
         for attempt in range(1, 4):
@@ -410,22 +431,28 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if image_bytes is None:
-        # Never promote a deterministic graphic placeholder into an AI-photo
-        # slot. Cloudflare quota exhaustion must trigger the real image provider;
-        # if both providers fail, stop before video assembly and Telegram review.
-        print("Cloudflare image generation unavailable; trying Gemini with the SAME post-derived prompt: " + str(cloudflare_error))
+    if image_bytes is None and provider_preference != "gemini":
+        # Pollinations is the first external fallback after Cloudflare. It receives
+        # the identical post-derived prompt; no generic or unrelated stock fallback.
+        print("Cloudflare image generation unavailable; trying Pollinations with the SAME post-derived prompt: " + str(cloudflare_error))
+        try:
+            image_bytes = _generate_with_pollinations()
+            provider = "POLLINATIONS_IMAGE_GENERATION"
+        except Exception as pollinations_error:
+            print(f"Pollinations fallback failed; trying Gemini next: {pollinations_error}")
+            try:
+                image_bytes = _generate_with_gemini()
+                provider = "GEMINI_IMAGE_GENERATION"
+            except Exception as gemini_error:
+                raise ImageGenerationError("All topic-specific image providers failed; refusing a synthetic placeholder. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}") from gemini_error
+    elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
             provider = "GEMINI_IMAGE_GENERATION"
         except Exception as gemini_error:
-            raise ImageGenerationError(
-                "All topic-specific image providers failed; refusing a synthetic placeholder. "
-                f"Cloudflare={cloudflare_error}; Gemini={gemini_error}"
-            ) from gemini_error
+            raise ImageGenerationError("All topic-specific image providers failed; refusing a synthetic placeholder. " f"Cloudflare={cloudflare_error}; Gemini={gemini_error}") from gemini_error
     else:
         provider = "DIRECT_CLOUDFLARE"
-
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(image_bytes)
@@ -452,6 +479,8 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
+        if provider == "POLLINATIONS_IMAGE_GENERATION"
         else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
         else CLOUDFLARE_IMAGE_MODEL
     )
