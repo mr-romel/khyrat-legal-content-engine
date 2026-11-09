@@ -191,7 +191,6 @@ def qa_image(
             "image_mode": image_mode,
         }
 
-    client = genai.Client(api_key=api_key)
     contents: list[Any] = [
         _build_prompt(topic, image_brief, hard, len(references), image_mode),
         types.Part.from_bytes(data=path.read_bytes(), mime_type="image/jpeg"),
@@ -214,6 +213,7 @@ def qa_image(
             print(f"Image QA reference warning for {ref.name}: {exc}")
 
     try:
+        client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model=(model or DEFAULT_QA_MODEL).strip() or DEFAULT_QA_MODEL,
             contents=contents,
