@@ -87,17 +87,19 @@ def blog_cta_comment(
         })
         candidate_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
     context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
-    # The CTA subject must come from this post, never a hard-coded legal category.
-    subject = str(topic or "").strip()[:90] or "الموضوع ده"
+    # Sheet topics may contain editorial angle labels (e.g. "زاوية جديدة: ...").
+    # Never expose the spreadsheet's internal title/angle in a public comment.
+    raw_subject = str(topic or "").strip()
+    raw_subject = re.split(r"\\s*[—–|]\\s*|\\s*:\\s*", raw_subject, maxsplit=1)[0]
+    raw_subject = re.sub(r"^(?:شرح|تفاصيل|معلومات)(?:\\s+وتفاصيل)?(?:\\s+عملية)?\\s+عن\\s+", "", raw_subject, flags=re.I).strip()
+    subject = raw_subject[:90] or "النقطة القانونية المطروحة"
     digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
-    # Keep the fixed link comment concise and directly related to the post.
-    # Repeated multi-part calls to read, visit, and share can look promotional;
-    # the comment should have one clear action and no extra engagement bait.
+    # A useful, human-sounding invitation: describe the value, not the sheet title.
     variants = [
-        f"معلومات وأمثلة عملية عن {subject}: {candidate_url}",
-        f"أمثلة عملية وخطوات مرتبطة بـ{subject}: {candidate_url}",
-        f"شرح وتفاصيل عملية عن {subject}: {candidate_url}",
-        f"معلومات وأمثلة واقعية عن {subject}: {candidate_url}",
+        f"لو بتتعامل مع {subject}، جمعنالك شرحًا عمليًا وأمثلة تساعدك تفهم التفاصيل قبل اتخاذ أي خطوة: {candidate_url}",
+        f"التفاصيل الصغيرة في {subject} ممكن تغيّر طريقة التعامل مع الموقف؛ هنا شرح وأمثلة عملية توضح الصورة: {candidate_url}",
+        f"للي محتاج يفهم {subject} بشكل عملي، ده شرح مبسط مع أمثلة وتفاصيل مرتبطة بالموضوع: {candidate_url}",
+        f"قبل ما تاخد خطوة تخص {subject}، راجع الشرح والأمثلة العملية دي عشان تكون الصورة أوضح: {candidate_url}",
     ]
     return variants[digest[0] % len(variants)]
 
