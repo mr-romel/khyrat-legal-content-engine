@@ -243,6 +243,35 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
     return output.read_bytes()
 
 
+def create_generic_legal_fallback_image(*, output_path: str, aspect_ratio: str = "4:5") -> str:
+    """Create a deterministic, branded generic legal visual when all image APIs fail."""
+    if aspect_ratio == "9:16":
+        width, height = 576, 1024
+    elif aspect_ratio == "4:5":
+        width, height = 1024, 1280
+    else:
+        raise ImageGenerationError(f"Unsupported generic legal image aspect ratio: {aspect_ratio}")
+    description = (
+        "Professional generic legal illustration: balanced justice scales, "
+        "organized legal documents, a closed law book and a refined courthouse "
+        "architectural detail; navy, warm gold and ivory palette; no readable text."
+    )
+    try:
+        _generate_zero_cost_editorial_image(
+            topic="محتوى قانوني عام",
+            visual_description=description,
+            output_path=output_path,
+            width=width,
+            height=height,
+        )
+        brand_published_image(output_path)
+        with Image.open(output_path) as check:
+            check.verify()
+        return output_path
+    except Exception as exc:
+        raise ImageGenerationError(f"Could not create generic legal fallback image: {exc}") from exc
+
+
 def create_legal_image(
     *,
     topic: str,
