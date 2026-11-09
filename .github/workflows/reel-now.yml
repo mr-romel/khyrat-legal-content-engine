@@ -58,6 +58,12 @@ jobs:
           cat generated/reel_source.json
       - name: Lock failed row 179 for a controlled Reel retry
         if: ${{ github.event.head_commit.message == 'REEL_ROW179_RETRY' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
         run: |
           mkdir -p generated
           PYTHONPATH=src python - <<'PY'
