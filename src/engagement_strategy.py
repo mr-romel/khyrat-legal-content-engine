@@ -86,20 +86,25 @@ def blog_cta_comment(
             "utm_content": re.sub(r"[^A-Za-z0-9_-]", "", str(post_key or ""))[:80] or "facebook_post",
         })
         candidate_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
-    context = " ".join((str(topic or "") + " " + str(post_text or "")[:700]).split())
-    # Sheet topics may contain editorial angle labels (e.g. "زاوية جديدة: ...").
-    # Never expose the spreadsheet's internal title/angle in a public comment.
+    context = " ".join((str(topic or "") + " " + str(post_text or "")[:900]).split())
+    # Use the actual published topic as the comment's subject. Remove only
+    # editorial suffixes; never replace the subject with a generic engagement CTA.
     raw_subject = str(topic or "").strip()
-    raw_subject = re.split(r"\\s*[—–|]\\s*|\\s*:\\s*", raw_subject, maxsplit=1)[0]
-    raw_subject = re.sub(r"^(?:شرح|تفاصيل|معلومات)(?:\\s+وتفاصيل)?(?:\\s+عملية)?\\s+عن\\s+", "", raw_subject, flags=re.I).strip()
-    subject = raw_subject[:90] or "النقطة القانونية المطروحة"
+    raw_subject = re.split(r"\s*[—–|]\s*|\s*:\s*", raw_subject, maxsplit=1)[0]
+    raw_subject = re.sub(r"^(?:شرح|تفاصيل|معلومات)(?:\s+وتفاصيل)?(?:\s+عملية)?\s+عن\s+", "", raw_subject, flags=re.I).strip()
+    if not raw_subject:
+        # If the sheet topic is absent, derive a short subject from the actual post.
+        post_plain = re.sub(r"https?://\S+|#[\w\u0600-\u06FF]+", "", str(post_text or ""))
+        sentences = [part.strip(" \n\t،؛:") for part in re.split(r"[.!؟\n]+", post_plain) if len(part.strip()) >= 12]
+        raw_subject = sentences[0] if sentences else "الموضوع القانوني المطروح"
+    subject = raw_subject[:62].rsplit(" ", 1)[0] if len(raw_subject) > 62 else raw_subject
     digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
-    # A useful, human-sounding invitation: describe the value, not the sheet title.
+    # Each comment explicitly names the post's subject and points to the related Blogger article.
     variants = [
-        f"لو بتتعامل مع {subject}، جمعنالك شرحًا عمليًا وأمثلة تساعدك تفهم التفاصيل قبل اتخاذ أي خطوة: {candidate_url}",
-        f"التفاصيل الصغيرة في {subject} ممكن تغيّر طريقة التعامل مع الموقف؛ هنا شرح وأمثلة عملية توضح الصورة: {candidate_url}",
-        f"للي محتاج يفهم {subject} بشكل عملي، ده شرح مبسط مع أمثلة وتفاصيل مرتبطة بالموضوع: {candidate_url}",
-        f"قبل ما تاخد خطوة تخص {subject}، راجع الشرح والأمثلة العملية دي عشان تكون الصورة أوضح: {candidate_url}",
+        f"بخصوص {subject}: الشرح والتفاصيل العملية والأمثلة المرتبطة بالموضوع هنا: {candidate_url}",
+        f"لو بتتابع موضوع {subject}، جمعنالك التفاصيل والأمثلة اللي تساعدك تفهمه بشكل أوضح: {candidate_url}",
+        f"استكمالًا لموضوع {subject} في المنشور، اقرأ الشرح العملي والتفاصيل المرتبطة بيه هنا: {candidate_url}",
+        f"للمزيد عن {subject}، ده شرح مكمل للموضوع وفيه تفاصيل وأمثلة عملية: {candidate_url}",
     ]
     return variants[digest[0] % len(variants)]
 
