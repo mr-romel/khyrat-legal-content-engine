@@ -404,21 +404,18 @@ def create_legal_image(
                 time.sleep(delay)
 
     if image_bytes is None:
-        # Recovery runs explicitly select Cloudflare FLUX. Do not call the
-        # exhausted Gemini free-tier image model as a hidden second provider.
-        if provider_preference == "cloudflare":
-            print(f"Cloudflare unavailable; using zero-cost local editorial renderer: {cloudflare_error}")
-            image_bytes = _generate_zero_cost_editorial_image(topic=topic, visual_description=visual_description, output_path=output_path, width=width, height=height)
-            provider = "LOCAL_ZERO_COST_EDITORIAL"
-        else:
-            print("Cloudflare image generation failed; trying Gemini with the SAME post-derived prompt: " + str(cloudflare_error))
-            try:
-                image_bytes = _generate_with_gemini()
-                provider = "GEMINI_IMAGE_GENERATION"
-            except Exception as gemini_error:
-                print(f"Gemini unavailable; using zero-cost local editorial renderer: {gemini_error}")
-                image_bytes = _generate_zero_cost_editorial_image(topic=topic, visual_description=visual_description, output_path=output_path, width=width, height=height)
-                provider = "LOCAL_ZERO_COST_EDITORIAL"
+        # Never promote a deterministic graphic placeholder into an AI-photo
+        # slot. Cloudflare quota exhaustion must trigger the real image provider;
+        # if both providers fail, stop before video assembly and Telegram review.
+        print("Cloudflare image generation unavailable; trying Gemini with the SAME post-derived prompt: " + str(cloudflare_error))
+        try:
+            image_bytes = _generate_with_gemini()
+            provider = "GEMINI_IMAGE_GENERATION"
+        except Exception as gemini_error:
+            raise ImageGenerationError(
+                "All topic-specific image providers failed; refusing a synthetic placeholder. "
+                f"Cloudflare={cloudflare_error}; Gemini={gemini_error}"
+            ) from gemini_error
     else:
         provider = "DIRECT_CLOUDFLARE"
 
