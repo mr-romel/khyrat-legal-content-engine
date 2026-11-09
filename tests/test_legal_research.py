@@ -51,3 +51,12 @@ def test_blocks_unverified_court_case_and_session_date():
     post = "قضت المحكمة الإدارية العليا في الطعن رقم 25096 لسنة 55 قضائية بجلسة 22/04/2015"
     issues = validate_legal_citations(post, "No verified court record retrieved.")
     assert len(issues) >= 2
+
+
+def test_accepts_law_number_when_official_source_uses_definite_article():
+    post = "الجرائم الإلكترونية وفق قانون رقم 175 لسنة 2018"
+    packet = (
+        "SOURCE 1\\n"
+        "VERIFIED SOURCE TEXT (retrieved): القانون رقم ١٧٥ لسنة ٢٠١٨ في شأن مكافحة جرائم تقنية المعلومات"
+    )
+    assert validate_legal_citations(post, packet) == []
