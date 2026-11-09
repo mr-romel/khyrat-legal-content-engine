@@ -531,6 +531,7 @@ def _visual_topic_family(topic: str) -> str:
     """Resolve one authoritative visual family from the public legal topic."""
     value = " ".join(str(topic or "").split()).casefold()
     families = [
+        ("nursery_surveillance", ("حضانات", "حضانة", "دار حضانة", "روضة أطفال", "رياض الأطفال")),
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
@@ -560,6 +561,16 @@ _VISUAL_SCENES = {
         "A close-up of a phone notification and message metadata, with all words obscured.",
         "A person documenting the date and time of a sequence of private messages.",
         "A private office desk with a secured phone and confidential file folder, contemporary documentary realism.",
+    ],
+    "nursery_surveillance": [
+        "A realistic wide interior photograph of a modern daycare nursery classroom after hours, empty of people, with a clearly visible CCTV dome camera mounted high in the corner and small chairs and toys below.",
+        "A close-up documentary photograph of a professional CCTV security camera installed on the ceiling of a clean daycare hallway, nursery rooms visible in the background, no people.",
+        "A realistic view from inside a daycare reception area showing a security monitor with several blurred camera feeds and a CCTV camera mounted near the entrance, no people or readable text.",
+        "A modern nursery playroom photographed from a corner security-camera viewpoint, empty room, child-sized furniture and toys visible, camera housing in the upper foreground.",
+        "A technician's hands installing a small CCTV dome camera on the ceiling of an empty daycare classroom, no faces, no children, no readable text.",
+        "A realistic close-up of a CCTV camera and its cable installation in a daycare corridor, with the nursery entrance softly visible behind it.",
+        "A daycare administration desk with a CCTV monitor showing blurred empty-room camera feeds, a closed compliance folder and no readable writing.",
+        "A wide documentary photograph of a modern nursery building entrance with visible security cameras and a clean reception area, no identifiable people.",
     ],
     "unauthorized_recording": [
         "A modern smartphone camera pointed toward a person in a public place, with the person's face not visible.",
@@ -691,8 +702,20 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
     topic_text = " ".join(str(topic or "").split()).casefold()
     post_text = " ".join(str(post or "").split()).casefold()
 
+    # Nursery surveillance is distinct from personal/unauthorized phone recording.
+    if family == "nursery_surveillance":
+        scenes = [
+            "A realistic wide interior photograph of a modern daycare nursery classroom after hours, empty of people, with a clearly visible CCTV dome camera mounted high in the corner and small chairs and toys below.",
+            "A close-up documentary photograph of a professional CCTV security camera installed on the ceiling of a clean daycare hallway, nursery rooms visible in the background, no people.",
+            "A realistic view from inside a daycare reception area showing a security monitor with several blurred camera feeds and a CCTV camera mounted near the entrance, no people or readable text.",
+            "A modern nursery playroom photographed from a corner security-camera viewpoint, empty room, child-sized furniture and toys visible, camera housing in the upper foreground.",
+            "A technician's hands installing a small CCTV dome camera on the ceiling of an empty daycare classroom, no faces, no children, no readable text.",
+            "A realistic close-up of a CCTV camera and its cable installation in a daycare corridor, with the nursery entrance softly visible behind it.",
+            "A daycare administration desk with a CCTV monitor showing blurred empty-room camera feeds, a closed compliance folder and no readable writing.",
+            "A wide documentary photograph of a modern nursery building entrance with visible security cameras and a clean reception area, no identifiable people.",
+        ]
     # Specific legal situations take precedence over broad criminal-family stock scenes.
-    if family == "criminal" and any(word in topic_text for word in ("التنازل", "التصالح", "صلح")):
+    elif family == "criminal" and any(word in topic_text for word in ("التنازل", "التصالح", "صلح")):
         scenes = [
             "A closed criminal case folder beside a separate blank settlement document and a capped pen on a clean office desk, no people, no readable writing, documentary realism.",
             "A close-up of two neatly arranged blank paper sheets representing a settlement and waiver, beside a plain case folder, no text, no hands.",
