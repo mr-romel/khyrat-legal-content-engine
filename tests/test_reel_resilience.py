@@ -59,6 +59,16 @@ def test_image_generation_failure_uses_generic_legal_image_and_keeps_publication
 
 
 
+
+def test_scheduled_catch_up_processes_every_due_row_and_isolates_failures():
+    source = Path("src/run_main.py").read_text(encoding="utf-8")
+    assert "KHYRAT_CATCH_UP_ALL_DUE" in source
+    assert "selected_rows = sorted(" in source
+    assert "for row_number, row in selected_rows:" in source
+    assert "CATCH_UP_ROW_FAILED" in source
+    assert "continuing with remaining due rows" in source
+    assert "CATCH_UP_SUMMARY" in source
+
 def test_fallback_reel_uses_fifteen_second_segments_and_single_outro():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     assert "segment_seconds = 15.0" in source
