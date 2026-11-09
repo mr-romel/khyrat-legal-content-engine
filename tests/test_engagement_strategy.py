@@ -75,4 +75,6 @@ def test_blog_cta_hides_internal_sheet_angle_and_uses_natural_copy():
     assert "زاوية جديدة" not in comment
     assert "3 علامات تحذيرية" not in comment
     assert "قبل اتخاذ القرار" not in comment
-    assert "شرحًا عمليًا" in comment or "أمثلة عملية" in comment or "شرح وأمثلة" in comment
+    assert "الصفة في دعوى التعويض" in comment
+    assert "https://askmahmoudkhyrat.blogspot.com/" in comment
+    assert any(phrase in comment for phrase in ("بخصوص", "موضوع", "استكمالًا", "للمزيد عن"))
