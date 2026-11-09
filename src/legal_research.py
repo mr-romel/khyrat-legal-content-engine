@@ -96,6 +96,9 @@ def _allowed(u):
 def _norm_legal_text(value: str) -> str:
     value = str(value or "").casefold()
     value = re.sub(r"[إأآٱ]", "ا", value).replace("ى", "ي")
+    # Definite-article form used in official statute headings is equivalent
+    # to the common citation form used in social copy.
+    value = value.replace("القانون رقم", "قانون رقم")
     value = re.sub(r"[٠-٩]", lambda m: str("٠١٢٣٤٥٦٧٨٩".index(m.group(0))), value)
     value = re.sub(r"[\u064B-\u065F\u0670ـ]", "", value)
     return re.sub(r"\s+", " ", value).strip()
