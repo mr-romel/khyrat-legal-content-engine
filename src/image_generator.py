@@ -243,8 +243,14 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
     return output.read_bytes()
 
 
-def create_generic_legal_fallback_image(*, output_path: str, aspect_ratio: str = "4:5") -> str:
-    """Create a deterministic, branded generic legal visual when all image APIs fail."""
+def create_generic_legal_fallback_image(
+    *,
+    output_path: str,
+    aspect_ratio: str = "4:5",
+    topic: str = "محتوى قانوني عام",
+    visual_description: str = "",
+) -> str:
+    """Create a deterministic, branded legal visual when external image providers or scene QA fail."""
     if aspect_ratio == "9:16":
         width, height = 576, 1024
     elif aspect_ratio == "4:5":
@@ -257,8 +263,15 @@ def create_generic_legal_fallback_image(*, output_path: str, aspect_ratio: str =
         "architectural detail; navy, warm gold and ivory palette; no readable text."
     )
     try:
+        scene_description = " ".join(str(visual_description or "").split()).strip()
+        if scene_description:
+            description = (
+                "Professional legal editorial illustration inspired by this scene: "
+                + scene_description
+                + ". Keep it clearly legal, non-photorealistic, navy, warm gold and ivory, with no readable text."
+            )
         _generate_zero_cost_editorial_image(
-            topic="محتوى قانوني عام",
+            topic=str(topic or "محتوى قانوني عام"),
             visual_description=description,
             output_path=output_path,
             width=width,
