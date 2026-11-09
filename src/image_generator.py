@@ -188,6 +188,60 @@ def brand_published_image(image_path: str) -> str:
         ) from exc
 
 
+
+def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, output_path: str, width: int, height: int) -> bytes:
+    """Render a local, topic-matched editorial illustration without external APIs."""
+    from PIL import Image, ImageDraw
+    seed = int(hashlib.sha256((topic + visual_description).encode("utf-8")).hexdigest()[:8], 16)
+    image = Image.new("RGB", (width, height), (225, 232, 240))
+    d = ImageDraw.Draw(image, "RGBA")
+    d.rounded_rectangle((width*.07, height*.07, width*.93, height*.88), radius=int(width*.05), fill=(250,251,253,255))
+    key = (topic + " " + visual_description).lower()
+    if any(w in key for w in ("تهديد", "قتل", "رسالة", "مكالمة", "ابتزاز", "phone", "threat", "call")):
+        x0,y0,x1,y1=int(width*.29),int(height*.20),int(width*.71),int(height*.72)
+        d.rounded_rectangle((x0,y0,x1,y1),radius=int(width*.06),fill=(35,45,60,255))
+        d.rounded_rectangle((x0+14,y0+24,x1-14,y1-24),radius=18,fill=(235,241,247,255))
+        d.rounded_rectangle((x0+30,y0+90,x1-30,y0+190),radius=16,fill=(65,103,143,255))
+        d.rounded_rectangle((x0+30,y0+220,x1-30,y0+345),radius=16,fill=(213,224,235,255))
+        d.rounded_rectangle((int(width*.10),int(height*.60),int(width*.34),int(height*.77)),radius=14,fill=(194,153,78,255))
+        d.ellipse((int(width*.69),int(height*.55),int(width*.87),int(height*.73)),outline=(45,78,110,255),width=12)
+        d.line((int(width*.82),int(height*.70),int(width*.92),int(height*.80)),fill=(45,78,110,255),width=15)
+    elif any(w in key for w in ("تصالح", "تنازل", "تسوية", "إقرار", "settlement", "waiver", "reconciliation")):
+        d.rounded_rectangle((int(width*.13),int(height*.34),int(width*.87),int(height*.76)),radius=22,fill=(190,151,78,255))
+        d.rounded_rectangle((int(width*.25),int(height*.17),int(width*.77),int(height*.67)),radius=12,fill=(255,255,252,255),outline=(170,182,195,255),width=5)
+        for i in range(4):
+            yy=int(height*(.34+i*.07))
+            d.rounded_rectangle((int(width*.34),yy,int(width*(.65+(i%2)*.07)),yy+8),radius=4,fill=(175,185,197,255))
+        d.arc((int(width*.43),int(height*.48),int(width*.66),int(height*.62)),190,345,fill=(43,84,123,255),width=8)
+        d.ellipse((int(width*.68),int(height*.58),int(width*.82),int(height*.72)),fill=(54,113,91,255))
+        d.line((int(width*.71),int(height*.65),int(width*.75),int(height*.68),int(width*.79),int(height*.61)),fill=(255,255,255,255),width=7)
+    elif any(w in key for w in ("إجاز", "راحة", "عمل", "موظف", "حضور", "leave", "employment", "vacation")):
+        d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.69)),radius=20,fill=(255,255,252,255),outline=(56,83,111,255),width=7)
+        d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.34)),radius=18,fill=(49,83,119,255))
+        for col in range(4):
+            for row in range(3):
+                xx=int(width*(.27+col*.12)); yy=int(height*(.42+row*.075))
+                d.rounded_rectangle((xx,yy,xx+int(width*.055),yy+int(height*.035)),radius=7,fill=(72,143,116,255) if (col,row)==(1,1) else (219,226,233,255))
+        d.ellipse((int(width*.57),int(height*.56),int(width*.88),int(height*.87)),fill=(240,244,248,255),outline=(48,79,111,255),width=9)
+        cx,cy=int(width*.725),int(height*.715)
+        d.line((cx,cy,cx,cy-int(height*.10)),fill=(48,79,111,255),width=9)
+        d.line((cx,cy,cx+int(width*.08),cy+int(height*.04)),fill=(48,79,111,255),width=9)
+    else:
+        d.rounded_rectangle((int(width*.18),int(height*.28),int(width*.82),int(height*.76)),radius=24,fill=(49,72,98,255))
+        d.rounded_rectangle((int(width*.25),int(height*.19),int(width*.75),int(height*.68)),radius=14,fill=(255,255,252,255),outline=(173,184,197,255),width=5)
+        for i in range(4):
+            yy=int(height*(.32+i*.07))
+            d.rounded_rectangle((int(width*.34),yy,int(width*(.63+(i%2)*.08)),yy+8),radius=4,fill=(177,188,200,255))
+        d.line((int(width*.50),int(height*.48),int(width*.50),int(height*.65)),fill=(189,147,69,255),width=9)
+        d.line((int(width*.38),int(height*.51),int(width*.62),int(height*.51)),fill=(189,147,69,255),width=8)
+    palette=[(47,91,128,90),(150,111,54,85),(58,113,94,80),(91,83,132,75)]
+    accent=palette[seed%len(palette)]
+    d.ellipse((int(width*.08),int(height*.12),int(width*.20),int(height*.24)),fill=accent)
+    output=Path(output_path); output.parent.mkdir(parents=True,exist_ok=True)
+    image.save(output,format="JPEG",quality=94,optimize=True)
+    return output.read_bytes()
+
+
 def create_legal_image(
     *,
     topic: str,
@@ -353,22 +407,18 @@ def create_legal_image(
         # Recovery runs explicitly select Cloudflare FLUX. Do not call the
         # exhausted Gemini free-tier image model as a hidden second provider.
         if provider_preference == "cloudflare":
-            raise ImageGenerationError(
-                "Cloudflare FLUX image generation failed; Gemini image fallback "
-                f"was intentionally disabled for this attempt. Cloudflare={cloudflare_error}"
-            )
-        print(
-            "Cloudflare image generation failed; trying Gemini with the SAME "
-            f"post-derived prompt: {cloudflare_error}"
-        )
-        try:
-            image_bytes = _generate_with_gemini()
-            provider = "GEMINI_IMAGE_GENERATION"
-        except Exception as gemini_error:
-            raise ImageGenerationError(
-                "Mandatory image generation failed. "
-                f"Cloudflare={cloudflare_error}; Gemini={gemini_error}"
-            ) from gemini_error
+            print(f"Cloudflare unavailable; using zero-cost local editorial renderer: {cloudflare_error}")
+            image_bytes = _generate_zero_cost_editorial_image(topic=topic, visual_description=visual_description, output_path=output_path, width=width, height=height)
+            provider = "LOCAL_ZERO_COST_EDITORIAL"
+        else:
+            print("Cloudflare image generation failed; trying Gemini with the SAME post-derived prompt: " + str(cloudflare_error))
+            try:
+                image_bytes = _generate_with_gemini()
+                provider = "GEMINI_IMAGE_GENERATION"
+            except Exception as gemini_error:
+                print(f"Gemini unavailable; using zero-cost local editorial renderer: {gemini_error}")
+                image_bytes = _generate_zero_cost_editorial_image(topic=topic, visual_description=visual_description, output_path=output_path, width=width, height=height)
+                provider = "LOCAL_ZERO_COST_EDITORIAL"
     else:
         provider = "DIRECT_CLOUDFLARE"
 
@@ -398,6 +448,7 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
         else CLOUDFLARE_IMAGE_MODEL
     )
     provenance = {
