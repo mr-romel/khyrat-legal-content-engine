@@ -1346,7 +1346,7 @@ def main() -> int:
         # only topic-matched openly licensed photos, never generic placeholder cards.
         scenes = []
         try:
-            from image_generator import create_legal_image
+            from image_generator import create_legal_image, create_generic_legal_fallback_image
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
@@ -1354,45 +1354,75 @@ def main() -> int:
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
                 accepted = False
                 active_prompt = str(scene_prompt)
+                generation_error = ""
                 for visual_attempt in range(1, 3):
-                    create_legal_image(
-                        topic=topic,
-                        image_brief=active_prompt,
-                        visual_description=active_prompt,
-                        post_context=post,
-                        output_path=str(image_path),
-                        api_key=cfg["gemini_api_key"],
-                        cloudflare_account_id=cloudflare_account,
-                        cloudflare_api_token=cloudflare_token,
-                        aspect_ratio="9:16",
-                        provider="cloudflare",
-                    )
-                    visual_qa = qa_image(
-                        api_key=cfg["gemini_api_key"],
-                        image_path=str(image_path),
-                        topic=topic,
-                        image_brief=active_prompt,
-                    )
-                    if visual_qa.get("decision") == "PASS":
-                        accepted = True
+                    try:
+                        create_legal_image(
+                            topic=topic,
+                            image_brief=active_prompt,
+                            visual_description=active_prompt,
+                            post_context=post,
+                            output_path=str(image_path),
+                            api_key=cfg["gemini_api_key"],
+                            cloudflare_account_id=cloudflare_account,
+                            cloudflare_api_token=cloudflare_token,
+                            aspect_ratio="9:16",
+                            provider="cloudflare",
+                        )
+                        visual_qa = qa_image(
+                            api_key=cfg["gemini_api_key"],
+                            image_path=str(image_path),
+                            topic=topic,
+                            image_brief=active_prompt,
+                        )
+                        if visual_qa.get("decision") == "PASS":
+                            accepted = True
+                            print(
+                                f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
+                                f"legal_relevance=passed attempt={visual_attempt}"
+                            )
+                            break
                         print(
-                            f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
-                            f"legal_relevance=passed attempt={visual_attempt}"
+                            f"REEL_STAGE ai_scene={scene_index}/8 rejected=visual_qa "
+                            f"attempt={visual_attempt} issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}"
+                        )
+                        regeneration_hint = str(visual_qa.get("regeneration_prompt", "") or "").strip()
+                        active_prompt = str(scene_prompt) + (
+                            f" VISUAL QA FEEDBACK: {regeneration_hint}" if regeneration_hint else
+                            " Make the scene more directly depict the specific legal problem and evidence in the post."
+                        )
+                    except Exception as scene_generation_exc:
+                        generation_error = str(scene_generation_exc)
+                        print(
+                            f"REEL_STAGE ai_scene={scene_index}/8 generation_error="
+                            f"{generation_error[:700]}"
                         )
                         break
-                    print(
-                        f"REEL_STAGE ai_scene={scene_index}/8 rejected=visual_qa "
-                        f"attempt={visual_attempt} issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}"
-                    )
-                    regeneration_hint = str(visual_qa.get("regeneration_prompt", "") or "").strip()
-                    active_prompt = str(scene_prompt) + (
-                        f" VISUAL QA FEEDBACK: {regeneration_hint}" if regeneration_hint else
-                        " Make the scene more directly depict the specific legal problem and evidence in the post."
-                    )
+
                 if not accepted:
-                    raise RuntimeError(
-                        f"Scene {scene_index} failed legal-relevance/visual-quality QA after retries; refusing to use it."
-                    )
+                    # The user explicitly permits a general legal image rather than a broken Reel.
+                    # This fallback is locally rendered, branded, and clearly marked; it is NOT
+                    # represented as topic-specific AI imagery and does not bypass Reel approval.
+                    try:
+                        create_generic_legal_fallback_image(
+                            output_path=str(image_path),
+                            aspect_ratio="9:16",
+                            topic=topic,
+                            visual_description=active_prompt,
+                        )
+                        accepted = True
+                        reason = "generation_error" if generation_error else "visual_qa_rejected"
+                        print(
+                            f"REEL_STAGE ai_scene={scene_index}/8 "
+                            f"provider=LOCAL_GENERIC_LEGAL_FALLBACK "
+                            f"fallback_reason={reason} "
+                            f"legal_citation_gate=unchanged telegram_review_required=true"
+                        )
+                    except Exception as fallback_exc:
+                        raise RuntimeError(
+                            f"Scene {scene_index} failed both topic-specific generation/QA "
+                            f"and local legal fallback: {fallback_exc}"
+                        ) from fallback_exc
                 scenes.append(image_path)
         except Exception as image_exc:
             # Do not silently replace failed topic-specific generations with
