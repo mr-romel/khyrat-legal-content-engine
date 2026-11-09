@@ -31,3 +31,15 @@ def test_video_description_accepts_matching_topic_and_narration():
     )
     assert "تهديد بإفشاء الأسرار" in description
     assert "الرسالة الأصلية" in description
+
+
+
+def test_nursery_cctv_topic_gets_its_own_visual_scene_family():
+    from reel_pipeline import _visual_topic_family, post_visual_terms
+
+    topic = "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات"
+    assert _visual_topic_family(topic) == "nursery_surveillance"
+    scenes = post_visual_terms("توضيح قانوني لأصحاب الحضانات وأولياء الأمور", topic)
+    assert len(scenes) == 8
+    assert all("nursery" in scene.lower() or "daycare" in scene.lower() for scene in scenes)
+    assert any("CCTV" in scene for scene in scenes)
