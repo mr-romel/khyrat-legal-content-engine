@@ -15,7 +15,7 @@ concurrency:
 jobs:
   reel:
     name: Generate current locked Reel and send Telegram review
-    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY"]'), github.event.head_commit.message) }}
+    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY","REEL_ROW179_RETRY"]'), github.event.head_commit.message) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -56,6 +56,18 @@ jobs:
           }
           JSON
           cat generated/reel_source.json
+      - name: Lock failed row 179 for a controlled Reel retry
+        if: ${{ github.event.head_commit.message == 'REEL_ROW179_RETRY' }}
+        run: |
+          mkdir -p generated
+          cat > generated/reel_source.json <<'JSON'
+          {
+            "row_number": 179,
+            "topic": "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور",
+            "source_id": ""
+          }
+          JSON
+          cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
         run: |
           python -m py_compile src/reel_pipeline.py
@@ -70,6 +82,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash' }}
           GEMINI_TTS_MODEL: ${{ secrets.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts' }}
