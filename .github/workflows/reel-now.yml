@@ -60,13 +60,27 @@ jobs:
         if: ${{ github.event.head_commit.message == 'REEL_ROW179_RETRY' }}
         run: |
           mkdir -p generated
-          cat > generated/reel_source.json <<'JSON'
-          {
-            "row_number": 179,
-            "topic": "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور",
-            "source_id": ""
-          }
-          JSON
+          PYTHONPATH=src python - <<'PY'
+          import json
+          from pathlib import Path
+          from config import load_reel_config
+          from sheets import create_service, get_values, row_to_dict
+
+          cfg = load_reel_config()
+          values = get_values(create_service(cfg["service_account_info"]), cfg["sheet_id"], cfg["sheet_range"])
+          if len(values) < 179:
+              raise SystemExit(f"ROW179_NOT_FOUND: sheet has only {len(values) - 1} data rows")
+          row = row_to_dict(values[178], values[0])
+          expected_topic = "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور"
+          if str(row.get("الموضوع", "")).strip() != expected_topic:
+              raise SystemExit("ROW179_TOPIC_MISMATCH: refusing to lock the wrong content row")
+          source_id = str(row.get("ID", "")).strip()
+          if not source_id:
+              raise SystemExit("ROW179_SOURCE_ID_MISSING: immutable row ID is required")
+          source = {"row_number": 179, "topic": expected_topic, "source_id": source_id}
+          Path("generated/reel_source.json").write_text(json.dumps(source, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(f"Locked exact row 179 with immutable source ID; topic verified.")
+          PY
           cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
         run: |
