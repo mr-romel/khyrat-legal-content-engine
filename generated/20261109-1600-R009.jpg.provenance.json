@@ -1,0 +1,25 @@
+{
+  "topic": "الصفة في دعوى التعويض — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "LOCAL_ZERO_COST_EDITORIAL",
+  "model": "local-pillow-editorial-v1",
+  "prompt": "Create one photorealistic editorial image for an Egyptian legal-awareness post. Depict the exact concrete action, object, document type, evidence, and setting in the visual brief; do not substitute a generic lawyer portrait, courthouse, scales, gavel, handshake, or stock office. Set the scene unmistakably in present-day Egypt in the 2020s: modern Cairo/Giza streets, contemporary apartments, ordinary current offices, current-model smartphones, laptops, cars, furniture, clothing, and materials. ABSOLUTE STYLE BAN: this is NOT ancient Egypt, NOT Pharaonic, NOT archaeological, NOT historical, NOT a period drama, and NOT a fantasy scene. Never show pyramids, sphinxes, obelisks, hieroglyphics, ancient temples, tombs, sarcophagi, mummies, pharaohs, royal crowns, ancient columns, papyrus, sandstone monuments, gold masks, ancient Egyptian motifs, or ornamental Pharaonic patterns. Do not use Egyptian heritage or ancient civilization as visual shorthand for modern Egypt. The legal issue must be shown in a normal contemporary urban environment. No readable text, letters, numbers, logos, seals, signatures, watermarks, or invented legal documents. Keep the main subject clear and visually dominant, with natural lighting and realistic proportions. The scene must communicate the specific issue without adding facts not present in the source.\nLEGAL TOPIC: الصفة في دعوى التعويض — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nSOURCE CONTEXT: ممكن تلاقي نفسك بتدفع تعويضات ضخمة أو بتخسر قضية كنت فاكر إنك كسبانها، والسبب ببساطة إنك رفعت الدعوى من غير ما تتأكد من الصفة القانونية الصحيحة، الصفة هي حجر الزاوية اللي بيبني عليه القاضي حكمه، ومن غيرها بتتحول الدعوى لمجرد إجراء شكلي مآله الرفض، قبل ما تبدأ أي إجراء قضائي للمطالبة بتعويض، فيه 3 علامات تحذيرية لازم تاخد بالك منهم، الأولى هي مدى ارتباطك المباشر بالضرر، هل أنت صاحب الحق الأصيل في المطالبة ولا بتتحرك نيابة عن حد تاني من غير سند قانوني سليم؟ العلامة التانية هي تحديد الشخص المسؤول قانوناً عن التعويض، أحياناً بنرفع الدعوى على الشخص الغلط أو الجهة غير المختصة، وده بيخليك تضيع وقت ومجه",
+  "prompt_sha256": "8a4485e404131f8272cd017ebe4e0bfc70c47134def5751d7665dcb20827f9d1",
+  "image_sha256": "dcfb980e67e801736c731983796bd37d1a4ad0ec7201312ae90faee9d7b1bb59",
+  "image_path": "generated/20261109-1600-R009.jpg",
+  "visual_description": "A middle‑aged man sits at a wooden desk in a modest, well‑lit office. He is leaning slightly forward, his right hand holding a pen and his left hand hovering over a stack of papers, his expression focused and uneasy. In front of him are three distinct visual groups that embody the three warning signs: 1. Direct connection to the damage – a small, dented toy car and a crumpled photo of a real car with a visible front‑end crash lie beside a printed accident report, indicating the personal loss he suffered. 2. Correct responsible party – an open contract on the desk shows a photograph of a different individual (a business executive) and a signature line, suggesting the lawsuit may be aimed at the wrong person. 3. Personal, direct interest – an identification card with his own face and a recent utility bill bearing his name sit next to a handwritten note (no visible text) that emphasizes his own stake in the matter. The desk also holds a neat stack of legal‑looking documents, a coffee mug, and a small potted plant. Sunlight streams through a nearby window, casting soft, natural light across the scene and creating gentle shadows that highlight the papers and the man’s thoughtful posture. The camera is positioned at eye level, slightly over his right shoulder, framing the man, the desk, and the three evidence groups in a single, coherent composition. No text, logos, or digital overlays are visible. MANDATORY VISUAL REGENERATION NOTES: A realistic, high-quality, professional 4:5 portrait photograph of a wooden office desk. On the desk, arranged in three distinct, clear groups: 1. A small dented toy car next to a crumpled photo of a car accident. 2. An open legal contract displaying a photo of a business executive and a signature line. 3. An ID card and a utility bill bearing a name. The scene is well-lit with natural sunlight, professional atmosphere, no text, no people visible, clean and realistic photographic style. Avoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Failed to follow the visual brief and mandatory regeneration instructions regarding style and content.",
+    "The output is a generic icon instead of a photographic scene of a desk with evidence."
+  ],
+  "qa_checked_image_sha256": "dcfb980e67e801736c731983796bd37d1a4ad0ec7201312ae90faee9d7b1bb59"
+}
