@@ -1,0 +1,25 @@
+{
+  "topic": "الجرائم الإلكترونية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/black-forest-labs/flux-1-schnell",
+  "prompt": "Create one photorealistic editorial image for an Egyptian legal-awareness post. Depict the exact concrete action, object, document type, evidence, and setting in the visual brief; do not substitute a generic lawyer portrait, courthouse, scales, gavel, handshake, or stock office. Set the scene unmistakably in present-day Egypt in the 2020s: modern Cairo/Giza streets, contemporary apartments, ordinary current offices, current-model smartphones, laptops, cars, furniture, clothing, and materials. ABSOLUTE STYLE BAN: this is NOT ancient Egypt, NOT Pharaonic, NOT archaeological, NOT historical, NOT a period drama, and NOT a fantasy scene. Never show pyramids, sphinxes, obelisks, hieroglyphics, ancient temples, tombs, sarcophagi, mummies, pharaohs, royal crowns, ancient columns, papyrus, sandstone monuments, gold masks, ancient Egyptian motifs, or ornamental Pharaonic patterns. Do not use Egyptian heritage or ancient civilization as visual shorthand for modern Egypt. The legal issue must be shown in a normal contemporary urban environment. No readable text, letters, numbers, logos, seals, signatures, watermarks, or invented legal documents. Keep the main subject clear and visually dominant, with natural lighting and realistic proportions. The scene must communicate the specific issue without adding facts not present in the source.\nLEGAL TOPIC: الجرائم الإلكترونية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nSOURCE CONTEXT: كثير من الناس بيتعاملوا مع الجرائم الإلكترونية كأنها مجرد مشكلة تقنية بتتحل بمسح الرسائل أو عمل بلوك للمتسبب، لكن الحقيقة إن التعامل مع النوع ده من الجرائم بيحتاج عقلية قانونية قبل ما يكون إجراء تقني، لأن أي تصرف متسرع ممكن يضيع عليك فرصة إثبات حقك قدام جهات التحقيق، فكر في الأمر كأنك بتجهز ملف قضية من اللحظة الأولى، وأي دليل رقمي بيتم العبث به أو حذفه بيفقد قيمته القانونية في الإثبات، قبل ما تاخد أي خطوة، اسأل نفسك هل الدليل اللي في إيدك لسه في حالته الأصلية؟ هل تم توثيق الواقعة بطريقة تقنية سليمة؟ وهل الإجراء اللي هتعمله دلوقتي هيساعد في كشف الجاني ولا هيخليه يمسح أثره؟ القانون المصري بيوفر حماية",
+  "prompt_sha256": "0d8a71b5a5d7716f226a0ccb7b38de2e4abf9ceecf63e69f951140a42b6f012d",
+  "image_sha256": "4d3e08ee3a4e0020fae47bcb0e28a2ec5547ac8f711e756436e733400acbae99",
+  "image_path": "generated/20261110-1700-R010.jpg",
+  "visual_description": "A mid‑day domestic scene in a modest kitchen: a young adult sits at a small wooden table, illuminated by soft natural light streaming through a nearby window. In front of them an open laptop displays a messaging app with a series of chat bubbles—one bubble highlighted in red to suggest a concerning message—while the rest of the interface is blurred enough to avoid readable text. To the right of the laptop, a smartphone lies screen‑up, its notification icons glowing faintly. The person’s right hand hovers cautiously above the laptop’s trackpad, fingers poised as if about to press a delete key, while the left hand rests on a closed notebook and a pen, indicating note‑taking. A USB flash drive and a small stack of printed screenshots are placed beside the notebook, emphasizing preservation of digital evidence. A half‑filled coffee mug sits near the edge of the table, adding a lived‑in feel. The camera angle is an over‑the‑shoulder shot that captures the laptop screen, the hesitant hand, and the surrounding objects in a single frame, with the background kitchen cabinets softly out of focus. The lighting is warm and even, highlighting the tools of digital documentation without any legal symbols or overt text. MANDATORY VISUAL REGENERATION NOTES: A close-up, top-down, or over-the-shoulder professional composition in a modest, sunlit home kitchen. The frame features a laptop on a wooden table with a blurred messaging app screen visible, a smartphone next to it, a notebook, a pen, a USB flash drive, and a stack of printed, blurred evidence screenshots. No people, no hands. Focus on the tools of evidence collection for a cybercrime checklist. Natural, warm lighting. 4:5 aspect ratio. Avoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "The image is entirely unrelated to the visual brief and the specific legal scenario of documenting digital evidence.",
+    "Contains people and hands, which were explicitly forbidden in the mandatory regeneration notes."
+  ],
+  "qa_checked_image_sha256": "4d3e08ee3a4e0020fae47bcb0e28a2ec5547ac8f711e756436e733400acbae99"
+}
