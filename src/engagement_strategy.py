@@ -101,10 +101,10 @@ def blog_cta_comment(
     digest = hashlib.sha256((str(post_key or "") + "|" + context).encode("utf-8")).digest()
     # Each comment explicitly names the post's subject and points to the related Blogger article.
     variants = [
-        f"بخصوص {subject}: الشرح والتفاصيل العملية والأمثلة المرتبطة بالموضوع هنا: {candidate_url}",
-        f"لو بتتابع موضوع {subject}، جمعنالك التفاصيل والأمثلة اللي تساعدك تفهمه بشكل أوضح: {candidate_url}",
-        f"استكمالًا لموضوع {subject} في المنشور، اقرأ الشرح العملي والتفاصيل المرتبطة بيه هنا: {candidate_url}",
-        f"للمزيد عن {subject}، ده شرح مكمل للموضوع وفيه تفاصيل وأمثلة عملية: {candidate_url}",
+        f"{subject}: شرح وأمثلة عملية مرتبطة بالموضوع: {candidate_url}",
+        f"تفاصيل إضافية عن {subject} في المقال ده: {candidate_url}",
+        f"استكمالًا للمنشور عن {subject}، اقرأ الشرح هنا: {candidate_url}",
+        f"للمزيد عن {subject} وأهم أحكامه العملية: {candidate_url}",
     ]
     return variants[digest[0] % len(variants)]
 
