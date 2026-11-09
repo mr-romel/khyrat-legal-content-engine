@@ -38,13 +38,11 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "اسال محمود خيرت - محام ومستشار قانوني" in prompt
     assert "No platform-specific icon is used" in prompt
     assert "legal situation" in prompt
-    assert "period-drama styling" in prompt
-    assert "antiquity-inspired decoration" in prompt
-    assert "Pharaonic or ancient-Egyptian styling is an automatic hard failure" in prompt
-    assert "historical_style_detected=true" in prompt
-    assert "present-day Cairo/Giza daily life in the 2020s" in prompt
-    assert "no women or girls" in prompt.lower()
-    assert "women_or_girls_detected=true" in prompt.lower()
+    assert "Do not impose an unrequested country" in prompt
+    assert "Any visual style or setting is acceptable" in prompt
+    assert "materially relevant to the legal issue" in prompt
+    assert "Do not invent negative constraints" in prompt
+    assert "The absence of a person, lawyer, courtroom" in prompt
 
 
 
@@ -56,8 +54,9 @@ def test_qa_prompt_explicitly_requires_regeneration_for_anatomy_defects():
         0,
         "CONTEXT_ONLY",
     )
-    assert "Any clearly visible anatomy defect" in prompt
-    assert "mandatory REGENERATE signal" in prompt
+    assert "visibly fused limb" in prompt
+    assert "impossible" in prompt
+    assert "A clearly visible, material anatomy or geometry defect is a valid rejection reason" in prompt
 
 
 
@@ -69,9 +68,9 @@ def test_qa_prompt_treats_visible_distortion_as_mandatory_regeneration():
         0,
         "CONTEXT_ONLY",
     )
-    assert "visible distortion" in prompt
-    assert "mandatory REGENERATE signal" in prompt
-    assert "no visible hands" in prompt
+    assert "visibly distorted" in prompt
+    assert "Do not reject solely for advisory scores" in prompt
+    assert "ambiguous reflections" in prompt
 
 
 def test_image_qa_without_key_does_not_block_publication(tmp_path):
@@ -79,5 +78,23 @@ def test_image_qa_without_key_does_not_block_publication(tmp_path):
     path = tmp_path / "image.jpg"
     Image.new("RGB", (1024, 1024), "white").save(path)
     result = qa_image(api_key="", image_path=str(path), topic="test", image_brief="test")
+    assert result["decision"] == "QA_UNAVAILABLE"
+    assert "cannot be cleared for publication" in result["issues"][0]
+
+
+def test_image_qa_api_error_fails_closed(monkeypatch, tmp_path):
+    from image_qa import qa_image
+    path = tmp_path / "image.jpg"
+    Image.new("RGB", (576, 1024), "white").save(path)
+
+    class BrokenModels:
+        def generate_content(self, **kwargs):
+            raise RuntimeError("temporary QA outage")
+
+    class BrokenClient:
+        models = BrokenModels()
+
+    monkeypatch.setattr("image_qa.genai.Client", lambda **kwargs: BrokenClient())
+    result = qa_image(api_key="test-key", image_path=str(path), topic="test", image_brief="test")
     assert result["decision"] == "QA_UNAVAILABLE"
     assert "cannot be cleared for publication" in result["issues"][0]
