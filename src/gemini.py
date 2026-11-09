@@ -154,7 +154,13 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
     response = client.models.generate_content(
         model=selected_model,
         contents=SYSTEM_PROMPT + "\n\n" + prompt,
-        config={"max_output_tokens": 8192},
+        # Ask Gemini and OpenAI-compatible fallback providers for constrained JSON.
+        # The router maps response_mime_type to JSON-object mode for compatible APIs.
+        config={
+            "max_output_tokens": 8192,
+            "response_mime_type": "application/json",
+            "temperature": 0.25,
+        },
     )
     raw_text = (getattr(response, "text", None) or "").strip()
     if not raw_text:
@@ -252,20 +258,38 @@ def generate_post(
 قبل الكتابة، اختر Hook Pattern واحدًا مناسبًا فعلًا للموضوع والزاوية والهدف، ولا تستخدم نفس نمط الافتتاح المستخدم في المنشورات السابقة الواردة في السياق. الخيارات: سؤال مباشر، واقعة قانونية، معلومة مفاجئة، خطأ شائع، سيناريو عملي، مشكلة عميل، قاعدة قانونية، مفارقة/مقارنة، افتتاحية سردية، أو نتيجة/استنتاج يبدأ منه البوست. المطلوب تغيير بنية الدخول نفسها، وليس تبديل كلمات القالب فقط. لا تبدأ كل المنشورات بصيغ محفوظة مثل "لو..." أو "ناس كتير..." أو "خليني أقولك...".
 أنشئ الافتتاح من صلب الموضوع، ثم اشرح الفكرة، وضّح الأثر العملي، وأنهِ بـCTA طبيعية غير بيعية.
 إذا لم تكن معلومة دقيقة متحققة، لا تخترعها؛ احذفها أو صغها بصورة عامة وآمنة.
-أنشئ أيضًا image_brief مناسبًا للمشهد نفسه. يجب أن يكون image_mode=REFERENCE_SUBJECT؛ وإذا لم يكن ظهور الشخص المرجعي طبيعيًا ومباشرًا في المشهد القانوني، استخدم review_level=REVIEW بدلًا من CONTEXT_ONLY.
+لا تكتب وصف صورة أو image_brief أو أي حقول إضافية؛ مهمة الصور منفصلة تمامًا عن هذه المهمة.
 """
 
     retry_prompt = base_prompt + """
 
 مراجعة جودة قبل الإخراج:
-تأكد أن المنشور مفيد ومتماسك وليس مختصرًا بشكل مخل، وأن نهايته تتضمن إشارة طبيعية إلى اختلاف الوقائع أو المستندات أو ضرورة مراجعة الموقف قبل القرار المهم.
-لا تستخدم صيغة بيع مباشر.
+أخرج JSON صالحًا فقط، بلا Markdown أو أسوار كود أو أي نص قبله أو بعده.
+التزم بالمفاتيح الخمسة المحددة في عقد الإخراج، ولا تضف أي مفتاح آخر.
+اكتب منشورًا مكتملًا ومتماسكًا في 180 إلى 260 كلمة، ولا تبدأ جملة لا تستطيع إكمالها.
+إذا اقتربت من حد الإخراج، اختصر الشرح بدل قطع JSON أو ترك جملة ناقصة.
+لا تكتب وصف صورة أو image_brief.
 """
 
     last_error: Exception | None = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         try:
-            data = _generate_once(client, selected_model, base_prompt if attempt == 1 else retry_prompt)
+            if attempt == 1:
+                attempt_prompt = base_prompt
+            elif attempt == 2:
+                attempt_prompt = retry_prompt
+            else:
+                # Recovery prompt is deliberately shorter to reduce truncation risk.
+                attempt_prompt = base_prompt + """
+
+إعادة إخراج إلزامية بسبب فشل الاستجابة السابقة:
+- أعد JSON صالحًا فقط بالمفاتيح الخمسة المطلوبة دون أي نص خارجي.
+- اجعل post بين 180 و240 كلمة، مكتملًا حتى آخر حرف.
+- لا تكتب image_brief أو image_mode أو أي حقول إضافية.
+- لا تضحِّ بالدقة القانونية، واحذف التفاصيل غير المتحقق منها بدل اختلاقها.
+- لا تبدأ جملة أو فقرة لا تستطيع إكمالها.
+"""
+            data = _generate_once(client, selected_model, attempt_prompt)
             if _post_quality_ok(data["post"]) and _soft_cta_present(data["post"]):
                 return data
             if _post_quality_ok(data["post"]):
@@ -275,4 +299,5 @@ def generate_post(
             last_error = RuntimeError("Gemini returned content below the pre-editorial quality threshold.")
         except Exception as exc:
             last_error = exc
+            print(f"Legal draft generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS} failed: {exc}")
     raise RuntimeError(f"Gemini content generation failed after {MAX_GENERATION_ATTEMPTS} attempts: {last_error}")
