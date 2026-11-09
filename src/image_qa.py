@@ -76,6 +76,12 @@ def _normalize_score(value: Any, fallback: int = 0) -> int:
 
 
 def _build_prompt(topic: str, image_brief: str, hard: dict[str, Any], reference_count: int, image_mode: str) -> str:
+    # Older callers/tests may provide dimensions without the derived label.
+    aspect_ratio_label = hard.get("aspect_ratio_label") or (
+        "9:16 Reel portrait" if hard.get("height") and abs((hard.get("width", 0) / hard["height"]) - (9 / 16)) <= 0.003
+        else "4:5 feed portrait" if hard.get("height") and abs((hard.get("width", 0) / hard["height"]) - 0.8) <= 0.003
+        else f"actual ratio {hard.get('width', 0)}:{hard.get('height', 0)}"
+    )
     return f"""
 You are the final visual QA editor for a professional legal-content publishing engine.
 
@@ -89,7 +95,7 @@ ORIGINAL VISUAL BRIEF:
 
 HARD IMAGE CHECK:
 - Final dimensions: {hard['width']}x{hard['height']}
-- Target aspect ratio: {hard['aspect_ratio_label']} (measured from the final image)
+- Target aspect ratio: {aspect_ratio_label} (measured from the final image)
 - Local aspect-ratio check: {'PASS' if hard['aspect_ratio_ok'] else 'FAIL'}
 - Image mode: CONTEXT_ONLY
 - Character reference images: none
