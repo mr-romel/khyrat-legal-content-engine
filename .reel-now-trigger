@@ -1,3 +1,3 @@
 REEL_ROW179_RETRY
-Retry Reel generation for the exact previously failed row 179 using the scene-aware branded legal fallback when AI imagery fails. Deliver to Telegram for manual review only; do not publish to Facebook or YouTube.
-Trigger nonce: 2026-11-10T01:20:00+02:00
+Retry row 179 after resolving its immutable Sheet ID. Use the branded legal-scene fallback when topic-specific image generation or visual QA fails. Send to Telegram for manual review only; do not publish to Facebook or YouTube.
+Trigger nonce: 2026-11-10T01:27:00+02:00
