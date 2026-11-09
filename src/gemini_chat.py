@@ -10,7 +10,7 @@ from gemini import (
     _extract_json,
     _normalize_list,
     _normalize_review_level,
-    _validate_image_brief,
+    _validate_data,
 )
 
 
@@ -77,7 +77,7 @@ LEGAL RESEARCH PACKET / المصادر القانونية المتاحة:
 
 اكتب البوست النهائي.
 
-ثم أنشئ image_brief لمشهد بصري واحد محدد.
+لا تنشئ image_brief أو image_mode أو أي وصف للصورة؛ توليد الصورة مهمة مستقلة بعد اكتمال المنشور.
 
 وأخيرًا قيّم مستوى المراجعة القانونية طبقًا للقواعد الموجودة في System Prompt.
 
@@ -100,7 +100,12 @@ LEGAL RESEARCH PACKET / المصادر القانونية المتاحة:
     try:
         chat = client.chats.create(model=selected_model)
         response = chat.send_message(
-            SYSTEM_PROMPT + "\n\n" + EDITORIAL_STYLE_PROMPT + "\n\n" + user_prompt
+            SYSTEM_PROMPT + "\n\n" + EDITORIAL_STYLE_PROMPT + "\n\n" + user_prompt,
+            config={
+                "response_mime_type": "application/json",
+                "max_output_tokens": 8192,
+                "temperature": 0.25,
+            },
         )
     except Exception as exc:
         raise RuntimeError(f"Gemini content generation failed: {exc}") from exc
@@ -109,26 +114,11 @@ LEGAL RESEARCH PACKET / المصادر القانونية المتاحة:
     if not raw_text:
         raise RuntimeError("Gemini returned an empty response.")
 
-    data = _extract_json(raw_text)
-    required_fields = (
-        "post",
-        "image_brief",
-        "review_level",
-        "review_flags",
-        "legal_sources_used",
-    )
-    for field in required_fields:
-        if field not in data:
-            raise RuntimeError(f"Gemini JSON is missing required field: {field}")
-
+    # Use the same canonical output contract as gemini.generate_post.
+    # Image briefs are intentionally absent: main.py derives a fresh scene
+    # from the completed post in a separate image-generation stage.
+    data = _validate_data(_extract_json(raw_text))
     data["review_level"] = _normalize_review_level(data.get("review_level"))
     data["review_flags"] = _normalize_list(data.get("review_flags"))
     data["legal_sources_used"] = _normalize_list(data.get("legal_sources_used"))
-    data["post"] = str(data.get("post", "") or "").strip()
-    data["image_brief"] = str(data.get("image_brief", "") or "").strip()
-
-    if not data["post"]:
-        raise RuntimeError("Gemini returned an empty post.")
-    _validate_image_brief(data["image_brief"])
-
     return data
