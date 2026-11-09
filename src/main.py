@@ -16,7 +16,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -460,30 +460,59 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # Fail closed: an image is a required publication asset on BOTH platforms.
-        # Never silently downgrade a social post to text-only.
-        image_url = ""
-        generated_image_path = None
-        image_path.unlink(missing_ok=True)
-        state_error = ""
+        # A topic-specific image is preferred, but image-provider failures must
+        # not stop the publishing queue. Use a deterministic, branded generic
+        # legal visual as the final image fallback; never publish text-only.
+        print(f"Topic-specific image unavailable; switching to generic legal artwork: {image_exc}")
         try:
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "رابط الصورة": "",
-                "Image QA Attempt": str(locals().get("image_qa_attempt", 1)),
-                "Image QA Status": "IMAGE_UNAVAILABLE_BLOCKED",
-                "Image QA Issues": str(image_exc)[:1500],
-                "Image Mode": "IMAGE_REQUIRED_BLOCKED",
-                "المحتوى": post,
-                "الحالة": "FAILED",
-                "آخر خطأ": f"IMAGE_REQUIRED_BLOCKED: {image_exc}"[:1500],
-                "وقت آخر تشغيل": current.isoformat(),
-            })
-        except Exception as state_exc:
-            state_error = f"; Sheet state update also failed: {state_exc}"
-            print(f"Image failure state update unavailable: {state_exc}")
-        raise ImageGenerationError(
-            f"IMAGE_REQUIRED_BLOCKED: refusing text-only publication. {image_exc}{state_error}"
-        ) from image_exc
+            image_path.unlink(missing_ok=True)
+            create_generic_legal_fallback_image(
+                output_path=str(image_path),
+                aspect_ratio="4:5",
+            )
+            if not image_path.is_file() or image_path.stat().st_size == 0:
+                raise ImageGenerationError("Generic legal fallback produced no usable image file.")
+            generated_image_path = image_path
+            image_url = github_raw_url(str(image_path))
+            image_qa_status = "GENERIC_LEGAL_FALLBACK_ACCEPTED"
+            image_qa_summary = f"Generic branded legal visual used after topic-specific image failure: {image_exc}"
+            try:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": image_url,
+                    "Image QA Attempt": str(locals().get("image_qa_attempt", 0)),
+                    "Image QA Status": image_qa_status,
+                    "Image QA Issues": image_qa_summary[:1500],
+                    "Image Mode": "GENERIC_LEGAL_FALLBACK",
+                    "المحتوى": post,
+                    "وصف الصورة": "تصميم قانوني عام يتضمن مستندات ورمز ميزان العدالة وهوية اسأل محمود",
+                    "وقت آخر تشغيل": current.isoformat(),
+                    "آخر خطأ": "",
+                })
+            except Exception as state_exc:
+                print(f"Generic legal image saved; sheet metadata update failed but publication can continue: {state_exc}")
+            print(f"GENERIC LEGAL IMAGE FALLBACK READY: path={image_path}")
+        except Exception as fallback_exc:
+            image_url = ""
+            generated_image_path = None
+            image_path.unlink(missing_ok=True)
+            state_error = ""
+            try:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": "",
+                    "Image QA Attempt": str(locals().get("image_qa_attempt", 0)),
+                    "Image QA Status": "IMAGE_UNAVAILABLE_BLOCKED",
+                    "Image QA Issues": f"Topic image: {image_exc}; generic fallback: {fallback_exc}"[:1500],
+                    "Image Mode": "IMAGE_REQUIRED_BLOCKED",
+                    "المحتوى": post,
+                    "الحالة": "FAILED",
+                    "آخر خطأ": f"IMAGE_REQUIRED_BLOCKED: {fallback_exc}"[:1500],
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+            except Exception as state_exc:
+                state_error = f"; Sheet state update also failed: {state_exc}"
+            raise ImageGenerationError(
+                f"Both topic-specific and generic legal image generation failed: {fallback_exc}{state_error}"
+            ) from fallback_exc
 
     return post, image_url, generated_image_path, review_level, review_text, legal_sources
 
