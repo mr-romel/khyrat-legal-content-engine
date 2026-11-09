@@ -14,13 +14,13 @@ from content_planner import classify
 from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
-from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo, publish_text
+from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
-from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_text_to_linkedin, publish_to_linkedin, resolve_member_urn
+from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
@@ -584,6 +584,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             output_path=str(image_path),
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
+            api_key=config.get("gemini_api_key", ""),
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
             raise ImageGenerationError("Replacement image file was empty.")
