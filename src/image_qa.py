@@ -224,9 +224,9 @@ def qa_image(
         return {
             "decision": "QA_UNAVAILABLE",
             "composition_score": 0,
-            "relevance_score": 100,
-            "reference_score": 100,
-            "overall_score": 100,
+            "relevance_score": 0,
+            "reference_score": 0,
+            "overall_score": 0,
             "text_detected": False,
             "detected_text": [],
             "composition_findings": [],
