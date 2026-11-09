@@ -379,6 +379,74 @@ def create_legal_image(
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
+    def _generate_with_pixabay() -> bytes:
+        """Fetch a safe, vertical legal stock photo as the final external fallback."""
+        pixabay_key = os.getenv("PIXABAY_API_KEY", "").strip()
+        if not pixabay_key:
+            raise ImageGenerationError("PIXABAY_API_KEY is missing; add it as a GitHub Actions secret.")
+        # Keep the query tied to the post while anchoring results to legal imagery.
+        query = " ".join(str(topic or "").split()[:5]).strip()
+        if not query:
+            query = "law legal documents courthouse"
+        try:
+            response = requests.get(
+                "https://pixabay.com/api/",
+                params={
+                    "key": pixabay_key,
+                    "q": query,
+                    "image_type": "photo",
+                    "orientation": "vertical",
+                    "category": "business",
+                    "safesearch": "true",
+                    "per_page": 10,
+                    "order": "popular",
+                },
+                headers={"Accept": "application/json"},
+                timeout=(10, 30),
+            )
+            if not response.ok:
+                raise ImageGenerationError(f"Pixabay search failed: HTTP {response.status_code} - {response.text[:500]}")
+            payload = response.json()
+            hits = payload.get("hits", []) if isinstance(payload, dict) else []
+            if not hits:
+                # A broad legal query is safer than returning an unrelated topic image.
+                response = requests.get(
+                    "https://pixabay.com/api/",
+                    params={
+                        "key": pixabay_key,
+                        "q": "law legal documents courthouse",
+                        "image_type": "photo",
+                        "orientation": "vertical",
+                        "category": "business",
+                        "safesearch": "true",
+                        "per_page": 10,
+                        "order": "popular",
+                    },
+                    headers={"Accept": "application/json"},
+                    timeout=(10, 30),
+                )
+                if not response.ok:
+                    raise ImageGenerationError(f"Pixabay legal fallback search failed: HTTP {response.status_code}")
+                payload = response.json()
+                hits = payload.get("hits", []) if isinstance(payload, dict) else []
+            if not hits:
+                raise ImageGenerationError("Pixabay returned no suitable legal stock images.")
+            # Pixabay's largeImageURL is suitable for editorial use and avoids tiny previews.
+            image_url = next((hit.get("largeImageURL") or hit.get("webformatURL") for hit in hits
+                              if hit.get("largeImageURL") or hit.get("webformatURL")), None)
+            if not image_url:
+                raise ImageGenerationError("Pixabay results contained no downloadable image URL.")
+            image_response = requests.get(image_url, headers={"Accept": "image/*"}, timeout=(10, 45))
+            if not image_response.ok or not image_response.content:
+                raise ImageGenerationError(f"Pixabay image download failed: HTTP {image_response.status_code}")
+            content_type = image_response.headers.get("content-type", "").lower()
+            if not content_type.startswith("image/"):
+                raise ImageGenerationError(f"Pixabay returned non-image content: {content_type or 'missing'}")
+            print("Pixabay legal stock image selected as the final external fallback.")
+            return image_response.content
+        except requests.RequestException as exc:
+            raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
+
     provider_preference = str(provider or "auto").strip().lower()
     if provider_preference not in {"auto", "cloudflare", "gemini", "pollinations"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
@@ -473,13 +541,23 @@ def create_legal_image(
                 image_bytes = _generate_with_gemini()
                 provider = "GEMINI_IMAGE_GENERATION"
             except Exception as gemini_error:
-                raise ImageGenerationError("All topic-specific image providers failed; refusing a synthetic placeholder. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}") from gemini_error
+                print(f"Gemini fallback failed; trying Pixabay legal stock imagery: {gemini_error}")
+                try:
+                    image_bytes = _generate_with_pixabay()
+                    provider = "PIXABAY_LEGAL_STOCK"
+                except Exception as pixabay_error:
+                    raise ImageGenerationError("All external image providers failed; local legal fallback may be used by the publisher. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
     elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
             provider = "GEMINI_IMAGE_GENERATION"
         except Exception as gemini_error:
-            raise ImageGenerationError("All topic-specific image providers failed; refusing a synthetic placeholder. " f"Cloudflare={cloudflare_error}; Gemini={gemini_error}") from gemini_error
+            print(f"Gemini fallback failed; trying Pixabay legal stock imagery: {gemini_error}")
+            try:
+                image_bytes = _generate_with_pixabay()
+                provider = "PIXABAY_LEGAL_STOCK"
+            except Exception as pixabay_error:
+                raise ImageGenerationError("All external image providers failed; local legal fallback may be used by the publisher. " f"Cloudflare={cloudflare_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
     else:
         provider = "DIRECT_CLOUDFLARE"
     output = Path(output_path)
@@ -508,6 +586,7 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
         else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
         if provider == "POLLINATIONS_IMAGE_GENERATION"
         else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
