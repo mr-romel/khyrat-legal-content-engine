@@ -4,6 +4,14 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import image_generator
+from PIL import Image
+from io import BytesIO
+
+
+def _valid_image_bytes():
+    buffer = BytesIO()
+    Image.new("RGB", (1024, 1024), "white").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 class FakeResponse:
@@ -22,7 +30,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
         return FakeResponse()
 
     monkeypatch.setattr(image_generator.requests, "post", fake_post)
-    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: b"fake-image-bytes")
+    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: _valid_image_bytes())
     monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
 
     output = tmp_path / "legal.jpg"
@@ -36,9 +44,10 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
         cloudflare_api_token="test-token",
     )
 
-    assert output.read_bytes() == b"fake-image-bytes"
+    with Image.open(output) as generated:
+        assert generated.size == (1024, 1280)
     assert "negative_prompt" not in captured
-    assert (captured["width"], captured["height"]) == (1024, 1280)
+    assert "width" not in captured and "height" not in captured
     prompt = captured["prompt"]
     assert "A worker reviewing a modern employment document beside a phone at a desk." in prompt
     assert "نزاع بشأن مستندات عمل" in prompt
@@ -67,7 +76,7 @@ def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_
         return FakeResponse()
 
     monkeypatch.setattr(image_generator.requests, "post", fake_post)
-    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: b"vertical-image")
+    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: _valid_image_bytes())
     monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
 
     output = tmp_path / "reel-scene.jpg"
@@ -81,7 +90,8 @@ def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_
         cloudflare_api_token="test-token",
         aspect_ratio="9:16",
     )
-    assert (captured["width"], captured["height"]) == (576, 1024)
+    with Image.open(output) as generated:
+        assert generated.size == (576, 1024)
     assert "COMPOSITION FORMAT: portrait 9:16" in captured["prompt"]
     import json
     provenance = json.loads((tmp_path / "reel-scene.jpg.provenance.json").read_text(encoding="utf-8"))
