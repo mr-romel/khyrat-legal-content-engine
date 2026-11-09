@@ -1,3 +1,3 @@
 REEL_ROW179_RETRY
-Retry row 179 after loading the immutable Sheet ID with the configured service-account credentials. Use the branded legal-scene fallback when AI imagery or visual QA fails. Send to Telegram for manual review only; do not publish to Facebook or YouTube.
-Trigger nonce: 2026-11-10T01:32:00+02:00
+Retry exact row 179 after loading its immutable ID from Sheets with service-account and Gemini credentials. Use the branded legal-scene fallback if scene-specific imagery or QA fails. Telegram review only; no Facebook or YouTube publishing.
+Trigger nonce: 2026-11-10T01:36:00+02:00
