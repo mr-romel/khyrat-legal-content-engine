@@ -787,13 +787,74 @@ def _smart_main() -> None:
         print("No due rows found.")
         return
     history = get_bank_rows(service, config["sheet_id"])
-    selected = choose_due_row(candidates, history)
-    if selected is None:
-        selected = candidates[0]
-    row_number, row = selected
-    print(f"Decision engine: selected row {row_number} using historical topic/category/angle signals.")
-    production_main.process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
-    _write_reel_source_context(service=service, config=config, sheet_name=sheet_name, row_number=row_number)
+    catch_up_all_due = os.getenv("KHYRAT_CATCH_UP_ALL_DUE", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+    if force_republish_row:
+        # Explicit republish is a single-row recovery operation; never combine it
+        # with the catch-up queue.
+        selected_rows = [force_republish_row]
+    elif catch_up_all_due:
+        # Drain every eligible overdue row in chronological order. Each row is
+        # isolated so a legal-review failure, image issue, or platform outage on
+        # one item cannot strand the remaining queue.
+        selected_rows = sorted(
+            candidates,
+            key=lambda item: (
+                _smart_target_datetime(item[1]) or current,
+                item[0],
+            ),
+        )
+        print(f"CATCH_UP_QUEUE: processing {len(selected_rows)} due rows independently.")
+    else:
+        selected = choose_due_row(candidates, history)
+        selected_rows = [selected or candidates[0]]
+
+    last_successful_row = None
+    failures = []
+    for row_number, row in selected_rows:
+        print(
+            f"Decision engine: processing row {row_number} "
+            f"ID={row.get('ID', '')} using historical topic/category/angle signals."
+        )
+        try:
+            production_main.process_row(
+                service=service,
+                config=config,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                row=row,
+                current=current,
+            )
+            # Re-read the row after processing; only a real social post ID counts
+            # as a successful source for the downstream Reel review stage.
+            refreshed = get_values(service, config["sheet_id"], config["sheet_range"])
+            refreshed_rows = [row_to_dict(values) for values in refreshed[1:]]
+            if 2 <= row_number <= len(refreshed_rows) + 1:
+                refreshed_row = refreshed_rows[row_number - 2]
+                if (
+                    str(refreshed_row.get("Facebook Post ID", "")).strip()
+                    or str(refreshed_row.get("LinkedIn Post ID", "")).strip()
+                ):
+                    last_successful_row = row_number
+        except Exception as row_exc:
+            failures.append((row_number, str(row_exc)))
+            print(f"CATCH_UP_ROW_FAILED: row={row_number}; continuing with remaining due rows: {row_exc}")
+
+    if last_successful_row is not None:
+        _write_reel_source_context(
+            service=service,
+            config=config,
+            sheet_name=sheet_name,
+            row_number=last_successful_row,
+        )
+    if failures:
+        print(
+            f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} "
+            f"row_failures={len(failures)} successful_social_sources="
+            f"{1 if last_successful_row is not None else 0}."
+        )
+    else:
+        print(f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} row_failures=0.")
 
 
 production_main._prepare_editorial_assets = _capture_editorial_assets
