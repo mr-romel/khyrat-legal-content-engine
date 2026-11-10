@@ -1485,175 +1485,40 @@ def main() -> int:
         fit_reel_narration_duration(tts_audio, target_seconds=62.0)
         print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
 
-        with tempfile.TemporaryDirectory(prefix="khyrat-mpt-") as temp:
-            mpt = Path(temp) / "MoneyPrinterTurbo"
-            use_mpt = os.getenv("REEL_USE_MPT", "false").strip().lower() in {"1", "true", "yes", "on"}
-            if use_mpt:
-                subprocess.run(
-                    ["git", "clone", "--depth", "1", "--branch", MPT_REF, MPT_REPO, str(mpt)],
-                    check=True,
-                    timeout=180,
-                )
-            else:
-                print("REEL_STAGE renderer=animated_ffmpeg")
-
-            # Use the native MPT CLI directly. The agent wrapper performs an
-            # unnecessary LLM-provider preflight even when a complete script and
-            # local materials are supplied; direct CLI keeps this Reel path
-            # genuinely keyless after our own Gemini/deterministic brief stage.
-            task_id = __import__("uuid").uuid4()
-            command = [
-                "uv", "run", "python", "cli.py",
-                "--video-subject", topic,
-                "--video-script", brief["script"],
-                "--video-terms", ", ".join(brief["video_terms"]),
-                "--video-source", "local",
-                "--video-materials", ",".join(str(p.resolve()) for p in scenes),
-                "--video-aspect", "9:16",
-                "--video-count", "1",
-                "--video-clip-duration", "4",
-                "--video-concat-mode", "sequential",
-                "--video-transition-mode", "shuffle",
-                "--match-materials-to-script",
-                "--custom-audio-file", str(tts_audio.resolve()),
-                "--no-subtitle-enabled",
-                "--bgm-type", "none",
-                "--bgm-volume", "0",
-                "--stop-at", "video",
-                "--task-id", str(task_id),
-            ]
-            env = os.environ.copy()
-            output_video = output_dir / "daily-reel.mp4"
-            mpt_ok = False
+        # The former Python/FFmpeg and MoneyPrinterTurbo video builders are retired.
+        # Keep the existing image-generation and TTS stages; Remotion alone composes the final MP4.
+        slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+        slogan_text = prepare_tts_script("خليك فاكر دايما ... اسأل محمود")
+        try:
+            generate_gemini_tts_audio_unbounded(
+                cfg["gemini_api_key"], slogan_text,
+                [{"sentence_index": 1, "delivery_emotion": "confident memorable sign-off"}],
+                slogan_audio, min_seconds=1.0, max_seconds=8.0,
+            )
+            print("REEL_STAGE slogan=gemini_tts_ok")
+        except Exception as slogan_gemini_exc:
+            print(f"REEL_STAGE slogan=gemini_unavailable reason={slogan_gemini_exc}")
             try:
-                result = subprocess.run(
-                    ["uv", "sync", "--frozen"],
-                    cwd=mpt,
-                    env=env,
-                    text=True,
-                    capture_output=True,
-                    timeout=240,
-                    check=False,
+                generate_google_cloud_short_arabic_tts_audio(
+                    cfg["service_account_info"], slogan_text, slogan_audio
                 )
-                if result.returncode == 0:
-                    result = subprocess.run(
-                        command,
-                        cwd=mpt,
-                        env=env,
-                        text=True,
-                        capture_output=True,
-                        timeout=300,
-                        check=False,
-                    )
-                if result.returncode == 0:
-                    task_videos = sorted((mpt / "storage" / "tasks" / str(task_id)).glob("final-*.mp4"))
-                    if task_videos:
-                        raw_video = output_dir / "mpt-base.mp4"
-                        shutil.copy2(task_videos[-1], raw_video)
-                        mpt_duration = _media_duration(raw_video)
-                        print(f"REEL_STAGE mpt_duration={mpt_duration:.1f}s")
-                        if 24 <= mpt_duration <= float(REEL_CONTENT_MAX_SECONDS):
-                            slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                            slogan_text = "خليك فاكر دايما ... اسأل محمود"
-                            slogan_ready = False
-                            clean_slogan = prepare_tts_script(slogan_text)
-                            try:
-                                generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
-                                slogan_ready = slogan_audio.is_file()
-                                print("REEL_STAGE slogan=gemini_tts_ok")
-                            except Exception as slogan_gemini_exc:
-                                print(f"Reel slogan Gemini unavailable: {slogan_gemini_exc}")
-                                try:
-                                    generate_google_cloud_short_arabic_tts_audio(cfg["service_account_info"], clean_slogan, slogan_audio)
-                                    slogan_ready = slogan_audio.is_file()
-                                    print("REEL_STAGE slogan=google_cloud_tts_ok")
-                                except Exception as slogan_cloud_exc:
-                                    print(f"Reel slogan Google Cloud TTS unavailable: {slogan_cloud_exc}")
-                            try:
-                                if not slogan_ready:
-                                    raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
-                                segmented_video = output_dir / "segmented-mpt-base.mp4"
-                                stitch_video_in_15s_segments(raw_video, segmented_video)
-                                add_motion_graphics_layer(segmented_video, output_video, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
-                                segmented_video.unlink(missing_ok=True)
-                            except Exception as branding_exc:
-                                raise RuntimeError(f"REEL_STAGE branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
-                            raw_video.unlink(missing_ok=True)
-                            mpt_ok = output_video.is_file() and float(REEL_MIN_DURATION_SECONDS) <= _media_duration(output_video) <= float(REEL_MAX_DURATION_SECONDS)
-                        else:
-                            print(f"REEL_STAGE mpt_rejected_duration={mpt_duration:.1f}s")
-                            raw_video.unlink(missing_ok=True)
-                            mpt_ok = False
-                if not mpt_ok:
-                    output_video.unlink(missing_ok=True)
-                if not mpt_ok:
-                    print("MoneyPrinterTurbo bounded run did not finish; using fast FFmpeg fallback.")
-            except Exception as mpt_exc:
-                print(f"MoneyPrinterTurbo bounded run failed; using fast FFmpeg fallback: {mpt_exc}")
-
-            if not mpt_ok:
-                build_fast_fallback_reel(scenes, tts_audio, output_video, duration_seconds=REEL_CONTENT_MAX_SECONDS)
-                # Apply the same branded motion layer and spoken slogan to the fallback.
-                slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
-                slogan_text = "خليك فاكر دايما ... اسأل محمود"
-                slogan_ready = False
-                clean_slogan = prepare_tts_script(slogan_text)
-                try:
-                    generate_gemini_tts_audio_unbounded(cfg["gemini_api_key"], clean_slogan, [{"sentence_index": 1, "delivery_emotion": "warm confident memorable sign-off"}], slogan_audio, min_seconds=1.0, max_seconds=10.0)
-                    slogan_ready = slogan_audio.is_file()
-                    print("REEL_STAGE fallback_slogan=gemini_tts_ok")
-                except Exception as slogan_exc:
-                    print(f"Reel fallback slogan Gemini unavailable: {slogan_exc}")
-                    try:
-                        generate_google_cloud_short_arabic_tts_audio(cfg["service_account_info"], clean_slogan, slogan_audio)
-                        slogan_ready = slogan_audio.is_file()
-                        print("REEL_STAGE fallback_slogan=google_cloud_tts_ok")
-                    except Exception as cloud_slogan_exc:
-                        print(f"Reel fallback slogan Google Cloud TTS unavailable: {cloud_slogan_exc}")
-                branded = output_dir / "branded-fallback.mp4"
-                try:
-                    if not slogan_ready:
-                        raise RuntimeError("Spoken brand slogan generation failed; refusing delivery.")
-                    segmented_video = output_dir / "segmented-fallback-base.mp4"
-                    stitch_video_in_15s_segments(output_video, segmented_video)
-                    add_motion_graphics_layer(segmented_video, branded, topic, os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png"), slogan_audio, script=brief["script"])
-                    segmented_video.unlink(missing_ok=True)
-                    shutil.move(str(branded), str(output_video))
-                except Exception as branding_exc:
-                    raise RuntimeError(f"REEL_STAGE fallback_branding_failed; refusing unbranded delivery: {branding_exc}") from branding_exc
+                print("REEL_STAGE slogan=google_cloud_tts_ok")
+            except Exception as slogan_cloud_exc:
+                raise RuntimeError(
+                    "REEL_STAGE slogan_generation_failed; refusing delivery: "
+                    f"Gemini={slogan_gemini_exc}; Google Cloud={slogan_cloud_exc}"
+                ) from slogan_cloud_exc
 
         video_path = output_dir / "daily-reel.mp4"
-        # Burn one complete spoken sentence at a time into the actual delivered MP4.
-        # Sentence durations are weighted by spoken-text length over the measured narration
-        # duration; this is deterministic and avoids displaying the whole script at once.
-        try:
-            from reel_subtitles import burn_sentence_subtitles
-            spoken_sentences = [
-                part.strip() for part in re.split(r"(?<=[؟!.])\s+", prepare_tts_script(brief["script"]))
-                if part.strip()
-            ]
-            narration_duration = _media_duration(tts_audio)
-            if not spoken_sentences or narration_duration <= 0:
-                raise RuntimeError("Cannot create subtitle timings without narration sentences and audio duration.")
-            weights = [max(1, len(part)) for part in spoken_sentences]
-            total_weight = sum(weights)
-            segments = []
-            cursor = 0.0
-            for index, (sentence, weight) in enumerate(zip(spoken_sentences, weights)):
-                end = narration_duration if index == len(spoken_sentences) - 1 else cursor + narration_duration * weight / total_weight
-                if end - cursor >= 0.20:
-                    segments.append({"text": sentence, "start": round(cursor, 3), "end": round(end, 3)})
-                cursor = end
-            segments_path = output_dir / "subtitle_segments.json"
-            segments_path.write_text(json.dumps({"segments": segments}, ensure_ascii=False, indent=2), encoding="utf-8")
-            subtitled_video = output_dir / "daily-reel-subtitled.mp4"
-            burn_sentence_subtitles(str(video_path), str(segments_path), str(subtitled_video))
-            if not subtitled_video.is_file() or subtitled_video.stat().st_size < 100_000:
-                raise RuntimeError("Subtitle burn-in did not produce a valid MP4.")
-            shutil.move(str(subtitled_video), str(video_path))
-            print(f"REEL_STAGE subtitles=burned sentence_count={len(segments)} narration_duration={narration_duration:.1f}s")
-        except Exception as subtitle_exc:
-            raise RuntimeError(f"REEL_STAGE subtitle_render_failed; refusing delivery of Reel without sentence subtitles: {subtitle_exc}") from subtitle_exc
+        from remotion_renderer import render_reel_with_remotion
+        render_reel_with_remotion(
+            scenes=scenes,
+            voice_audio=tts_audio,
+            slogan_audio=slogan_audio,
+            logo=Path(os.getenv("BRAND_LOGO_PATH", "لوجو اسال محمود 3دي.png")),
+            script=brief["script"],
+            output_video=video_path,
+        )
 
         if not video_path.is_file():
             raise RuntimeError("Reel output MP4 is missing.")
