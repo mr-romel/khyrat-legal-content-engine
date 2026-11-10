@@ -1196,7 +1196,7 @@ def main() -> int:
         fit_reel_narration_duration(tts_audio, target_seconds=62.0)
         print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
 
-        # The former Python/FFmpeg and MoneyPrinterTurbo video builders are retired.
+        # The former Python/FFmpeg video builders are retired.
         # Keep the existing image-generation and TTS stages; Remotion alone composes the final MP4.
         slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
         slogan_text = prepare_tts_script("خليك فاكر دايما ... اسأل محمود")
