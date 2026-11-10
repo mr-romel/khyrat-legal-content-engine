@@ -33,3 +33,7 @@ htmlcov/
 .idea/
 
 generated/.tmp/
+
+# Remotion runtime artifacts
+remotion/node_modules/
+remotion/public/render-assets/
