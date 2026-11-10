@@ -12,6 +12,13 @@ from youtube_publisher import publish_youtube_short_comment
 
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_COMMENTS_PER_RUN = max(1, int(os.getenv("YOUTUBE_COMMENTS_PER_RUN", "1") or "1"))
+REQUIRED_HEADERS = (
+    "Reel YouTube ID",
+    "Reel YouTube Comments Status",
+    "Reel YouTube Comment IDs",
+    "Blogger URL",
+    "الموضوع",
+)
 
 
 def _text(row: dict, *keys: str) -> str:
@@ -22,24 +29,62 @@ def _text(row: dict, *keys: str) -> str:
     return ""
 
 
+def _column_letter(column_number: int) -> str:
+    label = ""
+    while column_number:
+        column_number, remainder = divmod(column_number - 1, 26)
+        label = chr(65 + remainder) + label
+    return label
+
+
+def _ensure_tracking_headers(service, spreadsheet_id: str, sheet_name: str, headers: list[str]) -> list[str]:
+    missing = [name for name in REQUIRED_HEADERS if name not in headers]
+    if not missing:
+        return headers
+    headers = list(headers)
+    headers.extend(missing)
+    last_column = _column_letter(len(headers))
+    service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"{sheet_name}!A1:{last_column}1",
+        valueInputOption="RAW",
+        body={"values": [headers]},
+    ).execute()
+    print("YouTube comments: added missing tracking headers at the end of the existing header row: " + ", ".join(missing))
+    return headers
+
+
+def _validate_oauth_environment() -> None:
+    missing = [
+        name for name in (
+            "YOUTUBE_COMMENT_CLIENT_ID",
+            "YOUTUBE_COMMENT_CLIENT_SECRET",
+            "YOUTUBE_COMMENT_REFRESH_TOKEN",
+        )
+        if not os.getenv(name, "").strip()
+    ]
+    if missing:
+        raise RuntimeError(
+            "YouTube comments OAuth configuration is incomplete. Missing GitHub Actions secret(s): "
+            + ", ".join(missing)
+            + ". The Client ID and Client Secret must belong to the same Google OAuth client that issued "
+              "YOUTUBE_COMMENT_REFRESH_TOKEN; do not substitute the upload OAuth client unless it is the same client."
+        )
+
+
 def run() -> int:
+    _validate_oauth_environment()
     config = load_video_config()
     service = create_service(config["service_account_info"])
     configured_range = str(config.get("sheet_range") or "Content!A:BZ")
     sheet_name = configured_range.split("!", 1)[0] if "!" in configured_range else "Content"
-    # YouTube comment tracking columns live near the end of the Content tab;
-    # always read through BZ even when the general publisher range is shorter.
     values = get_values(service, config["sheet_id"], f"{sheet_name}!A:BZ")
     if not values:
         print("YouTube comments: content sheet is empty; nothing to process.")
         return 0
 
     headers = [str(x or "").strip() for x in values[0]]
-    required = ("Reel YouTube ID", "Reel YouTube Comments Status", "Reel YouTube Comment IDs", "Blogger URL", "الموضوع")
-    missing = [name for name in required if name not in headers]
-    if missing:
-        raise RuntimeError("Content sheet is missing required columns: " + ", ".join(missing))
-
+    headers = _ensure_tracking_headers(service, config["sheet_id"], sheet_name, headers)
     now = datetime.now(CAIRO).isoformat()
     processed = 0
     candidates = []
@@ -65,11 +110,10 @@ def run() -> int:
         status = _text(row, "Reel YouTube Comments Status").upper()
         if len(published_ids) >= len(bundle) or status == "PUBLISHED":
             continue
-        candidates.append((row_number, row, video_id, article_url, bundle, published_ids))
+        candidates.append((row_number, video_id, bundle, published_ids))
 
-    # Newest source rows first. A single comment per run prevents bursts/spam.
     candidates.sort(key=lambda item: item[0], reverse=True)
-    for row_number, row, video_id, article_url, bundle, published_ids in candidates:
+    for row_number, video_id, bundle, published_ids in candidates:
         if processed >= MAX_COMMENTS_PER_RUN:
             break
         next_index = len(published_ids)
@@ -84,7 +128,7 @@ def run() -> int:
         update_row(
             service,
             config["sheet_id"],
-            "Content",
+            sheet_name,
             row_number,
             {
                 "Reel YouTube Comment IDs": json.dumps(published_ids, ensure_ascii=False),
@@ -93,7 +137,8 @@ def run() -> int:
         )
         print(
             f"YouTube comments: comment {next_index + 1}/{len(bundle)} published "
-            f"for Short {video_id}; id={comment_id}; status={'PUBLISHED' if complete else 'IN_PROGRESS'}; {now}"
+            f"for Short {video_id}; id={comment_id}; "
+            f"status={'PUBLISHED' if complete else 'IN_PROGRESS'}; {now}"
         )
         processed += 1
 
