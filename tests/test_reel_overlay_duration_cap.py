@@ -11,7 +11,8 @@ def test_reel_pipeline_uses_remotion_as_the_only_video_compositor():
     assert "build_fast_fallback_reel(" not in source
     assert "burn_sentence_subtitles" not in source
     assert "REEL_STAGE renderer=REMOTION" in renderer
-    assert "1080" in composition and "1920" in (root / "remotion" / "src" / "Root.tsx").read_text(encoding="utf-8")
+    root_component = (root / "remotion" / "src" / "Root.tsx").read_text(encoding="utf-8")
+    assert "width={1080}" in root_component and "height={1920}" in root_component
     assert "subtitles.map" in composition
     assert "final_duration = _media_duration(video_path)" in source
     assert "Reel delivery blocked: final duration" in source
