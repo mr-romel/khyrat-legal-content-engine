@@ -26,6 +26,16 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: remotion/package.json
+      - name: Install Remotion renderer
+        run: |
+          cd remotion
+          npm install --no-audit --no-fund
+          test -x node_modules/.bin/remotion
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
