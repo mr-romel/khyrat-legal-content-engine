@@ -25,7 +25,11 @@ def _text(row: dict, *keys: str) -> str:
 def run() -> int:
     config = load_video_config()
     service = create_service(config["service_account_info"])
-    values = get_values(service, config["sheet_id"], config["sheet_range"])
+    configured_range = str(config.get("sheet_range") or "Content!A:BZ")
+    sheet_name = configured_range.split("!", 1)[0] if "!" in configured_range else "Content"
+    # YouTube comment tracking columns live near the end of the Content tab;
+    # always read through BZ even when the general publisher range is shorter.
+    values = get_values(service, config["sheet_id"], f"{sheet_name}!A:BZ")
     if not values:
         print("YouTube comments: content sheet is empty; nothing to process.")
         return 0
