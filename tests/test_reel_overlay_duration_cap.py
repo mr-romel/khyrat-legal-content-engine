@@ -1,16 +1,18 @@
 from pathlib import Path
 
 
-def test_reel_pipeline_uses_single_content_layer_and_separate_subtitle_burn():
-    source = (Path(__file__).resolve().parents[1] / "src" / "reel_pipeline.py").read_text(encoding="utf-8")
+def test_reel_pipeline_uses_remotion_as_the_only_video_compositor():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "src" / "reel_pipeline.py").read_text(encoding="utf-8")
+    renderer = (root / "src" / "remotion_renderer.py").read_text(encoding="utf-8")
+    composition = (root / "remotion" / "src" / "Reel.tsx").read_text(encoding="utf-8")
 
-    # The old implementation layered whiteboard cards on top of the content video,
-    # duplicating the sentence subtitle box. The current design keeps the content
-    # video as the only base layer, appends one brand end card, then burns subtitles.
-    assert "styled = base" in source
-    assert "The base video is the only content layer" in source
-    assert "concat_list.write_text" in source
-    assert "burn_sentence_subtitles" in source
+    assert "render_reel_with_remotion(" in source
+    assert "build_fast_fallback_reel(" not in source
+    assert "burn_sentence_subtitles" not in source
+    assert "REEL_STAGE renderer=REMOTION" in renderer
+    assert "1080" in composition and "1920" in (root / "remotion" / "src" / "Root.tsx").read_text(encoding="utf-8")
+    assert "subtitles.map" in composition
     assert "final_duration = _media_duration(video_path)" in source
     assert "Reel delivery blocked: final duration" in source
 
