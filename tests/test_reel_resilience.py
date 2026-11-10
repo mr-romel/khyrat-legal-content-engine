@@ -69,24 +69,34 @@ def test_scheduled_catch_up_processes_every_due_row_and_isolates_failures():
     assert "continuing with remaining due rows" in source
     assert "CATCH_UP_SUMMARY" in source
 
-def test_fallback_reel_uses_fifteen_second_segments_and_single_outro():
+def test_remotion_reel_uses_existing_scenes_audio_and_single_branded_outro():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
-    assert "segment_seconds = 15.0" in source
-    assert "segment_duration = min(segment_seconds, base_duration - (i * segment_seconds))" in source
-    assert "branded end-card appended once" in source
-    assert "generated/ask mahmoud logo.png" in source
-    assert "Original brand logo" in source
+    renderer = Path("src/remotion_renderer.py").read_text(encoding="utf-8")
+    composition = Path("remotion/src/Reel.tsx").read_text(encoding="utf-8")
+
+    assert "scenes=scenes" in source
+    assert "voice_audio=tts_audio" in source
+    assert "slogan_audio=slogan_audio" in source
+    assert "render_reel_with_remotion(" in source
+    assert "scene_props" in renderer
+    assert "voiceAudio" in renderer and "sloganAudio" in renderer
+    assert "logo" in renderer
     assert "خليك فاكر دايما ... اسأل محمود" in source
-    assert "refusing unbranded Reel delivery" in source
+    assert "REEL_STAGE renderer=REMOTION" in renderer
+    assert "build_fast_fallback_reel(" not in source
 
 
-
-def test_primary_and_fallback_reels_are_stitched_into_fifteen_second_segments():
+def test_remotion_is_the_only_reel_compositor_and_fails_closed():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
-    assert "def stitch_video_in_15s_segments(" in source
-    assert "segment_seconds = 15.0" in source
-    assert "transition=fade:duration=" in source
-    assert "segments_stitched=" in source
-    assert "stitch_video_in_15s_segments(raw_video, segmented_video)" in source
-    assert "stitch_video_in_15s_segments(output_video, segmented_video)" in source
-    assert "add_motion_graphics_layer(segmented_video, output_video" in source
+    renderer = Path("src/remotion_renderer.py").read_text(encoding="utf-8")
+    composition = Path("remotion/src/Reel.tsx").read_text(encoding="utf-8")
+
+    assert "def stitch_video_in_15s_segments(" not in source
+    assert "MoneyPrinterTurbo" not in source
+    assert "REMOTION_RENDER_FAILED" in renderer
+    assert "REMOTION_OUTPUT_INVALID" in renderer
+    assert "raise RuntimeError" in renderer
+    assert "Sequence" in composition
+    assert "interpolate(" in composition
+    assert "Audio" in composition
+    assert "subtitles.map" in composition
