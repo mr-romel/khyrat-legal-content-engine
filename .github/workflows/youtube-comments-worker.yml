@@ -39,7 +39,7 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
           YOUTUBE_COMMENT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_COMMENT_REFRESH_TOKEN }}
-          YOUTUBE_COMMENT_CLIENT_ID: ${{ secrets.YOUTUBE_COMMENT_CLIENT_ID }}
+          YOUTUBE_COMMENT_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID || secrets.YOUTUBE_COMMENT_CLIENT_ID }}
           YOUTUBE_COMMENT_CLIENT_SECRET: ${{ secrets.YOUTUBE_COMMENT_CLIENT_SECRET }}
           YOUTUBE_COMMENTS_PER_RUN: "1"
         run: PYTHONPATH=src python src/youtube_comments_worker.py
