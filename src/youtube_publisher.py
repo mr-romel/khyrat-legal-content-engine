@@ -95,8 +95,8 @@ def publish_youtube_short_comment(video_id: str, message: str) -> dict[str, str]
     YOUTUBE_COMMENT_REFRESH_TOKEN must be authorized with the youtube.force-ssl scope.
     It is separate from the upload token because OAuth grants do not automatically gain scopes.
     """
-    client_id = os.getenv("YOUTUBE_CLIENT_ID", "").strip()
-    client_secret = os.getenv("YOUTUBE_CLIENT_SECRET", "").strip()
+    client_id = (os.getenv("YOUTUBE_COMMENT_CLIENT_ID") or os.getenv("YOUTUBE_CLIENT_ID", "")).strip()
+    client_secret = (os.getenv("YOUTUBE_COMMENT_CLIENT_SECRET") or os.getenv("YOUTUBE_CLIENT_SECRET", "")).strip()
     refresh_token = os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip()
     if not all((client_id, client_secret, refresh_token)):
         raise RuntimeError(
@@ -155,8 +155,8 @@ def update_youtube_short_description(video_id: str, description: str) -> dict[st
     Uses the separately authorized metadata/comment refresh token because the
     upload-only OAuth grant does not imply permission to edit existing videos.
     """
-    client_id = os.getenv("YOUTUBE_CLIENT_ID", "").strip()
-    client_secret = os.getenv("YOUTUBE_CLIENT_SECRET", "").strip()
+    client_id = (os.getenv("YOUTUBE_COMMENT_CLIENT_ID") or os.getenv("YOUTUBE_CLIENT_ID", "")).strip()
+    client_secret = (os.getenv("YOUTUBE_COMMENT_CLIENT_SECRET") or os.getenv("YOUTUBE_CLIENT_SECRET", "")).strip()
     refresh_token = os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip()
     video_id = str(video_id or "").strip()
     description = str(description or "").strip()
