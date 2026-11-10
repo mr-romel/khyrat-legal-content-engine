@@ -1,2 +1,4 @@
 Second run after extending the sheet read to column BZ and safely ensuring tracking headers.
 Retry after worker fixes: d5902098acda6f2e97cab2920b058d2e3d84ab1a
+
+Use existing YOUTUBE_CLIENT_ID secret mapping; retry worker.
