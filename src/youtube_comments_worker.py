@@ -57,12 +57,13 @@ def _ensure_tracking_headers(service, spreadsheet_id: str, sheet_name: str, head
 def _validate_oauth_environment() -> None:
     missing = [
         name for name in (
-            "YOUTUBE_COMMENT_CLIENT_ID",
             "YOUTUBE_COMMENT_CLIENT_SECRET",
             "YOUTUBE_COMMENT_REFRESH_TOKEN",
         )
         if not os.getenv(name, "").strip()
     ]
+    if not (os.getenv("YOUTUBE_COMMENT_CLIENT_ID", "").strip() or os.getenv("YOUTUBE_CLIENT_ID", "").strip()):
+        missing.insert(0, "YOUTUBE_CLIENT_ID (existing secret) or YOUTUBE_COMMENT_CLIENT_ID")
     if missing:
         raise RuntimeError(
             "YouTube comments OAuth configuration is incomplete. Missing GitHub Actions secret(s): "
