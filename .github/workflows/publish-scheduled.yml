@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/EMERGENCY_RUN_NOW.md"
       - ".github/SAFE_RUN_NOW.md"
+      - ".github/REEL_CATCH_UP_NOW.md"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -39,7 +40,7 @@ jobs:
   publish:
     outputs:
       reel_source_available: ${{ steps.detect-reel-source.outputs.available }}
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'SAFE_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' }}
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'SAFE_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' || github.event.head_commit.message == 'REEL_CATCH_UP_NOW' }}
     name: 1. Core Social Publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
