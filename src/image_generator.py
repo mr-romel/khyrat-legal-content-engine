@@ -444,6 +444,8 @@ def create_legal_image(
             metadata = {
                 "source": "Openverse",
                 "title": str(selected.get("title", "")),
+                "description": str(selected.get("description", "")),
+                "tags": selected.get("tags", []) if isinstance(selected.get("tags", []), list) else [],
                 "artist": str(selected.get("creator", "")),
                 "source_page": str(selected.get("source_url", "")),
                 "source_url": str(selected.get("media_url", "")),
