@@ -36,12 +36,15 @@ jobs:
           cd remotion
           npm install --no-audit --no-fund
           test -x node_modules/.bin/remotion
-      - name: Install dependencies
+      - name: Install Reel dependencies without apt stalls
+        timeout-minutes: 8
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-reel.txt
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-reel.txt
+          command -v ffmpeg
+          command -v ffprobe
+          fc-match "Noto Sans Arabic"
       - name: Restore the last committed Reel source lock for this one-off redesign
         if: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' }}
         run: |
