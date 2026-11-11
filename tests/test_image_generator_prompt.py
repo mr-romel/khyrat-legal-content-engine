@@ -97,3 +97,37 @@ def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_
     import json
     provenance = json.loads((tmp_path / "reel-scene.jpg.provenance.json").read_text(encoding="utf-8"))
     assert provenance["aspect_ratio"] == "9:16"
+
+
+def test_flux2_klein_provider_uses_fixed_step_multipart_contract(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_post(url, *, headers, files, timeout):
+        captured["url"] = url
+        captured.update({key: value[1] for key, value in files.items()})
+        return FakeResponse()
+
+    monkeypatch.setattr(image_generator.requests, "post", fake_post)
+    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: _valid_image_bytes())
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    output = tmp_path / "klein.jpg"
+    image_generator.create_legal_image(
+        topic="المرفق العام الاقتصادي",
+        image_brief="A modern municipal water treatment plant with tanks and pipes.",
+        visual_description="A modern municipal water treatment plant with tanks and pipes.",
+        post_context="The public utility provides water services.",
+        output_path=str(output),
+        cloudflare_account_id="test-account",
+        cloudflare_api_token="test-token",
+        aspect_ratio="9:16",
+        provider="cloudflare_klein",
+    )
+
+    assert captured["url"].endswith("/@cf/black-forest-labs/flux-2-klein-9b")
+    assert captured["width"] == "576" and captured["height"] == "1024"
+    assert "steps" not in captured
+    import json
+    provenance = json.loads((tmp_path / "klein.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["provider"] == "DIRECT_CLOUDFLARE_KLEIN"
+    assert provenance["model"] == "@cf/black-forest-labs/flux-2-klein-9b"
