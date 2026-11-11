@@ -40,8 +40,8 @@ def build_editorial_image_prompt(*, topic: str, post_context: str, visual_descri
         "Create one photorealistic editorial image in a present-day Egyptian setting. "
         "Use contemporary 2020s architecture, infrastructure, clothing and materials. "
         "Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. "
-        "Do not replace the requested subject with a lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. "
-        "No readable text, letters, numbers, logos, seals, signatures or watermarks. "
+        "Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. "
+        "No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. "
         "No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\n"
         f"SHORT SOURCE CONTEXT: {context[:420] or 'Use only the primary visual brief.'}"
     )
