@@ -603,6 +603,13 @@ _VISUAL_SCENES = {
 def post_visual_terms(post: str, topic: str) -> list[str]:
     """Return eight concrete, topic-specific scenes from the approved legal post."""
     family = _visual_topic_family(topic)
+    if family == "general":
+        # A generic/empty Sheet title is metadata, not a reason to block a valid
+        # published post. Infer the visual family from the approved post itself.
+        inferred_family = _visual_topic_family(post)
+        if inferred_family != "general":
+            family = inferred_family
+            print(f"REEL_VISUAL_TOPIC_INFERRED_FROM_POST family={family}")
     scenes = list(_VISUAL_SCENES[family])
     topic_text = " ".join(str(topic or "").split()).casefold()
     post_text = " ".join(str(post or "").split()).casefold()
@@ -1004,11 +1011,17 @@ def main() -> int:
     # The Reel must never be generated from one source while its title/metadata comes from another.
     topic_family = _visual_topic_family(topic)
     post_family = _visual_topic_family(post)
-    if topic_family != post_family and (topic_family != "general" or post_family != "general"):
+    if topic_family == "general" and post_family != "general":
+        # The published post is the source of truth when the Sheet title is generic.
+        # This is a safe inference from the approved content, not a topic substitution.
+        topic_family = post_family
+        print(f"REEL_SOURCE_TOPIC_INFERRED_FROM_PUBLISHED_POST family={topic_family}")
+    elif topic_family != post_family:
         raise RuntimeError(
             "REEL_SOURCE_TOPIC_MISMATCH: Sheet الموضوع and published المحتوى resolve to different legal subjects "
             f"(topic_family={topic_family}, post_family={post_family}); refusing to generate or publish a mismatched Reel."
         )
+    visual_topic = topic if _visual_topic_family(topic) != "general" else post[:240]
     run_id = str(os.getenv("GITHUB_RUN_ID", "") or "").strip() or __import__("uuid").uuid4().hex
     safe_source_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(source_context.get("source_id", "")).strip())
     if not safe_source_id:
@@ -1072,7 +1085,7 @@ def main() -> int:
                 for visual_attempt in range(1, 3):
                     try:
                         create_legal_image(
-                            topic=topic,
+                            topic=visual_topic,
                             image_brief=active_prompt,
                             visual_description=active_prompt,
                             post_context=post,
@@ -1086,7 +1099,7 @@ def main() -> int:
                         visual_qa = qa_image(
                             api_key=cfg["gemini_api_key"],
                             image_path=str(image_path),
-                            topic=topic,
+                            topic=visual_topic,
                             image_brief=active_prompt,
                         )
                         if visual_qa.get("decision") == "PASS":
