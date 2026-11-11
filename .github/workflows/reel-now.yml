@@ -131,7 +131,7 @@ jobs:
           # Prevent a stale committed video from making a no-op run look successful.
           rm -rf generated/reels
           PYTHONPATH=src python src/reel_pipeline.py
-          if ! find generated/reels -maxdepth 2 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+          if ! find generated/reels -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
             echo "::error::Reel pipeline finished without creating a new MP4. Check the source-lock and Telegram delivery logs."
             exit 1
           fi
