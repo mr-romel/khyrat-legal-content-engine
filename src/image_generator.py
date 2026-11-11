@@ -719,6 +719,11 @@ def create_legal_image(
     elif provider_preference == "pixabay":
         image_bytes = _generate_with_pixabay()
         provider = "PIXABAY_SCENE_STOCK"
+    elif provider_preference == "pollinations":
+        # An explicitly selected Pollinations provider must either work or fail
+        # visibly. Do not silently burn Gemini/stock requests behind the caller.
+        image_bytes = _generate_with_pollinations()
+        provider = "POLLINATIONS_IMAGE_GENERATION"
     elif image_bytes is None and provider_preference in {"cloudflare", "cloudflare_klein"}:
         raise ImageGenerationError(f"Cloudflare image provider failed; try the next scene-specific provider: {cloudflare_error}")
     elif image_bytes is None and provider_preference != "gemini":
