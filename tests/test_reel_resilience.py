@@ -123,3 +123,19 @@ def test_gemini_array_response_uses_deterministic_reel_fallback(monkeypatch):
     result = reel_pipeline.make_brief("test-key", "test-model", "المرفق العام الاقتصادي", post)
     assert result["generation_mode"] == "deterministic_fallback"
     assert len(result["video_terms"]) == 8
+
+
+def test_remotion_renderer_resolves_output_path_before_running_from_project_directory():
+    source = Path("src/remotion_renderer.py").read_text(encoding="utf-8")
+    assert "output_video = output_video.resolve()" in source
+    assert "cwd=project_dir" in source
+
+
+def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert 'visual_providers = {1: "cloudflare", 2: "gemini", 3: "pixabay"}' in source
+    assert "REEL_SCENE_VISUAL_QA_FAILED" in source
+    assert "create_generic_legal_fallback_image" not in source
+    assert '"pixabay"' in image_generator
+    assert "scene_tokens" in image_generator
