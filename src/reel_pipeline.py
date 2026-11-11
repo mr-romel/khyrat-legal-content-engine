@@ -962,7 +962,10 @@ def main() -> int:
                     continue
                 fallback_candidates.append((row_number, candidate))
             if fallback_candidates:
-                row_number, candidate = fallback_candidates[-1]
+                # Catch up in publication order: process the oldest eligible,
+                # already-published social post first instead of perpetually
+                # favoring the newest row and starving older Reel backlog.
+                row_number, candidate = fallback_candidates[0]
                 recovered.append((row_number, candidate))
                 source_context = {
                     "row_number": row_number,
