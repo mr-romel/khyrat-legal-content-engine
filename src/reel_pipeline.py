@@ -1091,7 +1091,7 @@ def main() -> int:
         # only topic-matched openly licensed photos, never generic placeholder cards.
         scenes = []
         try:
-            from image_generator import create_legal_image, create_generic_legal_fallback_image
+            from image_generator import create_legal_image
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
@@ -1100,7 +1100,8 @@ def main() -> int:
                 accepted = False
                 active_prompt = str(scene_prompt)
                 generation_error = ""
-                for visual_attempt in range(1, 3):
+                visual_providers = {1: "cloudflare", 2: "gemini", 3: "pixabay"}
+                for visual_attempt in range(1, 4):
                     try:
                         create_legal_image(
                             topic=visual_topic,
@@ -1112,7 +1113,7 @@ def main() -> int:
                             cloudflare_account_id=cloudflare_account,
                             cloudflare_api_token=cloudflare_token,
                             aspect_ratio="9:16",
-                            provider="cloudflare",
+                            provider=visual_providers[visual_attempt],
                         )
                         visual_qa = qa_image(
                             api_key=cfg["gemini_api_key"],
@@ -1145,29 +1146,14 @@ def main() -> int:
                         break
 
                 if not accepted:
-                    # The user explicitly permits a general legal image rather than a broken Reel.
-                    # This fallback is locally rendered, branded, and clearly marked; it is NOT
-                    # represented as topic-specific AI imagery and does not bypass Reel approval.
-                    try:
-                        create_generic_legal_fallback_image(
-                            output_path=str(image_path),
-                            aspect_ratio="9:16",
-                            topic=topic,
-                            visual_description=active_prompt,
-                        )
-                        accepted = True
-                        reason = "generation_error" if generation_error else "visual_qa_rejected"
-                        print(
-                            f"REEL_STAGE ai_scene={scene_index}/8 "
-                            f"provider=LOCAL_GENERIC_LEGAL_FALLBACK "
-                            f"fallback_reason={reason} "
-                            f"legal_citation_gate=unchanged telegram_review_required=true"
-                        )
-                    except Exception as fallback_exc:
-                        raise RuntimeError(
-                            f"Scene {scene_index} failed both topic-specific generation/QA "
-                            f"and local legal fallback: {fallback_exc}"
-                        ) from fallback_exc
+                    # Never fill a failed scene with a generic legal placeholder.
+                    # A Reel is reviewable only when every scene is independently
+                    # generated or sourced for its own approved visual brief.
+                    raise RuntimeError(
+                        f"REEL_SCENE_VISUAL_QA_FAILED: scene={scene_index}/8 "
+                        f"providers_tried={list(visual_providers.values())} "
+                        f"last_generation_error={generation_error[:500]!r}; refusing generic fallback."
+                    )
                 scenes.append(image_path)
         except Exception as image_exc:
             # Do not silently replace failed topic-specific generations with
