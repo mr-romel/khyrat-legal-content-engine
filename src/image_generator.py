@@ -21,12 +21,12 @@ from brand_identity import (
 
 
 # FLUX follows detailed editorial prompts more reliably than SDXL Lightning.
-CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-2-dev"
 
 CLOUDFLARE_IMAGE_ENDPOINT = (
     "https://api.cloudflare.com/client/v4/accounts/"
     "{account_id}/ai/run/"
-    "@cf/black-forest-labs/flux-1-schnell"
+    "@cf/black-forest-labs/flux-2-dev"
 )
 
 
@@ -481,23 +481,27 @@ def create_legal_image(
     else:
         raise ImageGenerationError(f"Unsupported image aspect ratio: {aspect_ratio}")
     try:
-        num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "20")), 20))
+        num_steps = max(8, min(int(os.environ.get("CLOUDFLARE_IMAGE_STEPS", "25")), 25))
     except ValueError:
         num_steps = 25
     try:
-        guidance = float(os.environ.get("CLOUDFLARE_IMAGE_GUIDANCE", "6.0"))
+        guidance = max(1.5, min(float(os.environ.get("CLOUDFLARE_IMAGE_GUIDANCE", "4.5")), 10.0))
     except ValueError:
-        guidance = 6.0
+        guidance = 4.5
 
-    request_body = {
+    # FLUX.2 [dev] requires multipart form data, including for text-only prompts.
+    # requests builds the multipart boundary automatically from the files mapping.
+    request_fields = {
         "prompt": prompt,
-        # FLUX.1 schnell accepts only prompt and steps (4–8).
-        "steps": max(4, min(num_steps, 8)),
+        "steps": str(num_steps),
+        "guidance": str(guidance),
+        "width": str(width),
+        "height": str(height),
     }
+    multipart_fields = {key: (None, value) for key, value in request_fields.items()}
 
     headers = {
         "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json",
         "Accept": "image/*",
     }
 
@@ -512,8 +516,8 @@ def create_legal_image(
                 response = requests.post(
                     endpoint,
                     headers=headers,
-                    json=request_body,
-                    timeout=(20, 180),
+                    files=multipart_fields,
+                    timeout=(30, 240),
                 )
                 if response.ok:
                     try:
