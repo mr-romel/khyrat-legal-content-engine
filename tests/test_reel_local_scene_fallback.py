@@ -58,3 +58,11 @@ def test_local_scene_provider_creates_valid_public_utility_image_without_api_key
     result = qa_image(api_key="", image_path=str(output), topic="المرفق العام الاقتصادي", image_brief=brief)
     assert result["decision"] == "PASS"
     assert result["qa_method"] == "local-renderer-provenance-and-integrity"
+
+
+def test_recovery_queue_never_retries_topic_source_mismatch_as_an_image_failure():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "retryable_legacy_mapping_failure" not in workflow
+    assert 'last_error.startswith("REEL_SOURCE_TOPIC_MISMATCH")' not in workflow
+    assert "Topic mismatch is a source-integrity failure, not an image-provider" in workflow
+    assert "retryable_failure = retryable_image_failure" in workflow
