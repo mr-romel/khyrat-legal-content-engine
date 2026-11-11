@@ -136,4 +136,6 @@ def test_explicit_pollinations_provider_does_not_fall_through_to_hidden_provider
     next_branch = source.index('elif image_bytes is None and provider_preference != "gemini":', branch)
     explicit_branch = source[branch:next_branch]
     assert "image_bytes = _generate_with_pollinations()" in explicit_branch
-    assert "Gemini" not in explicit_branch
+    assert "_generate_with_pollinations()" in explicit_branch
+    assert "_generate_with_gemini()" not in explicit_branch
+    assert "_generate_with_pixabay()" not in explicit_branch

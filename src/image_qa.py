@@ -13,7 +13,7 @@ from PIL import Image
 from brand_identity import BRAND_OVERLAY_TEXT, BRAND_OVERLAY_SUBTEXT
 
 DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
-# QA is advisory. Only clearly unusable or materially unrelated images should regenerate.
+# Publication gate: unavailable or rejected semantic QA must never be treated as approval.
 QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
 QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
@@ -219,8 +219,8 @@ def qa_image(
     hard = _hard_checks(path)
     image_mode = "CONTEXT_ONLY"
     references = []
-    # QA is advisory only. A missing QA key or non-ideal aspect ratio must not
-    # prevent publication of an otherwise valid generated image.
+    # Missing QA credentials return QA_UNAVAILABLE; callers must block publication
+    # unless an explicit, auditable source-metadata gate independently passes.
     if not api_key:
         return {
             "decision": "QA_UNAVAILABLE",

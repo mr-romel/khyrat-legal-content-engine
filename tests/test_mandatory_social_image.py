@@ -23,3 +23,19 @@ def test_pollinations_secret_is_wired_to_core_publisher():
     assert "POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}" in workflow
     assert "def _generate_with_pollinations()" in generator
     assert "POLLINATIONS_IMAGE_GENERATION" in generator
+
+
+
+def test_social_image_qa_unavailable_or_rejected_blocks_publication():
+    source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
+    assert "IMAGE_QA_UNAVAILABLE_BLOCKED" in source
+    assert "IMAGE_QA_REJECTED_BLOCKED" in source
+    assert "IMAGE_QA_BLOCKED" in source
+    assert "QA_UNAVAILABLE_ACCEPTED" not in source
+    assert "ACCEPTED_WITH_WARNINGS" not in source
+    assert "isinstance(image_exc, ImageQAError)" in source
+    assert "Image contains a woman or girl; semantic QA rejected the image" in source
+    assert "IMAGE_QA_UNAVAILABLE_BLOCKED during published-image repair" in source
+    assert "raise ImageQAError(image_qa_summary) from qa_exc" in source
+    assert "raise ImageQAError(" in source
+    assert "Replacement image failed visual relevance/text QA" in source
