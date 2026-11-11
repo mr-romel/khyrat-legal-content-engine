@@ -1,11 +1,12 @@
 name: Queue Audited Reel Recovery
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/reel-bulk-recovery-queue.yml"
   workflow_dispatch:
+    inputs:
+      source_ids:
+        description: Comma-separated immutable Sheet IDs to queue (maximum 20)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   queue:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'QUEUE_REEL_RECOVERY' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -25,6 +26,7 @@ jobs:
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+      REEL_RECOVERY_SOURCE_IDS: ${{ inputs.source_ids }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -38,7 +40,9 @@ jobs:
           import json, os
           from sheets import create_service, get_values, row_to_dict, update_row
 
-          TARGET_ROWS = [169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 255]
+          requested_ids = list(dict.fromkeys(x.strip() for x in os.getenv("REEL_RECOVERY_SOURCE_IDS", "").split(",") if x.strip()))
+          if not requested_ids or len(requested_ids) > 20:
+              raise SystemExit("Provide between 1 and 20 immutable source IDs; row numbers are not accepted.")
           raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_CREDENTIALS")
           if not raw or not os.getenv("GOOGLE_SHEET_ID"):
               raise SystemExit("Missing Google Sheets credentials or sheet ID.")
@@ -51,20 +55,27 @@ jobs:
               raise SystemExit("Google Sheet is empty or inaccessible.")
           headers = [str(x or "").strip() for x in values[0]]
           queued, skipped = [], []
-          for number in TARGET_ROWS:
-              idx = number - 2
-              if idx < 0 or idx >= len(values) - 1:
-                  skipped.append({"row": number, "reason": "row outside current sheet"})
+          for source_id in requested_ids:
+              matches = [(number, row_to_dict(raw_row, headers)) for number, raw_row in enumerate(values[1:], start=2) if str(row_to_dict(raw_row, headers).get("ID", "") or "").strip() == source_id]
+              if len(matches) != 1:
+                  skipped.append({"source_id": source_id, "reason": f"immutable ID must match exactly one row; matches={len(matches)}"})
                   continue
-              row = row_to_dict(values[idx + 1], headers)
+              number, row = matches[0]
               topic = str(row.get("الموضوع", "") or "").strip()
-              source_id = str(row.get("ID", "") or "").strip()
+              matched_source_id = str(row.get("ID", "") or "").strip()
               content = str(row.get("المحتوى", "") or "").strip()
               social_ok = any(str(row.get(k, "") or "").strip().upper() == "PUBLISHED" for k in ("Facebook Status", "LinkedIn Status"))
-              if not (topic and source_id and content and social_ok):
-                  skipped.append({"row": number, "topic": topic, "reason": "missing ID/topic/content or no successful source social post"})
+              if not (topic and matched_source_id == source_id and content and social_ok):
+                  skipped.append({"source_id": source_id, "row": number, "topic": topic, "reason": "missing topic/content or no successful source social post"})
                   continue
               status = str(row.get("Reel Status", "") or "").strip().upper()
+              existing_platform_ids = [
+                  str(row.get("Reel Facebook ID", "") or "").strip(),
+                  str(row.get("Reel YouTube ID", "") or "").strip(),
+              ]
+              if any(existing_platform_ids):
+                  skipped.append({"source_id": source_id, "row": number, "topic": topic, "reason": "Reel already has an external Facebook/YouTube video; replacing its binary would require a separate platform migration and must not create duplicates"})
+                  continue
               if status in {"GENERATING", "REGENERATING"}:
                   skipped.append({"row": number, "topic": topic, "reason": f"already {status}"})
                   continue
@@ -76,13 +87,8 @@ jobs:
                   "Reel File": "",
                   "Reel Run ID": "",
                   "Reel Video SHA256": "",
-                  "Reel Facebook ID": "",
-                  "Reel YouTube ID": "",
-                  "Reel YouTube URL": "",
-                  "Reel Facebook Status": "",
-                  "Reel YouTube Status": "",
               })
-              queued.append({"row": number, "topic": topic, "previous_status": status})
+              queued.append({"source_id": source_id, "current_row": number, "topic": topic, "previous_status": status})
           print("REEL_RECOVERY_QUEUE=" + json.dumps({"queued": queued, "skipped": skipped}, ensure_ascii=False))
           if not queued:
               raise SystemExit("No audited rows were safely queued.")

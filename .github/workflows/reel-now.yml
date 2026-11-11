@@ -1,9 +1,17 @@
 name: Reel Now
 
 on:
-  push:
-    paths:
-      - ".reel-now-trigger"
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: Exact immutable Google Sheet ID of the published social post
+        required: true
+        type: string
+      force_replace:
+        description: Allow replacing an existing REVIEW/APPROVED/PUBLISHED Reel for this exact ID
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -15,7 +23,7 @@ concurrency:
 jobs:
   reel:
     name: Generate current locked Reel and send Telegram review
-    if: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY","REEL_ROW179_RETRY"]'), github.event.head_commit.message) }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -47,61 +55,51 @@ jobs:
           command -v ffmpeg
           command -v ffprobe
           fc-match "Noto Sans Arabic" || true
-      - name: Restore the last committed Reel source lock for this one-off redesign
-        if: ${{ github.event.head_commit.message == 'REEL_WHITEBOARD_REDESIGN' }}
-        run: |
-          mkdir -p generated
-          cat > generated/reel_source.json <<'JSON'
-          {
-            "row_number": 147,
-            "topic": "جريمة التحرش",
-            "source_id": ""
-          }
-          JSON
-          cat generated/reel_source.json
-      - name: Lock failed row 23 for a controlled Reel retry
-        if: ${{ github.event.head_commit.message == 'REEL_ROW23_RETRY' }}
-        run: |
-          mkdir -p generated
-          cat > generated/reel_source.json <<'JSON'
-          {
-            "row_number": 23,
-            "topic": "الادعاء المباشر — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
-            "source_id": "20261010-1200-R010"
-          }
-          JSON
-          cat generated/reel_source.json
-      - name: Lock failed row 179 for a controlled Reel retry
-        if: ${{ github.event.head_commit.message == 'REEL_ROW179_RETRY' }}
+      - name: Lock exact source row by immutable ID
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+          REEL_GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REEL_SOURCE_ID: ${{ inputs.source_id }}
+          REEL_FORCE_REPLACE: ${{ inputs.force_replace }}
         run: |
           mkdir -p generated
           PYTHONPATH=src python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           from config import load_reel_config
           from sheets import create_service, get_values, row_to_dict
-
           cfg = load_reel_config()
-          values = get_values(create_service(cfg["service_account_info"]), cfg["sheet_id"], cfg["sheet_range"])
-          if len(values) < 179:
-              raise SystemExit(f"ROW179_NOT_FOUND: sheet has only {len(values) - 1} data rows")
-          row = row_to_dict(values[178], values[0])
-          expected_topic = "حقيقة قرار إلزام الحضانات بكاميرات المراقبة والغرامات: التوضيح القانوني لأصحاب الأعمال وأولياء الأمور"
-          if str(row.get("الموضوع", "")).strip() != expected_topic:
-              raise SystemExit("ROW179_TOPIC_MISMATCH: refusing to lock the wrong content row")
-          source_id = str(row.get("ID", "")).strip()
+          source_id = os.environ['REEL_SOURCE_ID'].strip()
           if not source_id:
-              raise SystemExit("ROW179_SOURCE_ID_MISSING: immutable row ID is required")
-          source = {"row_number": 179, "topic": expected_topic, "source_id": source_id}
-          Path("generated/reel_source.json").write_text(json.dumps(source, ensure_ascii=False, indent=2), encoding="utf-8")
-          print(f"Locked exact row 179 with immutable source ID; topic verified.")
+              raise SystemExit('An immutable source ID is required.')
+          service = create_service(cfg['service_account_info'])
+          sheet_name = cfg['sheet_range'].split('!', 1)[0]
+          values = get_values(service, cfg['sheet_id'], f'{sheet_name}!A:BZ')
+          if not values or not values[0]:
+              raise SystemExit('Google Sheet header row is missing.')
+          headers = [str(x or '').strip() for x in values[0]]
+          matches = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2) if str(row_to_dict(raw, headers).get('ID', '') or '').strip() == source_id]
+          if len(matches) != 1:
+              raise SystemExit(f'Immutable source ID must match exactly one row; matches={len(matches)}.')
+          row_number, row = matches[0]
+          topic = str(row.get('الموضوع', '') or '').strip()
+          content = str(row.get('المحتوى', '') or '').strip()
+          social_ok = any(str(row.get(k, '') or '').strip().upper() == 'PUBLISHED' for k in ('Facebook Status', 'LinkedIn Status'))
+          if not topic or not content or not social_ok:
+              raise SystemExit('Source row must have topic, published post content, and at least one successful Facebook/LinkedIn publication.')
+          reel_status = str(row.get('Reel Status', '') or '').strip().upper()
+          external_video_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
+          if any(external_video_ids):
+              raise SystemExit('This Reel already has an external Facebook/YouTube video ID; replacing its binary in place is unsupported and must not create duplicates.')
+          if reel_status in {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING'} and os.getenv('REEL_FORCE_REPLACE', '').lower() != 'true':
+              raise SystemExit(f'Source ID already has Reel Status={reel_status}; set force_replace only when intentionally replacing that exact Reel.')
+          source = {'row_number': row_number, 'source_id': source_id, 'topic': topic}
+          Path('generated/reel_source.json').write_text(json.dumps(source, ensure_ascii=False, indent=2), encoding='utf-8')
+          print('REEL_SOURCE_LOCKED=' + json.dumps({'source_id': source_id, 'current_row': row_number, 'topic': topic}, ensure_ascii=False))
           PY
           cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
@@ -126,8 +124,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ secrets.GEMINI_TTS_VOICE || 'Orus' }}
           REEL_SKIP_GEMINI: "false"
           REEL_RECOVERY: "true"
-          REEL_FORCE_REGENERATE: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY","REEL_ROW179_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
-          REEL_FORCE_TELEGRAM_REVIEW: ${{ contains(fromJSON('["RUN_REEL_NOW","REEL_WHITEBOARD_REDESIGN","REEL_ROW23_RETRY","REEL_ROW179_RETRY"]'), github.event.head_commit.message) && 'true' || 'false' }}
+          REEL_FORCE_REGENERATE: "true"
+          REEL_FORCE_TELEGRAM_REVIEW: "true"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

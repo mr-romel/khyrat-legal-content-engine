@@ -34,19 +34,22 @@ def choose_row(
 ) -> tuple[int, dict[str, str]] | None:
     """Select only the row explicitly locked by the core publishing worker."""
     if source_context:
-        try:
-            target_number = int(source_context.get("row_number"))
-        except (TypeError, ValueError):
-            return None
-        index = target_number - 2
-        if index < 0 or index >= len(rows):
-            print(f"Reel source row {target_number} is outside the current Sheet range.")
-            return None
-        row = rows[index]
         source_id = str(source_context.get("source_id", "") or "").strip()
+        if not source_id:
+            print("Reel source lock is missing its immutable ID; refusing mutable row-number selection.")
+            return None
+        matches = [(index, candidate) for index, candidate in enumerate(rows) if str(candidate.get("ID", "") or "").strip() == source_id]
+        if len(matches) != 1:
+            print(f"Reel immutable source ID lookup must match exactly one row; ID={source_id!r}, matches={len(matches)}.")
+            return None
+        index, row = matches[0]
+        target_number = index + 2
+        locked_row_number = source_context.get("row_number")
+        if locked_row_number and str(locked_row_number).isdigit() and int(locked_row_number) != target_number:
+            print(f"Reel row position changed for immutable ID={source_id}: lock_row={locked_row_number}, current_row={target_number}; continuing by ID.")
         row_id = str(row.get("ID", "") or "").strip()
-        if source_id and row_id and source_id != row_id:
-            print(f"Reel source mismatch: locked ID={source_id}, Sheet ID={row_id}. Refusing to guess another row.")
+        if row_id != source_id:
+            print(f"Reel immutable source mismatch: locked ID={source_id!r}, Sheet ID={row_id!r}.")
             return None
         fb_ok = str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED"
         li_ok = str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED"
@@ -1390,12 +1393,18 @@ def main() -> int:
         else:
             update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
             callback_fingerprint = video_sha256[:16]
+            approve_callback = f"reel_approve:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
+            reject_callback = f"reel_reject:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
+            if ":" in str(source_context.get("source_id", "")):
+                raise RuntimeError("REEL_SOURCE_ID_INVALID: source IDs containing ':' cannot be represented safely in Telegram callback_data.")
+            if len(approve_callback.encode("utf-8")) > 64 or len(reject_callback.encode("utf-8")) > 64:
+                raise RuntimeError("REEL_TELEGRAM_CALLBACK_TOO_LONG: immutable source ID cannot fit Telegram callback_data.")
             telegram_result = send_video(
                 str(video_path),
                 caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية\nبصمة النسخة: {callback_fingerprint}",
                 reply_markup={"inline_keyboard": [[
-                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}:{callback_fingerprint}"},
-                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}:{callback_fingerprint}"},
+                    {"text": "✅ اعتماد الريل", "callback_data": approve_callback},
+                    {"text": "❌ رفض الريل", "callback_data": reject_callback},
                 ]]},
             )
             message_id = str((telegram_result or {}).get("message_id", ""))

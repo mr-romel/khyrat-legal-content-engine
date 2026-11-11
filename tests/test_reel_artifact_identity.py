@@ -14,7 +14,11 @@ def test_telegram_review_buttons_are_bound_to_video_fingerprint():
     source = (ROOT / 'src' / 'reel_pipeline.py').read_text(encoding='utf-8')
     worker = (ROOT / 'workers' / 'telegram-control' / 'src' / 'index.js').read_text(encoding='utf-8')
     assert '"Reel Video SHA256": video_sha256' in source
-    assert 'reel_approve:{row_number}:{callback_fingerprint}' in source
+    assert 'reel_approve:id_' in source
+    assert 'reel_reject:id_' in source
+    assert 'REEL_TELEGRAM_CALLBACK_TOO_LONG' in source
+    assert 'startsWith("id_")' in worker
+    assert 'candidate["ID"]' in worker
     assert 'storedFingerprint.slice(0, 16) !== suppliedFingerprint' in worker
     assert 'زر المراجعة يخص نسخة فيديو قديمة أو غير مطابقة' in worker
 
@@ -24,7 +28,10 @@ def test_publisher_requires_exact_run_artifact_and_sha256():
     assert "('run_'+run_id)" in workflow
     assert 'REEL_ARTIFACT_FINGERPRINT_MISMATCH' in workflow
     assert "rglob('daily-reel.mp4')" not in workflow
-    assert "root=Path('review-package')/('row_'+str(row_number))/source_id/('run_'+run_id)" in workflow
+    assert "root=Path('review-package')/('row_'+str(artifact_row_number))/safe_source_id/('run_'+run_id)" in workflow
+    assert "source_matches=" in workflow
+    assert "latest_matches=" in workflow
+    assert "int(plan.get('row_number',-1)) != artifact_row_number" in workflow
     assert 'REEL_ARTIFACT_PATH_MISMATCH' in workflow
     assert 'REEL_MANIFEST_IDENTITY_MISMATCH' in workflow
     assert 'REEL_MANIFEST_FINGERPRINT_MISMATCH' in workflow
