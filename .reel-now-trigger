@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Use isolated static-FFmpeg production lane to render one fresh, topic-matched Remotion Reel and deliver it for Telegram review.
-Trigger nonce: 2026-11-11T18:53:00+02:00
+Retry Reel row selection after safe topic-family inference from the approved published post. Render only with Remotion and deliver to Telegram for review.
+Trigger nonce: 2026-11-11T18:56:00+02:00
