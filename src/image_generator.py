@@ -717,6 +717,8 @@ def create_legal_image(
     elif provider_preference == "pixabay":
         image_bytes = _generate_with_pixabay()
         provider = "PIXABAY_SCENE_STOCK"
+    elif image_bytes is None and provider_preference in {"cloudflare", "cloudflare_klein"}:
+        raise ImageGenerationError(f"Cloudflare image provider failed; try the next scene-specific provider: {cloudflare_error}")
     elif image_bytes is None and provider_preference != "gemini":
         # Pollinations is the first external fallback after Cloudflare. It receives
         # the identical post-derived prompt; no generic or unrelated stock fallback.
