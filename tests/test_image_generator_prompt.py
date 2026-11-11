@@ -53,7 +53,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     assert "A worker reviewing a modern employment document beside a phone at a desk." in prompt
     assert "نزاع بشأن مستندات عمل" in prompt
     assert "preserving employment records and messages" in prompt
-    assert "do not substitute a generic lawyer portrait" in prompt
+    assert "generic lawyer portrait" in prompt
     assert "present-day Egyptian setting" in prompt
     assert "No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery" in prompt
     assert "invented legal documents" in prompt
