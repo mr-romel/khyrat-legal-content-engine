@@ -188,3 +188,50 @@ def test_wikimedia_scene_fallback_preserves_license_and_attribution(monkeypatch,
     assert provenance["source_metadata"]["artist"] == "Example Photographer"
     assert provenance["source_metadata"]["attribution_required"] == "true"
     assert len(calls) == 2
+
+
+def test_openverse_scene_fallback_preserves_cc_by_attribution(monkeypatch, tmp_path):
+    import json
+    import free_media
+
+    def fake_fetch_openverse_images(terms, output_dir, per_term=5):
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        asset = output_dir / "openverse-water-treatment.png"
+        asset.write_bytes(_valid_image_bytes())
+        sources = [{
+            "file": str(asset),
+            "title": "Water treatment plant",
+            "description": "Municipal water treatment facility with filtration tanks.",
+            "tags": ["water", "treatment", "plant", "municipal"],
+            "creator": "Example Openverse Photographer",
+            "license": "by",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "source": "flickr",
+            "source_url": "https://example.org/source-page",
+            "media_url": "https://example.org/media.jpg",
+        }]
+        (output_dir / "sources.json").write_text(json.dumps(sources), encoding="utf-8")
+        return [asset]
+
+    monkeypatch.setattr(free_media, "fetch_openverse_images", fake_fetch_openverse_images)
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    output = tmp_path / "openverse.jpg"
+    image_generator.create_legal_image(
+        topic="المرفق العام الاقتصادي",
+        image_brief="A modern municipal water treatment plant with tanks and pipes.",
+        visual_description="A modern municipal water treatment plant with tanks and pipes.",
+        post_context="The public utility provides water services.",
+        output_path=str(output),
+        aspect_ratio="9:16",
+        provider="openverse",
+    )
+
+    provenance = json.loads((tmp_path / "openverse.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["provider"] == "OPENVERSE_SCENE_STOCK"
+    assert provenance["model"] == "openverse-scene-search"
+    assert provenance["source_metadata"]["source"] == "Openverse"
+    assert provenance["source_metadata"]["license"] == "CC BY"
+    assert provenance["source_metadata"]["artist"] == "Example Openverse Photographer"
+    assert provenance["source_metadata"]["attribution_required"] == "true"
