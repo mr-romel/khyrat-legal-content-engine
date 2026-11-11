@@ -94,3 +94,17 @@ def test_economic_public_utility_uses_its_own_visual_family():
     assert len(terms) == 8
     assert "public utility" in joined or "public-service" in joined
     assert "shareholding agreement" not in joined
+
+
+def test_image_prompt_preserves_primary_scene_before_long_source_context():
+    from brand_identity import build_editorial_image_prompt
+
+    scene = "UNIQUE_SCENE_ANCHOR municipal water treatment plant with large filtration tanks and industrial pipes"
+    prompt = build_editorial_image_prompt(
+        topic="المرفق العام الاقتصادي",
+        post_context="LONG_SOURCE_CONTEXT " * 500,
+        visual_description=scene,
+    )
+    assert "UNIQUE_SCENE_ANCHOR" in prompt
+    assert prompt.index("UNIQUE_SCENE_ANCHOR") < prompt.index("SHORT SOURCE CONTEXT")
+    assert len(prompt) < 2048
