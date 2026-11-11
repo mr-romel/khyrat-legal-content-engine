@@ -1395,6 +1395,8 @@ def main() -> int:
             callback_fingerprint = video_sha256[:16]
             approve_callback = f"reel_approve:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
             reject_callback = f"reel_reject:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
+            if ":" in str(source_context.get("source_id", "")):
+                raise RuntimeError("REEL_SOURCE_ID_INVALID: source IDs containing ':' cannot be represented safely in Telegram callback_data.")
             if len(approve_callback.encode("utf-8")) > 64 or len(reject_callback.encode("utf-8")) > 64:
                 raise RuntimeError("REEL_TELEGRAM_CALLBACK_TOO_LONG: immutable source ID cannot fit Telegram callback_data.")
             telegram_result = send_video(
