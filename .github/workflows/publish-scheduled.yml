@@ -185,14 +185,17 @@ jobs:
           npm install --no-audit --no-fund
           test -x node_modules/.bin/remotion
 
-      - name: Install dependencies
+      - name: Install Reel Python dependencies (cached, bounded, no OS package-manager stall)
+        timeout-minutes: 8
         run: |
+          set -euo pipefail
           python3 --version
           python3 -m venv .reel-venv
-          .reel-venv/bin/python -m pip install --upgrade pip
-          .reel-venv/bin/pip install -r requirements-reel.txt
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg espeak-ng fonts-noto-core
+          .reel-venv/bin/python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          .reel-venv/bin/python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-reel.txt
+          command -v ffmpeg
+          command -v ffprobe
+          fc-match "Noto Sans Arabic"
 
       - name: Generate Reel independently
         env:
@@ -248,10 +251,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-worker.txt
-          pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-worker.txt
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-browser.txt
+          # GitHub's ubuntu-latest image already includes the Chromium runtime libraries.
+          # Install only the browser payload; --with-deps invokes apt and caused the worker
+          # to fail before any Blogger code could run.
+          timeout 5m python -m playwright install chromium
 
       - name: Publish Blogger independently
         env:
@@ -291,10 +297,13 @@ jobs:
           cache: pip
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-worker.txt
-          pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-worker.txt
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-browser.txt
+          # GitHub's ubuntu-latest image already includes the Chromium runtime libraries.
+          # Install only the browser payload; --with-deps invokes apt and caused the worker
+          # to fail before any Blogger code could run.
+          timeout 5m python -m playwright install chromium
       - name: Run Blogger Search Description worker
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
@@ -328,10 +337,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-worker.txt
-          pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-worker.txt
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-browser.txt
+          # GitHub's ubuntu-latest image already includes the Chromium runtime libraries.
+          # Install only the browser payload; --with-deps invokes apt and caused the worker
+          # to fail before any Blogger code could run.
+          timeout 5m python -m playwright install chromium
       - name: Create or update Blogger professional pages
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
@@ -358,10 +370,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-worker.txt
-          pip install -r requirements-browser.txt
-          python -m playwright install --with-deps chromium
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-worker.txt
+          python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-browser.txt
+          # GitHub's ubuntu-latest image already includes the Chromium runtime libraries.
+          # Install only the browser payload; --with-deps invokes apt and caused the worker
+          # to fail before any Blogger code could run.
+          timeout 5m python -m playwright install chromium
       - name: Configure Blogger identity
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
