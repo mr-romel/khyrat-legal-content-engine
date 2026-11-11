@@ -155,7 +155,7 @@ jobs:
   reel:
     name: 2. Reel Generator + Telegram Review
     needs: publish
-    if: ${{ needs.publish.result == 'success' }}
+    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.reel_source_available == 'true' }}
     continue-on-error: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
