@@ -52,6 +52,8 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: remotion/package.json
+      - name: Install static FFmpeg and ffprobe binaries
+        uses: FedericoCarboni/setup-ffmpeg@v3.1
       - name: Install Remotion renderer
         run: |
           cd remotion
@@ -63,7 +65,6 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-reel.txt
           python -m pip install uv
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Generate daily reel
         run: |
           # Remove any checkout-restored video so this run cannot pass on stale output.
