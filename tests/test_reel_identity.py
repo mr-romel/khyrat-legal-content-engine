@@ -43,3 +43,6 @@ def test_manual_reel_and_bulk_recovery_workflows_do_not_depend_on_fixed_row_numb
     assert "Immutable Reel source ID must match exactly one current Sheet row" in publisher
     assert "latest_matches=" in publisher
     assert "safe_source_id" in publisher
+    recovery = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "Recovery blocked: an external Facebook/YouTube Reel already exists" in recovery
+    assert '"Reel Status": "FAILED"' in recovery
