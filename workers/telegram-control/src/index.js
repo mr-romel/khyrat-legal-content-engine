@@ -232,12 +232,19 @@ async function sendReviewList(env) {
   }
   for (const { rowNumber, row } of reels.slice(0, 10)) {
     const fingerprint = String(row["Reel Video SHA256"] || "").trim().slice(0, 16);
+    const sourceId = String(row["ID"] || "").trim();
+    const approveData = "reel_approve:" + sourceId + ":" + fingerprint;
+    const rejectData = "reel_reject:" + sourceId + ":" + fingerprint;
+    if (!sourceId || new TextEncoder().encode(approveData).length > 64 || new TextEncoder().encode(rejectData).length > 64) {
+      await send(env, "⛔ لا يمكن إنشاء زر اعتماد آمن — الصف " + rowNumber + " يفتقد معرّفًا ثابتًا صالحًا أو يتجاوز حد Telegram.");
+      continue;
+    }
     if (!/^[a-f0-9]{16}$/i.test(fingerprint)) {
       await send(env, `⛔ لا يمكن اعتماد الريل — الصف ${rowNumber}\nلا توجد بصمة فيديو صالحة محفوظة لهذه النسخة. أعد توليدها من مسار الريل.`);
       continue;
     }
     await send(env, `🎬 Reel جاهز للمراجعة\n\nالصف: ${rowNumber}\nالموضوع: ${shortText(row["الموضوع"], 180)}\nبصمة الفيديو: ${fingerprint}\nالحالة: ${row["Reel Status"]}`,
-      inlineButtons([[{ text: "✅ اعتماد الريل", data: `reel_approve:${rowNumber}:${fingerprint}` }, { text: "❌ رفض الريل", data: `reel_reject:${rowNumber}:${fingerprint}` }]]));
+      inlineButtons([[{ text: "✅ اعتماد الريل", data: approveData }, { text: "❌ رفض الريل", data: rejectData }]]));
   }
 }
 
@@ -325,13 +332,24 @@ async function handleCallback(env, callback) {
   if (userId !== String(env.TELEGRAM_ADMIN_USER_ID)) {
     return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "⛔ غير مصرح لك.", show_alert: false });
   }
-  const [action, rawRow, callbackFingerprint] = String(callback.data || "").split(":");
-  const rowNumber = Number(rawRow);
-  if (!Number.isInteger(rowNumber) || rowNumber < 2) {
-    return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "بيانات الصف غير صالحة.", show_alert: false });
-  }
+  const [action, rowToken, callbackFingerprint] = String(callback.data || "").split(":");
   const values = await sheetValues(env);
-  const row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
+  let rowNumber = Number(rowToken);
+  let row = null;
+  if (action === "reel_approve" || action === "reel_reject") {
+    if (/^\d+$/.test(rowToken || "")) {
+      row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
+    } else {
+      const matches = values.slice(1).map((raw, index) => ({ rowNumber: index + 2, row: rowToDict(raw, values[0]) }))
+        .filter(({ row: candidate }) => String(candidate["ID"] || "").trim() === String(rowToken || "").trim());
+      if (matches.length !== 1) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "⛔ معرّف الريل لا يطابق صفًا واحدًا فقط؛ لن يتم تنفيذ القرار.", show_alert: true });
+      rowNumber = matches[0].rowNumber;
+      row = matches[0].row;
+    }
+  } else {
+    if (!Number.isInteger(rowNumber) || rowNumber < 2) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "بيانات الصف غير صالحة.", show_alert: false });
+    row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
+  }
   if (!row) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "الصف غير موجود.", show_alert: false });
   const current = String(row["الحالة"] || "").trim().toUpperCase();
 
