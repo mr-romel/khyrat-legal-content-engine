@@ -174,3 +174,36 @@ def test_wikimedia_fallback_is_license_checked_and_attributed():
     assert "LicenseUrl" in source
     assert "attribution_required" in source
     assert "WIKIMEDIA_COMMONS_SCENE" in source
+
+
+def test_gemini_script_topic_drift_falls_back_to_approved_post(monkeypatch):
+    from types import SimpleNamespace
+    import json
+
+    class FakeModels:
+        def generate_content(self, **_kwargs):
+            employment_script = (
+                "يجب على صاحب العمل مراجعة عقد العمل قبل اتخاذ أي قرار يخص الموظفين. "
+                "ويجب توثيق ساعات العمل والراتب والإجازات والجزاءات في سجلات واضحة. "
+                "ولا يجوز فصل العامل أو تغيير أجره دون سند قانوني صحيح. "
+                "ويحتاج الموظف إلى الاحتفاظ بالمراسلات والمستندات التي تثبت حقوقه. "
+                "كما يجب مراجعة اللوائح الداخلية وسياسات الموارد البشرية قبل أي إجراء."
+            )
+            return SimpleNamespace(text=json.dumps({"script": employment_script, "video_terms": []}, ensure_ascii=False))
+
+    class FakeClient:
+        models = FakeModels()
+
+    monkeypatch.setattr(reel_pipeline.genai, "Client", lambda **_kwargs: FakeClient())
+    monkeypatch.delenv("REEL_SKIP_GEMINI", raising=False)
+    topic = "المرفق العام الاقتصادي — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
+    post = (
+        "تخيل أنك تدير منشأة اقتصادية تقدم خدمة حيوية للجمهور، وفجأة وجدت نفسك أمام ضغوط لرفع الأسعار "
+        "أو تغيير معايير الخدمة بشكل يمس جوهر التزامك، هنا تظهر طبيعة المرفق العام الاقتصادي ككيان محكوم "
+        "بقواعد تختلف عن الشركات التجارية العادية، فالمشرع يضع قيوداً تهدف لضمان استمرارية الخدمة وانتظامها. "
+        "وقبل أن تتخذ قراراً قد يضعك في مواجهة قانونية، راقب العلامات الثلاث المتعلقة بالالتزام التعاقدي "
+        "والأسعار والمواصفات واستمرارية الخدمة، وراجع السند القانوني الذي يربطك بالجهة الإدارية."
+    )
+    result = reel_pipeline.make_brief("test-key", "test-model", topic, post)
+    assert result["generation_mode"] == "deterministic_fallback"
+    assert reel_pipeline._visual_topic_family(result["script"]) == "public_utility"
