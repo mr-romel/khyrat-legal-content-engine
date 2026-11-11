@@ -129,6 +129,13 @@ jobs:
               })
               source_id = str(row.get("ID", "") or "").strip()
               topic = str(row.get("الموضوع", "") or "").strip()
+              existing_platform_ids = [
+                  str(row.get("Reel Facebook ID", "") or "").strip(),
+                  str(row.get("Reel YouTube ID", "") or "").strip(),
+              ]
+              if any(existing_platform_ids):
+                  print(f"Skipping Reel recovery for source_id={source_id}: external platform video already exists; binary replacement would create a duplicate.")
+                  continue
               if not source_id or not topic or not str(row.get("المحتوى", "") or "").strip():
                   update_row(service, sheet_id, sheet_name, number, {
                       "Reel Status": "FAILED",
