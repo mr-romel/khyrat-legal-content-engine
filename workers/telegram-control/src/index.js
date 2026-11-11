@@ -235,7 +235,7 @@ async function sendReviewList(env) {
     const sourceId = String(row["ID"] || "").trim();
     const approveData = "reel_approve:id_" + sourceId + ":" + fingerprint;
     const rejectData = "reel_reject:id_" + sourceId + ":" + fingerprint;
-    if (!sourceId || new TextEncoder().encode(approveData).length > 64 || new TextEncoder().encode(rejectData).length > 64) {
+    if (!sourceId || sourceId.includes(":") || new TextEncoder().encode(approveData).length > 64 || new TextEncoder().encode(rejectData).length > 64) {
       await send(env, "⛔ لا يمكن إنشاء زر اعتماد آمن — الصف " + rowNumber + " يفتقد معرّفًا ثابتًا صالحًا أو يتجاوز حد Telegram.");
       continue;
     }
