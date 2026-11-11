@@ -61,6 +61,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+          REEL_GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REEL_SOURCE_ID: ${{ inputs.source_id }}
           REEL_FORCE_REPLACE: ${{ inputs.force_replace }}
