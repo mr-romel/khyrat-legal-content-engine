@@ -384,6 +384,10 @@ def create_legal_image(
                     raise ImageGenerationError("Gemini image response contained no image data.")
                 except Exception as exc:
                     last_error = exc
+                    error_text = str(exc).casefold()
+                    if any(marker in error_text for marker in ("429", "resource_exhausted", "quota exceeded", "limit: 0")):
+                        print("Gemini image quota is exhausted; skipping retries and switching to the next image provider.")
+                        break
                     if attempt < 3:
                         delay = attempt * 2
                         print(f"Transient image-generation failure; retry {attempt + 1}/3 in {delay}s: {exc}")
