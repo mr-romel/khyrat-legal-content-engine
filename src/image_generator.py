@@ -5,6 +5,7 @@ import re
 import json
 import html
 import hashlib
+import tempfile
 from urllib.parse import quote
 from pathlib import Path
 from typing import Any
@@ -398,6 +399,63 @@ def create_legal_image(
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
+    def _generate_with_openverse() -> tuple[bytes, dict[str, str]]:
+        """Fetch a scene-matched openly licensed image from Openverse."""
+        from free_media import fetch_openverse_images
+
+        stopwords = {
+            "a", "an", "the", "of", "with", "and", "or", "beside", "showing",
+            "modern", "realistic", "documentary", "photorealistic", "editorial",
+            "photograph", "photo", "view", "close", "wide", "clean", "no",
+            "readable", "logos", "signs", "present-day", "egyptian", "setting",
+            "scene", "inside", "exterior", "clear", "large", "several",
+        }
+        scene_tokens = [
+            token.lower() for token in re.findall(r"[A-Za-z][A-Za-z-]+", str(visual_description or ""))
+            if token.lower() not in stopwords
+        ]
+        query = " ".join(scene_tokens[:6]).strip()
+        if len(query) < 8:
+            query = " ".join(str(topic or "").split()[:5]).strip() or "public utility infrastructure"
+        with tempfile.TemporaryDirectory(prefix="khyrat-openverse-") as temp_dir:
+            temp_path = Path(temp_dir)
+            assets = fetch_openverse_images([query], temp_path, per_term=5)
+            if not assets:
+                raise ImageGenerationError(f"Openverse returned no openly licensed scene images for: {query}")
+            metadata_path = temp_path / "sources.json"
+            metadata_items = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else []
+            candidates = []
+            for asset in assets:
+                item = next((m for m in metadata_items if str(m.get("file", "")) == str(asset)), {})
+                searchable = " ".join([
+                    str(item.get("title", "")),
+                    str(item.get("description", "")),
+                    " ".join(str(tag) for tag in (item.get("tags") or [])),
+                ]).casefold()
+                overlap = sum(1 for token in scene_tokens if token.casefold() in searchable)
+                candidates.append((overlap, asset, item))
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            _score, selected_path, selected = candidates[0]
+            image_bytes = selected_path.read_bytes()
+            if not image_bytes:
+                raise ImageGenerationError("Openverse returned an empty scene image.")
+            license_code = str(selected.get("license", "")).lower()
+            license_name = "CC BY" if license_code == "by" else "CC0" if license_code == "cc0" else "Public Domain"
+            metadata = {
+                "source": "Openverse",
+                "title": str(selected.get("title", "")),
+                "artist": str(selected.get("creator", "")),
+                "source_page": str(selected.get("source_url", "")),
+                "source_url": str(selected.get("media_url", "")),
+                "license": license_name,
+                "license_url": str(selected.get("license_url", "")),
+                "attribution_required": "true" if license_code == "by" else "false",
+                "provider_source": str(selected.get("source", "")),
+                "search_query": query,
+            }
+            print(f"Openverse scene image selected: title={metadata['title']} license={license_name} query={query}")
+            return image_bytes, metadata
+
     def _generate_with_wikimedia() -> tuple[bytes, dict[str, str]]:
         """Fetch a scene-matched Wikimedia Commons image with reusable CC attribution."""
         stopwords = {
@@ -557,7 +615,7 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "wikimedia", "pixabay"}:
+    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
@@ -567,7 +625,7 @@ def create_legal_image(
     endpoint = (
         "https://api.cloudflare.com/client/v4/accounts/"
         f"{account_id}/ai/run/{cloudflare_model}"
-        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "wikimedia", "pixabay"} else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "openverse", "wikimedia", "pixabay"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -608,7 +666,7 @@ def create_legal_image(
     image_bytes = None
     source_metadata: dict[str, str] = {}
     if not endpoint:
-        cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations", "wikimedia"} else "Cloudflare credentials unavailable.")
+        cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations", "openverse", "wikimedia"} else "Cloudflare credentials unavailable.")
     else:
         import time
         for attempt in range(1, 4):
@@ -650,7 +708,10 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if provider_preference == "wikimedia":
+    if provider_preference == "openverse":
+        image_bytes, source_metadata = _generate_with_openverse()
+        provider = "OPENVERSE_SCENE_STOCK"
+    elif provider_preference == "wikimedia":
         image_bytes, source_metadata = _generate_with_wikimedia()
         provider = "WIKIMEDIA_COMMONS_SCENE"
     elif provider_preference == "pixabay":
@@ -669,7 +730,33 @@ def create_legal_image(
                 image_bytes = _generate_with_gemini()
                 provider = "GEMINI_IMAGE_GENERATION"
             except Exception as gemini_error:
-                print(f"Gemini fallback failed; trying license-checked Wikimedia Commons imagery: {gemini_error}")
+                print(f"Gemini fallback failed; trying openly licensed Openverse imagery: {gemini_error}")
+                try:
+                    image_bytes, source_metadata = _generate_with_openverse()
+                    provider = "OPENVERSE_SCENE_STOCK"
+                except Exception as openverse_error:
+                    print(f"Openverse fallback failed; trying license-checked Wikimedia Commons: {openverse_error}")
+                    try:
+                        image_bytes, source_metadata = _generate_with_wikimedia()
+                        provider = "WIKIMEDIA_COMMONS_SCENE"
+                    except Exception as wikimedia_error:
+                        print(f"Wikimedia Commons fallback failed; trying scene-matched Pixabay: {wikimedia_error}")
+                        try:
+                            image_bytes = _generate_with_pixabay()
+                            provider = "PIXABAY_SCENE_STOCK"
+                        except Exception as pixabay_error:
+                            raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
+    elif image_bytes is None:
+        try:
+            image_bytes = _generate_with_gemini()
+            provider = "GEMINI_IMAGE_GENERATION"
+        except Exception as gemini_error:
+            print(f"Gemini image generation failed; trying openly licensed Openverse imagery: {gemini_error}")
+            try:
+                image_bytes, source_metadata = _generate_with_openverse()
+                provider = "OPENVERSE_SCENE_STOCK"
+            except Exception as openverse_error:
+                print(f"Openverse fallback failed; trying license-checked Wikimedia Commons: {openverse_error}")
                 try:
                     image_bytes, source_metadata = _generate_with_wikimedia()
                     provider = "WIKIMEDIA_COMMONS_SCENE"
@@ -679,23 +766,7 @@ def create_legal_image(
                         image_bytes = _generate_with_pixabay()
                         provider = "PIXABAY_SCENE_STOCK"
                     except Exception as pixabay_error:
-                        raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
-    elif image_bytes is None:
-        try:
-            image_bytes = _generate_with_gemini()
-            provider = "GEMINI_IMAGE_GENERATION"
-        except Exception as gemini_error:
-            print(f"Gemini image generation failed; trying license-checked Wikimedia Commons imagery: {gemini_error}")
-            try:
-                image_bytes, source_metadata = _generate_with_wikimedia()
-                provider = "WIKIMEDIA_COMMONS_SCENE"
-            except Exception as wikimedia_error:
-                print(f"Wikimedia Commons fallback failed; trying scene-matched Pixabay: {wikimedia_error}")
-                try:
-                    image_bytes = _generate_with_pixabay()
-                    provider = "PIXABAY_SCENE_STOCK"
-                except Exception as pixabay_error:
-                    raise ImageGenerationError("Gemini, Wikimedia and Pixabay image providers failed. " f"Gemini={gemini_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
+                        raise ImageGenerationError("Gemini, Openverse, Wikimedia and Pixabay image providers failed. " f"Gemini={gemini_error}; Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
     else:
         provider = "DIRECT_CLOUDFLARE_KLEIN" if cloudflare_model == CLOUDFLARE_IMAGE_MODEL_KLEIN else "DIRECT_CLOUDFLARE"
     output = Path(output_path)
@@ -724,6 +795,7 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else "openverse-scene-search" if provider == "OPENVERSE_SCENE_STOCK"
         else "wikimedia-commons-scene-search" if provider == "WIKIMEDIA_COMMONS_SCENE"
         else "pixabay-scene-search" if provider == "PIXABAY_SCENE_STOCK"
         else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
