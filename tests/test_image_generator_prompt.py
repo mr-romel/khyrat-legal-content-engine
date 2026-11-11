@@ -25,8 +25,8 @@ class FakeResponse:
 def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch, tmp_path):
     captured = {}
 
-    def fake_post(url, *, headers, json, timeout):
-        captured.update(json)
+    def fake_post(url, *, headers, files, timeout):
+        captured.update({key: value[1] for key, value in files.items()})
         return FakeResponse()
 
     monkeypatch.setattr(image_generator.requests, "post", fake_post)
@@ -47,21 +47,22 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
     with Image.open(output) as generated:
         assert generated.size == (1024, 1280)
     assert "negative_prompt" not in captured
-    assert "width" not in captured and "height" not in captured
+    assert captured["width"] == "1024" and captured["height"] == "1280"
+    assert captured["steps"] == "25" and captured["guidance"] == "4.5"
     prompt = captured["prompt"]
     assert "A worker reviewing a modern employment document beside a phone at a desk." in prompt
     assert "نزاع بشأن مستندات عمل" in prompt
     assert "preserving employment records and messages" in prompt
     assert "do not substitute a generic lawyer portrait" in prompt
-    assert "present-day Egypt in the 2020s" in prompt
-    assert "ABSOLUTE STYLE BAN" in prompt
-    assert "NOT Pharaonic" in prompt
-    assert "pyramids" in prompt
+    assert "present-day Egyptian setting" in prompt
+    assert "No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery" in prompt
+    assert "invented legal documents" in prompt
     assert "COMPOSITION FORMAT: portrait 4:5" in prompt
 
     import json
     provenance = json.loads((tmp_path / "legal.jpg.provenance.json").read_text(encoding="utf-8"))
     assert provenance["provider"] == "DIRECT_CLOUDFLARE"
+    assert provenance["model"] == "@cf/black-forest-labs/flux-2-dev"
     assert provenance["prompt_sha256"]
     assert provenance["image_sha256"]
     assert provenance["qa_decision"] == "PENDING"
