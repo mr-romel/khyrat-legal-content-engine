@@ -646,7 +646,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             image_qa_summary = summarize_qa(image_qa)
             print(f"IMAGE REPAIR SEMANTIC QA: {image_qa_summary}")
             if str(image_qa.get("decision", "")).upper() != "PASS":
-                raise ImageGenerationError(
+                raise ImageQAError(
                     "Replacement image failed visual relevance/text QA; refusing to republish. "
                     + image_qa_summary
                 )
