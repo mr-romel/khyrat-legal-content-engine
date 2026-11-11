@@ -38,3 +38,8 @@ def test_manual_reel_and_bulk_recovery_workflows_do_not_depend_on_fixed_row_numb
     assert '"Reel Facebook ID": ""' not in bulk
     assert '"Reel YouTube ID": ""' not in bulk
     assert "external_video_ids" in reel_now
+    publisher = (ROOT / ".github" / "workflows" / "reel-publish-approved.yml").read_text(encoding="utf-8")
+    assert "SOURCE_ID: ${{ steps.target.outputs.source_id }}" in publisher
+    assert "Immutable Reel source ID must match exactly one current Sheet row" in publisher
+    assert "latest_matches=" in publisher
+    assert "safe_source_id" in publisher
