@@ -133,7 +133,7 @@ def test_reel_workflows_pass_repository_pollinations_secret():
 def test_explicit_pollinations_provider_does_not_fall_through_to_hidden_providers():
     source = (Path(__file__).resolve().parents[1] / "src" / "image_generator.py").read_text(encoding="utf-8")
     branch = source.index('elif provider_preference == "pollinations":')
-    next_branch = source.index('elif image_bytes is None and provider_preference in', branch)
+    next_branch = source.index('elif image_bytes is None and provider_preference != "gemini":', branch)
     explicit_branch = source[branch:next_branch]
     assert "image_bytes = _generate_with_pollinations()" in explicit_branch
     assert "Gemini" not in explicit_branch
