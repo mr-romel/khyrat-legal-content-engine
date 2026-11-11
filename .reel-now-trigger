@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Render the economic public utility Reel using absolute Remotion output paths and scene-specific Cloudflare/Gemini/Pixabay visuals only; no generic placeholder scenes.
-Trigger nonce: 2026-11-11T19:15:00+02:00
+Generate the economic public utility Reel with FLUX.2 Dev multipart image generation, concise infrastructure scene prompts, quota-aware Gemini fallback, scene-matched Pixabay backup, and absolute Remotion output path.
+Trigger nonce: 2026-11-11T19:25:00+02:00
