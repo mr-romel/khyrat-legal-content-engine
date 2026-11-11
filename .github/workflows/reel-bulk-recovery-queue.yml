@@ -69,6 +69,13 @@ jobs:
                   skipped.append({"source_id": source_id, "row": number, "topic": topic, "reason": "missing topic/content or no successful source social post"})
                   continue
               status = str(row.get("Reel Status", "") or "").strip().upper()
+              existing_platform_ids = [
+                  str(row.get("Reel Facebook ID", "") or "").strip(),
+                  str(row.get("Reel YouTube ID", "") or "").strip(),
+              ]
+              if any(existing_platform_ids):
+                  skipped.append({"source_id": source_id, "row": number, "topic": topic, "reason": "Reel already has an external Facebook/YouTube video; replacing its binary would require a separate platform migration and must not create duplicates"})
+                  continue
               if status in {"GENERATING", "REGENERATING"}:
                   skipped.append({"row": number, "topic": topic, "reason": f"already {status}"})
                   continue
@@ -80,11 +87,6 @@ jobs:
                   "Reel File": "",
                   "Reel Run ID": "",
                   "Reel Video SHA256": "",
-                  "Reel Facebook ID": "",
-                  "Reel YouTube ID": "",
-                  "Reel YouTube URL": "",
-                  "Reel Facebook Status": "",
-                  "Reel YouTube Status": "",
               })
               queued.append({"source_id": source_id, "current_row": number, "topic": topic, "previous_status": status})
           print("REEL_RECOVERY_QUEUE=" + json.dumps({"queued": queued, "skipped": skipped}, ensure_ascii=False))
