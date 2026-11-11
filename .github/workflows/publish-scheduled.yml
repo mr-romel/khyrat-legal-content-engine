@@ -193,6 +193,7 @@ jobs:
           python3 -m venv .reel-venv
           .reel-venv/bin/python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
           .reel-venv/bin/python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-reel.txt
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-core
           command -v ffmpeg
           command -v ffprobe
           fc-match "Noto Sans Arabic"
@@ -254,9 +255,8 @@ jobs:
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
           python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-worker.txt
           python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-browser.txt
-          # GitHub's ubuntu-latest image already includes the Chromium runtime libraries.
-          # Install only the browser payload; --with-deps invokes apt and caused the worker
-          # to fail before any Blogger code could run.
+          # Install the browser payload only. Keep OS dependency installation out of
+          # Playwright's implicit apt-update path; the hosted Ubuntu image supplies Chromium libs.
           timeout 5m python -m playwright install chromium
 
       - name: Publish Blogger independently
