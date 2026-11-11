@@ -149,8 +149,8 @@ def test_wikimedia_scene_fallback_preserves_license_and_attribution(monkeypatch,
                                 "mime": "image/jpeg",
                                 "descriptionurl": "https://commons.wikimedia.org/wiki/File:Water_treatment_plant.jpg",
                                 "extmetadata": {
-                                    "LicenseShortName": {"value": "CC BY-SA 4.0"},
-                                    "LicenseUrl": {"value": "https://creativecommons.org/licenses/by-sa/4.0/"},
+                                    "LicenseShortName": {"value": "CC BY 4.0"},
+                                    "LicenseUrl": {"value": "https://creativecommons.org/licenses/by/4.0/"},
                                     "Artist": {"value": "<a href='https://example.com'>Example Photographer</a>"},
                                 },
                             }],
@@ -184,7 +184,7 @@ def test_wikimedia_scene_fallback_preserves_license_and_attribution(monkeypatch,
     import json
     provenance = json.loads((tmp_path / "commons.jpg.provenance.json").read_text(encoding="utf-8"))
     assert provenance["provider"] == "WIKIMEDIA_COMMONS_SCENE"
-    assert provenance["source_metadata"]["license"] == "CC BY-SA 4.0"
+    assert provenance["source_metadata"]["license"] == "CC BY 4.0"
     assert provenance["source_metadata"]["artist"] == "Example Photographer"
     assert provenance["source_metadata"]["attribution_required"] == "true"
     assert len(calls) == 2
