@@ -1086,7 +1086,12 @@ def main() -> int:
         scene_dir = output_dir / "scenes"
         scene_dir.mkdir(parents=True, exist_ok=True)
         # Each scene illustrates its legal issue; visual QA adds no nationality, culture, era, or cast restriction.
-        # Generate eight distinct scene images from the eight scene-specific prompts.
+        # Six distinct scene images keep one Reel within the verified free-tier
+        # FLUX.2 Dev daily allocation while preserving enough motion beats for Remotion.
+        # Every selected scene must pass topic-specific visual QA; no generic placeholders.
+        reel_scene_count = 6
+        scene_prompts = brief["video_terms"][:reel_scene_count]
+        brief["video_terms"] = scene_prompts
         # Existing credentials are reused; if image generation is unavailable, use
         # only topic-matched openly licensed photos, never generic placeholder cards.
         scenes = []
@@ -1095,13 +1100,13 @@ def main() -> int:
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
-            for scene_index, scene_prompt in enumerate(brief["video_terms"][:8], start=1):
+            for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
                 accepted = False
                 active_prompt = str(scene_prompt)
                 generation_error = ""
-                visual_providers = {1: "cloudflare", 2: "cloudflare_klein", 3: "pixabay"}
-                for visual_attempt in range(1, 4):
+                visual_providers = {1: "cloudflare", 2: "pixabay"}
+                for visual_attempt in range(1, 3):
                     try:
                         create_legal_image(
                             topic=visual_topic,
@@ -1124,12 +1129,12 @@ def main() -> int:
                         if visual_qa.get("decision") == "PASS":
                             accepted = True
                             print(
-                                f"REEL_STAGE ai_scene={scene_index}/8 provider_generated=true "
+                                f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} provider_generated=true "
                                 f"legal_relevance=passed attempt={visual_attempt}"
                             )
                             break
                         print(
-                            f"REEL_STAGE ai_scene={scene_index}/8 rejected=visual_qa "
+                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} rejected=visual_qa "
                             f"attempt={visual_attempt} issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}"
                         )
                         regeneration_hint = str(visual_qa.get("regeneration_prompt", "") or "").strip()
@@ -1140,7 +1145,7 @@ def main() -> int:
                     except Exception as scene_generation_exc:
                         generation_error = str(scene_generation_exc)
                         print(
-                            f"REEL_STAGE ai_scene={scene_index}/8 generation_error="
+                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} generation_error="
                             f"{generation_error[:700]}"
                         )
                         break
@@ -1150,7 +1155,7 @@ def main() -> int:
                     # A Reel is reviewable only when every scene is independently
                     # generated or sourced for its own approved visual brief.
                     raise RuntimeError(
-                        f"REEL_SCENE_VISUAL_QA_FAILED: scene={scene_index}/8 "
+                        f"REEL_SCENE_VISUAL_QA_FAILED: scene={scene_index}/{reel_scene_count} "
                         f"providers_tried={list(visual_providers.values())} "
                         f"last_generation_error={generation_error[:500]!r}; refusing generic fallback."
                     )
@@ -1162,9 +1167,9 @@ def main() -> int:
                 "REEL_STAGE topic_specific_image_generation_failed; refusing off-topic stock fallback: "
                 + str(image_exc)
             ) from image_exc
-        if len(scenes) != 8:
+        if len(scenes) != reel_scene_count:
             raise RuntimeError(
-                f"REEL_STAGE image_pack_incomplete: expected 8 topic-specific AI scenes, got {len(scenes)}."
+                f"REEL_STAGE image_pack_incomplete: expected {reel_scene_count} topic-specific AI scenes, got {len(scenes)}."
             )
 
         # Normalize externally sourced WebP assets to JPEG because the current
