@@ -134,7 +134,7 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
 def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'visual_providers = {1: "cloudflare", 2: "gemini", 3: "pixabay"}' in source
+    assert 'visual_providers = {1: "cloudflare", 2: "cloudflare_klein", 3: "pixabay"}' in source
     assert "REEL_SCENE_VISUAL_QA_FAILED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
@@ -144,7 +144,10 @@ def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_p
 def test_cloudflare_flux2_dev_uses_required_multipart_request_format():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
     assert "@cf/black-forest-labs/flux-2-dev" in source
+    assert "@cf/black-forest-labs/flux-2-klein-9b" in source
+    assert "provider_preference == \"cloudflare_klein\"" in source
     assert "files=multipart_fields" in source
+    assert "request_fields[\"steps\"]" in source
     assert '"Content-Type": "application/json"' not in source
     assert '"width": str(width)' in source
     assert '"height": str(height)' in source
