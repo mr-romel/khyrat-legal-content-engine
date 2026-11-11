@@ -134,7 +134,7 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
 def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'visual_providers = {1: "cloudflare", 2: "pixabay"}' in source
+    assert 'visual_providers = {1: "cloudflare", 2: "wikimedia", 3: "pixabay"}' in source
     assert "REEL_SCENE_VISUAL_QA_FAILED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
@@ -165,3 +165,12 @@ def test_reel_scene_budget_is_six_for_cloudflare_free_tier():
     assert "brief[\"video_terms\"][:reel_scene_count]" in source
     assert "if len(scenes) != reel_scene_count" in source
     assert 'visual_providers = {1: "cloudflare", 2: "pixabay"}' in source
+
+
+def test_wikimedia_fallback_is_license_checked_and_attributed():
+    source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert "def _generate_with_wikimedia()" in source
+    assert "LicenseShortName" in source
+    assert "LicenseUrl" in source
+    assert "attribution_required" in source
+    assert "WIKIMEDIA_COMMONS_SCENE" in source
