@@ -759,6 +759,18 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
         return deterministic_brief(topic, post)
     script = sanitize_social_copy(data["script"].strip())
     script = _bound_reel_script(script, max_words=75)
+    # The approved post, not the generative model, defines the legal subject.
+    # Reject a structurally valid script if its vocabulary drifts into another domain.
+    expected_family = _visual_topic_family(topic)
+    if expected_family == "general":
+        expected_family = _visual_topic_family(post)
+    script_family = _visual_topic_family(script)
+    if expected_family != "general" and script_family not in {"general", expected_family}:
+        print(
+            "Gemini Reel narration topic drift detected; switching to deterministic source-grounded script "
+            f"(expected={expected_family}, generated={script_family})."
+        )
+        return deterministic_brief(topic, post)
     # Ignore model-suggested search terms: they can hallucinate a different legal subject.
     # The reviewed public post is the source of truth for the visual family.
     terms = post_visual_terms(post, topic)
