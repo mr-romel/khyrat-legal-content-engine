@@ -92,6 +92,8 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 3
                     "file": str(path),
                     "query": term,
                     "title": item.get("title"),
+                    "description": item.get("description"),
+                    "tags": [tag.get("name") for tag in (item.get("tags") or []) if isinstance(tag, dict)],
                     "creator": item.get("creator"),
                     "license": item.get("license"),
                     "license_version": item.get("license_version"),
