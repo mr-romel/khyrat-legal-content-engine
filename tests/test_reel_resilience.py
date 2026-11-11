@@ -139,3 +139,18 @@ def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_p
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
     assert "scene_tokens" in image_generator
+
+
+def test_cloudflare_flux2_dev_uses_required_multipart_request_format():
+    source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert "@cf/black-forest-labs/flux-2-dev" in source
+    assert "files=multipart_fields" in source
+    assert '"Content-Type": "application/json"' not in source
+    assert '"width": str(width)' in source
+    assert '"height": str(height)' in source
+
+
+def test_gemini_image_quota_exhaustion_skips_retries():
+    source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert "Gemini image quota is exhausted; skipping retries" in source
+    assert "resource_exhausted" in source
