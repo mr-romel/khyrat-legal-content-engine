@@ -1092,8 +1092,10 @@ def main() -> int:
         reel_scene_count = 6
         scene_prompts = brief["video_terms"][:reel_scene_count]
         brief["video_terms"] = scene_prompts
-        # Existing credentials are reused; if image generation is unavailable, use
-        # only topic-matched openly licensed photos, never generic placeholder cards.
+        reel_plan["video_terms"] = scene_prompts
+        (output_dir / "reel_plan.json").write_text(
+            json.dumps(reel_plan, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         scenes = []
         try:
             from image_generator import create_legal_image
