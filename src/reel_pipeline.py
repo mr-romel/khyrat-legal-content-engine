@@ -1403,8 +1403,8 @@ def main() -> int:
         else:
             update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
             callback_fingerprint = video_sha256[:16]
-            approve_callback = f"reel_approve:id_{safe_source_id}:{callback_fingerprint}"
-            reject_callback = f"reel_reject:id_{safe_source_id}:{callback_fingerprint}"
+            approve_callback = f"reel_approve:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
+            reject_callback = f"reel_reject:id_{str(source_context.get('source_id', '')).strip()}:{callback_fingerprint}"
             if len(approve_callback.encode("utf-8")) > 64 or len(reject_callback.encode("utf-8")) > 64:
                 raise RuntimeError("REEL_TELEGRAM_CALLBACK_TOO_LONG: immutable source ID cannot fit Telegram callback_data.")
             telegram_result = send_video(
