@@ -169,9 +169,8 @@ def _metadata_relevance_fallback(path: Path, topic: str, image_brief: str, hard:
         searchable = " ".join([
             str(source.get("title", "")),
             str(source.get("description", "")),
-            str(source.get("search_query", "")),
-            str(source.get("provider_source", "")),
-            str(provenance.get("visual_description", image_brief)),
+            str(source.get("description", "")),
+            " ".join(str(tag) for tag in (source.get("tags") or [])),
         ]).casefold()
         stop = {"photorealistic", "editorial", "photograph", "modern", "scene", "image", "view", "clear", "large", "with", "from", "that", "this", "into", "over", "beside", "inside", "outside", "present", "egyptian", "setting", "no", "text", "readable"}
         tokens = {
