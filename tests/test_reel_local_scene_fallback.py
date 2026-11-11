@@ -76,3 +76,16 @@ def test_one_time_recovery_pin_uses_immutable_id_and_bounded_retries():
     assert "retry_count < 3" in workflow
     assert "explicit source-ID recovery" in workflow
     assert '"row_number": number' in workflow
+
+
+def test_image_provider_timeout_is_bounded_and_configurable(monkeypatch):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from image_generator import _image_provider_timeout_seconds
+
+    monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "45")
+    assert _image_provider_timeout_seconds() == 45
+    monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "999")
+    assert _image_provider_timeout_seconds() == 120
+    monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "invalid")
+    assert _image_provider_timeout_seconds() == 60
