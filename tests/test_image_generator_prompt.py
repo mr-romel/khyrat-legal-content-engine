@@ -131,3 +131,60 @@ def test_flux2_klein_provider_uses_fixed_step_multipart_contract(monkeypatch, tm
     provenance = json.loads((tmp_path / "klein.jpg.provenance.json").read_text(encoding="utf-8"))
     assert provenance["provider"] == "DIRECT_CLOUDFLARE_KLEIN"
     assert provenance["model"] == "@cf/black-forest-labs/flux-2-klein-9b"
+
+
+def test_wikimedia_scene_fallback_preserves_license_and_attribution(monkeypatch, tmp_path):
+    calls = []
+
+    class SearchResponse(FakeResponse):
+        def json(self):
+            return {
+                "query": {
+                    "pages": {
+                        "123": {
+                            "title": "File:Water treatment plant.jpg",
+                            "imageinfo": [{
+                                "thumburl": "https://upload.wikimedia.org/example-thumb.jpg",
+                                "url": "https://upload.wikimedia.org/example-full.jpg",
+                                "mime": "image/jpeg",
+                                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Water_treatment_plant.jpg",
+                                "extmetadata": {
+                                    "LicenseShortName": {"value": "CC BY-SA 4.0"},
+                                    "LicenseUrl": {"value": "https://creativecommons.org/licenses/by-sa/4.0/"},
+                                    "Artist": {"value": "<a href='https://example.com'>Example Photographer</a>"},
+                                },
+                            }],
+                        }
+                    }
+                }
+            }
+
+    class ImageResponse(FakeResponse):
+        content = _valid_image_bytes()
+        headers = {"content-type": "image/jpeg"}
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return SearchResponse() if "commons.wikimedia.org/w/api.php" in url else ImageResponse()
+
+    monkeypatch.setattr(image_generator.requests, "get", fake_get)
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    output = tmp_path / "commons.jpg"
+    image_generator.create_legal_image(
+        topic="المرفق العام الاقتصادي",
+        image_brief="A modern municipal water treatment plant with tanks and pipes.",
+        visual_description="A modern municipal water treatment plant with tanks and pipes.",
+        post_context="The public utility provides water services.",
+        output_path=str(output),
+        aspect_ratio="9:16",
+        provider="wikimedia",
+    )
+
+    import json
+    provenance = json.loads((tmp_path / "commons.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["provider"] == "WIKIMEDIA_COMMONS_SCENE"
+    assert provenance["source_metadata"]["license"] == "CC BY-SA 4.0"
+    assert provenance["source_metadata"]["artist"] == "Example Photographer"
+    assert provenance["source_metadata"]["attribution_required"] == "true"
+    assert len(calls) == 2
