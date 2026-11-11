@@ -80,3 +80,17 @@ def test_generic_sheet_topic_infers_visual_family_from_approved_post():
     assert "business partners" in joined
     assert "shareholding agreement" in joined or "corporate registry" in joined
     assert "courtroom" not in joined
+
+
+def test_economic_public_utility_uses_its_own_visual_family():
+    from reel_pipeline import _visual_topic_family
+
+    topic = "المرفق العام الاقتصادي"
+    post = "المرفق العام الاقتصادي ينظم تقديم الخدمات الأساسية للجمهور، وتختلف طبيعته عن نشاط الشركة التجاري."
+    assert _visual_topic_family(topic) == "public_utility"
+    assert _visual_topic_family(post) == "public_utility"
+    terms = post_visual_terms(post, topic)
+    joined = " ".join(terms).lower()
+    assert len(terms) == 8
+    assert "public utility" in joined or "public-service" in joined
+    assert "shareholding agreement" not in joined
