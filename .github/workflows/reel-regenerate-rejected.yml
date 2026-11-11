@@ -43,6 +43,9 @@ jobs:
       REEL_RECOVERY: "true"
       REEL_FORCE_REGENERATE: "true"
       REEL_FORCE_TELEGRAM_REVIEW: "true"
+      # One-time recovery pin to the immutable ID of the user's requested row.
+      # Remove after this source reaches REVIEW or exhausts the bounded retry budget.
+      REEL_RECOVERY_SOURCE_ID: "20261111-1000-R011"
       REEL_FORBIDDEN_VIDEO_SHA256: "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd"
       REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -101,30 +104,37 @@ jobs:
               review = str(row.get("Reel Review", "") or "").strip()
               retry_match = re.search(r"retry=(\d+)", review, flags=re.IGNORECASE)
               retry_count = int(retry_match.group(1)) if retry_match else 0
+              source_id = str(row.get("ID", "") or "").strip()
+              topic = str(row.get("الموضوع", "") or "").strip()
               requested = status == "REGENERATE_REQUESTED"
               retryable_image_failure = (
                   status == "FAILED"
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
                   and retry_count < 3
               )
+              pinned_source_retry = (
+                  bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
+                  and source_id == os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
+                  and status == "FAILED"
+                  and retry_count < 3
+              )
               # Topic mismatch is a source-integrity failure, not an image-provider
-              # outage. Never auto-retry it: it requires correcting the Sheet source
-              # content/topic pair, otherwise the recovery worker will select unrelated
-              # legacy rows and fail before reaching the requested image repair.
-              retryable_failure = retryable_image_failure
-              # Eligibility is based on immutable row identity plus a narrow failure
-              # signature and bounded retry count, never a mutable Sheet row number.
+              # outage. Never auto-retry it except when the user explicitly pins a
+              # different immutable source ID for a bounded, one-time recovery.
+              retryable_failure = retryable_image_failure or pinned_source_retry
+              # Eligibility is based on immutable row identity plus a bounded retry
+              # count; the pinned ID is explicit and never depends on row position.
               if not (requested or retryable_failure):
                   continue
               next_retry = retry_count + 1 if retryable_failure else retry_count
               requested_rows.append({
                   "row": number,
+                  "source_id": source_id,
                   "status": status,
                   "retry": next_retry,
-                  "topic": str(row.get("الموضوع", "") or "").strip(),
+                  "pinned": pinned_source_retry,
+                  "topic": topic,
               })
-              source_id = str(row.get("ID", "") or "").strip()
-              topic = str(row.get("الموضوع", "") or "").strip()
               existing_platform_ids = [
                   str(row.get("Reel Facebook ID", "") or "").strip(),
                   str(row.get("Reel YouTube ID", "") or "").strip(),
@@ -161,7 +171,7 @@ jobs:
           update_row(service, sheet_id, sheet_name, number, {
               "Reel Status": "REGENERATING",
               "Reel Approval": "",
-              "Reel Review": f"REGENERATING | retry={next_retry} | Telegram rejection",
+              "Reel Review": f"REGENERATING | retry={next_retry} | " + ("explicit source-ID recovery" if pinned_source_retry else "Telegram rejection"),
               "Reel Last Error": "",
           })
           os.makedirs("generated", exist_ok=True)
