@@ -1403,12 +1403,16 @@ def main() -> int:
         else:
             update_row(service, cfg["sheet_id"], sheet_name, row_number, {"Reel Review": f"TELEGRAM_SENDING | run={os.getenv('GITHUB_RUN_ID','')} | duration={final_duration:.1f}s"})
             callback_fingerprint = video_sha256[:16]
+            approve_callback = f"reel_approve:id_{safe_source_id}:{callback_fingerprint}"
+            reject_callback = f"reel_reject:id_{safe_source_id}:{callback_fingerprint}"
+            if len(approve_callback.encode("utf-8")) > 64 or len(reject_callback.encode("utf-8")) > 64:
+                raise RuntimeError("REEL_TELEGRAM_CALLBACK_TOO_LONG: immutable source ID cannot fit Telegram callback_data.")
             telegram_result = send_video(
                 str(video_path),
                 caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية\nبصمة النسخة: {callback_fingerprint}",
                 reply_markup={"inline_keyboard": [[
-                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{safe_source_id}:{callback_fingerprint}"},
-                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{safe_source_id}:{callback_fingerprint}"},
+                    {"text": "✅ اعتماد الريل", "callback_data": approve_callback},
+                    {"text": "❌ رفض الريل", "callback_data": reject_callback},
                 ]]},
             )
             message_id = str((telegram_result or {}).get("message_id", ""))
