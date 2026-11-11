@@ -178,7 +178,8 @@ jobs:
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
                   backfill_youtube = status == "PUBLISHED" and video_identity_valid and metadata_topic_aligned and bool(fb_id) and not yt_id
                   fresh_publish_ready = status != "PUBLISHED" and video_identity_valid
-                  if ((eligible_status and fresh_publish_ready) or backfill_youtube or comments_pending or metadata_pending) and run_id:
+                  source_id = str(row.get("ID", "")).strip()
+                  if ((eligible_status and fresh_publish_ready) or backfill_youtube or comments_pending or metadata_pending) and run_id and source_id:
                       task = "metadata" if metadata_pending and not backfill_youtube else "comments" if comments_pending and not backfill_youtube else "publish"
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
                           out.write(f"row_number={n}\nsource_id={source_id}\nrun_id={run_id}\ntask={task}\n")
@@ -270,9 +271,9 @@ jobs:
               plan={}
           else:
               import hashlib, re
-              source_id=re.sub(r'[^A-Za-z0-9._-]+','_',str(row.get('ID','')).strip())
-              if not source_id: raise SystemExit('Immutable source ID is missing; refusing to publish.')
-              root=Path('review-package')/('row_'+str(artifact_row_number))/source_id/('run_'+run_id)
+              safe_source_id=re.sub(r'[^A-Za-z0-9._-]+','_',source_id)
+              if not source_id or not safe_source_id: raise SystemExit('Immutable source ID is missing; refusing to publish.')
+              root=Path('review-package')/('row_'+str(artifact_row_number))/safe_source_id/('run_'+run_id)
               video=root/'daily-reel.mp4'
               plan_path=root/'reel_plan.json'
               if not video.exists(): raise SystemExit('Exact approved Reel artifact is missing for row='+str(row_number)+', source_id='+source_id+', run_id='+run_id+': '+str(video))
@@ -300,7 +301,7 @@ jobs:
               if 'generated/reels/' in expected_file: expected_file=expected_file.split('generated/reels/',1)[1]
               if not expected_file or not str(video).replace('\\\\','/').endswith(expected_file):
                   raise SystemExit('REEL_ARTIFACT_PATH_MISMATCH: downloaded file path is not the exact file recorded for the approved Reel.')
-              if str(plan.get('source_id','')).strip() != source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != artifact_row_number:
+              if str(plan.get('source_id','')).strip() != safe_source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != artifact_row_number:
                   raise SystemExit('REEL_MANIFEST_IDENTITY_MISMATCH: run manifest does not belong to the approved source row and workflow run.')
               if str(plan.get('video_sha256','')).strip().lower() != expected_sha:
                   raise SystemExit('REEL_MANIFEST_FINGERPRINT_MISMATCH: manifest and approved video fingerprint differ.')
