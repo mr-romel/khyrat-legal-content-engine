@@ -134,7 +134,7 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
 def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'visual_providers = {1: "cloudflare", 2: "wikimedia", 3: "pixabay"}' in source
+    assert 'visual_providers = {1: "cloudflare", 2: "openverse", 3: "wikimedia", 4: "pixabay"}' in source
     assert "REEL_SCENE_VISUAL_QA_FAILED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
