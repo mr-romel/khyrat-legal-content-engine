@@ -1188,6 +1188,37 @@ def main() -> int:
         scenes = normalized_scenes
         source_file = scene_dir / "sources.json"
         sources = json.loads(source_file.read_text(encoding="utf-8")) if source_file.exists() else []
+        # Preserve Commons attribution and license metadata alongside each visual.
+        for scene in scenes:
+            provenance_file = scene.with_suffix(scene.suffix + ".provenance.json")
+            if not provenance_file.exists():
+                continue
+            provenance = json.loads(provenance_file.read_text(encoding="utf-8"))
+            metadata = provenance.get("source_metadata") or {}
+            if metadata.get("source") != "Wikimedia Commons":
+                continue
+            license_name = str(metadata.get("license", ""))
+            sources.append({
+                "provider": "Wikimedia Commons",
+                "title": metadata.get("title", ""),
+                "creator": metadata.get("artist", ""),
+                "source_url": metadata.get("source_page", ""),
+                "media_url": metadata.get("source_url", ""),
+                "license": "by" if license_name.upper().startswith("CC BY") else "public-domain",
+                "license_name": license_name,
+                "license_url": metadata.get("license_url", ""),
+            })
+        # Avoid duplicate credits if a repeated scene resolved to the same Commons file.
+        deduped_sources = []
+        seen_source_urls = set()
+        for source in sources:
+            source_key = str(source.get("source_url") or source.get("media_url") or "")
+            if source_key and source_key in seen_source_urls:
+                continue
+            if source_key:
+                seen_source_urls.add(source_key)
+            deduped_sources.append(source)
+        sources = deduped_sources
         attributions = []
         for source in sources:
             if str(source.get("license", "")).lower() == "by":
