@@ -90,6 +90,9 @@ jobs:
           if not topic or not content or not social_ok:
               raise SystemExit('Source row must have topic, published post content, and at least one successful Facebook/LinkedIn publication.')
           reel_status = str(row.get('Reel Status', '') or '').strip().upper()
+          external_video_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
+          if any(external_video_ids):
+              raise SystemExit('This Reel already has an external Facebook/YouTube video ID; replacing its binary in place is unsupported and must not create duplicates.')
           if reel_status in {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING'} and os.getenv('REEL_FORCE_REPLACE', '').lower() != 'true':
               raise SystemExit(f'Source ID already has Reel Status={reel_status}; set force_replace only when intentionally replacing that exact Reel.')
           source = {'row_number': row_number, 'source_id': source_id, 'topic': topic}
