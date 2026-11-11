@@ -116,12 +116,8 @@ jobs:
                   and retry_count < 1
               )
               retryable_failure = retryable_image_failure or retryable_legacy_mapping_failure
-              # Automatic retries are restricted to the exact rows audited as
-              # contaminated. Never let an unrelated historical FAILED row
-              # enter the recovery queue merely because its error text matches.
-              audited_recovery_rows = {24, 169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 255}
-              if retryable_failure and number not in audited_recovery_rows:
-                  retryable_failure = False
+              # Eligibility is based on immutable row identity plus a narrow failure
+              # signature and bounded retry count, never a mutable Sheet row number.
               if not (requested or retryable_failure):
                   continue
               next_retry = retry_count + 1 if retryable_failure else retry_count
