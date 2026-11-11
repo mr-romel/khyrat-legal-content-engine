@@ -447,7 +447,7 @@ def create_legal_image(
                 license_name = html.unescape(re.sub(r"<[^>]+>", "", str((ext.get("LicenseShortName") or {}).get("value", "")))).strip()
                 license_upper = license_name.upper()
                 public_domain = "PUBLIC DOMAIN" in license_upper or license_upper == "CC0"
-                cc_reuse = "CC BY" in license_upper and "NC" not in license_upper and "ND" not in license_upper
+                cc_reuse = "CC BY" in license_upper and "SA" not in license_upper and "NC" not in license_upper and "ND" not in license_upper
                 if not (public_domain or cc_reuse):
                     continue
                 artist = html.unescape(re.sub(r"<[^>]+>", "", str((ext.get("Artist") or {}).get("value", "")))).strip()
