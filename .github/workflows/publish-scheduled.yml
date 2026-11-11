@@ -178,6 +178,8 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: remotion/package.json
+      - name: Install static FFmpeg and ffprobe binaries
+        uses: FedericoCarboni/setup-ffmpeg@v3.1
 
       - name: Install Remotion renderer
         run: |
@@ -193,10 +195,9 @@ jobs:
           python3 -m venv .reel-venv
           .reel-venv/bin/python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip setuptools wheel
           .reel-venv/bin/python -m pip install --disable-pip-version-check --prefer-binary --retries 5 --timeout 60 -r requirements-reel.txt
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-core
           command -v ffmpeg
           command -v ffprobe
-          fc-match "Noto Sans Arabic"
+          fc-match "Noto Sans Arabic" || true
 
       - name: Generate Reel independently
         env:
