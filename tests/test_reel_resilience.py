@@ -142,7 +142,7 @@ def test_reel_scene_generation_uses_five_distinct_images_and_provider_fallbacks(
     assert '3: "openverse"' in source
     assert '4: "wikimedia"' in source
     assert '5: "pixabay"' in source
-    assert "REEL_SCENE_VISUAL_QA_FAILED" in source
+    assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
     assert "scene_tokens" in image_generator
