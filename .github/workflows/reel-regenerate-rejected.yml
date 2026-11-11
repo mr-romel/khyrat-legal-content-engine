@@ -134,7 +134,12 @@ jobs:
                   str(row.get("Reel YouTube ID", "") or "").strip(),
               ]
               if any(existing_platform_ids):
-                  print(f"Skipping Reel recovery for source_id={source_id}: external platform video already exists; binary replacement would create a duplicate.")
+                  reason = "Recovery blocked: an external Facebook/YouTube Reel already exists; replacing its binary in place would create a duplicate."
+                  update_row(service, sheet_id, sheet_name, number, {
+                      "Reel Status": "FAILED",
+                      "Reel Last Error": reason,
+                  })
+                  print(f"Skipping Reel recovery for source_id={source_id}: {reason}")
                   continue
               if not source_id or not topic or not str(row.get("المحتوى", "") or "").strip():
                   update_row(service, sheet_id, sheet_name, number, {
