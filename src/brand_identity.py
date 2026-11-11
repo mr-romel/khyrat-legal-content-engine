@@ -30,18 +30,18 @@ def build_editorial_image_prompt(*, topic: str, post_context: str, visual_descri
     scene = " ".join(str(visual_description or "").split()).strip()
     if not scene:
         raise ValueError("A post-derived visual description is required.")
+    # Put the concrete scene first. Downstream image providers may enforce a 2,048
+    # character limit; never let broad style rules or long post text truncate the
+    # actual subject the image must depict.
     return (
-        "Create one photorealistic editorial image for an Egyptian legal-awareness post. "
-        "Depict the exact concrete action, object, document type, evidence, and setting in the visual brief; "
-        "do not substitute a generic lawyer portrait, courthouse, scales, gavel, handshake, or stock office. "
-        "Set the scene unmistakably in present-day Egypt in the 2020s: modern Cairo/Giza streets, contemporary apartments, ordinary current offices, current-model smartphones, laptops, cars, furniture, clothing, and materials. "
-        "ABSOLUTE STYLE BAN: this is NOT ancient Egypt, NOT Pharaonic, NOT archaeological, NOT historical, NOT a period drama, and NOT a fantasy scene. "
-        "Never show pyramids, sphinxes, obelisks, hieroglyphics, ancient temples, tombs, sarcophagi, mummies, pharaohs, royal crowns, ancient columns, papyrus, sandstone monuments, gold masks, ancient Egyptian motifs, or ornamental Pharaonic patterns. "
-        "Do not use Egyptian heritage or ancient civilization as visual shorthand for modern Egypt. The legal issue must be shown in a normal contemporary urban environment. "
-        "No readable text, letters, numbers, logos, seals, signatures, watermarks, or invented legal documents. "
-        "Keep the main subject clear and visually dominant, with natural lighting and realistic proportions. "
-        "The scene must communicate the specific issue without adding facts not present in the source.\n"
-        f"LEGAL TOPIC: {topic or 'Not specified'}\n"
-        f"SOURCE CONTEXT: {context or 'Use only the concrete visual brief below.'}\n"
-        f"VISUAL BRIEF: {scene}"
+        "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: "
+        f"{scene[:720]}\n"
+        f"LEGAL TOPIC: {topic[:140] or 'Not specified'}\n"
+        "Create one photorealistic editorial image in a present-day Egyptian setting. "
+        "Use contemporary 2020s architecture, infrastructure, clothing and materials. "
+        "Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. "
+        "Do not replace the requested subject with a lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. "
+        "No readable text, letters, numbers, logos, seals, signatures or watermarks. "
+        "No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\n"
+        f"SHORT SOURCE CONTEXT: {context[:420] or 'Use only the primary visual brief.'}"
     )
