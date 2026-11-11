@@ -442,6 +442,7 @@ def _visual_topic_family(topic: str) -> str:
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
         ("employment", ("عمل", "عامل", "عمال", "موظف", "فصل", "مرتب", "راتب", "أجر", "استقالة")),
         ("family", ("طلاق", "خلع", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة")),
+        ("public_utility", ("المرفق العام", "المرافق العامة", "مرفق عام", "المرفق الاقتصادي", "مرفق اقتصادي", "المرافق الاقتصادية", "خدمة عامة", "الخدمات العامة")),
         ("companies", ("شركة", "شركات", "شريك", "شراكة", "تأسيس", "مساهم")),
         ("contracts", ("عقد", "عقود", "تعاقد", "فسخ", "إخلال", "اتفاق")),
         ("rent", ("إيجار", "ايجار", "مؤجر", "مستأجر", "طرد", "إخلاء")),
@@ -516,6 +517,16 @@ _VISUAL_SCENES = {
         "A man reviewing financial records related to family support in a private setting.",
         "A neutral family-court building exterior in contemporary Egypt, no people identifiable.",
         "A secured folder containing family case documents on a modern office desk.",
+    ],
+    "public_utility": [
+        "A modern public utility service facility with organized service counters and an operations area, no readable signs or logos.",
+        "A documentary view of municipal infrastructure maintenance equipment beside a public-service building, no identifiable people.",
+        "A public water and electricity utility operations room with monitoring screens showing abstract unreadable diagrams.",
+        "A city public transport depot with buses or service vehicles prepared for daily operation, contemporary documentary photography.",
+        "A close-up of water network maintenance tools and an inspection folder beside a public infrastructure access point.",
+        "A public-service office desk with a blank service request form, a queue ticket dispenser and a closed administrative file.",
+        "A wide view of essential urban infrastructure supporting a public service, such as a water pumping station or electrical distribution facility.",
+        "A public utility maintenance team seen from behind inspecting infrastructure equipment, no visible faces, no readable text.",
     ],
     "companies": [
         "Two adult business partners reviewing a company shareholding agreement at a modern meeting table.",
@@ -740,13 +751,20 @@ def make_brief(api_key: str, model: str, topic: str, post: str) -> dict[str, Any
     except json.JSONDecodeError as exc:
         print(f"Gemini Reel response was not valid JSON; using deterministic fallback: {exc}")
         return deterministic_brief(topic, post)
-    script = sanitize_social_copy(str(data.get("script", "")).strip())
+    if not isinstance(data, dict):
+        print(f"Gemini Reel response schema mismatch: expected object, received {type(data).__name__}; using deterministic fallback.")
+        return deterministic_brief(topic, post)
+    if not isinstance(data.get("script"), str) or not data["script"].strip():
+        print("Gemini Reel response omitted a usable script; using deterministic fallback.")
+        return deterministic_brief(topic, post)
+    script = sanitize_social_copy(data["script"].strip())
     script = _bound_reel_script(script, max_words=75)
     # Ignore model-suggested search terms: they can hallucinate a different legal subject.
-    # The reviewed public topic is the sole authority for the visual family.
+    # The reviewed public post is the source of truth for the visual family.
     terms = post_visual_terms(post, topic)
     if not 55 <= len(script.split()) <= 75 or len(terms) < 8:
-        raise RuntimeError("Reel package is incomplete.")
+        print("Gemini Reel package failed structural validation; using deterministic fallback.")
+        return deterministic_brief(topic, post)
     return {
         "script": script,
         "video_terms": [str(x).strip() for x in terms[:8] if str(x).strip()],
