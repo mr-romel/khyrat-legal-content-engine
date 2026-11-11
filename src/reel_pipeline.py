@@ -1119,8 +1119,8 @@ def main() -> int:
                 accepted = False
                 active_prompt = str(scene_prompt)
                 generation_error = ""
-                visual_providers = {1: "cloudflare", 2: "wikimedia", 3: "pixabay"}
-                for visual_attempt in range(1, 4):
+                visual_providers = {1: "cloudflare", 2: "openverse", 3: "wikimedia", 4: "pixabay"}
+                for visual_attempt in range(1, 5):
                     try:
                         create_legal_image(
                             topic=visual_topic,
@@ -1159,10 +1159,11 @@ def main() -> int:
                     except Exception as scene_generation_exc:
                         generation_error = str(scene_generation_exc)
                         print(
-                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} generation_error="
-                            f"{generation_error[:700]}"
+                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
+                            f"provider={visual_providers[visual_attempt]} generation_error="
+                            f"{generation_error[:700]} next_provider_will_be_tried=true"
                         )
-                        break
+                        continue
 
                 if not accepted:
                     # Never fill a failed scene with a generic legal placeholder.
@@ -1207,7 +1208,7 @@ def main() -> int:
                 continue
             provenance = json.loads(provenance_file.read_text(encoding="utf-8"))
             metadata = provenance.get("source_metadata") or {}
-            if metadata.get("source") != "Wikimedia Commons":
+            if metadata.get("source") not in {"Wikimedia Commons", "Openverse"}:
                 continue
             license_name = str(metadata.get("license", ""))
             sources.append({
