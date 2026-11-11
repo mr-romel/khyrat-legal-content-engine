@@ -216,4 +216,5 @@ jobs:
           PY
 
       - name: Run full offline regression suite
+        if: always()
         run: python -m pytest -q tests
