@@ -43,7 +43,9 @@ def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     assert 'image_qa_status = "QA_REJECTED"' in main_source
     assert "IMAGE SEMANTIC QA: rejected attempt" in main_source
     assert "IMAGE SEMANTIC QA: PASS" in main_source
-    assert "valid generated image accepted" in main_source
+    assert "IMAGE_QA_UNAVAILABLE_BLOCKED" in main_source
+    assert "IMAGE_QA_REJECTED_BLOCKED" in main_source
+    assert "IMAGE_QA_BLOCKED" in main_source
 
 
 def test_image_generation_failure_uses_generic_legal_image_and_keeps_publication_image_required():
@@ -131,10 +133,15 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
     assert "cwd=project_dir" in source
 
 
-def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
+def test_reel_scene_generation_uses_five_distinct_images_and_provider_fallbacks():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'visual_providers = {1: "cloudflare", 2: "openverse", 3: "wikimedia", 4: "pixabay"}' in source
+    assert "reel_scene_count = 5" in source
+    assert '1: "pollinations"' in source
+    assert '2: "cloudflare"' in source
+    assert '3: "openverse"' in source
+    assert '4: "wikimedia"' in source
+    assert '5: "pixabay"' in source
     assert "REEL_SCENE_VISUAL_QA_FAILED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
@@ -159,12 +166,16 @@ def test_gemini_image_quota_exhaustion_skips_retries():
     assert "resource_exhausted" in source
 
 
-def test_reel_scene_budget_is_six_for_cloudflare_free_tier():
+def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
-    assert "reel_scene_count = 6" in source
+    assert "reel_scene_count = 5" in source
     assert "brief[\"video_terms\"][:reel_scene_count]" in source
     assert "if len(scenes) != reel_scene_count" in source
-    assert 'visual_providers = {1: "cloudflare", 2: "wikimedia", 3: "pixabay"}' in source
+    assert '1: "pollinations"' in source
+    assert '2: "cloudflare"' in source
+    assert '3: "openverse"' in source
+    assert '4: "wikimedia"' in source
+    assert '5: "pixabay"' in source
 
 
 def test_wikimedia_fallback_is_license_checked_and_attributed():
