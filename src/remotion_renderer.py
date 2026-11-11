@@ -47,6 +47,9 @@ def render_reel_with_remotion(
     if not cli.is_file():
         raise RuntimeError("REMOTION_DEPENDENCIES_MISSING: run npm install in remotion/ before rendering")
 
+    # Remotion executes with cwd=project_dir; always pass an absolute output path
+    # so the renderer and the post-render validator address the same MP4.
+    output_video = output_video.resolve()
     run_id = uuid.uuid4().hex
     public_root = project_dir / "public" / "render-assets" / run_id
     public_root.mkdir(parents=True, exist_ok=False)
