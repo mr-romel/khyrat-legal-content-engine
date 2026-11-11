@@ -288,6 +288,7 @@ jobs:
               raise SystemExit('Approval was revoked or changed before publication; no platform was called.')
           if str(latest_row.get('Reel Run ID','')).strip() != run_id:
               raise SystemExit('The row Reel Run ID changed after selection; refusing to publish a mismatched artifact.')
+          row=latest_row
           if task == 'publish':
               if not plan_path.is_file(): raise SystemExit('Exact Reel plan is missing from the approved run artifact.')
               plan=json.loads(plan_path.read_text(encoding='utf-8'))
