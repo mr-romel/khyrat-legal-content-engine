@@ -164,7 +164,7 @@ def test_reel_scene_budget_is_six_for_cloudflare_free_tier():
     assert "reel_scene_count = 6" in source
     assert "brief[\"video_terms\"][:reel_scene_count]" in source
     assert "if len(scenes) != reel_scene_count" in source
-    assert 'visual_providers = {1: "cloudflare", 2: "pixabay"}' in source
+    assert 'visual_providers = {1: "cloudflare", 2: "wikimedia", 3: "pixabay"}' in source
 
 
 def test_wikimedia_fallback_is_license_checked_and_attributed():
