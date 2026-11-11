@@ -397,8 +397,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     raise ImageGenerationError(image_qa_summary)
                 continue
 
-            # QA is advisory: if the QA service is temporarily unavailable, keep a valid
-            # generated image and continue. Never stop the post because QA is unavailable.
+            # Publication is fail-closed: an image that was not semantically
+            # inspected must never be treated as approved.
             try:
                 image_qa = qa_image(
                     api_key=config["gemini_api_key"],
@@ -407,10 +407,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     image_brief=attempt_brief,
                 )
             except Exception as qa_exc:
-                image_qa_summary = f"Image QA unavailable on attempt {image_qa_attempt}; valid generated image accepted: {qa_exc}"
-                image_qa_status = "QA_UNAVAILABLE_ACCEPTED"
-                print(image_qa_summary)
-                break
+                image_qa_summary = f"IMAGE_QA_UNAVAILABLE_BLOCKED on attempt {image_qa_attempt}: {qa_exc}"
+                image_path.unlink(missing_ok=True)
+                raise ImageQAError(image_qa_summary) from qa_exc
 
             image_qa_summary = summarize_qa(image_qa)
             image_qa_score = str(image_qa.get("overall_score", ""))
@@ -432,13 +431,11 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 f"regenerating. Issues: {image_qa_summary}"
             )
 
-        if image_qa_status != "PASS" and image_path.is_file() and image_path.stat().st_size > 0:
-            # Low-severity QA concerns must not block publication. After the retry
-            # budget, retain the last usable image and publish it with a warning.
-            image_qa_status = "ACCEPTED_WITH_WARNINGS"
-            print(f"IMAGE QA ADVISORY: accepting usable image after {image_qa_attempt} attempt(s): {image_qa_summary}")
-        elif image_qa_status != "PASS":
-            raise ImageGenerationError("Image provider returned no usable image file.")
+        if image_qa_status != "PASS":
+            image_path.unlink(missing_ok=True)
+            raise ImageQAError(
+                f"IMAGE_QA_REJECTED_BLOCKED: no image passed semantic QA after {image_qa_attempt} attempt(s): {image_qa_summary}"
+            )
 
         generated_image_path = image_path
         image_url = github_raw_url(str(image_path))
@@ -460,9 +457,31 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             print(f"Image state update failed; generated image remains usable and publication continues: {state_exc}")
         print(f"IMAGE GENERATION COMPLETED: path={image_path}")
     except Exception as image_exc:
-        # A topic-specific image is preferred, but image-provider failures must
-        # not stop the publishing queue. Use a deterministic, branded generic
-        # legal visual as the final image fallback; never publish text-only.
+        # A semantic-QA failure is not a provider outage. Never bypass a failed
+        # or unavailable QA gate with generic artwork.
+        if isinstance(image_exc, ImageQAError):
+            image_url = ""
+            generated_image_path = None
+            image_path.unlink(missing_ok=True)
+            state_error = ""
+            try:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "رابط الصورة": "",
+                    "Image QA Attempt": str(locals().get("image_qa_attempt", 0)),
+                    "Image QA Status": "IMAGE_QA_BLOCKED",
+                    "Image QA Issues": str(image_exc)[:1500],
+                    "Image Mode": "IMAGE_REQUIRED_BLOCKED",
+                    "المحتوى": post,
+                    "الحالة": "FAILED",
+                    "آخر خطأ": f"IMAGE_QA_BLOCKED: {image_exc}"[:1500],
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+            except Exception as state_exc:
+                state_error = f"; Sheet state update also failed: {state_exc}"
+            raise ImageGenerationError(f"IMAGE_QA_BLOCKED: {image_exc}{state_error}") from image_exc
+
+        # Provider failures may use the existing branded fallback, but that
+        # fallback is clearly marked and is not represented as a semantic QA pass.
         print(f"Topic-specific image unavailable; switching to generic legal artwork: {image_exc}")
         try:
             image_path.unlink(missing_ok=True)
