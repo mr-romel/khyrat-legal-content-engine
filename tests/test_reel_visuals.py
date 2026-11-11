@@ -68,3 +68,15 @@ def test_model_or_mixed_post_terms_cannot_override_authoritative_topic_family():
     assert "payroll" in joined or "attendance" in joined
     assert "threatening private message" not in joined
     assert "smartphone camera" not in joined
+
+
+def test_generic_sheet_topic_infers_visual_family_from_approved_post():
+    terms = post_visual_terms(
+        "نزاع بين شريكين في شركة حول توزيع الحصص وصلاحيات الإدارة، مع مراجعة عقد التأسيس ومحاضر الشركة.",
+        "محتوى قانوني",
+    )
+    joined = " ".join(terms).lower()
+    assert len(terms) == 8
+    assert "business partners" in joined
+    assert "shareholding agreement" in joined or "corporate registry" in joined
+    assert "courtroom" not in joined
