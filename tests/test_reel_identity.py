@@ -32,3 +32,7 @@ def test_manual_reel_and_bulk_recovery_workflows_do_not_depend_on_fixed_row_numb
     assert "REEL_RECOVERY_SOURCE_IDS" in bulk
     assert "TARGET_ROWS" not in bulk
     assert "immutable source IDs" in bulk
+    assert "Reel already has an external Facebook/YouTube video" in bulk
+    assert '"Reel Facebook ID": ""' not in bulk
+    assert '"Reel YouTube ID": ""' not in bulk
+    assert "external_video_ids" in reel_now
