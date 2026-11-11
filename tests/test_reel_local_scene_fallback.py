@@ -66,3 +66,13 @@ def test_recovery_queue_never_retries_topic_source_mismatch_as_an_image_failure(
     assert 'last_error.startswith("REEL_SOURCE_TOPIC_MISMATCH")' not in workflow
     assert "Topic mismatch is a source-integrity failure, not an image-provider" in workflow
     assert "retryable_failure = retryable_image_failure" in workflow
+
+
+def test_one_time_recovery_pin_uses_immutable_id_and_bounded_retries():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'REEL_RECOVERY_SOURCE_ID: "20261111-1000-R011"' in workflow
+    assert 'source_id == os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()' in workflow
+    assert 'status == "FAILED"' in workflow
+    assert "retry_count < 3" in workflow
+    assert "explicit source-ID recovery" in workflow
+    assert '"row_number": number' in workflow
