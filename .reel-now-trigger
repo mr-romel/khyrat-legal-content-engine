@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Retry row 21 after source-grounded narration fallback, six-scene budget, FLUX.2 Dev quota detection, and Wikimedia Commons CC0/CC BY scene fallback with attribution.
-Trigger nonce: 2026-11-11T20:10:00+02:00
+Retry row 21 with quota-independent Openverse/Wikimedia Commons scene sourcing, persisted image metadata, strict keyword relevance QA fallback, and Remotion render. Do not reuse stale MP4s.
+Trigger nonce: 2026-11-11T20:22:00+02:00
