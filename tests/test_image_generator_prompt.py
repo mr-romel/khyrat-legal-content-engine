@@ -72,8 +72,8 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
 def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_path):
     captured = {}
 
-    def fake_post(url, *, headers, json, timeout):
-        captured.update(json)
+    def fake_post(url, *, headers, files, timeout):
+        captured.update({key: value[1] for key, value in files.items()})
         return FakeResponse()
 
     monkeypatch.setattr(image_generator.requests, "post", fake_post)
