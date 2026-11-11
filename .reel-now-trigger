@@ -1,3 +1,3 @@
 RUN_REEL_NOW
-Run the standalone Reel worker with explicit Ubuntu 26.04 FFmpeg installation, source-specific output validation, Remotion rendering, and Telegram review.
-Trigger nonce: 2026-11-11T18:46:00+02:00
+Production attempt using static FFmpeg and ffprobe binaries, no apt package manager, Remotion renderer, strict MP4 validation, Sheet review state, and Telegram delivery.
+Trigger nonce: 2026-11-11T18:51:00+02:00
