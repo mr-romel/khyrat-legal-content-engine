@@ -100,3 +100,26 @@ def test_remotion_is_the_only_reel_compositor_and_fails_closed():
     assert "interpolate(" in composition
     assert "Audio" in composition
     assert "subtitles.map" in composition
+
+
+def test_gemini_array_response_uses_deterministic_reel_fallback(monkeypatch):
+    from types import SimpleNamespace
+
+    class FakeModels:
+        def generate_content(self, **_kwargs):
+            return SimpleNamespace(text='["not", "an", "object"]')
+
+    class FakeClient:
+        models = FakeModels()
+
+    monkeypatch.setattr(reel_pipeline.genai, "Client", lambda **_kwargs: FakeClient())
+    monkeypatch.delenv("REEL_SKIP_GEMINI", raising=False)
+    post = (
+        "المرفق العام الاقتصادي يقدم خدمات أساسية للجمهور من خلال تنظيم مستمر يخضع لقواعد قانونية محددة. "
+        "ويجب التمييز بين طبيعة الخدمة العامة والنشاط التجاري الذي تمارسه الشركات الخاصة في السوق. "
+        "ويؤثر هذا التمييز على التزامات الجهة القائمة على تشغيل المرفق وعلى حقوق المنتفعين بالخدمة. "
+        "كما يجب مراجعة المستندات المنظمة للتشغيل وطبيعة الجهة المختصة قبل اتخاذ أي إجراء قانوني."
+    )
+    result = reel_pipeline.make_brief("test-key", "test-model", "المرفق العام الاقتصادي", post)
+    assert result["generation_mode"] == "deterministic_fallback"
+    assert len(result["video_terms"]) == 8
