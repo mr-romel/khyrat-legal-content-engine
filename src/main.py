@@ -415,8 +415,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             image_qa_score = str(image_qa.get("overall_score", ""))
             if bool(image_qa.get("women_or_girls_detected", False)):
                 image_path.unlink(missing_ok=True)
-                raise ImageGenerationError(
-                    "Image contains a woman or girl; rejecting the image and blocking publication."
+                raise ImageQAError(
+                    "Image contains a woman or girl; semantic QA rejected the image and blocked publication."
                 )
             if str(image_qa.get("decision", "")).upper() == "PASS":
                 image_qa_status = "PASS"
@@ -653,8 +653,9 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         except ImageGenerationError:
             raise
         except Exception as qa_exc:
-            image_qa_summary = f"Image QA unavailable after successful image generation: {qa_exc}"
-            print(f"IMAGE REPAIR QA TRANSIENT FAILURE: {image_qa_summary}; retaining generated image for delivery.")
+            image_qa_summary = f"IMAGE_QA_UNAVAILABLE_BLOCKED during published-image repair: {qa_exc}"
+            image_path.unlink(missing_ok=True)
+            raise ImageQAError(image_qa_summary) from qa_exc
         brand_published_image(str(image_path))
     except ImageGenerationError as exc:
         update_row(service, config["sheet_id"], sheet_name, row_number, {
