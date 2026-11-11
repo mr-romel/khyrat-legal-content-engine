@@ -230,6 +230,66 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
         cx,cy=int(width*.725),int(height*.715)
         d.line((cx,cy,cx,cy-int(height*.10)),fill=(48,79,111,255),width=9)
         d.line((cx,cy,cx+int(width*.08),cy+int(height*.04)),fill=(48,79,111,255),width=9)
+    elif any(w in key for w in ("المرفق", "مرافق", "خدمة عامة", "مياه", "كهرباء", "نقل عام", "public utility", "economic facility", "water utility", "water treatment", "power plant", "electricity", "public transport", "infrastructure", "municipal")):
+        # Original, topic-specific infrastructure artwork. It contains no generated
+        # lettering, police/security imagery, logos, or externally sourced stock.
+        navy=(25,48,70,255); blue=(74,133,164,255); pale=(210,229,235,255)
+        gold=(190,151,76,255); green=(73,133,111,255); concrete=(160,178,188,255)
+        d.rectangle((0,0,width,height),fill=(210,225,232,255))
+        d.ellipse((int(width*.66),int(height*.08),int(width*.88),int(height*.20)),fill=(248,220,151,255))
+        d.polygon([(0,int(height*.60)),(int(width*.25),int(height*.48)),(int(width*.54),int(height*.57)),(width,int(height*.46)),(width,height),(0,height)],fill=(174,194,190,255))
+        # Main public-service facility.
+        bx0,by0,bx1,by1=int(width*.12),int(height*.34),int(width*.84),int(height*.72)
+        d.rectangle((bx0,by0,bx1,by1),fill=(224,231,232,255),outline=navy,width=max(4,int(width*.008)))
+        d.rectangle((int(width*.09),int(height*.30),int(width*.87),int(height*.37)),fill=navy)
+        d.polygon([(int(width*.09),int(height*.30)),(int(width*.28),int(height*.20)),(int(width*.87),int(height*.30))],fill=(55,83,105,255))
+        for col in range(4):
+            for row in range(2):
+                x=int(width*(.20+col*.15)); y=int(height*(.43+row*.12))
+                d.rectangle((x,y,x+int(width*.085),y+int(height*.075)),fill=(94,147,169,255),outline=(247,250,250,255),width=4)
+        d.rectangle((int(width*.43),int(height*.58),int(width*.57),int(height*.72)),fill=(45,70,91,255))
+        d.rectangle((int(width*.08),int(height*.73),int(width*.91),int(height*.77)),fill=concrete)
+        # Utility-specific plant equipment, selected from the actual visual brief.
+        if any(w in key for w in ("water", "مياه", "treatment", "tank")):
+            for cx,cy,rx,ry in [(0.23,.80,.11,.08),(.50,.82,.14,.10),(.77,.80,.10,.075)]:
+                x,y=int(width*cx),int(height*cy); rw,rh=int(width*rx),int(height*ry)
+                d.rectangle((x-rw,y-rh//2,x+rw,y+rh//2),fill=(91,157,176,255),outline=navy,width=5)
+                d.ellipse((x-rw,y-rh,x+rw,y),fill=(151,198,207,255),outline=navy,width=5)
+                d.arc((x-rw,y-rh//2,x+rw,y+rh),0,180,fill=(238,246,245,255),width=5)
+            d.line((int(width*.16),int(height*.80),int(width*.16),int(height*.88),int(width*.83),int(height*.88)),fill=blue,width=max(9,int(width*.018)))
+            d.line((int(width*.50),int(height*.88),int(width*.50),int(height*.73)),fill=blue,width=max(9,int(width*.018)))
+        elif any(w in key for w in ("electric", "electricity", "power", "كهرباء", "طاقة")):
+            for cx in (.25,.72):
+                x=int(width*cx); top=int(height*.18); bottom=int(height*.79)
+                d.line((x,top,x-int(width*.10),bottom),fill=navy,width=7)
+                d.line((x,top,x+int(width*.10),bottom),fill=navy,width=7)
+                for yy in (.32,.43,.54):
+                    y=int(height*yy); d.line((x-int(width*.11),y,x+int(width*.11),y),fill=navy,width=6)
+                d.line((x-int(width*.10),bottom,x+int(width*.10),bottom),fill=navy,width=6)
+            d.arc((int(width*.28),int(height*.17),int(width*.72),int(height*.57)),180,350,fill=gold,width=5)
+        elif any(w in key for w in ("transport", "bus", "station", "نقل", "مواصلات")):
+            x0,y0,x1,y1=int(width*.18),int(height*.70),int(width*.82),int(height*.86)
+            d.rounded_rectangle((x0,y0,x1,y1),radius=24,fill=(49,104,137,255),outline=navy,width=6)
+            for j in range(4):
+                xx=int(width*(.24+j*.13))
+                d.rectangle((xx,int(height*.73),xx+int(width*.09),int(height*.79)),fill=pale)
+            d.ellipse((int(width*.27),int(height*.82),int(width*.39),int(height*.91)),fill=navy)
+            d.ellipse((int(width*.65),int(height*.82),int(width*.77),int(height*.91)),fill=navy)
+        else:
+            # Generic economic utility: pipes, valves and service-access route.
+            d.line((int(width*.12),int(height*.82),int(width*.34),int(height*.82),int(width*.34),int(height*.75)),fill=blue,width=max(10,int(width*.02)))
+            d.line((int(width*.66),int(height*.76),int(width*.66),int(height*.84),int(width*.88),int(height*.84)),fill=blue,width=max(10,int(width*.02)))
+            for cx in (.34,.66):
+                x=int(width*cx); y=int(height*.79)
+                d.ellipse((x-int(width*.035),y-int(width*.035),x+int(width*.035),y+int(width*.035)),outline=gold,width=7)
+        # Distinct secondary equipment keeps the five frames visually varied.
+        variation=seed % 5
+        if variation in (1,3):
+            d.rectangle((int(width*.04),int(height*.48),int(width*.09),int(height*.72)),fill=(121,145,153,255))
+            d.ellipse((int(width*.025),int(height*.44),int(width*.105),int(height*.52)),fill=(151,180,187,255),outline=navy,width=4)
+        if variation in (2,4):
+            d.line((int(width*.88),int(height*.39),int(width*.94),int(height*.31),int(width*.97),int(height*.39)),fill=gold,width=7)
+            d.rectangle((int(width*.91),int(height*.39),int(width*.95),int(height*.70)),fill=(121,145,153,255))
     else:
         d.rounded_rectangle((int(width*.18),int(height*.28),int(width*.82),int(height*.76)),radius=24,fill=(49,72,98,255))
         d.rounded_rectangle((int(width*.25),int(height*.19),int(width*.75),int(height*.68)),radius=14,fill=(255,255,252,255),outline=(173,184,197,255),width=5)
@@ -617,7 +677,7 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay"}:
+    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
@@ -627,7 +687,7 @@ def create_legal_image(
     endpoint = (
         "https://api.cloudflare.com/client/v4/accounts/"
         f"{account_id}/ai/run/{cloudflare_model}"
-        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "openverse", "wikimedia", "pixabay"} else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -710,7 +770,23 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if provider_preference == "openverse":
+    if provider_preference == "local_scene":
+        image_bytes = _generate_zero_cost_editorial_image(
+            topic=str(topic or ""),
+            visual_description=visual_description,
+            output_path=output_path,
+            width=width,
+            height=height,
+        )
+        provider = "LOCAL_SCENE_ILLUSTRATION"
+        source_metadata = {
+            "source": "Original local renderer",
+            "scene_brief": visual_description,
+            "text_free": "true",
+            "external_provider": "false",
+        }
+        print("Local topic-specific scene renderer selected; no external image quota consumed.")
+    elif provider_preference == "openverse":
         image_bytes, source_metadata = _generate_with_openverse()
         provider = "OPENVERSE_SCENE_STOCK"
     elif provider_preference == "wikimedia":
@@ -810,6 +886,7 @@ def create_legal_image(
         else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
         else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
         if provider == "POLLINATIONS_IMAGE_GENERATION"
+        else "local-topic-scene-renderer-v2" if provider == "LOCAL_SCENE_ILLUSTRATION"
         else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
         else CLOUDFLARE_IMAGE_MODEL_KLEIN if provider == "DIRECT_CLOUDFLARE_KLEIN"
         else CLOUDFLARE_IMAGE_MODEL
