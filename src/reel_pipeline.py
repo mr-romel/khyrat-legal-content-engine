@@ -34,19 +34,32 @@ def choose_row(
 ) -> tuple[int, dict[str, str]] | None:
     """Select only the row explicitly locked by the core publishing worker."""
     if source_context:
-        try:
-            target_number = int(source_context.get("row_number"))
-        except (TypeError, ValueError):
-            return None
-        index = target_number - 2
-        if index < 0 or index >= len(rows):
-            print(f"Reel source row {target_number} is outside the current Sheet range.")
-            return None
-        row = rows[index]
         source_id = str(source_context.get("source_id", "") or "").strip()
+        if source_id:
+            matches = [(index, candidate) for index, candidate in enumerate(rows) if str(candidate.get("ID", "") or "").strip() == source_id]
+            if len(matches) != 1:
+                print(f"Reel immutable source ID lookup must match exactly one row; ID={source_id!r}, matches={len(matches)}.")
+                return None
+            index, row = matches[0]
+            target_number = index + 2
+            locked_row_number = source_context.get("row_number")
+            if locked_row_number and str(locked_row_number).isdigit() and int(locked_row_number) != target_number:
+                print(f"Reel row position changed for immutable ID={source_id}: lock_row={locked_row_number}, current_row={target_number}; continuing by ID.")
+        else:
+            try:
+                target_number = int(source_context.get("row_number"))
+            except (TypeError, ValueError):
+                print("Reel source lock has neither a usable immutable ID nor a legacy row number.")
+                return None
+            index = target_number - 2
+            if index < 0 or index >= len(rows):
+                print(f"Reel source row {target_number} is outside the current Sheet range.")
+                return None
+            row = rows[index]
+            source_id = str(row.get("ID", "") or "").strip()
         row_id = str(row.get("ID", "") or "").strip()
-        if source_id and row_id and source_id != row_id:
-            print(f"Reel source mismatch: locked ID={source_id}, Sheet ID={row_id}. Refusing to guess another row.")
+        if not source_id or row_id != source_id:
+            print(f"Reel immutable source mismatch: locked ID={source_id!r}, Sheet ID={row_id!r}.")
             return None
         fb_ok = str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED"
         li_ok = str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED"
@@ -1394,8 +1407,8 @@ def main() -> int:
                 str(video_path),
                 caption=f"🎬 Reel للمراجعة — الصف {row_number}\n\nالموضوع: {topic}\nالمدة: {final_duration:.1f} ثانية\nبصمة النسخة: {callback_fingerprint}",
                 reply_markup={"inline_keyboard": [[
-                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{row_number}:{callback_fingerprint}"},
-                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{row_number}:{callback_fingerprint}"},
+                    {"text": "✅ اعتماد الريل", "callback_data": f"reel_approve:{safe_source_id}:{callback_fingerprint}"},
+                    {"text": "❌ رفض الريل", "callback_data": f"reel_reject:{safe_source_id}:{callback_fingerprint}"},
                 ]]},
             )
             message_id = str((telegram_result or {}).get("message_id", ""))
