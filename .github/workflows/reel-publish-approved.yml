@@ -181,7 +181,7 @@ jobs:
                   if ((eligible_status and fresh_publish_ready) or backfill_youtube or comments_pending or metadata_pending) and run_id:
                       task = "metadata" if metadata_pending and not backfill_youtube else "comments" if comments_pending and not backfill_youtube else "publish"
                       with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-                          out.write(f"row_number={n}\nrun_id={run_id}\ntask={task}\n")
+                          out.write(f"row_number={n}\nsource_id={source_id}\nrun_id={run_id}\ntask={task}\n")
                       print(f"Approved Reel queue item row={n}; status={status}; task={task}; metadata_pending={metadata_pending}; comments_pending={comments_pending}; run_id={run_id}")
                       raise SystemExit(0)
           # Legacy row-only approval recovery intentionally removed: approvals must carry a video fingerprint.
@@ -190,7 +190,7 @@ jobs:
           print("Reel row diagnostics (last 20 rows): " + repr([(n, str(mapped(raw).get("Reel Status","")).strip(), str(mapped(raw).get("Reel Approval","")).strip(), str(mapped(raw).get("Reel Run ID","")).strip()) for n, raw in list(enumerate(values[1:], start=2))[-20:]]))
           print("No publishable approved Reel found. Approval rows: " + repr(candidates))
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
-              out.write("row_number=\nrun_id=\ntask=\n")
+              out.write("row_number=\nsource_id=\nrun_id=\ntask=\n")
           PY
 
       - name: Skip when no approved Reel is waiting
@@ -212,7 +212,7 @@ jobs:
       - name: Verify manual approval
         if: ${{ steps.target.outputs.row_number != '' }}
         env:
-          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           python - <<'PY'
@@ -224,9 +224,10 @@ jobs:
           sheet=cfg["sheet_range"].split("!",1)[0]
           values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BZ")
           headers=values[0] if values else []
-          rows=[row_to_dict(r, headers) for r in values[1:]]
-          n=int(os.environ["ROW_NUMBER"])
-          row=rows[n-2]
+          source_id=os.environ["SOURCE_ID"].strip()
+          matches=[row_to_dict(r, headers) for r in values[1:] if str(row_to_dict(r, headers).get("ID", "")).strip()==source_id]
+          if len(matches) != 1: raise SystemExit(f"Immutable Reel source ID must match exactly one row; matches={len(matches)}.")
+          row=matches[0]
           if str(row.get("Reel Status","")).strip().upper() not in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED","PUBLISHED"}:
               raise SystemExit("Reel is not in an approved/publishable state.")
           if str(row.get("Reel Approval","")).strip().upper() != "APPROVED":
@@ -237,6 +238,7 @@ jobs:
         if: ${{ steps.target.outputs.row_number != '' }}
         env:
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
           TASK: ${{ steps.target.outputs.task }}
         run: |
@@ -256,8 +258,11 @@ jobs:
           ensure_headers(svc,cfg['sheet_id'],sheet)
           values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BZ')
           headers=values[0] if values else []
-          row_number=int(os.environ['ROW_NUMBER'])
-          row=row_to_dict(values[row_number-1], headers)
+          artifact_row_number=int(os.environ['ROW_NUMBER'])
+          source_id=os.environ['SOURCE_ID'].strip()
+          source_matches=[(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2) if str(row_to_dict(raw, headers).get('ID','')).strip()==source_id]
+          if len(source_matches) != 1: raise SystemExit('Immutable Reel source ID must match exactly one current Sheet row.')
+          row_number, row=source_matches[0]
           run_id=str(os.environ.get('RUN_ID','')).strip()
           task=str(os.environ.get('TASK','publish')).strip().lower()
           if task in {'comments','metadata'}:
@@ -267,7 +272,7 @@ jobs:
               import hashlib, re
               source_id=re.sub(r'[^A-Za-z0-9._-]+','_',str(row.get('ID','')).strip())
               if not source_id: raise SystemExit('Immutable source ID is missing; refusing to publish.')
-              root=Path('review-package')/('row_'+str(row_number))/source_id/('run_'+run_id)
+              root=Path('review-package')/('row_'+str(artifact_row_number))/source_id/('run_'+run_id)
               video=root/'daily-reel.mp4'
               plan_path=root/'reel_plan.json'
               if not video.exists(): raise SystemExit('Exact approved Reel artifact is missing for row='+str(row_number)+', source_id='+source_id+', run_id='+run_id+': '+str(video))
@@ -275,7 +280,9 @@ jobs:
           # Re-check the exact row immediately before any external publication to avoid stale approvals.
           latest_values=get_values(svc,cfg['sheet_id'],f'{sheet}!A:BZ')
           latest_headers=latest_values[0] if latest_values else []
-          latest_row=row_to_dict(latest_values[row_number-1], latest_headers)
+          latest_matches=[(n, row_to_dict(raw, latest_headers)) for n, raw in enumerate(latest_values[1:], start=2) if str(row_to_dict(raw, latest_headers).get('ID','')).strip()==source_id]
+          if len(latest_matches) != 1: raise SystemExit('Immutable Reel source ID no longer matches exactly one Sheet row.')
+          row_number, latest_row=latest_matches[0]
           if str(latest_row.get('Reel Approval','')).strip().upper() != 'APPROVED':
               raise SystemExit('Approval was revoked or changed before publication; no platform was called.')
           if str(latest_row.get('Reel Run ID','')).strip() != run_id:
@@ -293,7 +300,7 @@ jobs:
               if 'generated/reels/' in expected_file: expected_file=expected_file.split('generated/reels/',1)[1]
               if not expected_file or not str(video).replace('\\\\','/').endswith(expected_file):
                   raise SystemExit('REEL_ARTIFACT_PATH_MISMATCH: downloaded file path is not the exact file recorded for the approved Reel.')
-              if str(plan.get('source_id','')).strip() != source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != row_number:
+              if str(plan.get('source_id','')).strip() != source_id or str(plan.get('run_id','')).strip() != run_id or int(plan.get('row_number',-1)) != artifact_row_number:
                   raise SystemExit('REEL_MANIFEST_IDENTITY_MISMATCH: run manifest does not belong to the approved source row and workflow run.')
               if str(plan.get('video_sha256','')).strip().lower() != expected_sha:
                   raise SystemExit('REEL_MANIFEST_FINGERPRINT_MISMATCH: manifest and approved video fingerprint differ.')
@@ -454,18 +461,24 @@ jobs:
       - name: Record publication in Google Sheets
         if: ${{ success() && steps.target.outputs.row_number != '' }}
         env:
-          ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           python - <<'PY'
           import json, os
           from config import load_video_config
-          from sheets import create_service, update_row
+          from sheets import create_service, get_values, row_to_dict, update_row
           result=json.loads(open("publish-result.json",encoding="utf-8").read())
           cfg=load_video_config()
           svc=create_service(cfg["service_account_info"])
           sheet=cfg["sheet_range"].split("!",1)[0]
-          update_row(svc,cfg["sheet_id"],sheet,int(os.environ["ROW_NUMBER"]),{
+          values=get_values(svc,cfg["sheet_id"],f"{sheet}!A:BZ")
+          headers=values[0] if values else []
+          source_id=os.environ["SOURCE_ID"].strip()
+          matches=[(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2) if str(row_to_dict(raw, headers).get("ID","")).strip()==source_id]
+          if len(matches) != 1: raise SystemExit("Immutable Reel source ID must match exactly one row before recording publication.")
+          current_row_number=matches[0][0]
+          update_row(svc,cfg["sheet_id"],sheet,current_row_number,{
             "Reel Status":"PUBLISHED",
             "Reel Facebook ID":result["facebook"].get("video_id",""),
             "Reel YouTube ID":result.get("youtube",{}).get("video_id",""),
