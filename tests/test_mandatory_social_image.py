@@ -37,3 +37,5 @@ def test_social_image_qa_unavailable_or_rejected_blocks_publication():
     assert "Image contains a woman or girl; semantic QA rejected the image" in source
     assert "IMAGE_QA_UNAVAILABLE_BLOCKED during published-image repair" in source
     assert "raise ImageQAError(image_qa_summary) from qa_exc" in source
+    assert "raise ImageQAError(" in source
+    assert "Replacement image failed visual relevance/text QA" in source
