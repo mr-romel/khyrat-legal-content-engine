@@ -1124,12 +1124,14 @@ def main() -> int:
                 # Pollinations is the configured primary provider. If its request fails,
             # move to the remaining providers; never regenerate a scene merely because
             # semantic QA rejected the already-generated image.
+            # Do not treat search-engine stock results as semantic image generation:
+            # broad Commons matches can be catastrophically off-topic. Use two
+            # metered generators, then a deterministic original local illustration.
+            # This last path consumes no API quota and is validated by provenance QA.
             visual_providers = {
                 1: "pollinations",
                 2: "cloudflare",
-                3: "openverse",
-                4: "wikimedia",
-                5: "pixabay",
+                3: "local_scene",
             }
             for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
