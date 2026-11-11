@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: khyrat-reel-now
+  group: khyrat-reel-now-static-ffmpeg
   cancel-in-progress: false
 
 jobs:
