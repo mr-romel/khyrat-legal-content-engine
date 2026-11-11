@@ -397,10 +397,17 @@ def create_legal_image(
         pixabay_key = os.getenv("PIXABAY_API_KEY", "").strip()
         if not pixabay_key:
             raise ImageGenerationError("PIXABAY_API_KEY is missing; add it as a GitHub Actions secret.")
-        # Keep the query tied to the post while anchoring results to legal imagery.
-        query = " ".join(str(topic or "").split()[:5]).strip()
-        if not query:
-            query = "law legal documents courthouse"
+        # Search using the scene's concrete English nouns, not a broad Arabic title.
+        # This makes stock fallback useful for specific infrastructure, contracts,
+        # workplace evidence, and other non-courthouse legal scenes.
+        stopwords = {"a", "an", "the", "of", "with", "and", "or", "beside", "showing", "modern", "realistic", "documentary", "photograph", "photo", "view", "close", "wide", "clean"}
+        scene_tokens = [
+            token.lower() for token in re.findall(r"[A-Za-z][A-Za-z-]+", str(visual_description or ""))
+            if token.lower() not in stopwords
+        ]
+        query = " ".join(scene_tokens[:9]).strip()
+        if len(query) < 8:
+            query = " ".join(str(topic or "").split()[:6]).strip() or "public utility infrastructure"
         try:
             response = requests.get(
                 "https://pixabay.com/api/",
@@ -409,7 +416,6 @@ def create_legal_image(
                     "q": query,
                     "image_type": "photo",
                     "orientation": "vertical",
-                    "category": "business",
                     "safesearch": "true",
                     "per_page": 10,
                     "order": "popular",
@@ -430,7 +436,6 @@ def create_legal_image(
                         "q": "law legal documents courthouse",
                         "image_type": "photo",
                         "orientation": "vertical",
-                        "category": "business",
                         "safesearch": "true",
                         "per_page": 10,
                         "order": "popular",
@@ -461,11 +466,11 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "gemini", "pollinations"}:
+    if provider_preference not in {"auto", "cloudflare", "gemini", "pollinations", "pixabay"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     endpoint = (
         CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id)
-        if account_id and api_token and provider_preference not in {"gemini", "pollinations"} else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "pixabay"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -541,7 +546,10 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if image_bytes is None and provider_preference != "gemini":
+    if provider_preference == "pixabay":
+        image_bytes = _generate_with_pixabay()
+        provider = "PIXABAY_SCENE_STOCK"
+    elif image_bytes is None and provider_preference != "gemini":
         # Pollinations is the first external fallback after Cloudflare. It receives
         # the identical post-derived prompt; no generic or unrelated stock fallback.
         print("Cloudflare image generation unavailable; trying Pollinations with the SAME post-derived prompt: " + str(cloudflare_error))
@@ -554,23 +562,23 @@ def create_legal_image(
                 image_bytes = _generate_with_gemini()
                 provider = "GEMINI_IMAGE_GENERATION"
             except Exception as gemini_error:
-                print(f"Gemini fallback failed; trying Pixabay legal stock imagery: {gemini_error}")
+                print(f"Gemini fallback failed; trying scene-matched Pixabay stock imagery: {gemini_error}")
                 try:
                     image_bytes = _generate_with_pixabay()
-                    provider = "PIXABAY_LEGAL_STOCK"
+                    provider = "PIXABAY_SCENE_STOCK"
                 except Exception as pixabay_error:
-                    raise ImageGenerationError("All external image providers failed; local legal fallback may be used by the publisher. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
+                    raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
     elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
             provider = "GEMINI_IMAGE_GENERATION"
         except Exception as gemini_error:
-            print(f"Gemini fallback failed; trying Pixabay legal stock imagery: {gemini_error}")
+            print(f"Gemini image generation failed; trying scene-matched Pixabay stock imagery: {gemini_error}")
             try:
                 image_bytes = _generate_with_pixabay()
-                provider = "PIXABAY_LEGAL_STOCK"
+                provider = "PIXABAY_SCENE_STOCK"
             except Exception as pixabay_error:
-                raise ImageGenerationError("All external image providers failed; local legal fallback may be used by the publisher. " f"Cloudflare={cloudflare_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
+                raise ImageGenerationError("Gemini and scene-matched Pixabay image providers failed. " f"Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
     else:
         provider = "DIRECT_CLOUDFLARE"
     output = Path(output_path)
