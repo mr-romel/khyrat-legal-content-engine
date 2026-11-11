@@ -1100,7 +1100,7 @@ def main() -> int:
                 accepted = False
                 active_prompt = str(scene_prompt)
                 generation_error = ""
-                visual_providers = {1: "cloudflare", 2: "gemini", 3: "pixabay"}
+                visual_providers = {1: "cloudflare", 2: "cloudflare_klein", 3: "pixabay"}
                 for visual_attempt in range(1, 4):
                     try:
                         create_legal_image(
