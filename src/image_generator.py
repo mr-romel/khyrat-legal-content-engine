@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import json
+import html
 import hashlib
 from urllib.parse import quote
 from pathlib import Path
@@ -397,6 +398,91 @@ def create_legal_image(
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
+    def _generate_with_wikimedia() -> tuple[bytes, dict[str, str]]:
+        """Fetch a scene-matched Wikimedia Commons image with reusable CC attribution."""
+        stopwords = {
+            "a", "an", "the", "of", "with", "and", "or", "beside", "showing",
+            "modern", "realistic", "documentary", "photorealistic", "editorial",
+            "photograph", "photo", "view", "close", "wide", "clean", "no",
+            "readable", "logos", "signs", "present-day", "egyptian", "setting",
+            "scene", "inside", "exterior", "clear", "large", "several",
+        }
+        scene_tokens = [
+            token.lower() for token in re.findall(r"[A-Za-z][A-Za-z-]+", str(visual_description or ""))
+            if token.lower() not in stopwords
+        ]
+        query = " ".join(scene_tokens[:6]).strip()
+        if len(query) < 8:
+            query = " ".join(str(topic or "").split()[:5]).strip() or "public utility infrastructure"
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "KhyratLegalContentEngine/1.0 (editorial image attribution enabled)",
+        }
+        try:
+            response = requests.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "generator": "search",
+                    "gsrsearch": f"{query} filetype:bitmap",
+                    "gsrnamespace": 6,
+                    "gsrlimit": 12,
+                    "prop": "imageinfo",
+                    "iiprop": "url|extmetadata",
+                    "iiurlwidth": 1200,
+                    "format": "json",
+                },
+                headers=headers,
+                timeout=(15, 45),
+            )
+            if not response.ok:
+                raise ImageGenerationError(f"Wikimedia Commons search failed: HTTP {response.status_code}")
+            payload = response.json()
+            pages = list((payload.get("query", {}).get("pages", {}) or {}).values())
+            if not pages:
+                raise ImageGenerationError(f"Wikimedia Commons returned no scene matches for: {query}")
+            for page in pages:
+                info = (page.get("imageinfo") or [{}])[0]
+                ext = info.get("extmetadata") or {}
+                license_name = html.unescape(re.sub(r"<[^>]+>", "", str((ext.get("LicenseShortName") or {}).get("value", "")))).strip()
+                license_upper = license_name.upper()
+                public_domain = "PUBLIC DOMAIN" in license_upper or license_upper == "CC0"
+                cc_reuse = "CC BY" in license_upper and "NC" not in license_upper and "ND" not in license_upper
+                if not (public_domain or cc_reuse):
+                    continue
+                artist = html.unescape(re.sub(r"<[^>]+>", "", str((ext.get("Artist") or {}).get("value", "")))).strip()
+                if cc_reuse and not artist:
+                    continue
+                image_url = info.get("thumburl") or info.get("url")
+                if not image_url:
+                    continue
+                image_response = requests.get(
+                    image_url,
+                    headers={"Accept": "image/*", "User-Agent": headers["User-Agent"]},
+                    timeout=(15, 60),
+                )
+                if not image_response.ok or not image_response.content:
+                    continue
+                content_type = image_response.headers.get("content-type", "").lower()
+                if not content_type.startswith("image/"):
+                    continue
+                metadata = {
+                    "source": "Wikimedia Commons",
+                    "title": str(page.get("title", "")),
+                    "source_page": str(info.get("descriptionurl", "")),
+                    "source_url": str(info.get("url", image_url)),
+                    "license": license_name,
+                    "license_url": html.unescape(str((ext.get("LicenseUrl") or {}).get("value", ""))),
+                    "artist": artist,
+                    "attribution_required": "true" if cc_reuse else "false",
+                    "search_query": query,
+                }
+                print(f"Wikimedia Commons scene image selected: title={metadata['title']} license={license_name}")
+                return image_response.content, metadata
+            raise ImageGenerationError(f"Wikimedia Commons found no downloadable image with an allowed license for: {query}")
+        except requests.RequestException as exc:
+            raise ImageGenerationError(f"Wikimedia Commons request error: {exc}") from exc
+
     def _generate_with_pixabay() -> bytes:
         """Fetch a safe, vertical legal stock photo as the final external fallback."""
         pixabay_key = os.getenv("PIXABAY_API_KEY", "").strip()
@@ -471,7 +557,7 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "pixabay"}:
+    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "wikimedia", "pixabay"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
@@ -481,7 +567,7 @@ def create_legal_image(
     endpoint = (
         "https://api.cloudflare.com/client/v4/accounts/"
         f"{account_id}/ai/run/{cloudflare_model}"
-        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "pixabay"} else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "wikimedia", "pixabay"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -520,8 +606,9 @@ def create_legal_image(
 
     cloudflare_error = None
     image_bytes = None
+    source_metadata: dict[str, str] = {}
     if not endpoint:
-        cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations"} else "Cloudflare credentials unavailable.")
+        cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations", "wikimedia"} else "Cloudflare credentials unavailable.")
     else:
         import time
         for attempt in range(1, 4):
@@ -563,7 +650,10 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if provider_preference == "pixabay":
+    if provider_preference == "wikimedia":
+        image_bytes, source_metadata = _generate_with_wikimedia()
+        provider = "WIKIMEDIA_COMMONS_SCENE"
+    elif provider_preference == "pixabay":
         image_bytes = _generate_with_pixabay()
         provider = "PIXABAY_SCENE_STOCK"
     elif image_bytes is None and provider_preference != "gemini":
@@ -579,23 +669,33 @@ def create_legal_image(
                 image_bytes = _generate_with_gemini()
                 provider = "GEMINI_IMAGE_GENERATION"
             except Exception as gemini_error:
-                print(f"Gemini fallback failed; trying scene-matched Pixabay stock imagery: {gemini_error}")
+                print(f"Gemini fallback failed; trying license-checked Wikimedia Commons imagery: {gemini_error}")
                 try:
-                    image_bytes = _generate_with_pixabay()
-                    provider = "PIXABAY_SCENE_STOCK"
-                except Exception as pixabay_error:
-                    raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
+                    image_bytes, source_metadata = _generate_with_wikimedia()
+                    provider = "WIKIMEDIA_COMMONS_SCENE"
+                except Exception as wikimedia_error:
+                    print(f"Wikimedia Commons fallback failed; trying scene-matched Pixabay: {wikimedia_error}")
+                    try:
+                        image_bytes = _generate_with_pixabay()
+                        provider = "PIXABAY_SCENE_STOCK"
+                    except Exception as pixabay_error:
+                        raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
     elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
             provider = "GEMINI_IMAGE_GENERATION"
         except Exception as gemini_error:
-            print(f"Gemini image generation failed; trying scene-matched Pixabay stock imagery: {gemini_error}")
+            print(f"Gemini image generation failed; trying license-checked Wikimedia Commons imagery: {gemini_error}")
             try:
-                image_bytes = _generate_with_pixabay()
-                provider = "PIXABAY_SCENE_STOCK"
-            except Exception as pixabay_error:
-                raise ImageGenerationError("Gemini and scene-matched Pixabay image providers failed. " f"Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
+                image_bytes, source_metadata = _generate_with_wikimedia()
+                provider = "WIKIMEDIA_COMMONS_SCENE"
+            except Exception as wikimedia_error:
+                print(f"Wikimedia Commons fallback failed; trying scene-matched Pixabay: {wikimedia_error}")
+                try:
+                    image_bytes = _generate_with_pixabay()
+                    provider = "PIXABAY_SCENE_STOCK"
+                except Exception as pixabay_error:
+                    raise ImageGenerationError("Gemini, Wikimedia and Pixabay image providers failed. " f"Gemini={gemini_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
     else:
         provider = "DIRECT_CLOUDFLARE_KLEIN" if cloudflare_model == CLOUDFLARE_IMAGE_MODEL_KLEIN else "DIRECT_CLOUDFLARE"
     output = Path(output_path)
@@ -624,6 +724,7 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else "wikimedia-commons-scene-search" if provider == "WIKIMEDIA_COMMONS_SCENE"
         else "pixabay-scene-search" if provider == "PIXABAY_SCENE_STOCK"
         else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
         else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
@@ -645,6 +746,7 @@ def create_legal_image(
         "width": width,
         "height": height,
         "qa_decision": "PENDING",
+        "source_metadata": source_metadata,
     }
     provenance_path = output.with_suffix(output.suffix + ".provenance.json")
     provenance_path.write_text(
