@@ -22,6 +22,7 @@ from brand_identity import (
 
 # FLUX follows detailed editorial prompts more reliably than SDXL Lightning.
 CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-2-dev"
+CLOUDFLARE_IMAGE_MODEL_KLEIN = "@cf/black-forest-labs/flux-2-klein-9b"
 
 CLOUDFLARE_IMAGE_ENDPOINT = (
     "https://api.cloudflare.com/client/v4/accounts/"
@@ -470,10 +471,16 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "gemini", "pollinations", "pixabay"}:
+    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "pixabay"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
+    cloudflare_model = (
+        CLOUDFLARE_IMAGE_MODEL_KLEIN
+        if provider_preference == "cloudflare_klein"
+        else CLOUDFLARE_IMAGE_MODEL
+    )
     endpoint = (
-        CLOUDFLARE_IMAGE_ENDPOINT.format(account_id=account_id)
+        "https://api.cloudflare.com/client/v4/accounts/"
+        f"{account_id}/ai/run/{cloudflare_model}"
         if account_id and api_token and provider_preference not in {"gemini", "pollinations", "pixabay"} else ""
     )
 
@@ -497,11 +504,13 @@ def create_legal_image(
     # requests builds the multipart boundary automatically from the files mapping.
     request_fields = {
         "prompt": prompt,
-        "steps": str(num_steps),
         "guidance": str(guidance),
         "width": str(width),
         "height": str(height),
     }
+    # FLUX.2 [klein] 9B has a fixed four-step inference path and rejects a steps override.
+    if cloudflare_model != CLOUDFLARE_IMAGE_MODEL_KLEIN:
+        request_fields["steps"] = str(num_steps)
     multipart_fields = {key: (None, value) for key, value in request_fields.items()}
 
     headers = {
@@ -588,7 +597,7 @@ def create_legal_image(
             except Exception as pixabay_error:
                 raise ImageGenerationError("Gemini and scene-matched Pixabay image providers failed. " f"Gemini={gemini_error}; Pixabay={pixabay_error}") from pixabay_error
     else:
-        provider = "DIRECT_CLOUDFLARE"
+        provider = "DIRECT_CLOUDFLARE_KLEIN" if cloudflare_model == CLOUDFLARE_IMAGE_MODEL_KLEIN else "DIRECT_CLOUDFLARE"
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(image_bytes)
@@ -615,10 +624,12 @@ def create_legal_image(
     provider_model = (
         os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
         if provider == "GEMINI_IMAGE_GENERATION"
+        else "pixabay-scene-search" if provider == "PIXABAY_SCENE_STOCK"
         else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
         else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
         if provider == "POLLINATIONS_IMAGE_GENERATION"
         else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
+        else CLOUDFLARE_IMAGE_MODEL_KLEIN if provider == "DIRECT_CLOUDFLARE_KLEIN"
         else CLOUDFLARE_IMAGE_MODEL
     )
     provenance = {
