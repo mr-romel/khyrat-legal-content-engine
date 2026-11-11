@@ -9,6 +9,8 @@ def test_reel_source_lock_resolves_by_unique_immutable_id_before_row_number():
     assert "matches = [(index, candidate) for index, candidate in enumerate(rows)" in source
     assert "len(matches) != 1" in source
     assert "continuing by ID" in source
+    assert "missing its immutable ID" in source
+    assert "target_number = int(source_context.get(\"row_number\"))" not in source
     assert "locked ID=" in source
 
 
