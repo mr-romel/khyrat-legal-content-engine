@@ -14,7 +14,11 @@ def test_telegram_review_buttons_are_bound_to_video_fingerprint():
     source = (ROOT / 'src' / 'reel_pipeline.py').read_text(encoding='utf-8')
     worker = (ROOT / 'workers' / 'telegram-control' / 'src' / 'index.js').read_text(encoding='utf-8')
     assert '"Reel Video SHA256": video_sha256' in source
-    assert 'reel_approve:{row_number}:{callback_fingerprint}' in source
+    assert 'reel_approve:id_' in source
+    assert 'reel_reject:id_' in source
+    assert 'REEL_TELEGRAM_CALLBACK_TOO_LONG' in source
+    assert 'startsWith("id_")' in worker
+    assert 'candidate["ID"]' in worker
     assert 'storedFingerprint.slice(0, 16) !== suppliedFingerprint' in worker
     assert 'زر المراجعة يخص نسخة فيديو قديمة أو غير مطابقة' in worker
 
