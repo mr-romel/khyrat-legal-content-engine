@@ -98,3 +98,68 @@ def test_image_qa_api_error_fails_closed(monkeypatch, tmp_path):
     result = qa_image(api_key="test-key", image_path=str(path), topic="test", image_brief="test")
     assert result["decision"] == "QA_UNAVAILABLE"
     assert "cannot be cleared for publication" in result["issues"][0]
+
+
+def test_image_qa_uses_openverse_metadata_only_when_visual_api_is_unavailable(monkeypatch, tmp_path):
+    import json
+    from image_qa import qa_image
+    path = tmp_path / "scene.jpg"
+    Image.new("RGB", (576, 1024), "white").save(path)
+    sidecar = path.with_suffix(".jpg.provenance.json")
+    sidecar.write_text(json.dumps({
+        "source_metadata": {
+            "source": "Openverse",
+            "title": "Municipal water treatment plant filtration tanks",
+            "description": "Industrial water utility facility",
+            "tags": ["water", "treatment", "plant", "filtration"]
+        }
+    }), encoding="utf-8")
+
+    class BrokenModels:
+        def generate_content(self, **kwargs):
+            raise RuntimeError("Gemini QA unavailable")
+
+    class BrokenClient:
+        models = BrokenModels()
+
+    monkeypatch.setattr("image_qa.genai.Client", lambda **kwargs: BrokenClient())
+    result = qa_image(
+        api_key="test-key",
+        image_path=str(path),
+        topic="المرفق العام الاقتصادي",
+        image_brief="Municipal water treatment plant with filtration tanks and industrial pipes",
+    )
+    assert result["decision"] == "PASS"
+    assert result["qa_method"] == "open-license-metadata-keyword-gate"
+    assert len(result["matched_scene_terms"]) >= 2
+
+
+def test_image_qa_metadata_fallback_rejects_unrelated_openverse_image(monkeypatch, tmp_path):
+    import json
+    from image_qa import qa_image
+    path = tmp_path / "scene.jpg"
+    Image.new("RGB", (576, 1024), "white").save(path)
+    path.with_suffix(".jpg.provenance.json").write_text(json.dumps({
+        "source_metadata": {
+            "source": "Openverse",
+            "title": "Police traffic stop at night",
+            "description": "Police vehicle and highway",
+            "tags": ["police", "traffic", "car"]
+        }
+    }), encoding="utf-8")
+
+    class BrokenModels:
+        def generate_content(self, **kwargs):
+            raise RuntimeError("Gemini QA unavailable")
+
+    class BrokenClient:
+        models = BrokenModels()
+
+    monkeypatch.setattr("image_qa.genai.Client", lambda **kwargs: BrokenClient())
+    result = qa_image(
+        api_key="test-key",
+        image_path=str(path),
+        topic="المرفق العام الاقتصادي",
+        image_brief="Municipal water treatment plant with filtration tanks and industrial pipes",
+    )
+    assert result["decision"] == "QA_UNAVAILABLE"
