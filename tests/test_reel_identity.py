@@ -23,6 +23,8 @@ def test_telegram_reel_buttons_carry_immutable_id_and_fingerprint():
     assert 'candidate["ID"]' in worker
     assert 'storedFingerprint.slice(0, 16) !== suppliedFingerprint' in worker
     assert 'REEL_TELEGRAM_CALLBACK_TOO_LONG' in pipeline
+    assert "REEL_SOURCE_ID_INVALID" in pipeline
+    assert 'sourceId.includes(":")' in worker
 
 
 def test_manual_reel_and_bulk_recovery_workflows_do_not_depend_on_fixed_row_numbers():
