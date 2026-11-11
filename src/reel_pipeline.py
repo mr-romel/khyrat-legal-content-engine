@@ -1098,10 +1098,9 @@ def main() -> int:
         scene_dir = output_dir / "scenes"
         scene_dir.mkdir(parents=True, exist_ok=True)
         # Each scene illustrates its legal issue; visual QA adds no nationality, culture, era, or cast restriction.
-        # Six distinct scene images keep one Reel within the verified free-tier
-        # FLUX.2 Dev daily allocation while preserving enough motion beats for Remotion.
-        # Every selected scene must pass topic-specific visual QA; no generic placeholders.
-        reel_scene_count = 6
+        # Exactly five distinct scene images per Reel. Keep the asset budget explicit
+        # so one run cannot silently expand into six or more paid/quota-consuming requests.
+        reel_scene_count = 5
         scene_prompts = brief["video_terms"][:reel_scene_count]
         brief["video_terms"] = scene_prompts
         reel_plan["video_terms"] = scene_prompts
@@ -1119,8 +1118,22 @@ def main() -> int:
                 accepted = False
                 active_prompt = str(scene_prompt)
                 generation_error = ""
-                visual_providers = {1: "cloudflare", 2: "openverse", 3: "wikimedia", 4: "pixabay"}
-                for visual_attempt in range(1, 5):
+                # Pollinations is the configured primary provider. If its request fails,
+            # move to the remaining providers; never regenerate a scene merely because
+            # semantic QA rejected the already-generated image.
+            visual_providers = {
+                1: "pollinations",
+                2: "cloudflare",
+                3: "openverse",
+                4: "wikimedia",
+                5: "pixabay",
+            }
+            for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
+                image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
+                active_prompt = str(scene_prompt)
+                generation_errors = []
+                generated = False
+                for visual_attempt, provider_name in visual_providers.items():
                     try:
                         create_legal_image(
                             topic=visual_topic,
@@ -1132,48 +1145,53 @@ def main() -> int:
                             cloudflare_account_id=cloudflare_account,
                             cloudflare_api_token=cloudflare_token,
                             aspect_ratio="9:16",
-                            provider=visual_providers[visual_attempt],
+                            provider=provider_name,
                         )
-                        visual_qa = qa_image(
-                            api_key=cfg["gemini_api_key"],
-                            image_path=str(image_path),
-                            topic=visual_topic,
-                            image_brief=active_prompt,
-                        )
-                        if visual_qa.get("decision") == "PASS":
-                            accepted = True
-                            print(
-                                f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} provider_generated=true "
-                                f"legal_relevance=passed attempt={visual_attempt}"
-                            )
-                            break
-                        print(
-                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} rejected=visual_qa "
-                            f"attempt={visual_attempt} issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}"
-                        )
-                        regeneration_hint = str(visual_qa.get("regeneration_prompt", "") or "").strip()
-                        active_prompt = str(scene_prompt) + (
-                            f" VISUAL QA FEEDBACK: {regeneration_hint}" if regeneration_hint else
-                            " Make the scene more directly depict the specific legal problem and evidence in the post."
-                        )
-                    except Exception as scene_generation_exc:
-                        generation_error = str(scene_generation_exc)
+                        generated = True
                         print(
                             f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
-                            f"provider={visual_providers[visual_attempt]} generation_error="
-                            f"{generation_error[:700]} next_provider_will_be_tried=true"
+                            f"provider={provider_name} generated=true attempt={visual_attempt}"
                         )
+                        break
+                    except Exception as scene_generation_exc:
+                        error_text = str(scene_generation_exc)
+                        generation_errors.append(f"{provider_name}: {error_text[:350]}")
+                        print(
+                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
+                            f"provider={provider_name} generation_error={error_text[:500]}"
+                        )
+                        # Provider errors may fall through to another provider.
+                        # A successful image is never regenerated for a QA rejection.
                         continue
 
-                if not accepted:
-                    # Never fill a failed scene with a generic legal placeholder.
-                    # A Reel is reviewable only when every scene is independently
-                    # generated or sourced for its own approved visual brief.
+                if not generated:
                     raise RuntimeError(
-                        f"REEL_SCENE_VISUAL_QA_FAILED: scene={scene_index}/{reel_scene_count} "
-                        f"providers_tried={list(visual_providers.values())} "
-                        f"last_generation_error={generation_error[:500]!r}; refusing generic fallback."
+                        f"REEL_SCENE_GENERATION_FAILED: scene={scene_index}/{reel_scene_count}; "
+                        + " | ".join(generation_errors)
                     )
+
+                if not image_path.is_file() or image_path.stat().st_size < 10_000:
+                    raise RuntimeError(
+                        f"REEL_SCENE_INVALID_IMAGE: scene={scene_index}/{reel_scene_count}; "
+                        "provider returned an empty or implausibly small image."
+                    )
+
+                visual_qa = qa_image(
+                    api_key=cfg["gemini_api_key"],
+                    image_path=str(image_path),
+                    topic=visual_topic,
+                    image_brief=active_prompt,
+                )
+                if visual_qa.get("decision") != "PASS":
+                    raise RuntimeError(
+                        f"REEL_SCENE_VISUAL_QA_REJECTED: scene={scene_index}/{reel_scene_count}; "
+                        f"issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}. "
+                        "The image was not regenerated to avoid duplicate quota consumption."
+                    )
+                print(
+                    f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
+                    "legal_relevance=passed; regeneration_count=0"
+                )
                 scenes.append(image_path)
         except Exception as image_exc:
             # Do not silently replace failed topic-specific generations with
