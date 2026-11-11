@@ -721,7 +721,7 @@ def create_legal_image(
         provider = "PIXABAY_SCENE_STOCK"
     elif provider_preference == "pollinations":
         # An explicitly selected Pollinations provider must either work or fail
-        # visibly. Do not silently burn Gemini/stock requests behind the caller.
+        # visibly. Do not silently consume alternate-provider requests behind the caller.
         image_bytes = _generate_with_pollinations()
         provider = "POLLINATIONS_IMAGE_GENERATION"
     elif image_bytes is None and provider_preference in {"cloudflare", "cloudflare_klein"}:
