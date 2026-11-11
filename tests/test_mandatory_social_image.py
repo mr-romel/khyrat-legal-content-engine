@@ -34,3 +34,6 @@ def test_social_image_qa_unavailable_or_rejected_blocks_publication():
     assert "QA_UNAVAILABLE_ACCEPTED" not in source
     assert "ACCEPTED_WITH_WARNINGS" not in source
     assert "isinstance(image_exc, ImageQAError)" in source
+    assert "Image contains a woman or girl; semantic QA rejected the image" in source
+    assert "IMAGE_QA_UNAVAILABLE_BLOCKED during published-image repair" in source
+    assert "raise ImageQAError(image_qa_summary) from qa_exc" in source
