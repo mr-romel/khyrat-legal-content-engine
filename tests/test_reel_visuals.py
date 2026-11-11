@@ -108,3 +108,32 @@ def test_image_prompt_preserves_primary_scene_before_long_source_context():
     assert "UNIQUE_SCENE_ANCHOR" in prompt
     assert prompt.index("UNIQUE_SCENE_ANCHOR") < prompt.index("SHORT SOURCE CONTEXT")
     assert len(prompt) < 2048
+
+
+
+def test_reel_generation_is_limited_to_five_distinct_images():
+    source = (Path(__file__).resolve().parents[1] / "src" / "reel_pipeline.py").read_text(encoding="utf-8")
+    assert "reel_scene_count = 5" in source
+    assert "reel_scene_count = 6" not in source
+    assert '1: "pollinations"' in source
+
+
+def test_reel_workflows_pass_repository_pollinations_secret():
+    root = Path(__file__).resolve().parents[1]
+    workflows = [
+        ".github/workflows/reel-now.yml",
+        ".github/workflows/reel-daily-generator.yml",
+        ".github/workflows/reel-regenerate-rejected.yml",
+    ]
+    for relative in workflows:
+        content = (root / relative).read_text(encoding="utf-8")
+        assert "POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}" in content
+
+
+def test_explicit_pollinations_provider_does_not_fall_through_to_hidden_providers():
+    source = (Path(__file__).resolve().parents[1] / "src" / "image_generator.py").read_text(encoding="utf-8")
+    branch = source.index('elif provider_preference == "pollinations":')
+    next_branch = source.index('elif image_bytes is None and provider_preference in', branch)
+    explicit_branch = source[branch:next_branch]
+    assert "image_bytes = _generate_with_pollinations()" in explicit_branch
+    assert "Gemini" not in explicit_branch
