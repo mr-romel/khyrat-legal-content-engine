@@ -233,8 +233,8 @@ async function sendReviewList(env) {
   for (const { rowNumber, row } of reels.slice(0, 10)) {
     const fingerprint = String(row["Reel Video SHA256"] || "").trim().slice(0, 16);
     const sourceId = String(row["ID"] || "").trim();
-    const approveData = "reel_approve:" + sourceId + ":" + fingerprint;
-    const rejectData = "reel_reject:" + sourceId + ":" + fingerprint;
+    const approveData = "reel_approve:id_" + sourceId + ":" + fingerprint;
+    const rejectData = "reel_reject:id_" + sourceId + ":" + fingerprint;
     if (!sourceId || new TextEncoder().encode(approveData).length > 64 || new TextEncoder().encode(rejectData).length > 64) {
       await send(env, "⛔ لا يمكن إنشاء زر اعتماد آمن — الصف " + rowNumber + " يفتقد معرّفًا ثابتًا صالحًا أو يتجاوز حد Telegram.");
       continue;
@@ -340,8 +340,9 @@ async function handleCallback(env, callback) {
     if (/^\d+$/.test(rowToken || "")) {
       row = values[rowNumber - 1] ? rowToDict(values[rowNumber - 1], values[0]) : null;
     } else {
+      const immutableId = String(rowToken || "").startsWith("id_") ? String(rowToken).slice(3) : String(rowToken || "");
       const matches = values.slice(1).map((raw, index) => ({ rowNumber: index + 2, row: rowToDict(raw, values[0]) }))
-        .filter(({ row: candidate }) => String(candidate["ID"] || "").trim() === String(rowToken || "").trim());
+        .filter(({ row: candidate }) => String(candidate["ID"] || "").trim() === immutableId);
       if (matches.length !== 1) return telegram(env, "answerCallbackQuery", { callback_query_id: callback.id, text: "⛔ معرّف الريل لا يطابق صفًا واحدًا فقط؛ لن يتم تنفيذ القرار.", show_alert: true });
       rowNumber = matches[0].rowNumber;
       row = matches[0].row;
