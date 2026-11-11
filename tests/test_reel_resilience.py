@@ -134,7 +134,7 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
 def test_reel_scene_generation_uses_three_distinct_providers_and_never_generic_placeholders():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'visual_providers = {1: "cloudflare", 2: "cloudflare_klein", 3: "pixabay"}' in source
+    assert 'visual_providers = {1: "cloudflare", 2: "pixabay"}' in source
     assert "REEL_SCENE_VISUAL_QA_FAILED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert '"pixabay"' in image_generator
@@ -157,3 +157,11 @@ def test_gemini_image_quota_exhaustion_skips_retries():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
     assert "Gemini image quota is exhausted; skipping retries" in source
     assert "resource_exhausted" in source
+
+
+def test_reel_scene_budget_is_six_for_cloudflare_free_tier():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "reel_scene_count = 6" in source
+    assert "brief[\"video_terms\"][:reel_scene_count]" in source
+    assert "if len(scenes) != reel_scene_count" in source
+    assert 'visual_providers = {1: "cloudflare", 2: "pixabay"}' in source
