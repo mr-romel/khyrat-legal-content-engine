@@ -133,19 +133,18 @@ def test_remotion_renderer_resolves_output_path_before_running_from_project_dire
     assert "cwd=project_dir" in source
 
 
-def test_reel_scene_generation_uses_five_distinct_images_and_provider_fallbacks():
+def test_reel_scene_generation_uses_five_distinct_images_and_quota_safe_fallbacks():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     image_generator = Path("src/image_generator.py").read_text(encoding="utf-8")
     assert "reel_scene_count = 5" in source
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
-    assert '3: "openverse"' in source
-    assert '4: "wikimedia"' in source
-    assert '5: "pixabay"' in source
+    assert '3: "local_scene"' in source
+    assert '4: "wikimedia"' not in source
+    assert '5: "pixabay"' not in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
     assert "create_generic_legal_fallback_image" not in source
-    assert '"pixabay"' in image_generator
-    assert "scene_tokens" in image_generator
+    assert "LOCAL_SCENE_ILLUSTRATION" in image_generator
 
 
 def test_cloudflare_flux2_dev_uses_required_multipart_request_format():
@@ -173,9 +172,9 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert "if len(scenes) != reel_scene_count" in source
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
-    assert '3: "openverse"' in source
-    assert '4: "wikimedia"' in source
-    assert '5: "pixabay"' in source
+    assert '3: "local_scene"' in source
+    assert '4: "wikimedia"' not in source
+    assert '5: "pixabay"' not in source
 
 
 def test_wikimedia_fallback_is_license_checked_and_attributed():
