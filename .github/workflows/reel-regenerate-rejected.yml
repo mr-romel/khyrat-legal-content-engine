@@ -115,8 +115,8 @@ jobs:
               pinned_source_retry = (
                   bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
                   and source_id == os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
-                  and status == "FAILED"
-                  and retry_count < 3
+                  and status in {"FAILED", "REGENERATE_REQUESTED"}
+                  and "source-id-recovery-used" not in review.casefold()
               )
               # Topic mismatch is a source-integrity failure, not an image-provider
               # outage. Never auto-retry it except when the user explicitly pins a
@@ -171,7 +171,7 @@ jobs:
           update_row(service, sheet_id, sheet_name, number, {
               "Reel Status": "REGENERATING",
               "Reel Approval": "",
-              "Reel Review": f"REGENERATING | retry={next_retry} | " + ("explicit source-ID recovery" if pinned_source_retry else "Telegram rejection"),
+              "Reel Review": f"REGENERATING | retry={next_retry} | " + ("explicit source-ID recovery | source-id-recovery-used" if pinned_source_retry else "Telegram rejection"),
               "Reel Last Error": "",
           })
           os.makedirs("generated", exist_ok=True)
