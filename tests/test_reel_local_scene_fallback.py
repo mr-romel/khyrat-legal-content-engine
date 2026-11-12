@@ -157,7 +157,7 @@ def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaust
     assert 'and retry_count < 3' not in workflow.split("pinned_source_retry = (", 1)[1].split(")", 1)[0]
 
 
-def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp_path):
+def test_image_provider_quota_failure_disables_provider_and_reuses_approved_image(tmp_path, monkeypatch):
     monkeypatch.setenv("REEL_IMAGE_CACHE_DIR", str(tmp_path / "isolated-cache"))
     import sys
     sys.path.insert(0, str(ROOT / "src"))
@@ -177,22 +177,37 @@ def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp
     def fake_qa(**kwargs):
         return {"decision": "PASS", "qa_method": "test-local"}
 
-    for index in (1, 2):
-        _generate_scene_with_provider_fallbacks(
-            topic="المرفق العام الاقتصادي",
-            post="خدمات المرافق العامة الاقتصادية",
-            image_brief="Municipal water treatment plant with tanks and pipes",
-            output_path=tmp_path / f"scene-{index}.jpg",
-            api_key="",
-            cloudflare_account_id="",
-            cloudflare_api_token="",
-            providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
-            create_image=fake_create,
-            qa_image=fake_qa,
-            disabled_providers=disabled,
-        )
-    assert calls == ["pollinations", "cloudflare", "local_scene", "local_scene"]
+    first = _generate_scene_with_provider_fallbacks(
+        topic="المرفق العام الاقتصادي",
+        post="خدمات المرافق العامة الاقتصادية",
+        image_brief="Municipal water treatment plant with tanks and pipes",
+        output_path=tmp_path / "scene-1.jpg",
+        api_key="",
+        cloudflare_account_id="",
+        cloudflare_api_token="",
+        providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
+        create_image=fake_create,
+        qa_image=fake_qa,
+        disabled_providers=disabled,
+    )
+    second = _generate_scene_with_provider_fallbacks(
+        topic="المرفق العام الاقتصادي",
+        post="خدمات المرافق العامة الاقتصادية",
+        image_brief="Municipal water treatment plant with tanks and pipes",
+        output_path=tmp_path / "scene-2.jpg",
+        api_key="",
+        cloudflare_account_id="",
+        cloudflare_api_token="",
+        providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
+        create_image=fake_create,
+        qa_image=fake_qa,
+        disabled_providers=disabled,
+    )
+    assert calls == ["pollinations", "cloudflare", "local_scene"]
     assert disabled == {"pollinations", "cloudflare"}
+    assert first["cache_hit"] is False
+    assert second["cache_hit"] is True
+    assert (tmp_path / "scene-2.jpg").read_bytes() == (tmp_path / "scene-1.jpg").read_bytes()
 
 
 def test_audio_path_fix_rearms_one_new_source_id_recovery_attempt():
