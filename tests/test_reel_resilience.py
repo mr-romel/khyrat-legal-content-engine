@@ -53,8 +53,8 @@ def test_reel_generation_uses_persistent_qa_approved_scene_image_cache():
 
 def test_image_provider_retries_use_longer_backoff_and_extended_timeout():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert "range(1, 6)" in source
-    assert "retry {attempt + 1}/5" in source
+    assert source.count("range(1, 6)") >= 2
+    assert source.count("retry {attempt + 1}/5") >= 2
     assert "min(5 * (2 ** (attempt - 1)), 40)" in source
     assert 'REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "120"' in source
 
