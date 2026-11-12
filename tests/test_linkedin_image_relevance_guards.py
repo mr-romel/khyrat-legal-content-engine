@@ -112,3 +112,56 @@ def test_linkedin_compression_retries_before_fail_closed(monkeypatch):
     assert result == compact
     assert len(calls) == 2
     assert "FINAL COMPRESSION PASS" in calls[1]
+
+
+def test_live_wikimedia_provider_rejects_unrelated_map_before_download(monkeypatch, tmp_path):
+    import image_generator
+
+    calls = []
+
+    class Response:
+        ok = True
+        headers = {"content-type": "application/json"}
+
+        def json(self):
+            return {
+                "query": {
+                    "pages": {
+                        "1": {
+                            "title": "File:Carte de la Basse-Egypte et du Fayoum.jpg",
+                            "imageinfo": [{
+                                "thumburl": "https://example.invalid/map.jpg",
+                                "url": "https://example.invalid/map.jpg",
+                                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Map.jpg",
+                                "extmetadata": {
+                                    "LicenseShortName": {"value": "Public domain"},
+                                    "ImageDescription": {"value": "Historical map of Lower Egypt and Fayoum."},
+                                },
+                            }],
+                        }
+                    }
+                }
+            }
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return Response()
+
+    monkeypatch.setattr(image_generator.requests, "get", fake_get)
+    try:
+        image_generator.create_legal_image(
+            topic="نزاع بشأن إجراءات العمل",
+            image_brief="A contemporary open plan office bathed in natural light.",
+            visual_description="A contemporary open plan office bathed in natural light.",
+            post_context="A post about employment procedures.",
+            output_path=str(tmp_path / "office.jpg"),
+            aspect_ratio="9:16",
+            provider="wikimedia",
+        )
+    except image_generator.ImageGenerationError as exc:
+        assert "no downloadable image" in str(exc)
+    else:
+        raise AssertionError("An unrelated map must never be accepted as an office scene.")
+
+    assert len(calls) == 1
+    assert calls[0] == "https://commons.wikimedia.org/w/api.php"
