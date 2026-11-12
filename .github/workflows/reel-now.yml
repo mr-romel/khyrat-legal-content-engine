@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       source_id:
-        description: Exact immutable Google Sheet ID of the published social post
-        required: true
+        description: Optional exact Google Sheet ID. Leave blank to automatically select the newest safe eligible published row.
+        required: false
+        default: ""
         type: string
       force_replace:
         description: Allow replacing an existing REVIEW/APPROVED/PUBLISHED Reel for this exact ID
@@ -73,33 +74,42 @@ jobs:
           from config import load_reel_config
           from sheets import create_service, get_values, row_to_dict
           cfg = load_reel_config()
-          source_id = os.environ['REEL_SOURCE_ID'].strip()
-          if not source_id:
-              raise SystemExit('An immutable source ID is required.')
+          source_id = os.environ.get('REEL_SOURCE_ID', '').strip()
           service = create_service(cfg['service_account_info'])
           sheet_name = cfg['sheet_range'].split('!', 1)[0]
           values = get_values(service, cfg['sheet_id'], f'{sheet_name}!A:BZ')
           if not values or not values[0]:
               raise SystemExit('Google Sheet header row is missing.')
           headers = [str(x or '').strip() for x in values[0]]
-          matches = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2) if str(row_to_dict(raw, headers).get('ID', '') or '').strip() == source_id]
-          if len(matches) != 1:
-              raise SystemExit(f'Immutable source ID must match exactly one row; matches={len(matches)}.')
-          row_number, row = matches[0]
+          rows = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2)]
+          protected_statuses = {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING', 'GENERATING'}
+          def eligible(row):
+              rid = str(row.get('ID', '') or '').strip()
+              topic = str(row.get('الموضوع', '') or '').strip()
+              content = str(row.get('المحتوى', '') or '').strip()
+              social_ok = any(str(row.get(k, '') or '').strip().upper() == 'PUBLISHED' for k in ('Facebook Status', 'LinkedIn Status'))
+              status = str(row.get('Reel Status', '') or '').strip().upper()
+              external_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
+              return bool(rid and topic and content and social_ok and not any(external_ids) and status not in protected_statuses)
+          if source_id:
+              matches = [(n, row) for n, row in rows if str(row.get('ID', '') or '').strip() == source_id]
+              if len(matches) != 1:
+                  raise SystemExit(f'Immutable source ID must match exactly one row; matches={len(matches)}.')
+              row_number, row = matches[0]
+              if not eligible(row):
+                  raise SystemExit('The explicitly selected source row is not eligible: it must be published on Facebook/LinkedIn, contain topic/content, have no external Reel video IDs, and not be locked or already reviewed.')
+              selection_mode = 'explicit_id'
+          else:
+              candidates = [(n, row) for n, row in rows if eligible(row)]
+              if not candidates:
+                  raise SystemExit('No safe eligible published row found. No row was modified; check social publication statuses, Reel Status, and external video IDs.')
+              row_number, row = candidates[-1]
+              source_id = str(row.get('ID', '') or '').strip()
+              selection_mode = 'automatic_latest_eligible'
           topic = str(row.get('الموضوع', '') or '').strip()
-          content = str(row.get('المحتوى', '') or '').strip()
-          social_ok = any(str(row.get(k, '') or '').strip().upper() == 'PUBLISHED' for k in ('Facebook Status', 'LinkedIn Status'))
-          if not topic or not content or not social_ok:
-              raise SystemExit('Source row must have topic, published post content, and at least one successful Facebook/LinkedIn publication.')
-          reel_status = str(row.get('Reel Status', '') or '').strip().upper()
-          external_video_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
-          if any(external_video_ids):
-              raise SystemExit('This Reel already has an external Facebook/YouTube video ID; replacing its binary in place is unsupported and must not create duplicates.')
-          if reel_status in {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING'} and os.getenv('REEL_FORCE_REPLACE', '').lower() != 'true':
-              raise SystemExit(f'Source ID already has Reel Status={reel_status}; set force_replace only when intentionally replacing that exact Reel.')
-          source = {'row_number': row_number, 'source_id': source_id, 'topic': topic}
+          source = {'row_number': row_number, 'source_id': source_id, 'topic': topic, 'selection_mode': selection_mode}
           Path('generated/reel_source.json').write_text(json.dumps(source, ensure_ascii=False, indent=2), encoding='utf-8')
-          print('REEL_SOURCE_LOCKED=' + json.dumps({'source_id': source_id, 'current_row': row_number, 'topic': topic}, ensure_ascii=False))
+          print('REEL_SOURCE_LOCKED=' + json.dumps({'source_id': source_id, 'current_row': row_number, 'topic': topic, 'selection_mode': selection_mode}, ensure_ascii=False))
           PY
           cat generated/reel_source.json
       - name: Validate Reel renderer syntax and required brand assets
