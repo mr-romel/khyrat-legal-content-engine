@@ -137,8 +137,12 @@ jobs:
             exit 1
           fi
       - name: Persist reusable QA-approved scene image cache
-        if: ${{ success() }}
+        if: ${{ always() }}
         run: |
+          if [ ! -d generated/reel_image_cache ]; then
+            echo "No approved scene images were generated."
+            exit 0
+          fi
           git config user.name "Khyrat Legal Content Engine"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A generated/reel_image_cache/
