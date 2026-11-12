@@ -158,8 +158,7 @@ def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaust
 
 
 def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp_path):
-    import os
-    os.environ["REEL_IMAGE_CACHE_DIR"] = str(tmp_path / "isolated-cache")
+    monkeypatch.setenv("REEL_IMAGE_CACHE_DIR", str(tmp_path / "isolated-cache"))
     import sys
     sys.path.insert(0, str(ROOT / "src"))
     from reel_pipeline import _generate_scene_with_provider_fallbacks
