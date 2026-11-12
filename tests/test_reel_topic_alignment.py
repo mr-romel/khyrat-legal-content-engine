@@ -43,3 +43,21 @@ def test_nursery_cctv_topic_gets_its_own_visual_scene_family():
     assert len(scenes) == 8
     assert all("nursery" in scene.lower() or "daycare" in scene.lower() for scene in scenes)
     assert any("CCTV" in scene for scene in scenes)
+
+
+def test_reel_recovery_skips_mismatched_legal_topic_rows():
+    from reel_pipeline import _visual_topic_content_aligned
+
+    assert not _visual_topic_content_aligned(
+        "التعويض عن الأضرار المدنية",
+        "حقوق العامل في الفصل التعسفي ومكافأة نهاية الخدمة",
+    )
+
+
+def test_reel_recovery_accepts_matching_legal_topic_rows():
+    from reel_pipeline import _visual_topic_content_aligned
+
+    assert _visual_topic_content_aligned(
+        "التعويض عن الأضرار المدنية",
+        "يجوز طلب التعويض عن الضرر متى توافرت أركان المسؤولية المدنية.",
+    )
