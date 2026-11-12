@@ -196,7 +196,7 @@ def brand_published_image(image_path: str) -> str:
 def _image_provider_timeout_seconds() -> int:
     """Keep image-provider outages bounded so five-scene reels cannot stall for 20 minutes."""
     try:
-        return max(15, min(int(os.getenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "60")), 120))
+        return max(30, min(int(os.getenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "120")), 300))
     except (TypeError, ValueError):
         return 60
 
