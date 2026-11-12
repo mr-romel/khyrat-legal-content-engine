@@ -1,2 +1,2 @@
-Run a safe, topic-aligned Reel backlog catch-up after source-selection and workflow gating fixes.
-Revision: 2026-11-12T12:20 Cairo.
+Run the read-only Reel backlog audit and safe topic-aligned recovery after workflow hardening.
+Revision: 2026-11-12T12:25 Cairo.
