@@ -1391,7 +1391,7 @@ def main() -> int:
 
         print("REEL_STAGE tts=start")
         tts_audio = output_dir / "voice-arabic-neural"
-        generate_reel_narration_with_fallbacks(
+        tts_audio = generate_reel_narration_with_fallbacks(
             cfg["gemini_api_key"],
             cfg["service_account_info"],
             brief["script"],
@@ -1403,7 +1403,7 @@ def main() -> int:
 
         slogan_audio = output_dir / "slogan-ask-mahmoud"
         slogan_text = prepare_tts_script("خليك فاكر دايما ... اسأل محمود")
-        generate_short_signoff_with_fallbacks(
+        slogan_audio = generate_short_signoff_with_fallbacks(
             cfg["gemini_api_key"],
             cfg["service_account_info"],
             slogan_text,
