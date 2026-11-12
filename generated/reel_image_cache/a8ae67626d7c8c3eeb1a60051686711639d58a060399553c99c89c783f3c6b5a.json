@@ -1,0 +1,36 @@
+{
+  "cache_key": "a8ae67626d7c8c3eeb1a60051686711639d58a060399553c99c89c783f3c6b5a",
+  "image_sha256": "bfab22c5c62e846769c64d9d688444b7a305bdb163e05163df5f0e893440d419",
+  "provider": "local_scene",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 72,
+    "relevance_score": 72,
+    "reference_score": 100,
+    "overall_score": 72,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "Original vector-style infrastructure scene rendered on a clean 9:16 canvas."
+    ],
+    "relevance_findings": [
+      "Scene renderer selected from the approved topic and exact scene brief."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Deterministic local-scene QA used; external visual model quota was unavailable."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "LOCAL_SCENE_DETERMINISTIC_QA",
+    "qa_method": "local-renderer-provenance-and-integrity"
+  },
+  "topic": "التحقيق مع الموظف العام",
+  "image_brief": "A modern HR folder beside a desk calendar and capped pen, clean still-life composition."
+}
