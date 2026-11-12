@@ -175,7 +175,7 @@ def _urlopen_with_retry(request, *, timeout: int, attempts: int = 5):
             last_error = exc
             if attempt >= attempts:
                 break
-            delay = min(2 ** (attempt - 1), 8)
+            delay = min(3 * (2 ** (attempt - 1)), 45)
             print(f"Transient TLS/network failure ({type(exc).__name__}); retry {attempt + 1}/{attempts} in {delay}s: {exc}")
             time.sleep(delay)
     raise RuntimeError(f"External TLS/network request failed after {attempts} attempts: {last_error}") from last_error
