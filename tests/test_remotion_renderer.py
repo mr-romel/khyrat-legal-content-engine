@@ -36,3 +36,16 @@ def test_renderer_rejects_incomplete_image_packs():
             script="نص تجريبي",
             output_video=Path("out.mp4"),
         )
+
+
+def test_renderer_requires_exactly_five_images_to_match_reel_pipeline():
+    import pytest
+    with pytest.raises(RuntimeError, match="expected exactly 5"):
+        render_reel_with_remotion(
+            scenes=[Path(f"scene-{i}.jpg") for i in range(6)],
+            voice_audio=Path("missing-voice.wav"),
+            slogan_audio=Path("missing-slogan.wav"),
+            logo=Path("missing-logo.png"),
+            script="نص تجريبي",
+            output_video=Path("out.mp4"),
+        )
