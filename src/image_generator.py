@@ -436,7 +436,7 @@ def create_legal_image(
             model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
             import time
             last_error = None
-            for attempt in range(1, 4):
+            for attempt in range(1, 6):
                 try:
                     response = client.models.generate_content(
                         model=model,
@@ -739,7 +739,7 @@ def create_legal_image(
         cloudflare_error = (f"{provider_preference.title()} explicitly selected." if provider_preference in {"gemini", "pollinations", "openverse", "wikimedia"} else "Cloudflare credentials unavailable.")
     else:
         import time
-        for attempt in range(1, 4):
+        for attempt in range(1, 6):
             try:
                 response = requests.post(
                     endpoint,
