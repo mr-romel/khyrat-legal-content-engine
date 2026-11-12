@@ -1,0 +1,36 @@
+{
+  "cache_key": "66ad8300f06b5e40d7b86f11a7223c0c66f35a25ca5d16c6f55e76716f2caa75",
+  "image_sha256": "104de584bf5e414f403d0ae00b2e6aa1e5a6d5fdac11f893995dee5ad660752e",
+  "provider": "local_scene",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 72,
+    "relevance_score": 72,
+    "reference_score": 100,
+    "overall_score": 72,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "Original vector-style infrastructure scene rendered on a clean 9:16 canvas."
+    ],
+    "relevance_findings": [
+      "Scene renderer selected from the approved topic and exact scene brief."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Deterministic local-scene QA used; external visual model quota was unavailable."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "LOCAL_SCENE_DETERMINISTIC_QA",
+    "qa_method": "local-renderer-provenance-and-integrity"
+  },
+  "topic": "تخيل إنك بتفتح محفظتك الإلكترونية فجأة وتلاقي الرصيد صفر، وبعد التواصل مع الدعم الفني تكتشف إن فيه تحويلات تمت لحسابات تانية من غير أي إذن منك، الموقف ده مش مجرد سرقة عادية، ده جريمة تقنية بتخضع لقانون مكافحة جرائم تقنية المعلومات رقم 175 ل",
+  "image_brief": "A modern HR folder beside a desk calendar and capped pen, clean still-life composition."
+}
