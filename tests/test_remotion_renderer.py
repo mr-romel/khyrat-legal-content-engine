@@ -51,6 +51,24 @@ def test_renderer_requires_exactly_five_images_to_match_reel_pipeline():
         )
 
 
+def test_renderer_rejects_combined_voice_and_signoff_over_40_seconds(tmp_path, monkeypatch):
+    import pytest
+    import remotion_renderer
+
+    files = []
+    for name in [*(f"scene-{i}.jpg" for i in range(5)), "voice.wav", "slogan.wav", "logo.png"]:
+        path = tmp_path / name
+        path.write_bytes(b"x" * 256)
+        files.append(path)
+    durations = {"voice.wav": 35.0, "slogan.wav": 5.1}
+    monkeypatch.setattr(remotion_renderer, "_duration", lambda path: durations.get(path.name, 1.0))
+    with pytest.raises(RuntimeError, match="REMOTION_TOTAL_DURATION_EXCEEDED"):
+        render_reel_with_remotion(
+            scenes=files[:5], voice_audio=files[5], slogan_audio=files[6],
+            logo=files[7], script="نص تجريبي", output_video=tmp_path / "out.mp4",
+        )
+
+
 def test_remotion_art_direction_has_animated_transitions_and_full_frame_logo():
     root = Path(__file__).resolve().parents[1] / "remotion"
     reel = (root / "src" / "Reel.tsx").read_text(encoding="utf-8")
