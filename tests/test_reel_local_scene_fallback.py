@@ -195,3 +195,11 @@ def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp
         )
     assert calls == ["pollinations", "cloudflare", "local_scene", "local_scene"]
     assert disabled == {"pollinations", "cloudflare"}
+
+
+def test_audio_path_fix_rearms_one_new_source_id_recovery_attempt():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'REEL_RECOVERY_ATTEMPT_ID: "row21-audio-path-fix-20261112-01"' in workflow
+    assert 'pinned_attempt_marker not in review.casefold()' in workflow
+    assert 'source-id-recovery-used:{recovery_attempt_id}' in workflow
+    assert 'status in {"FAILED", "REGENERATE_REQUESTED"}' in workflow
