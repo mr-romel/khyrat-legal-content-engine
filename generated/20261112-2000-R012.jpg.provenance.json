@@ -1,0 +1,24 @@
+{
+  "topic": "المساهمة الجنائية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/black-forest-labs/flux-2-dev",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑30s person sits on a plain sofa in a modest, sun‑lit living‑room. They hold a smartphone pressed to their ear, eyes narrowed in concentration as if listening to a serious conversation. In front of them on a low coffee table lie three small, ordinary objects that suggest “providing a means”: a folded paper map, a simple metal key, and a tiny USB flash drive. The window on the left lets in soft natural daylight that bathes the scene in gentle, even light, casting faint shadows on the sofa cushions and the tabletop. The camera is positioned at eye level, slightly to the side so the viewer sees the subject’s profile, the phone, and the three items on the table in a single, clear frame, with the background wal\nLEGAL TOPIC: المساهمة الجنائية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a present-day Egyptian setting. Use contemporary 2020s architecture, infrastructure, clothing and materials. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: صديق ليا اتصل بي بيسألني: لو أنا ساعدت حد في جريمة من غير ما أشارك في تنفيذها بإيدي، هل أعتبر شريك فيها؟ السؤال ده بيفتح باب واسع في القانون الجنائي المصري، وهو فكرة المساهمة الجنائية، اللي مش بس بتقتصر على اللي نفذ الجريمة، لكن بتمتد لكل من ساهم فيها بأي صورة من صور الاشتراك، سواء بالاتفاق أو التحريض أو المساعدة، وده بيخلي المسؤولية الجنائية أوسع بكتير مما يتخيل البعض، فالمشرع المصري بيعاقب الفاعل الأصلي والشريك في \\nCOMPOSITION FORMAT: portrait 4:5; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid gen",
+  "prompt_sha256": "1671e1e16d67c17f80a38de2998cefe9e18657ab2faaee0e1f196e46515d97fa",
+  "image_sha256": "3bb31b3efbad0cb9f30cb3dc2d54580c3c628aa284e64cbdbeb7eec784f53ed1",
+  "image_path": "generated/20261112-2000-R012.jpg",
+  "visual_description": "A mid‑30s person sits on a plain sofa in a modest, sun‑lit living‑room. They hold a smartphone pressed to their ear, eyes narrowed in concentration as if listening to a serious conversation. In front of them on a low coffee table lie three small, ordinary objects that suggest “providing a means”: a folded paper map, a simple metal key, and a tiny USB flash drive. The window on the left lets in soft natural daylight that bathes the scene in gentle, even light, casting faint shadows on the sofa cushions and the tabletop. The camera is positioned at eye level, slightly to the side so the viewer sees the subject’s profile, the phone, and the three items on the table in a single, clear frame, with the background wall and a few minimal décor elements kept out of focus. No text, logos, or numbers appear in the image.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 5,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "3bb31b3efbad0cb9f30cb3dc2d54580c3c628aa284e64cbdbeb7eec784f53ed1"
+}
