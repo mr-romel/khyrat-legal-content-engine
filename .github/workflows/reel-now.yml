@@ -90,9 +90,9 @@ jobs:
               content = str(row.get('المحتوى', '') or '').strip()
               social_ok = any(str(row.get(k, '') or '').strip().upper() == 'PUBLISHED' for k in ('Facebook Status', 'LinkedIn Status'))
               status = str(row.get('Reel Status', '') or '').strip().upper()
-              external_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
+              external_video_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
               status_ok = status not in protected_statuses or (allow_replace and status in {'REVIEW', 'APPROVED', 'PUBLISHED'})
-              return bool(rid and topic and content and social_ok and not any(external_ids) and status_ok)
+              return bool(rid and topic and content and social_ok and not any(external_video_ids) and status_ok)
           if source_id:
               matches = [(n, row) for n, row in rows if str(row.get('ID', '') or '').strip() == source_id]
               if len(matches) != 1:
