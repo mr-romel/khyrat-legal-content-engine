@@ -41,6 +41,29 @@ def test_edge_tts_is_completely_disabled_and_google_cloud_is_the_fallback():
     assert "generate_google_cloud_short_arabic_tts_audio" in reel_source
 
 
+def test_reel_narration_accepts_34_9_seconds_without_speed_change(monkeypatch, tmp_path):
+    audio = tmp_path / "gemini-voice.wav"
+    audio.write_bytes(b"test-audio")
+    monkeypatch.setattr(reel_pipeline, "_media_duration", lambda _path: 34.9)
+
+    result = reel_pipeline.fit_reel_narration_duration(audio)
+
+    assert result == audio
+    assert reel_pipeline.REEL_CONTENT_MAX_SECONDS >= 34.9
+
+
+def test_reel_narration_still_rejects_audio_over_hard_content_limit(monkeypatch, tmp_path):
+    audio = tmp_path / "overlong-voice.wav"
+    audio.write_bytes(b"test-audio")
+    monkeypatch.setattr(reel_pipeline, "_media_duration", lambda _path: 35.6)
+
+    try:
+        reel_pipeline.fit_reel_narration_duration(audio)
+        assert False, "Narration beyond the hard content limit must be rejected"
+    except RuntimeError as exc:
+        assert "hard maximum" in str(exc)
+
+
 def test_reel_generation_uses_persistent_qa_approved_scene_image_cache():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     assert "REEL_IMAGE_CACHE_DIR" in source
