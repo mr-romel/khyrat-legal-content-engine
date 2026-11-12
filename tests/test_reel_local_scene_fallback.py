@@ -7,8 +7,9 @@ def test_reel_uses_local_scene_renderer_after_metered_providers_and_never_stock_
     source = (ROOT / "src" / "reel_pipeline.py").read_text(encoding="utf-8")
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
-    assert '3: "local_scene"' in source
-    assert '4: "wikimedia"' not in source
+    assert '3: "gemini"' in source
+    assert '4: "local_scene"' in source
+    assert '5: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
     assert "_generate_scene_with_provider_fallbacks" in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
@@ -118,11 +119,11 @@ def test_scene_visual_qa_rejection_falls_through_to_next_provider_and_local_scen
         api_key="",
         cloudflare_account_id="",
         cloudflare_api_token="",
-        providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
+        providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"local_scene"},
         create_image=fake_create,
         qa_image=fake_qa,
     )
-    assert used == ["pollinations", "cloudflare", "local_scene"]
+    assert used == ["pollinations", "cloudflare", "gemini", "local_scene"]
     assert result["provider"] == "local_scene"
     assert result["qa"]["decision"] == "PASS"
 
@@ -172,6 +173,8 @@ def test_image_provider_quota_failure_disables_provider_and_reuses_approved_imag
             raise RuntimeError("Pollinations image request failed: HTTP 402 KEY_BUDGET_EXHAUSTED")
         if provider == "cloudflare":
             raise RuntimeError("Cloudflare image provider failed: HTTP 429 daily free allocation")
+        if provider == "gemini":
+            raise RuntimeError("Gemini image generation failed: 429 resource_exhausted")
         Path(kwargs["output_path"]).write_bytes(b"x" * 12000)
 
     def fake_qa(**kwargs):
@@ -203,8 +206,8 @@ def test_image_provider_quota_failure_disables_provider_and_reuses_approved_imag
         qa_image=fake_qa,
         disabled_providers=disabled,
     )
-    assert calls == ["pollinations", "cloudflare", "local_scene"]
-    assert disabled == {"pollinations", "cloudflare"}
+    assert calls == ["pollinations", "cloudflare", "gemini", "local_scene"]
+    assert disabled == {"pollinations", "cloudflare", "gemini"}
     assert first["cache_hit"] is False
     assert second["cache_hit"] is True
     assert (tmp_path / "scene-2.jpg").read_bytes() == (tmp_path / "scene-1.jpg").read_bytes()
