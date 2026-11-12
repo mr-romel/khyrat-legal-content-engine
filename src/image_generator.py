@@ -569,9 +569,18 @@ def create_legal_image(
             pages = list((payload.get("query", {}).get("pages", {}) or {}).values())
             if not pages:
                 raise ImageGenerationError(f"Wikimedia Commons returned no scene matches for: {query}")
+            from free_media import _scene_metadata_matches_query
             for page in pages:
                 info = (page.get("imageinfo") or [{}])[0]
                 ext = info.get("extmetadata") or {}
+                scene_title = str(page.get("title", ""))
+                scene_description = " ".join([
+                    str((ext.get("ObjectName") or {}).get("value", "")),
+                    str((ext.get("ImageDescription") or {}).get("value", "")),
+                ])
+                if not _scene_metadata_matches_query(query, scene_title, scene_description):
+                    print(f"Wikimedia scene candidate rejected before download: metadata mismatch ({scene_title[:120]}).")
+                    continue
                 license_name = html.unescape(re.sub(r"<[^>]+>", "", str((ext.get("LicenseShortName") or {}).get("value", "")))).strip()
                 license_upper = license_name.upper()
                 public_domain = "PUBLIC DOMAIN" in license_upper or license_upper == "CC0"
