@@ -219,3 +219,25 @@ def test_gemini_script_topic_drift_falls_back_to_approved_post(monkeypatch):
     result = reel_pipeline.make_brief("test-key", "test-model", topic, post)
     assert result["generation_mode"] == "deterministic_fallback"
     assert reel_pipeline._visual_topic_family(result["script"]) == "public_utility"
+
+
+def test_urlopen_does_not_retry_nontransient_http_429(monkeypatch):
+    calls = []
+    def rate_limited(request, timeout):
+        calls.append((request, timeout))
+        raise urllib.error.HTTPError("https://example.invalid", 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(reel_pipeline.urllib.request, "urlopen", rate_limited)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    try:
+        reel_pipeline._urlopen_with_retry(object(), timeout=5, attempts=3)
+        assert False, "HTTP 429 must be raised without retries"
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 429
+    assert len(calls) == 1
+
+
+def test_cloudflare_image_http_429_skips_provider_retries():
+    source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert 'if response.status_code == 429:' in source
+    assert "skipping retries and switching to the next provider" in source
