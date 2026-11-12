@@ -1,0 +1,36 @@
+{
+  "cache_key": "15ce352b18738ea3bd67b82dab8926215ccfe85a55e3de23ed99fffec62e20e5",
+  "image_sha256": "a1186cf337a48a450e3e9c0cabdf06b1ec8665d424f02f80ab71d65a5ba32864",
+  "provider": "local_scene",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 72,
+    "relevance_score": 72,
+    "reference_score": 100,
+    "overall_score": 72,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "Original vector-style infrastructure scene rendered on a clean 9:16 canvas."
+    ],
+    "relevance_findings": [
+      "Scene renderer selected from the approved topic and exact scene brief."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Deterministic local-scene QA used; external visual model quota was unavailable."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "LOCAL_SCENE_DETERMINISTIC_QA",
+    "qa_method": "local-renderer-provenance-and-integrity"
+  },
+  "topic": "التحقيق مع الموظف العام",
+  "image_brief": "A plain employment contract folder beside blank paper and a capped pen on a modern office desk, no people or readable writing."
+}

@@ -1,0 +1,36 @@
+{
+  "cache_key": "53943bb4f8f2b35e0a2043bd88d82b4ad88c1a590a6157ea85b9397c02ab30d3",
+  "image_sha256": "a80a3df2a2ccbf5a7f0dae63adbbf46b474d3ff68ed850170d986b00291ebe7e",
+  "provider": "local_scene",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 72,
+    "relevance_score": 72,
+    "reference_score": 100,
+    "overall_score": 72,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "Original vector-style infrastructure scene rendered on a clean 9:16 canvas."
+    ],
+    "relevance_findings": [
+      "Scene renderer selected from the approved topic and exact scene brief."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Deterministic local-scene QA used; external visual model quota was unavailable."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "LOCAL_SCENE_DETERMINISTIC_QA",
+    "qa_method": "local-renderer-provenance-and-integrity"
+  },
+  "topic": "التحقيق مع الموظف العام",
+  "image_brief": "A closed employee file beside a small stack of blank leave-request forms, no people or legible text."
+}
