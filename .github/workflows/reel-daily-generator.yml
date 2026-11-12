@@ -79,6 +79,22 @@ jobs:
           fi
           # Source locks are run-local only; never commit a stale row pointer.
           rm -f generated/reel_source.json
+      - name: Persist reusable approved scene images even if later Reel steps fail
+        if: ${{ always() }}
+        run: |
+          if [ ! -d generated/reel_image_cache ]; then
+            echo "No approved scene images were generated."
+            exit 0
+          fi
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A generated/reel_image_cache/
+          if git diff --cached --quiet; then
+            echo "No new approved scene images to cache."
+          else
+            git commit -m "Store reusable QA-approved Reel scene images"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
       - name: Persist reel package
         if: ${{ success() }}
         run: |
