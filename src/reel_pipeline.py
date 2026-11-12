@@ -149,7 +149,7 @@ def prepare_tts_script(text: str) -> str:
 def prepare_neural_tts_script(text: str) -> str:
     return _clean_tts_text(text)
 
-def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
+def _urlopen_with_retry(request, *, timeout: int, attempts: int = 5):
     """Retry transient TLS disconnects without repeating downstream Telegram actions."""
     import time
     import ssl
@@ -168,7 +168,7 @@ def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
             last_error = exc
             if attempt >= attempts:
                 break
-            delay = min(2 ** (attempt - 1), 8)
+            delay = min(3 * (2 ** (attempt - 1)), 45)
             print(f"Transient HTTP failure ({exc.code}); retry {attempt + 1}/{attempts} in {delay}s: {exc}")
             time.sleep(delay)
         except (URLError, ssl.SSLError, socket.timeout, TimeoutError, EOFError, ConnectionError) as exc:
@@ -181,7 +181,7 @@ def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
     raise RuntimeError(f"External TLS/network request failed after {attempts} attempts: {last_error}") from last_error
 
 
-def _refresh_google_credentials_with_retry(credentials, attempts: int = 3) -> None:
+def _refresh_google_credentials_with_retry(credentials, attempts: int = 5) -> None:
     from google.auth.transport.requests import Request
     import time
 
@@ -196,7 +196,7 @@ def _refresh_google_credentials_with_retry(credentials, attempts: int = 3) -> No
             last_error = exc
             if attempt >= attempts:
                 break
-            delay = min(attempt * 2, 6)
+            delay = min(3 * (2 ** (attempt - 1)), 30)
             print(f"Google credential refresh failed; retry {attempt + 1}/{attempts} in {delay}s: {exc}")
             time.sleep(delay)
     raise RuntimeError(f"Google Cloud credentials refresh failed after {attempts} attempts: {last_error}") from last_error
@@ -445,41 +445,6 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     return output_path
 
 
-def generate_edge_arabic_tts_audio(
-    script: str,
-    output_path: Path,
-    *,
-    min_seconds: float = 22.0,
-    max_seconds: float = REEL_CONTENT_MAX_SECONDS,
-) -> Path:
-    """Quota-independent Microsoft Edge Arabic voice fallback, using the installed edge-tts package."""
-    try:
-        import asyncio
-        import edge_tts
-    except Exception as exc:
-        raise RuntimeError(f"Edge TTS dependency unavailable: {exc}") from exc
-
-    clean = prepare_tts_script(script)
-    voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural").strip() or "ar-EG-ShakirNeural"
-    rate = os.getenv("EDGE_TTS_RATE", "+0%").strip() or "+0%"
-
-    async def _save() -> None:
-        communicate = edge_tts.Communicate(text=clean, voice=voice, rate=rate)
-        await communicate.save(str(output_path))
-
-    try:
-        asyncio.run(_save())
-    except Exception as exc:
-        raise RuntimeError(f"Edge TTS synthesis failed (voice={voice}): {exc}") from exc
-    duration = _media_duration(output_path)
-    if duration < min_seconds or duration > max_seconds:
-        raise RuntimeError(
-            f"Edge TTS duration outside {min_seconds:.1f}-{max_seconds:.1f}s: {duration:.1f}s"
-        )
-    print(f"Edge Arabic TTS succeeded: voice={voice} duration={duration:.1f}s")
-    return output_path
-
-
 def generate_reel_narration_with_fallbacks(
     api_key: str,
     service_account_info: dict[str, Any],
@@ -487,10 +452,9 @@ def generate_reel_narration_with_fallbacks(
     emotion_map: list[dict[str, Any]],
     output_path: Path,
 ) -> Path:
-    """Try Gemini, then Edge Arabic neural voice, then Google Cloud; validate each output."""
+    """Use Gemini TTS first, then Google Cloud neural Arabic; Edge TTS is prohibited."""
     errors = []
     gemini_path = output_path.with_name("voice-gemini.wav")
-    edge_path = output_path.with_name("voice-edge.mp3")
     cloud_path = output_path.with_name("voice-google-cloud.wav")
     try:
         result = generate_gemini_tts_audio(api_key, script, emotion_map, gemini_path)
@@ -499,13 +463,6 @@ def generate_reel_narration_with_fallbacks(
     except Exception as exc:
         errors.append(f"Gemini={exc}")
         print(f"REEL_STAGE tts=gemini_unavailable reason={exc}")
-    try:
-        result = generate_edge_arabic_tts_audio(script, edge_path)
-        print("REEL_STAGE tts=edge_ok")
-        return result
-    except Exception as exc:
-        errors.append(f"Edge={exc}")
-        print(f"REEL_STAGE tts=edge_unavailable reason={exc}")
     try:
         result = generate_google_cloud_arabic_tts_audio(service_account_info, script, cloud_path)
         print("REEL_STAGE tts=google_cloud_ok")
@@ -524,10 +481,9 @@ def generate_short_signoff_with_fallbacks(
     emotion_map: list[dict[str, Any]],
     output_path: Path,
 ) -> Path:
-    """Generate the branded sign-off with Gemini, Edge Arabic, then Google Cloud."""
+    """Generate the branded sign-off with Gemini, then Google Cloud; never use Edge TTS."""
     errors = []
     gemini_path = output_path.with_name("slogan-gemini.wav")
-    edge_path = output_path.with_name("slogan-edge.mp3")
     cloud_path = output_path.with_name("slogan-google-cloud.wav")
     try:
         return generate_gemini_tts_audio_unbounded(
@@ -535,12 +491,6 @@ def generate_short_signoff_with_fallbacks(
         )
     except Exception as exc:
         errors.append(f"Gemini={exc}")
-    try:
-        return generate_edge_arabic_tts_audio(
-            script, edge_path, min_seconds=1.0, max_seconds=8.0
-        )
-    except Exception as exc:
-        errors.append(f"Edge={exc}")
     try:
         return generate_google_cloud_short_arabic_tts_audio(service_account_info, script, cloud_path)
     except Exception as exc:
@@ -566,6 +516,23 @@ def _generate_scene_with_provider_fallbacks(
     errors = []
     provenance_path = output_path.with_suffix(output_path.suffix + ".provenance.json")
     disabled_providers = disabled_providers if disabled_providers is not None else set()
+    # Persist QA-approved images across retries/runs using the exact post and scene brief.
+    cache_key = hashlib.sha256(json.dumps(
+        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16"},
+        ensure_ascii=False, sort_keys=True,
+    ).encode("utf-8")).hexdigest()
+    cache_dir = Path(os.getenv("REEL_IMAGE_CACHE_DIR", "generated/reel_image_cache"))
+    cache_image, cache_meta = cache_dir / f"{cache_key}.jpg", cache_dir / f"{cache_key}.json"
+    try:
+        meta = json.loads(cache_meta.read_text(encoding="utf-8")) if cache_meta.is_file() else {}
+        cached_sha = hashlib.sha256(cache_image.read_bytes()).hexdigest() if cache_image.is_file() else ""
+        if cache_image.is_file() and cache_image.stat().st_size >= 10_000 and meta.get("qa", {}).get("decision") == "PASS" and meta.get("image_sha256") == cached_sha:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cache_image, output_path)
+            print(f"REEL_STAGE scene_cache_hit={cache_key[:12]}")
+            return {"path": output_path, "provider": meta.get("provider", "cached"), "qa": meta["qa"], "cache_hit": True}
+    except (OSError, ValueError, TypeError) as cache_error:
+        print(f"REEL_STAGE scene_cache_read_failed reason={cache_error}")
     for attempt, provider_name in providers.items():
         if provider_name in disabled_providers:
             print(f"REEL_STAGE scene_provider_skipped={provider_name} reason=provider disabled after quota/auth failure")
@@ -602,7 +569,19 @@ def _generate_scene_with_provider_fallbacks(
                 f"REEL_STAGE scene_provider_accepted={provider_name} "
                 f"attempt={attempt} qa_method={qa.get('qa_method', 'visual-model')}"
             )
-            return {"path": output_path, "provider": provider_name, "qa": qa}
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                image_sha = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                shutil.copy2(output_path, cache_image)
+                cache_meta.write_text(json.dumps(
+                    {"cache_key": cache_key, "image_sha256": image_sha, "provider": provider_name,
+                     "qa": qa, "topic": topic, "image_brief": image_brief},
+                    ensure_ascii=False, indent=2,
+                ) + "\n", encoding="utf-8")
+                print(f"REEL_STAGE scene_cache_saved={cache_key[:12]}")
+            except OSError as cache_error:
+                print(f"REEL_STAGE scene_cache_write_failed reason={cache_error}")
+            return {"path": output_path, "provider": provider_name, "qa": qa, "cache_hit": False}
         except Exception as exc:
             error_text = str(exc)
             errors.append(f"{provider_name}: {error_text[:500]}")
