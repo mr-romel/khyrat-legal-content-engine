@@ -10,7 +10,8 @@ def test_reel_uses_local_scene_renderer_after_metered_providers_and_never_stock_
     assert '3: "local_scene"' in source
     assert '4: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
-    assert "deterministic original local illustration" in source
+    assert "_generate_scene_with_provider_fallbacks" in source
+    assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
 
 
 def test_local_scene_renderer_has_public_utility_visuals_without_external_api():
