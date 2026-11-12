@@ -518,7 +518,7 @@ def _generate_scene_with_provider_fallbacks(
     disabled_providers = disabled_providers if disabled_providers is not None else set()
     # Persist QA-approved images across retries/runs using the exact post and scene brief.
     cache_key = hashlib.sha256(json.dumps(
-        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16"},
+        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16", "scene_pipeline_revision": "gemini-first-2026-11-13-v1"},
         ensure_ascii=False, sort_keys=True,
     ).encode("utf-8")).hexdigest()
     cache_dir = Path(os.getenv("REEL_IMAGE_CACHE_DIR", "generated/reel_image_cache"))
@@ -593,8 +593,9 @@ def _generate_scene_with_provider_fallbacks(
                 or "daily free allocation" in error_lower
                 or "quota exceeded" in error_lower
                 or "budget too low" in error_lower
+                or "resource_exhausted" in error_lower
             )
-            if quota_or_auth_failure and provider_name in {"pollinations", "cloudflare"}:
+            if quota_or_auth_failure and provider_name in {"pollinations", "cloudflare", "gemini"}:
                 disabled_providers.add(provider_name)
                 print(f"REEL_STAGE scene_provider_disabled={provider_name} reason=quota_or_auth_failure")
             print(
@@ -1303,14 +1304,14 @@ def main() -> int:
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
-            # Pollinations and Cloudflare are tried first. Crucially, each generated
-            # image is semantically checked before acceptance. An off-topic result
-            # falls through to the next provider; local original art is the final
-            # no-quota fallback and is checked through its renderer provenance.
+            # Metered providers are followed by Gemini before local original art.
+            # Every generated model image must pass semantic QA; local artwork is
+            # the final no-quota fallback and is checked against topic-specific provenance.
             visual_providers = {
                 1: "pollinations",
                 2: "cloudflare",
-                3: "local_scene",
+                3: "gemini",
+                4: "local_scene",
             }
             for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
