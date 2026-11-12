@@ -149,3 +149,11 @@ def test_tts_fallback_chain_uses_edge_before_google_cloud(monkeypatch, tmp_path)
     )
     assert result == tmp_path / "voice.mp3"
     assert calls == ["gemini", "edge"]
+
+
+def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaustion():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'status in {"FAILED", "REGENERATE_REQUESTED"}' in workflow
+    assert '"source-id-recovery-used" not in review.casefold()' in workflow
+    assert "source-id-recovery-used" in workflow
+    assert 'and retry_count < 3' not in workflow.split("pinned_source_retry = (", 1)[1].split(")", 1)[0]
