@@ -85,7 +85,7 @@ def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str,
         repair_prompt = prompt
         if attempt == 1:
             repair_prompt += (
-                "\\n\\nFINAL COMPRESSION PASS: Rewrite more decisively in 190-230 words, "
+                "\n\nFINAL COMPRESSION PASS: Rewrite more decisively in 190-230 words, "
                 "remove secondary examples and repeated explanation, preserve every legal qualification, "
                 "and stay at least 150 characters below the hard limit. Do not truncate or use ellipses."
             )
@@ -114,7 +114,7 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
     minimum_words = 200
     target_words = 250
     current_words = _linkedin_word_count(text)
-    if current_words >= minimum_words and len(text) <= 2600 and not _linkedin_needs_completion(text) and not re.search(r"\\b(?:أنت|إنت|انت|عندك|عندكم)\\b|\\bلو\\s+(?:أنت|إنت|انت|عندك|عندكم)", text):
+    if current_words >= minimum_words and len(text) <= 2600 and not _linkedin_needs_completion(text) and not re.search(r"\b(?:أنت|إنت|انت|عندك|عندكم)\b|\bلو\s+(?:أنت|إنت|انت|عندك|عندكم)", text):
         return text
     if current_words >= minimum_words and len(text) > 2600 and not _linkedin_needs_completion(text):
         fitted = _fit_linkedin_char_limit(text, api_key=api_key, model=model, topic=topic, legal_sources=legal_sources, max_chars=2600)
