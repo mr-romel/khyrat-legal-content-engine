@@ -193,6 +193,14 @@ def brand_published_image(image_path: str) -> str:
 
 
 
+def _image_provider_timeout_seconds() -> int:
+    """Keep image-provider outages bounded so five-scene reels cannot stall for 20 minutes."""
+    try:
+        return max(15, min(int(os.getenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "60")), 120))
+    except (TypeError, ValueError):
+        return 60
+
+
 def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, output_path: str, width: int, height: int) -> bytes:
     """Render a local, topic-matched editorial illustration without external APIs."""
     from PIL import Image, ImageDraw
@@ -408,7 +416,7 @@ def create_legal_image(
         url = f"https://gen.pollinations.ai/image/{encoded_prompt}"
         params = {"model": model, "width": width, "height": height, "nologo": "true"}
         try:
-            response = requests.get(url, params=params, headers={"Authorization": f"Bearer {pollinations_key}", "Accept": "image/*"}, timeout=(20, 240))
+            response = requests.get(url, params=params, headers={"Authorization": f"Bearer {pollinations_key}", "Accept": "image/*"}, timeout=(10, _image_provider_timeout_seconds()))
             if not response.ok:
                 raise ImageGenerationError(f"Pollinations image request failed: HTTP {response.status_code} - {response.text[:1200]}")
             content_type = response.headers.get("content-type", "").lower()
@@ -737,7 +745,7 @@ def create_legal_image(
                     endpoint,
                     headers=headers,
                     files=multipart_fields,
-                    timeout=(30, 240),
+                    timeout=(15, _image_provider_timeout_seconds()),
                 )
                 if response.ok:
                     try:
