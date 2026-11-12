@@ -763,11 +763,8 @@ def create_legal_image(
                     error_payload = response.text
                 cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
                 quota_text = str(error_payload).casefold()
-                if response.status_code == 429 and any(
-                    marker in quota_text
-                    for marker in ("daily free allocation", "neurons", "quota exceeded", "usage limit")
-                ):
-                    print("Cloudflare image quota is exhausted; skipping pointless retries and switching to Gemini.")
+                if response.status_code == 429:
+                    print("Cloudflare image provider returned HTTP 429; skipping retries and switching to the next provider.")
                     break
                 if response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
                     break

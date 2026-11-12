@@ -36,8 +36,8 @@ def render_reel_with_remotion(
     fps: int = 30,
 ) -> Path:
     """Render the existing AI image pack and narration using the sole Remotion renderer."""
-    if len(scenes) < 6:
-        raise RuntimeError(f"REMOTION_INPUT_INVALID: expected at least 6 generated scene images, got {len(scenes)}")
+    if len(scenes) != 5:
+        raise RuntimeError(f"REMOTION_INPUT_INVALID: expected exactly 5 generated scene images, got {len(scenes)}")
     for item in [*scenes, voice_audio, slogan_audio, logo]:
         if not item.is_file() or item.stat().st_size < 100:
             raise RuntimeError(f"REMOTION_INPUT_MISSING: {item}")
@@ -61,7 +61,9 @@ def render_reel_with_remotion(
     if slogan_duration > 8.0:
         raise RuntimeError(f"REMOTION_SLOGAN_TOO_LONG: {slogan_duration:.2f}s exceeds 8s")
     voice_frames = max(1, math.ceil(voice_duration * fps))
-    total_frames = voice_frames + math.ceil((slogan_duration + 0.8) * fps)
+    # Keep the final file inside the 40-second delivery contract; do not append
+    # an extra 0.8s tail after the spoken sign-off.
+    total_frames = voice_frames + math.ceil(slogan_duration * fps)
 
     try:
         scene_props = []
