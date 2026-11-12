@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -65,6 +67,11 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 3
             license_code = str(item.get("license") or "").lower()
             if license_code not in {"cc0", "pdm", "publicdomain", "by"}:
                 continue
+            item_title = str(item.get("title") or "")
+            item_description = str(item.get("description") or "")
+            item_tags = " ".join(str(tag.get("name") or "") for tag in (item.get("tags") or []) if isinstance(tag, dict))
+            if not _scene_metadata_matches_query(term, item_title, f"{item_description} {item_tags}"):
+                continue
             seen.add(url)
             try:
                 media = requests.get(
@@ -119,6 +126,36 @@ def fetch_openverse_images(terms: list[str], output_dir: Path, per_term: int = 3
 WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php"
 
 
+_SCENE_STOPWORDS = {
+    "about", "after", "along", "among", "around", "before", "beside", "between", "close",
+    "contemporary", "modern", "professional", "editorial", "photorealistic", "realistic",
+    "image", "scene", "photo", "photograph", "view", "showing", "with", "without",
+    "from", "into", "over", "under", "near", "inside", "outside", "the", "and", "for",
+    "that", "this", "their", "there", "while", "where", "which", "natural", "light",
+    "clean", "bright", "warm", "soft", "subtle", "well", "lit", "egyptian", "setting",
+    "على", "في", "من", "إلى", "الى", "عن", "مع", "بين", "هذا", "هذه", "ذلك", "تلك",
+    "مشهد", "صورة", "لقطة", "حديث", "حديثة", "معاصر", "معاصرة", "احترافي", "احترافية",
+    "واقعي", "واقعية", "واضح", "واضحة", "بدون", "دون", "داخل", "خارج", "أمام", "خلف",
+}
+
+
+def _meaningful_scene_tokens(value: str) -> set[str]:
+    text = html.unescape(re.sub(r"<[^>]+>", " ", str(value or ""))).casefold()
+    tokens = re.findall(r"[a-z][a-z-]{3,}|[\\u0600-\\u06ff]{3,}", text)
+    return {token.strip("-") for token in tokens if token.strip("-") not in _SCENE_STOPWORDS}
+
+
+def _scene_metadata_matches_query(query: str, title: str, description: str = "") -> bool:
+    """Reject catalog results whose title/description do not describe the requested scene."""
+    requested = _meaningful_scene_tokens(query)
+    if not requested:
+        return False
+    observed = _meaningful_scene_tokens(f"{title} {description}")
+    matches = requested & observed
+    required = 1 if len(requested) == 1 else 2
+    return len(matches) >= required
+
+
 def fetch_wikimedia_images(terms: list[str], output_dir: Path, target: int = 8) -> list[Path]:
     """Keyless Wikimedia Commons fallback with license metadata recorded locally."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,6 +187,12 @@ def fetch_wikimedia_images(terms: list[str], output_dir: Path, target: int = 8) 
                 continue
             meta = info.get("extmetadata") or {}
             license_name = str((meta.get("LicenseShortName") or {}).get("value") or "").strip()
+            raw_description = str((meta.get("ImageDescription") or {}).get("value") or "")
+            raw_object_name = str((meta.get("ObjectName") or {}).get("value") or "")
+            scene_title = str(page.get("title") or "")
+            if not _scene_metadata_matches_query(term, scene_title, f"{raw_object_name} {raw_description}"):
+                print(f"Wikimedia scene result skipped: metadata does not match requested scene ({scene_title[:120]}).")
+                continue
             allowed = {"CC0", "Public domain", "Public Domain", "CC BY", "CC BY-SA", "CC BY 4.0", "CC BY-SA 4.0"}
             if not any(x.lower() in license_name.lower() for x in allowed):
                 continue
@@ -172,6 +215,7 @@ def fetch_wikimedia_images(terms: list[str], output_dir: Path, target: int = 8) 
                 assets.append(path)
                 metadata.append({
                     "file": str(path), "query": term, "title": page.get("title"),
+                    "description": raw_description,
                     "creator": (meta.get("Artist") or {}).get("value"),
                     "license": license_name,
                     "license_url": (meta.get("LicenseUrl") or {}).get("value"),
