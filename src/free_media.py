@@ -141,7 +141,7 @@ _SCENE_STOPWORDS = {
 
 def _meaningful_scene_tokens(value: str) -> set[str]:
     text = html.unescape(re.sub(r"<[^>]+>", " ", str(value or ""))).casefold()
-    tokens = re.findall(r"[a-z][a-z-]{3,}|[\\u0600-\\u06ff]{3,}", text)
+    tokens = re.findall(r"[a-z][a-z-]{3,}|[ء-ي]{3,}", text)
     return {token.strip("-") for token in tokens if token.strip("-") not in _SCENE_STOPWORDS}
 
 
