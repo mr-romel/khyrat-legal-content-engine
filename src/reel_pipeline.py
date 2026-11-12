@@ -232,7 +232,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
         headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"},
         method="POST",
     )
-    with _urlopen_with_retry(req, timeout=120, attempts=3) as response:
+    with _urlopen_with_retry(req, timeout=120, attempts=5) as response:
         data = json.loads(response.read().decode("utf-8"))
     encoded = str(data.get("audioContent") or "")
     if not encoded:
@@ -305,7 +305,7 @@ def generate_google_cloud_short_arabic_tts_audio(service_account_info: dict[str,
         headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"},
         method="POST",
     )
-    with _urlopen_with_retry(req, timeout=120, attempts=3) as response:
+    with _urlopen_with_retry(req, timeout=120, attempts=5) as response:
         data = json.loads(response.read().decode("utf-8"))
     encoded = str(data.get("audioContent") or "")
     if not encoded:
@@ -349,7 +349,7 @@ def generate_gemini_tts_audio_unbounded(
         headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
         method="POST",
     )
-    with _urlopen_with_retry(req, timeout=180, attempts=3) as response:
+    with _urlopen_with_retry(req, timeout=180, attempts=5) as response:
         data = json.loads(response.read().decode("utf-8"))
     encoded = ((data.get("interaction") or {}).get("output_audio") or {}).get("data")
     if not encoded:
@@ -416,7 +416,7 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
         method="POST",
     )
     try:
-        with _urlopen_with_retry(req, timeout=300, attempts=3) as response:
+        with _urlopen_with_retry(req, timeout=300, attempts=5) as response:
             data = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         raise RuntimeError(f"Gemini TTS request failed: {exc}") from exc
