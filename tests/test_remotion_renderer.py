@@ -49,3 +49,16 @@ def test_renderer_requires_exactly_five_images_to_match_reel_pipeline():
             script="نص تجريبي",
             output_video=Path("out.mp4"),
         )
+
+
+def test_remotion_art_direction_has_animated_transitions_and_full_frame_logo():
+    root = Path(__file__).resolve().parents[1] / "remotion"
+    reel = (root / "src" / "Reel.tsx").read_text(encoding="utf-8")
+    assert "SceneTransition" in reel
+    assert "BrandEndCard" in reel
+    assert "objectFit:'contain'" in reel
+    assert "width:'100%'" in reel
+    assert "height:'100%'" in reel
+    assert "drop-shadow" in reel
+    assert "translate3d" in reel
+    assert "spring({" in reel
