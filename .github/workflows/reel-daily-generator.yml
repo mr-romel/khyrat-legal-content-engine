@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "30 12 * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/REEL_CATCH_UP_NOW.md"
 
 permissions:
   contents: write
