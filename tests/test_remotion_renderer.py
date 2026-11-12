@@ -55,6 +55,9 @@ def test_remotion_art_direction_has_animated_transitions_and_full_frame_logo():
     root = Path(__file__).resolve().parents[1] / "remotion"
     reel = (root / "src" / "Reel.tsx").read_text(encoding="utf-8")
     assert "SceneTransition" in reel
+    assert "MotionGraphics" in reel
+    assert "YOUR RIGHTS" in reel
+    assert "KHYRAT / LEGAL" in reel
     assert "BrandEndCard" in reel
     assert "objectFit:'contain'" in reel
     assert "width:'100%'" in reel
