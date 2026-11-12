@@ -202,8 +202,9 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert "if len(scenes) != reel_scene_count" in source
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
-    assert '3: "local_scene"' in source
-    assert '4: "wikimedia"' not in source
+    assert '3: "gemini"' in source
+    assert '4: "local_scene"' in source
+    assert '5: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
 
 
