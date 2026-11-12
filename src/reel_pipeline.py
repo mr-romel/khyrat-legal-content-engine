@@ -478,22 +478,25 @@ def generate_reel_narration_with_fallbacks(
 ) -> Path:
     """Try Gemini, then Edge Arabic neural voice, then Google Cloud; validate each output."""
     errors = []
+    gemini_path = output_path.with_name("voice-gemini.wav")
+    edge_path = output_path.with_name("voice-edge.mp3")
+    cloud_path = output_path.with_name("voice-google-cloud.wav")
     try:
-        result = generate_gemini_tts_audio(api_key, script, emotion_map, output_path)
+        result = generate_gemini_tts_audio(api_key, script, emotion_map, gemini_path)
         print("REEL_STAGE tts=gemini_ok")
         return result
     except Exception as exc:
         errors.append(f"Gemini={exc}")
         print(f"REEL_STAGE tts=gemini_unavailable reason={exc}")
     try:
-        result = generate_edge_arabic_tts_audio(script, output_path)
+        result = generate_edge_arabic_tts_audio(script, edge_path)
         print("REEL_STAGE tts=edge_ok")
         return result
     except Exception as exc:
         errors.append(f"Edge={exc}")
         print(f"REEL_STAGE tts=edge_unavailable reason={exc}")
     try:
-        result = generate_google_cloud_arabic_tts_audio(service_account_info, script, output_path)
+        result = generate_google_cloud_arabic_tts_audio(service_account_info, script, cloud_path)
         print("REEL_STAGE tts=google_cloud_ok")
         return result
     except Exception as exc:
@@ -512,20 +515,23 @@ def generate_short_signoff_with_fallbacks(
 ) -> Path:
     """Generate the branded sign-off with Gemini, Edge Arabic, then Google Cloud."""
     errors = []
+    gemini_path = output_path.with_name("slogan-gemini.wav")
+    edge_path = output_path.with_name("slogan-edge.mp3")
+    cloud_path = output_path.with_name("slogan-google-cloud.wav")
     try:
         return generate_gemini_tts_audio_unbounded(
-            api_key, script, emotion_map, output_path, min_seconds=1.0, max_seconds=8.0
+            api_key, script, emotion_map, gemini_path, min_seconds=1.0, max_seconds=8.0
         )
     except Exception as exc:
         errors.append(f"Gemini={exc}")
     try:
         return generate_edge_arabic_tts_audio(
-            script, output_path, min_seconds=1.0, max_seconds=8.0
+            script, edge_path, min_seconds=1.0, max_seconds=8.0
         )
     except Exception as exc:
         errors.append(f"Edge={exc}")
     try:
-        return generate_google_cloud_short_arabic_tts_audio(service_account_info, script, output_path)
+        return generate_google_cloud_short_arabic_tts_audio(service_account_info, script, cloud_path)
     except Exception as exc:
         errors.append(f"Google Cloud={exc}")
     raise RuntimeError("REEL_STAGE slogan_generation_failed; " + " | ".join(errors))
@@ -1272,18 +1278,10 @@ def main() -> int:
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
-            for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
-                image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
-                accepted = False
-                active_prompt = str(scene_prompt)
-                generation_error = ""
-                # Pollinations is the configured primary provider. If its request fails,
-            # move to the remaining providers; never regenerate a scene merely because
-            # semantic QA rejected the already-generated image.
-            # Do not treat search-engine stock results as semantic image generation:
-            # broad Commons matches can be catastrophically off-topic. Use two
-            # metered generators, then a deterministic original local illustration.
-            # This last path consumes no API quota and is validated by provenance QA.
+            # Pollinations and Cloudflare are tried first. Crucially, each generated
+            # image is semantically checked before acceptance. An off-topic result
+            # falls through to the next provider; local original art is the final
+            # no-quota fallback and is checked through its renderer provenance.
             visual_providers = {
                 1: "pollinations",
                 2: "cloudflare",
@@ -1381,7 +1379,7 @@ def main() -> int:
         )
 
         print("REEL_STAGE tts=start")
-        tts_audio = output_dir / "voice-arabic-neural.mp3"
+        tts_audio = output_dir / "voice-arabic-neural"
         generate_reel_narration_with_fallbacks(
             cfg["gemini_api_key"],
             cfg["service_account_info"],
@@ -1392,7 +1390,7 @@ def main() -> int:
         fit_reel_narration_duration(tts_audio, target_seconds=REEL_CONTENT_MAX_SECONDS)
         print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
 
-        slogan_audio = output_dir / "slogan-ask-mahmoud.mp3"
+        slogan_audio = output_dir / "slogan-ask-mahmoud"
         slogan_text = prepare_tts_script("خليك فاكر دايما ... اسأل محمود")
         generate_short_signoff_with_fallbacks(
             cfg["gemini_api_key"],
