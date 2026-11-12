@@ -133,7 +133,7 @@ jobs:
           # This persisted one-off lock once pinned daily generation to an already-published row.
           rm -f generated/reel_source.json
           PYTHONPATH=src python src/reel_pipeline.py
-          if ! find generated/reels -maxdepth 3 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
+          if ! find generated/reels -maxdepth 6 -type f -name '*.mp4' -size +100k -print -quit | grep -q .; then
             echo "::error::Daily Reel worker completed without producing a new MP4; treating this run as failed."
             exit 1
           fi
