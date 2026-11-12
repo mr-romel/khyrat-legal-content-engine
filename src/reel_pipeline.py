@@ -25,7 +25,7 @@ from social_content import sanitize_social_copy, sanitize_topic
 OUTPUT_ROOT = Path("generated/reels")
 REEL_MAX_DURATION_SECONDS = 40  # hard cap including full-screen logo and spoken slogan
 REEL_MIN_DURATION_SECONDS = 30
-REEL_CONTENT_MAX_SECONDS = 34.5  # Remotion accepts 34.5s; slogan audio is appended within the 40s cap
+REEL_CONTENT_MAX_SECONDS = 35.5  # Slight narration tolerance; Remotion enforces the combined 40s voice+sign-off cap
 
 
 def choose_row(
@@ -245,7 +245,7 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
     )
     duration = float(probe.stdout.strip() or "0")
     if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Google Cloud TTS narration must be 22–34 seconds before the 5.5-second logo ending; got {duration:.1f}s")
+        raise RuntimeError(f"Google Cloud TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s before the branded ending; got {duration:.1f}s")
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
 
@@ -441,7 +441,7 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
     if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Gemini TTS narration must be 22–34.5 seconds before the branded ending; got {duration:.1f}s")
+        raise RuntimeError(f"Gemini TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s before the branded ending; got {duration:.1f}s")
     return output_path
 
 
