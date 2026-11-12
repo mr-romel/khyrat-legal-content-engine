@@ -630,6 +630,14 @@ def _visual_topic_family(topic: str) -> str:
     return "general"
 
 
+def _visual_topic_content_aligned(topic: str, post: str) -> bool:
+    """Return whether a Sheet topic and its published post can safely share one Reel."""
+    topic_family = _visual_topic_family(topic)
+    post_family = _visual_topic_family(post)
+    # A generic title may be inferred from its approved post later in the pipeline.
+    return topic_family == "general" or topic_family == post_family
+
+
 _VISUAL_SCENES = {
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
@@ -1163,6 +1171,14 @@ def main() -> int:
                 valid_file = bool(reel_file and source_id and source_id in reel_file and Path(reel_file).is_file())
                 if not source_id or not post_text or not (fb_status == "PUBLISHED" or li_status == "PUBLISHED"):
                     continue
+                candidate_topic = str(candidate.get("الموضوع", "") or "").strip()
+                if not _visual_topic_content_aligned(candidate_topic, post_text):
+                    print(
+                        f"Reel recovery fallback skips row {row_number}: "
+                        f"topic/content mismatch (topic_family={_visual_topic_family(candidate_topic)}, "
+                        f"post_family={_visual_topic_family(post_text)})."
+                    )
+                    continue
                 # Existing review/approval locks are not fresh Reel work, even when
                 # the runner's ephemeral filesystem cannot see their stored MP4.
                 if reel_status in {"PUBLISHED", "GENERATING", "REVIEW", "APPROVED", "REGENERATING"} or valid_file:
@@ -1186,7 +1202,7 @@ def main() -> int:
                 source_path.write_text(json.dumps(source_context, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(
                     f"Reel recovery fallback: today's social post is not published yet; "
-                    f"locked newest undelivered eligible social row {row_number}."
+                    f"locked oldest undelivered topic/content-aligned social row {row_number}."
                 )
             else:
                 print("Reel recovery: no eligible published row today or in the undelivered recovery queue.")
