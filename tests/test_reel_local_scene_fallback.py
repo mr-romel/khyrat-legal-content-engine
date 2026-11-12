@@ -89,3 +89,63 @@ def test_image_provider_timeout_is_bounded_and_configurable(monkeypatch):
     assert _image_provider_timeout_seconds() == 120
     monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "invalid")
     assert _image_provider_timeout_seconds() == 60
+
+
+def test_scene_visual_qa_rejection_falls_through_to_next_provider_and_local_scene(tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from reel_pipeline import _generate_scene_with_provider_fallbacks
+
+    used = []
+    def fake_create(**kwargs):
+        provider = kwargs["provider"]
+        used.append(provider)
+        Path(kwargs["output_path"]).write_bytes((provider.encode("ascii") * 6000)[:12000])
+
+    def fake_qa(**kwargs):
+        # Simulate the exact incident: both generated images are unrelated,
+        # while the quota-free original local scene passes its provenance gate.
+        provider = Path(kwargs["image_path"]).read_bytes()[:10].decode("ascii")
+        return {"decision": "PASS" if provider == "local_sce" else "REGENERATE",
+                "issues": ["off-topic generated scene"]}
+
+    result = _generate_scene_with_provider_fallbacks(
+        topic="المرفق العام الاقتصادي",
+        post="خدمات المرافق العامة الاقتصادية",
+        image_brief="Municipal water treatment plant with tanks and pipes",
+        output_path=tmp_path / "scene.jpg",
+        api_key="",
+        cloudflare_account_id="",
+        cloudflare_api_token="",
+        providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
+        create_image=fake_create,
+        qa_image=fake_qa,
+    )
+    assert used == ["pollinations", "cloudflare", "local_scene"]
+    assert result["provider"] == "local_scene"
+    assert result["qa"]["decision"] == "PASS"
+
+
+def test_tts_fallback_chain_uses_edge_before_google_cloud(monkeypatch, tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    import reel_pipeline
+
+    calls = []
+    def fail_gemini(*args, **kwargs):
+        calls.append("gemini")
+        raise RuntimeError("429 quota")
+    def pass_edge(*args, **kwargs):
+        calls.append("edge")
+        return tmp_path / "voice.mp3"
+    def fail_google(*args, **kwargs):
+        calls.append("google")
+        raise RuntimeError("403 forbidden")
+    monkeypatch.setattr(reel_pipeline, "generate_gemini_tts_audio", fail_gemini)
+    monkeypatch.setattr(reel_pipeline, "generate_edge_arabic_tts_audio", pass_edge)
+    monkeypatch.setattr(reel_pipeline, "generate_google_cloud_arabic_tts_audio", fail_google)
+    result = reel_pipeline.generate_reel_narration_with_fallbacks(
+        "key", {}, "نص تجريبي", [], tmp_path / "voice.mp3"
+    )
+    assert result == tmp_path / "voice.mp3"
+    assert calls == ["gemini", "edge"]
