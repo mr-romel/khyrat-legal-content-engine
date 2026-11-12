@@ -80,18 +80,28 @@ def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str,
         "Return only the finished LinkedIn post.\n\n"
         f"Topic: {topic}\nLegal sources: {legal_sources or 'none'}\n\nPost:\n{text}"
     )
-    result = _diverse_generate_post(
-        api_key=api_key,
-        model=model,
-        topic=topic,
-        legal_sources=legal_sources,
-        previous_context=prompt,
-    )
-    candidate = _clean_linkedin_ellipsis(str(result.get("post", "") or "").strip())
-    if candidate and len(candidate) <= max_chars and not _linkedin_needs_completion(candidate):
-        return candidate
+    candidate = ""
+    for attempt in range(2):
+        repair_prompt = prompt
+        if attempt == 1:
+            repair_prompt += (
+                "\\n\\nFINAL COMPRESSION PASS: Rewrite more decisively in 190-230 words, "
+                "remove secondary examples and repeated explanation, preserve every legal qualification, "
+                "and stay at least 150 characters below the hard limit. Do not truncate or use ellipses."
+            )
+        result = _diverse_generate_post(
+            api_key=api_key,
+            model=model,
+            topic=topic,
+            legal_sources=legal_sources,
+            previous_context=repair_prompt,
+        )
+        candidate = _clean_linkedin_ellipsis(str(result.get("post", "") or "").strip())
+        if candidate and len(candidate) <= max_chars and not _linkedin_needs_completion(candidate):
+            return candidate
     raise RuntimeError(
-        f"LinkedIn post is {len(text)} characters and could not be safely reduced below {max_chars} without truncation."
+        f"LinkedIn post is {len(text)} characters; two complete-sentence compression attempts failed "
+        f"to produce a safe version within {max_chars} characters. No text was truncated."
     )
 
 
