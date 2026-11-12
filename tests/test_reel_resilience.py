@@ -241,3 +241,11 @@ def test_cloudflare_image_http_429_skips_provider_retries():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
     assert 'if response.status_code == 429:' in source
     assert "skipping retries and switching to the next provider" in source
+
+
+def test_reel_pipeline_uses_actual_provider_returned_audio_paths():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "tts_audio = generate_reel_narration_with_fallbacks(" in source
+    assert "fit_reel_narration_duration(tts_audio" in source
+    assert "slogan_audio = generate_short_signoff_with_fallbacks(" in source
+    assert "slogan_audio=slogan_audio" in source

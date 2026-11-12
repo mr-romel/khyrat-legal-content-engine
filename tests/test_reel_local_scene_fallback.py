@@ -155,6 +155,52 @@ def test_tts_fallback_chain_uses_edge_before_google_cloud(monkeypatch, tmp_path)
 def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaustion():
     workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
     assert 'status in {"FAILED", "REGENERATE_REQUESTED"}' in workflow
-    assert '"source-id-recovery-used" not in review.casefold()' in workflow
+    assert 'pinned_attempt_marker not in review.casefold()' in workflow
+    assert 'source-id-recovery-used:{recovery_attempt_id}' in workflow
     assert "source-id-recovery-used" in workflow
     assert 'and retry_count < 3' not in workflow.split("pinned_source_retry = (", 1)[1].split(")", 1)[0]
+
+
+def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from reel_pipeline import _generate_scene_with_provider_fallbacks
+
+    disabled = set()
+    calls = []
+    def fake_create(**kwargs):
+        provider = kwargs["provider"]
+        calls.append(provider)
+        if provider == "pollinations":
+            raise RuntimeError("Pollinations image request failed: HTTP 402 KEY_BUDGET_EXHAUSTED")
+        if provider == "cloudflare":
+            raise RuntimeError("Cloudflare image provider failed: HTTP 429 daily free allocation")
+        Path(kwargs["output_path"]).write_bytes(b"x" * 12000)
+
+    def fake_qa(**kwargs):
+        return {"decision": "PASS", "qa_method": "test-local"}
+
+    for index in (1, 2):
+        _generate_scene_with_provider_fallbacks(
+            topic="المرفق العام الاقتصادي",
+            post="خدمات المرافق العامة الاقتصادية",
+            image_brief="Municipal water treatment plant with tanks and pipes",
+            output_path=tmp_path / f"scene-{index}.jpg",
+            api_key="",
+            cloudflare_account_id="",
+            cloudflare_api_token="",
+            providers={1:"pollinations",2:"cloudflare",3:"local_scene"},
+            create_image=fake_create,
+            qa_image=fake_qa,
+            disabled_providers=disabled,
+        )
+    assert calls == ["pollinations", "cloudflare", "local_scene", "local_scene"]
+    assert disabled == {"pollinations", "cloudflare"}
+
+
+def test_audio_path_fix_rearms_one_new_source_id_recovery_attempt():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'REEL_RECOVERY_ATTEMPT_ID: "row21-audio-path-fix-20261112-01"' in workflow
+    assert 'pinned_attempt_marker not in review.casefold()' in workflow
+    assert 'source-id-recovery-used:{recovery_attempt_id}' in workflow
+    assert 'status in {"FAILED", "REGENERATE_REQUESTED"}' in workflow

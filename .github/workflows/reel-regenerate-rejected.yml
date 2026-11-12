@@ -46,6 +46,8 @@ jobs:
       # One-time recovery pin to the immutable ID of the user's requested row.
       # Remove after this source reaches REVIEW or exhausts the bounded retry budget.
       REEL_RECOVERY_SOURCE_ID: "20261111-1000-R011"
+      # A new token re-arms exactly one attempt after the audio-path code fix.
+      REEL_RECOVERY_ATTEMPT_ID: "row21-audio-path-fix-20261112-01"
       REEL_FORBIDDEN_VIDEO_SHA256: "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd"
       REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -112,11 +114,14 @@ jobs:
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
                   and retry_count < 3
               )
+              recovery_attempt_id = os.getenv("REEL_RECOVERY_ATTEMPT_ID", "").strip()
+              pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
               pinned_source_retry = (
                   bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
+                  and bool(recovery_attempt_id)
                   and source_id == os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
                   and status in {"FAILED", "REGENERATE_REQUESTED"}
-                  and "source-id-recovery-used" not in review.casefold()
+                  and pinned_attempt_marker not in review.casefold()
               )
               # Topic mismatch is a source-integrity failure, not an image-provider
               # outage. Never auto-retry it except when the user explicitly pins a
@@ -171,7 +176,7 @@ jobs:
           update_row(service, sheet_id, sheet_name, number, {
               "Reel Status": "REGENERATING",
               "Reel Approval": "",
-              "Reel Review": f"REGENERATING | retry={next_retry} | " + ("explicit source-ID recovery | source-id-recovery-used" if pinned_source_retry else "Telegram rejection"),
+              "Reel Review": f"REGENERATING | retry={next_retry} | " + (f"explicit source-ID recovery | source-id-recovery-used:{recovery_attempt_id}" if pinned_source_retry else "Telegram rejection"),
               "Reel Last Error": "",
           })
           os.makedirs("generated", exist_ok=True)
