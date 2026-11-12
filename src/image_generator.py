@@ -227,6 +227,36 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
         d.arc((int(width*.43),int(height*.48),int(width*.66),int(height*.62)),190,345,fill=(43,84,123,255),width=8)
         d.ellipse((int(width*.68),int(height*.58),int(width*.82),int(height*.72)),fill=(54,113,91,255))
         d.line((int(width*.71),int(height*.65),int(width*.75),int(height*.68),int(width*.79),int(height*.61)),fill=(255,255,255,255),width=7)
+    elif any(w in key for w in ("تحقيق", "استجواب", "محضر", "موظف عام", "مساءلة", "investigation", "interrogation", "interview")):
+        # Topic-specific public-official investigation scene: office desk, case file,
+        # interview chair and evidence folder, with five composition variants.
+        navy=(25,48,70,255); gold=(190,151,76,255)
+        pale=(244,247,249,255); slate=(139,157,171,255)
+        d.rectangle((0,0,width,height),fill=(214,225,232,255))
+        d.rectangle((int(width*.08),int(height*.13),int(width*.92),int(height*.61)),fill=(232,238,242,255))
+        d.rectangle((int(width*.14),int(height*.22),int(width*.86),int(height*.25)),fill=navy)
+        d.rectangle((int(width*.62),int(height*.29),int(width*.84),int(height*.53)),fill=(151,190,204,255),outline=navy,width=5)
+        for j in range(1,5):
+            xx=int(width*(.62+j*.044))
+            d.line((xx,int(height*.30),xx,int(height*.52)),fill=pale,width=5)
+        d.polygon([(int(width*.08),int(height*.64)),(int(width*.92),int(height*.64)),(int(width*.99),int(height*.78)),(int(width*.02),int(height*.78))],fill=(105,77,54,255))
+        d.rectangle((int(width*.16),int(height*.78),int(width*.23),int(height*.91)),fill=navy)
+        d.rectangle((int(width*.77),int(height*.78),int(width*.84),int(height*.91)),fill=navy)
+        d.rounded_rectangle((int(width*.30),int(height*.48),int(width*.65),int(height*.70)),radius=16,fill=pale,outline=slate,width=5)
+        d.rectangle((int(width*.34),int(height*.52),int(width*.61),int(height*.57)),fill=(219,228,234,255))
+        for j in range(3):
+            yy=int(height*(.60+j*.025))
+            d.line((int(width*.36),yy,int(width*(.51+(j%2)*.06)),yy),fill=slate,width=4)
+        variation=seed % 5
+        if variation in (0,3):
+            d.ellipse((int(width*.67),int(height*.52),int(width*.82),int(height*.67)),outline=gold,width=10)
+            d.line((int(width*.79),int(height*.65),int(width*.88),int(height*.74)),fill=gold,width=10)
+        elif variation in (1,4):
+            d.rounded_rectangle((int(width*.12),int(height*.40),int(width*.29),int(height*.59)),radius=10,fill=(188,145,70,255),outline=navy,width=4)
+            d.line((int(width*.16),int(height*.47),int(width*.25),int(height*.47)),fill=pale,width=4)
+        else:
+            d.ellipse((int(width*.69),int(height*.29),int(width*.82),int(height*.42)),outline=gold,width=7)
+            d.line((int(width*.755),int(height*.30),int(width*.755),int(height*.35)),fill=gold,width=5)
     elif any(w in key for w in ("إجاز", "راحة", "عمل", "موظف", "حضور", "leave", "employment", "vacation")):
         d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.69)),radius=20,fill=(255,255,252,255),outline=(56,83,111,255),width=7)
         d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.34)),radius=18,fill=(49,83,119,255))
