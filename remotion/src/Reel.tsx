@@ -52,6 +52,40 @@ const SceneImage: React.FC<{src: string; durationFrames: number; index: number}>
   );
 };
 
+const MotionGraphics: React.FC<{index:number; durationFrames:number}> = ({index,durationFrames}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const p = interpolate(frame,[0,Math.max(1,durationFrames)],[0,1],{extrapolateRight:'clamp'});
+  const sweep = interpolate(frame,[0,Math.round(fps*.9)],[ -260, 1420 ],{extrapolateRight:'clamp'});
+  const pulse = .45 + .25*Math.sin(frame/9);
+  const enter = spring({frame,fps,config:{damping:19,stiffness:120}});
+  return (
+    <AbsoluteFill style={{pointerEvents:'none'}}>
+      <div style={{position:'absolute',left:54,top:160,width:5,height:190,background:'linear-gradient(180deg,transparent,rgba(214,179,109,.95),transparent)',transform:`scaleY(${enter})`,transformOrigin:'top'}}/>
+      <div style={{position:'absolute',right:62,top:172,color:'rgba(255,246,225,.88)',fontFamily:'Arial,sans-serif',fontSize:19,fontWeight:800,letterSpacing:4,textAlign:'right'}}>
+        <div style={{color:GOLD,fontSize:17,letterSpacing:5}}>KHYRAT / LEGAL</div>
+        <div style={{fontSize:35,marginTop:8,fontVariantNumeric:'tabular-nums'}}>{String(index+1).padStart(2,'0')}<span style={{color:GOLD,opacity:.8}}> / 05</span></div>
+      </div>
+      <div style={{position:'absolute',left:58,right:58,top:390,height:1,background:'linear-gradient(90deg,rgba(214,179,109,0),rgba(214,179,109,.45),rgba(214,179,109,0))',opacity:pulse}}/>
+      <svg viewBox="0 0 1080 1920" style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>
+        <defs>
+          <linearGradient id={`sweep-${index}`} x1="0" x2="1">
+            <stop offset="0" stopColor="#D6B36D" stopOpacity="0"/>
+            <stop offset=".5" stopColor="#FFF1C9" stopOpacity=".55"/>
+            <stop offset="1" stopColor="#D6B36D" stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M54 500 V430 Q54 410 74 410 H180" fill="none" stroke="#D6B36D" strokeOpacity=".65" strokeWidth="2"/>
+        <path d="M1026 500 V430 Q1026 410 1006 410 H900" fill="none" stroke="#D6B36D" strokeOpacity=".65" strokeWidth="2"/>
+        <circle cx="880" cy="1050" r={220 + 18*Math.sin(frame/16)} fill="none" stroke="#D6B36D" strokeOpacity={pulse*.55} strokeWidth="2" strokeDasharray="4 18"/>
+        <circle cx="880" cy="1050" r="172" fill="none" stroke="#FFFFFF" strokeOpacity=".18" strokeWidth="1"/>
+        <path d={`M${sweep} 420 L${sweep+150} 420 L${sweep-40} 1510 L${sweep-190} 1510 Z`} fill={`url(#sweep-${index})`} opacity=".23"/>
+      </svg>
+      <div style={{position:'absolute',left:64,bottom:208,color:'rgba(255,244,220,.7)',fontSize:16,fontWeight:800,letterSpacing:3}}>YOUR RIGHTS • YOUR AWARENESS</div>
+    </AbsoluteFill>
+  );
+};
+
 const Subtitle: React.FC<{text:string}> = ({text}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -75,10 +109,10 @@ const Subtitle: React.FC<{text:string}> = ({text}) => {
 const SceneTransition: React.FC<{index:number}> = ({index}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const duration = Math.round(fps * .48);
+  const duration = Math.round(fps * .62);
   const opacity = interpolate(frame,[0, duration*.28, duration],[0,.82,0],{extrapolateLeft:'clamp',extrapolateRight:'clamp'});
-  const scale = interpolate(frame,[0,duration],[.65,1.35],{extrapolateRight:'clamp'});
-  return <AbsoluteFill style={{opacity,background:'linear-gradient(115deg,rgba(4,13,25,.96),rgba(214,179,109,.72),rgba(4,13,25,.96))',transform:`scaleX(${scale})`,transformOrigin:index%2?'right center':'left center'}}/>;
+  const scale = interpolate(frame,[0,duration],[.72,1.42],{extrapolateRight:'clamp'});
+  return <AbsoluteFill style={{opacity,background:'linear-gradient(115deg,rgba(4,13,25,.98),rgba(214,179,109,.82),rgba(255,245,220,.26),rgba(4,13,25,.98))',transform:`scaleX(${scale})`,transformOrigin:index%2?'right center':'left center'}}/>;
 };
 
 const BrandEndCard: React.FC<{logo:string}> = ({logo}) => {
@@ -112,7 +146,7 @@ export const KhyratLegalReel: React.FC<ReelProps> = (props) => {
         const from = Math.max(0,index * base - (index ? overlap : 0));
         const duration = Math.min(props.voiceFrames - from, scene.durationFrames || base + overlap);
         return <Sequence key={scene.src} from={from} durationInFrames={Math.max(1,duration)}>
-          <SceneImage src={scene.src} durationFrames={Math.max(1,duration)} index={index}/>
+          <SceneImage src={scene.src} durationFrames={Math.max(1,duration)} index={index}/><MotionGraphics index={index} durationFrames={Math.max(1,duration)}/>
         </Sequence>;
       })}
       {props.scenes.slice(1).map((scene,index) => {
