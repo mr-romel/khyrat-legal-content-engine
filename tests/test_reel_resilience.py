@@ -51,6 +51,14 @@ def test_reel_generation_uses_persistent_qa_approved_scene_image_cache():
     assert 'meta.get("image_sha256") == cached_sha' in source
 
 
+def test_image_provider_retries_use_longer_backoff_and_extended_timeout():
+    source = Path("src/image_generator.py").read_text(encoding="utf-8")
+    assert "range(1, 6)" in source
+    assert "retry {attempt + 1}/5" in source
+    assert "min(5 * (2 ** (attempt - 1)), 40)" in source
+    assert 'REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "120"' in source
+
+
 def test_external_tts_retries_use_longer_exponential_backoff():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     assert "attempts: int = 5" in source
