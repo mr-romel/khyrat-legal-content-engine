@@ -105,8 +105,8 @@ def test_scene_visual_qa_rejection_falls_through_to_next_provider_and_local_scen
     def fake_qa(**kwargs):
         # Simulate the exact incident: both generated images are unrelated,
         # while the quota-free original local scene passes its provenance gate.
-        provider = Path(kwargs["image_path"]).read_bytes()[:10].decode("ascii")
-        return {"decision": "PASS" if provider == "local_sce" else "REGENERATE",
+        provider = Path(kwargs["image_path"]).read_bytes().decode("ascii", errors="ignore")
+        return {"decision": "PASS" if provider.startswith("local_scene") else "REGENERATE",
                 "issues": ["off-topic generated scene"]}
 
     result = _generate_scene_with_provider_fallbacks(
