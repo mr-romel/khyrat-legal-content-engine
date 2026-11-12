@@ -154,12 +154,23 @@ def _urlopen_with_retry(request, *, timeout: int, attempts: int = 3):
     import time
     import ssl
     import socket
-    from urllib.error import URLError
+    from urllib.error import HTTPError, URLError
 
     last_error = None
     for attempt in range(1, max(1, attempts) + 1):
         try:
             return urllib.request.urlopen(request, timeout=timeout)
+        except HTTPError as exc:
+            # Authentication, request, and quota errors are deterministic; retrying
+            # 401/403/404/429 only burns time and can worsen provider throttling.
+            if exc.code in {400, 401, 403, 404, 429}:
+                raise
+            last_error = exc
+            if attempt >= attempts:
+                break
+            delay = min(2 ** (attempt - 1), 8)
+            print(f"Transient HTTP failure ({exc.code}); retry {attempt + 1}/{attempts} in {delay}s: {exc}")
+            time.sleep(delay)
         except (URLError, ssl.SSLError, socket.timeout, TimeoutError, EOFError, ConnectionError) as exc:
             last_error = exc
             if attempt >= attempts:
