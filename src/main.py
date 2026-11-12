@@ -53,6 +53,33 @@ def github_raw_url(relative_path: str) -> str:
     return f"https://raw.githubusercontent.com/{repository}/{branch}/{relative_path.replace(chr(92), '/').lstrip('/')}"
 
 
+def _legal_topic_family(value: str) -> str:
+    """Return a conservative legal-domain label for topic/content alignment checks."""
+    text = " ".join(str(value or "").casefold().split())
+    families = [
+        ("criminal", ("القانون الجنائي", "جنائي", "جريمة", "بلاغ", "محضر", "اتهام", "تصالح جنائي", "التنازل عن المحضر", "المتهم", "المجني عليه")),
+        ("family", ("أحوال شخصية", "طلاق", "خلع", "نفقة", "حضانة", "رؤية", "زوج", "زوجة", "ميراث", "تركة")),
+        ("employment", ("قانون العمل", "عامل", "موظف", "فصل تعسفي", "أجر", "مرتب", "راتب", "إجازة", "استقالة")),
+        ("companies", ("تأسيس شركة", "الشركات", "شركة", "شريك", "شراكة", "مساهم", "مجلس الإدارة", "جمعية عامة")),
+        ("contracts", ("عقد", "العقود", "اتفاق", "تعاقد", "بند", "فسخ العقد", "إخلال بالتعاقد", "صياغة عقد")),
+        ("rent", ("إيجار", "إيجارية", "مؤجر", "مستأجر", "إخلاء", "امتداد عقد الإيجار")),
+        ("compensation", ("تعويض", "مسؤولية مدنية", "ضرر", "إصابة", "خطأ طبي")),
+        ("payments", ("شيك", "إيصال أمانة", "مديونية", "مطالبة مالية", "سداد", "تحصيل دين")),
+        ("public_utility", ("المرفق العام", "المرافق العامة", "المرفق الاقتصادي", "مرفق عام", "خدمة عامة")),
+        ("privacy", ("تصوير دون إذن", "التصوير دون إذن", "انتهاك الخصوصية", "تسجيل دون إذن", "نشر الصور")),
+    ]
+    for family, terms in families:
+        if any(term in text for term in terms):
+            return family
+    return "general"
+
+
+def _topic_post_aligned(topic: str, post: str) -> bool:
+    topic_family = _legal_topic_family(topic)
+    post_family = _legal_topic_family(post)
+    return topic_family == "general" or post_family in {"general", topic_family}
+
+
 def _normalized_topic(value: str) -> str:
     chars = "".join(ch.lower() if ch.isalnum() or ch.isspace() else " " for ch in (value or ""))
     return " ".join(chars.split())
@@ -330,14 +357,28 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             legal_sources=legal_sources,
             previous_context=previous_context,
         )
-        post = str(result.get("post", "") or "").strip() or existing_post or _fallback_post(topic, legal_sources)
+        post = str(result.get("post", "") or "").strip() or _fallback_post(topic, legal_sources)
+        if not _topic_post_aligned(topic, post):
+            message = (
+                "TOPIC_CONTENT_MISMATCH: generated post does not match the scheduled legal topic; "
+                f"topic_family={_legal_topic_family(topic)} post_family={_legal_topic_family(post)}"
+            )
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "FAILED",
+                "آخر خطأ": message[:1500],
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+            raise RuntimeError(message)
         # Keep the scene brief produced alongside the post: this was the stable,
         # working path before the separate post-to-scene rewrite was introduced.
         image_brief = str(result.get("image_brief", "") or "").strip() or image_brief
         review_level = str(result.get("review_level", "CLEAR") or "CLEAR").upper()
         review_text = " | ".join(str(x).strip() for x in result.get("review_flags", []) if str(x).strip())
     except Exception as exc:
-        post = existing_post or _fallback_post(topic, legal_sources)
+        if "TOPIC_CONTENT_MISMATCH" in str(exc):
+            raise
+        # Never carry a stale, potentially unrelated post into a newly scheduled topic.
+        post = _fallback_post(topic, legal_sources)
         review_level = "ADVISORY"
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
