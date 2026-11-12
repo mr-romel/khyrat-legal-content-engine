@@ -92,14 +92,16 @@ const Subtitle: React.FC<{text:string}> = ({text}) => {
   const enter = spring({frame, fps, config:{damping:16,stiffness:165,mass:.75}});
   const y = interpolate(enter,[0,1],[42,0]);
   const scale = interpolate(enter,[0,1],[.96,1]);
+  const fontSize = text.length > 105 ? 32 : text.length > 78 ? 37 : text.length > 54 ? 43 : 49;
+  const horizontalPadding = text.length > 78 ? 22 : 32;
   return (
     <div style={{position:'absolute',left:54,right:54,bottom:260,display:'flex',justifyContent:'center',transform:`translateY(${y}px) scale(${scale})`,opacity:enter}}>
       <div dir="rtl" style={{
-        maxWidth:950,padding:'24px 32px',borderRadius:24,
+        maxWidth:950,padding:`20px ${horizontalPadding}px`,borderRadius:24,
         background:'linear-gradient(135deg,rgba(5,17,31,.94),rgba(12,32,51,.88))',
         border:'1px solid rgba(214,179,109,.9)',boxShadow:'0 18px 60px rgba(0,0,0,.38)',
         color:'#FFFDF7',fontFamily:'Noto Sans Arabic, Arial, sans-serif',
-        fontSize:49,fontWeight:900,lineHeight:1.5,textAlign:'center',
+        fontSize,fontWeight:900,lineHeight:1.48,textAlign:'center',
         textShadow:'0 3px 14px rgba(0,0,0,.42)',
       }}>{text}</div>
     </div>
