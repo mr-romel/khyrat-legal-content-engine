@@ -25,7 +25,7 @@ from social_content import sanitize_social_copy, sanitize_topic
 OUTPUT_ROOT = Path("generated/reels")
 REEL_MAX_DURATION_SECONDS = 40  # hard cap including full-screen logo and spoken slogan
 REEL_MIN_DURATION_SECONDS = 30
-REEL_CONTENT_MAX_SECONDS = 34  # reserve 5.5s for branded ending
+REEL_CONTENT_MAX_SECONDS = 34.5  # Remotion accepts 34.5s; slogan audio is appended within the 40s cap
 
 
 def choose_row(
@@ -430,8 +430,164 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
     duration = float(probe.stdout.strip() or "0")
     if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Gemini TTS narration must be 22–34 seconds before the 5.5-second logo ending; got {duration:.1f}s")
+        raise RuntimeError(f"Gemini TTS narration must be 22–34.5 seconds before the branded ending; got {duration:.1f}s")
     return output_path
+
+
+def generate_edge_arabic_tts_audio(
+    script: str,
+    output_path: Path,
+    *,
+    min_seconds: float = 22.0,
+    max_seconds: float = REEL_CONTENT_MAX_SECONDS,
+) -> Path:
+    """Quota-independent Microsoft Edge Arabic voice fallback, using the installed edge-tts package."""
+    try:
+        import asyncio
+        import edge_tts
+    except Exception as exc:
+        raise RuntimeError(f"Edge TTS dependency unavailable: {exc}") from exc
+
+    clean = prepare_tts_script(script)
+    voice = os.getenv("EDGE_TTS_VOICE", "ar-EG-ShakirNeural").strip() or "ar-EG-ShakirNeural"
+    rate = os.getenv("EDGE_TTS_RATE", "+0%").strip() or "+0%"
+
+    async def _save() -> None:
+        communicate = edge_tts.Communicate(text=clean, voice=voice, rate=rate)
+        await communicate.save(str(output_path))
+
+    try:
+        asyncio.run(_save())
+    except Exception as exc:
+        raise RuntimeError(f"Edge TTS synthesis failed (voice={voice}): {exc}") from exc
+    duration = _media_duration(output_path)
+    if duration < min_seconds or duration > max_seconds:
+        raise RuntimeError(
+            f"Edge TTS duration outside {min_seconds:.1f}-{max_seconds:.1f}s: {duration:.1f}s"
+        )
+    print(f"Edge Arabic TTS succeeded: voice={voice} duration={duration:.1f}s")
+    return output_path
+
+
+def generate_reel_narration_with_fallbacks(
+    api_key: str,
+    service_account_info: dict[str, Any],
+    script: str,
+    emotion_map: list[dict[str, Any]],
+    output_path: Path,
+) -> Path:
+    """Try Gemini, then Edge Arabic neural voice, then Google Cloud; validate each output."""
+    errors = []
+    try:
+        result = generate_gemini_tts_audio(api_key, script, emotion_map, output_path)
+        print("REEL_STAGE tts=gemini_ok")
+        return result
+    except Exception as exc:
+        errors.append(f"Gemini={exc}")
+        print(f"REEL_STAGE tts=gemini_unavailable reason={exc}")
+    try:
+        result = generate_edge_arabic_tts_audio(script, output_path)
+        print("REEL_STAGE tts=edge_ok")
+        return result
+    except Exception as exc:
+        errors.append(f"Edge={exc}")
+        print(f"REEL_STAGE tts=edge_unavailable reason={exc}")
+    try:
+        result = generate_google_cloud_arabic_tts_audio(service_account_info, script, output_path)
+        print("REEL_STAGE tts=google_cloud_ok")
+        return result
+    except Exception as exc:
+        errors.append(f"Google Cloud={exc}")
+    raise RuntimeError(
+        "All Arabic narration TTS providers failed; refusing Telegram delivery. " + " | ".join(errors)
+    )
+
+
+def generate_short_signoff_with_fallbacks(
+    api_key: str,
+    service_account_info: dict[str, Any],
+    script: str,
+    emotion_map: list[dict[str, Any]],
+    output_path: Path,
+) -> Path:
+    """Generate the branded sign-off with Gemini, Edge Arabic, then Google Cloud."""
+    errors = []
+    try:
+        return generate_gemini_tts_audio_unbounded(
+            api_key, script, emotion_map, output_path, min_seconds=1.0, max_seconds=8.0
+        )
+    except Exception as exc:
+        errors.append(f"Gemini={exc}")
+    try:
+        return generate_edge_arabic_tts_audio(
+            script, output_path, min_seconds=1.0, max_seconds=8.0
+        )
+    except Exception as exc:
+        errors.append(f"Edge={exc}")
+    try:
+        return generate_google_cloud_short_arabic_tts_audio(service_account_info, script, output_path)
+    except Exception as exc:
+        errors.append(f"Google Cloud={exc}")
+    raise RuntimeError("REEL_STAGE slogan_generation_failed; " + " | ".join(errors))
+
+
+def _generate_scene_with_provider_fallbacks(
+    *,
+    topic: str,
+    post: str,
+    image_brief: str,
+    output_path: Path,
+    api_key: str,
+    cloudflare_account_id: str,
+    cloudflare_api_token: str,
+    providers: dict[int, str],
+    create_image,
+    qa_image,
+) -> dict[str, Any]:
+    """QA each provider result before accepting it; a rejected model image falls through to local original art."""
+    errors = []
+    provenance_path = output_path.with_suffix(output_path.suffix + ".provenance.json")
+    for attempt, provider_name in providers.items():
+        output_path.unlink(missing_ok=True)
+        provenance_path.unlink(missing_ok=True)
+        try:
+            create_image(
+                topic=topic,
+                image_brief=image_brief,
+                visual_description=image_brief,
+                post_context=post,
+                output_path=str(output_path),
+                api_key=api_key,
+                cloudflare_account_id=cloudflare_account_id,
+                cloudflare_api_token=cloudflare_api_token,
+                aspect_ratio="9:16",
+                provider=provider_name,
+            )
+            if not output_path.is_file() or output_path.stat().st_size < 10_000:
+                raise RuntimeError("provider returned an empty or implausibly small image")
+            qa = qa_image(
+                api_key=api_key,
+                image_path=str(output_path),
+                topic=topic,
+                image_brief=image_brief,
+            )
+            if qa.get("decision") != "PASS":
+                raise RuntimeError(
+                    "REEL_SCENE_VISUAL_QA_REJECTED: "
+                    + json.dumps(qa.get("issues", []), ensure_ascii=False)
+                )
+            print(
+                f"REEL_STAGE scene_provider_accepted={provider_name} "
+                f"attempt={attempt} qa_method={qa.get('qa_method', 'visual-model')}"
+            )
+            return {"path": output_path, "provider": provider_name, "qa": qa}
+        except Exception as exc:
+            errors.append(f"{provider_name}: {str(exc)[:500]}")
+            print(
+                f"REEL_STAGE scene_provider_rejected={provider_name} "
+                f"attempt={attempt} reason={str(exc)[:500]}"
+            )
+    raise RuntimeError("REEL_SCENE_PROVIDERS_EXHAUSTED: " + " | ".join(errors))
 
 
 
@@ -1135,69 +1291,23 @@ def main() -> int:
             }
             for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
-                active_prompt = str(scene_prompt)
-                generation_errors = []
-                generated = False
-                for visual_attempt, provider_name in visual_providers.items():
-                    try:
-                        create_legal_image(
-                            topic=visual_topic,
-                            image_brief=active_prompt,
-                            visual_description=active_prompt,
-                            post_context=post,
-                            output_path=str(image_path),
-                            api_key=cfg["gemini_api_key"],
-                            cloudflare_account_id=cloudflare_account,
-                            cloudflare_api_token=cloudflare_token,
-                            aspect_ratio="9:16",
-                            provider=provider_name,
-                        )
-                        generated = True
-                        print(
-                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
-                            f"provider={provider_name} generated=true attempt={visual_attempt}"
-                        )
-                        break
-                    except Exception as scene_generation_exc:
-                        error_text = str(scene_generation_exc)
-                        generation_errors.append(f"{provider_name}: {error_text[:350]}")
-                        print(
-                            f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
-                            f"provider={provider_name} generation_error={error_text[:500]}"
-                        )
-                        # Provider errors may fall through to another provider.
-                        # A successful image is never regenerated for a QA rejection.
-                        continue
-
-                if not generated:
-                    raise RuntimeError(
-                        f"REEL_SCENE_GENERATION_FAILED: scene={scene_index}/{reel_scene_count}; "
-                        + " | ".join(generation_errors)
-                    )
-
-                if not image_path.is_file() or image_path.stat().st_size < 10_000:
-                    raise RuntimeError(
-                        f"REEL_SCENE_INVALID_IMAGE: scene={scene_index}/{reel_scene_count}; "
-                        "provider returned an empty or implausibly small image."
-                    )
-
-                visual_qa = qa_image(
-                    api_key=cfg["gemini_api_key"],
-                    image_path=str(image_path),
+                scene_result = _generate_scene_with_provider_fallbacks(
                     topic=visual_topic,
-                    image_brief=active_prompt,
+                    post=post,
+                    image_brief=str(scene_prompt),
+                    output_path=image_path,
+                    api_key=cfg["gemini_api_key"],
+                    cloudflare_account_id=cloudflare_account,
+                    cloudflare_api_token=cloudflare_token,
+                    providers=visual_providers,
+                    create_image=create_legal_image,
+                    qa_image=qa_image,
                 )
-                if visual_qa.get("decision") != "PASS":
-                    raise RuntimeError(
-                        f"REEL_SCENE_VISUAL_QA_REJECTED: scene={scene_index}/{reel_scene_count}; "
-                        f"issues={json.dumps(visual_qa.get('issues', []), ensure_ascii=False)}. "
-                        "The image was not regenerated to avoid duplicate quota consumption."
-                    )
+                scenes.append(scene_result["path"])
                 print(
                     f"REEL_STAGE ai_scene={scene_index}/{reel_scene_count} "
-                    "legal_relevance=passed; regeneration_count=0"
+                    f"provider={scene_result['provider']} legal_relevance=passed"
                 )
-                scenes.append(image_path)
         except Exception as image_exc:
             # Do not silently replace failed topic-specific generations with
             # unrelated catalog stock photos. A missing scene blocks review delivery.
@@ -1271,48 +1381,26 @@ def main() -> int:
         )
 
         print("REEL_STAGE tts=start")
-        tts_audio = output_dir / "voice-gemini.wav"
-        try:
-            generate_gemini_tts_audio(cfg["gemini_api_key"], brief["script"], brief.get("emotion_map", []), tts_audio)
-            print("REEL_STAGE tts=gemini_ok")
-        except Exception as gemini_tts_exc:
-            print(f"REEL_STAGE tts=gemini_unavailable reason={gemini_tts_exc}")
-            tts_audio = output_dir / "voice-google-cloud.wav"
-            try:
-                generate_google_cloud_arabic_tts_audio(cfg["service_account_info"], brief["script"], tts_audio)
-                print("REEL_STAGE tts=google_cloud_ok")
-            except Exception as cloud_tts_exc:
-                raise RuntimeError(
-                    "Gemini TTS failed and Google Cloud TTS fallback failed; refusing Telegram delivery. "
-                    f"Gemini={gemini_tts_exc}; Google Cloud={cloud_tts_exc}"
-                ) from cloud_tts_exc
-
-        fit_reel_narration_duration(tts_audio, target_seconds=62.0)
+        tts_audio = output_dir / "voice-arabic-neural.mp3"
+        generate_reel_narration_with_fallbacks(
+            cfg["gemini_api_key"],
+            cfg["service_account_info"],
+            brief["script"],
+            brief.get("emotion_map", []),
+            tts_audio,
+        )
+        fit_reel_narration_duration(tts_audio, target_seconds=REEL_CONTENT_MAX_SECONDS)
         print(f"REEL_STAGE tts_final_duration={_media_duration(tts_audio):.1f}s")
 
-        # The former Python/FFmpeg video builders are retired.
-        # Keep the existing image-generation and TTS stages; Remotion alone composes the final MP4.
-        slogan_audio = output_dir / "slogan-ask-mahmoud.wav"
+        slogan_audio = output_dir / "slogan-ask-mahmoud.mp3"
         slogan_text = prepare_tts_script("خليك فاكر دايما ... اسأل محمود")
-        try:
-            generate_gemini_tts_audio_unbounded(
-                cfg["gemini_api_key"], slogan_text,
-                [{"sentence_index": 1, "delivery_emotion": "confident memorable sign-off"}],
-                slogan_audio, min_seconds=1.0, max_seconds=8.0,
-            )
-            print("REEL_STAGE slogan=gemini_tts_ok")
-        except Exception as slogan_gemini_exc:
-            print(f"REEL_STAGE slogan=gemini_unavailable reason={slogan_gemini_exc}")
-            try:
-                generate_google_cloud_short_arabic_tts_audio(
-                    cfg["service_account_info"], slogan_text, slogan_audio
-                )
-                print("REEL_STAGE slogan=google_cloud_tts_ok")
-            except Exception as slogan_cloud_exc:
-                raise RuntimeError(
-                    "REEL_STAGE slogan_generation_failed; refusing delivery: "
-                    f"Gemini={slogan_gemini_exc}; Google Cloud={slogan_cloud_exc}"
-                ) from slogan_cloud_exc
+        generate_short_signoff_with_fallbacks(
+            cfg["gemini_api_key"],
+            cfg["service_account_info"],
+            slogan_text,
+            [{"sentence_index": 1, "delivery_emotion": "confident memorable sign-off"}],
+            slogan_audio,
+        )
 
         video_path = output_dir / "daily-reel.mp4"
         from remotion_renderer import render_reel_with_remotion
