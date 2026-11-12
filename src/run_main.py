@@ -31,7 +31,7 @@ def _diverse_generate_post(*, api_key, model, topic, legal_sources, previous_con
         "Build around a real business problem, the legal risk or operational consequence, what management should check before acting, "
         "and a practical decision point. Explain the business impact, not just the legal rule. "
         "Use a professional Egyptian lawyer voice: natural, experienced, direct, and readable. "
-        "Prefer roughly 350-600 Arabic words for the LinkedIn version when the subject supports it. "
+        "Prefer roughly 220-280 Arabic words for the LinkedIn version; stay concise enough for LinkedIn character limits. "
         "Do not pad the post with generic advice, repeated conclusions, or a sales pitch. "
         "Use a soft, context-driven CTA only when it naturally leads to discussion or a professional inquiry. "
         "The final LinkedIn post should have enough substance that a company decision-maker can learn something and see why legal review matters. "
@@ -67,7 +67,7 @@ def _clean_linkedin_ellipsis(text: str) -> str:
     return re.sub(r"\.{3}|…", ".", str(text or "")).strip()
 
 
-def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str, legal_sources: str, max_chars: int = 2900) -> str:
+def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str, legal_sources: str, max_chars: int = 2600) -> str:
     text = _clean_linkedin_ellipsis(text)
     if len(text) <= max_chars:
         return text
@@ -75,8 +75,8 @@ def _fit_linkedin_char_limit(text: str, *, api_key: str, model: str, topic: str,
         "LINKEDIN CHARACTER-LIMIT REPAIR:\n"
         f"Rewrite this complete LinkedIn post to fit within {max_chars} characters. "
         "Preserve the core legal meaning, practical business analysis, qualifications, and conclusion. "
-        "Remove repetition and low-value wording instead of cutting sentences. "
-        "The result MUST end with a complete thought and natural punctuation. Never use '...' or '…'. "
+        "Target 220-260 words and no more than the stated character limit. Remove repetition and low-value wording by rewriting whole sentences, not by cutting sentences. "
+        "Preserve legal qualifications and the practical decision point. The result MUST end with a complete thought and natural punctuation. Never use '...' or '…'. "
         "Return only the finished LinkedIn post.\n\n"
         f"Topic: {topic}\nLegal sources: {legal_sources or 'none'}\n\nPost:\n{text}"
     )
@@ -101,11 +101,15 @@ def _strengthen_linkedin_post(post: str, *, api_key: str = "", model: str = "", 
     if not text:
         return text
 
-    minimum_words = 350
-    target_words = 450
+    minimum_words = 200
+    target_words = 250
     current_words = _linkedin_word_count(text)
-    if current_words >= minimum_words and not _linkedin_needs_completion(text) and not re.search(r"\\b(?:أنت|إنت|انت|عندك|عندكم)\\b|\\bلو\\s+(?:أنت|إنت|انت|عندك|عندكم)", text):
+    if current_words >= minimum_words and len(text) <= 2600 and not _linkedin_needs_completion(text) and not re.search(r"\\b(?:أنت|إنت|انت|عندك|عندكم)\\b|\\bلو\\s+(?:أنت|إنت|انت|عندك|عندكم)", text):
         return text
+    if current_words >= minimum_words and len(text) > 2600 and not _linkedin_needs_completion(text):
+        fitted = _fit_linkedin_char_limit(text, api_key=api_key, model=model, topic=topic, legal_sources=legal_sources, max_chars=2600)
+        print(f"LinkedIn length gate: compressed {len(text)} -> {len(fitted)} characters without truncation.")
+        return fitted
 
     expansion_context = (
         "CURRENT LINKEDIN DRAFT THAT IS TOO SHORT:\n"
@@ -182,7 +186,7 @@ def _make_distinct_linkedin_post(*, config: dict, topic: str, legal_sources: str
         "Focus on business exposure, decision-making, internal process, documents, accountability, and risk controls relevant to this topic.\n"
         "Do not reuse Facebook sentences or paragraph order. Do not address an individual as أنت/إنت/عندك.\n"
         "Keep legal claims limited to the provided source material; do not invent statutes, rulings, deadlines, or facts.\n"
-        "Aim for 350-450 words, but prioritize useful, topic-specific analysis over padding. Return only the LinkedIn post.\n\n"
+        "Aim for 220-280 words and stay below 2600 characters, but prioritize useful, topic-specific analysis over padding. Return only the LinkedIn post.\n\n"
         f"TOPIC: {topic}\nLEGAL SOURCES: {legal_sources or 'none supplied'}\n"
         f"FACEBOOK COPY (meaning reference only; do not reuse wording):\n{facebook_post}\n\n"
         f"CURRENT LINKEDIN DRAFT TO REPLACE:\n{linkedin_post}"
