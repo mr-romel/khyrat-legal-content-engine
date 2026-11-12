@@ -84,6 +84,32 @@ jobs:
           headers = [str(x or '').strip() for x in values[0]]
           rows = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2)]
           protected_statuses = {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING', 'GENERATING'}
+          def topic_family(value):
+              value = ' '.join(str(value or '').split()).casefold()
+              families = [
+                  ('nursery_surveillance', ('حضانات', 'حضانة', 'دار حضانة', 'روضة أطفال', 'رياض الأطفال')),
+                  ('secret_threat', ('تهديد', 'إفشاء', 'افشاء', 'أسرار', 'اسرار', 'ابتزاز', 'مساومة')),
+                  ('unauthorized_recording', ('تصوير', 'التصوير', 'كاميرا', 'تسجيل دون إذن', 'تصوير دون إذن', 'خصوصية الصورة')),
+                  ('harassment', ('تحرش', 'مضايقة', 'ملاحقة')),
+                  ('employment', ('عمل', 'عامل', 'عمال', 'موظف', 'فصل', 'مرتب', 'راتب', 'أجر', 'استقالة')),
+                  ('family', ('طلاق', 'خلع', 'نفقة', 'حضانة', 'رؤية', 'زواج', 'أسرة', 'اسرة')),
+                  ('public_utility', ('المرفق العام', 'المرافق العامة', 'مرفق عام', 'المرفق الاقتصادي', 'مرفق اقتصادي', 'خدمة عامة', 'الخدمات العامة')),
+                  ('companies', ('شركة', 'شركات', 'شريك', 'شراكة', 'تأسيس', 'مساهم')),
+                  ('contracts', ('عقد', 'عقود', 'تعاقد', 'فسخ', 'إخلال', 'اتفاق')),
+                  ('rent', ('إيجار', 'ايجار', 'مؤجر', 'مستأجر', 'طرد', 'إخلاء')),
+                  ('payments', ('شيك', 'إيصال', 'ايصال', 'دفع', 'تحويل', 'مديونية', 'مبلغ')),
+                  ('inheritance', ('ميراث', 'تركة', 'ورثة', 'وصية')),
+                  ('compensation', ('تعويض', 'إصابة', 'اصابة', 'ضرر', 'مسؤولية مدنية')),
+                  ('criminal', ('جريمة', 'جنائي', 'سرقة', 'ضرب', 'قتل', 'سب', 'قذف', 'نصب', 'احتيال')),
+              ]
+              for family, terms in families:
+                  if any(term in value for term in terms):
+                      return family
+              return 'general'
+          def topic_matches(row):
+              title_family = topic_family(row.get('الموضوع', ''))
+              post_family = topic_family(row.get('المحتوى', ''))
+              return title_family == 'general' or title_family == post_family
           def eligible(row, allow_replace=False):
               rid = str(row.get('ID', '') or '').strip()
               topic = str(row.get('الموضوع', '') or '').strip()
@@ -92,14 +118,14 @@ jobs:
               status = str(row.get('Reel Status', '') or '').strip().upper()
               external_video_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
               status_ok = status not in protected_statuses or (allow_replace and status in {'REVIEW', 'APPROVED', 'PUBLISHED'})
-              return bool(rid and topic and content and social_ok and not any(external_video_ids) and status_ok)
+              return bool(rid and topic and content and social_ok and not any(external_video_ids) and status_ok and topic_matches(row))
           if source_id:
               matches = [(n, row) for n, row in rows if str(row.get('ID', '') or '').strip() == source_id]
               if len(matches) != 1:
                   raise SystemExit(f'Immutable source ID must match exactly one row; matches={len(matches)}.')
               row_number, row = matches[0]
               if not eligible(row, allow_replace=force_replace):
-                  raise SystemExit('The explicitly selected source row is not eligible: it must be published on Facebook/LinkedIn, contain topic/content, have no external Reel video IDs, and not be locked or already reviewed.')
+                  raise SystemExit('The explicitly selected source row is not eligible: it must be published on Facebook/LinkedIn, contain matching topic/content, have no external Reel video IDs, and not be locked or already reviewed.')
               selection_mode = 'explicit_id'
           else:
               candidates = [(n, row) for n, row in rows if eligible(row)]
