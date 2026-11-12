@@ -28,13 +28,15 @@ def test_urlopen_retries_transient_tls_eof(monkeypatch):
     assert calls[0][1] == 5
 
 
-def test_edge_tts_is_not_a_dependency_or_fallback():
+def test_edge_tts_is_installed_and_used_as_arabic_fallback():
     reel_source = Path("src/reel_pipeline.py").read_text(encoding="utf-8").casefold()
-    requirements = Path("requirements-worker.txt").read_text(encoding="utf-8").casefold()
+    requirements = Path("requirements-reel.txt").read_text(encoding="utf-8").casefold()
 
-    assert "edge_tts" not in reel_source
-    assert "edge-tts" not in reel_source
-    assert "edge-tts" not in requirements
+    assert "edge_tts" in reel_source
+    assert "edge-tts" in reel_source
+    assert "edge-tts" in requirements
+    assert "ar-eg-shakirneural" in reel_source
+    assert "generate_reel_narration_with_fallbacks" in reel_source
 
 
 def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
