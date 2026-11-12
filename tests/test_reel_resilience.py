@@ -28,15 +28,34 @@ def test_urlopen_retries_transient_tls_eof(monkeypatch):
     assert calls[0][1] == 5
 
 
-def test_edge_tts_is_installed_and_used_as_arabic_fallback():
+def test_edge_tts_is_completely_disabled_and_google_cloud_is_the_fallback():
     reel_source = Path("src/reel_pipeline.py").read_text(encoding="utf-8").casefold()
     requirements = Path("requirements-reel.txt").read_text(encoding="utf-8").casefold()
 
-    assert "edge_tts" in reel_source
-    assert "edge-tts" in reel_source
-    assert "edge-tts" in requirements
-    assert "ar-eg-shakirneural" in reel_source
+    assert "edge_tts" not in reel_source
+    assert "edge-tts" not in reel_source
+    assert "edge-tts" not in requirements
+    assert "generate_edge_arabic_tts_audio" not in reel_source
     assert "generate_reel_narration_with_fallbacks" in reel_source
+    assert "generate_google_cloud_arabic_tts_audio" in reel_source
+    assert "generate_google_cloud_short_arabic_tts_audio" in reel_source
+
+
+def test_reel_generation_uses_persistent_qa_approved_scene_image_cache():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "REEL_IMAGE_CACHE_DIR" in source
+    assert "generated/reel_image_cache" in source
+    assert "scene_cache_hit=" in source
+    assert "scene_cache_saved=" in source
+    assert 'meta.get("qa", {}).get("decision") == "PASS"' in source
+    assert 'meta.get("image_sha256") == cached_sha' in source
+
+
+def test_external_tts_retries_use_longer_exponential_backoff():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "attempts: int = 5" in source
+    assert "min(3 * (2 ** (attempt - 1)), 45)" in source
+    assert "min(3 * (2 ** (attempt - 1)), 30)" in source
 
 
 def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
