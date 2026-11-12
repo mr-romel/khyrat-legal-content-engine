@@ -87,7 +87,7 @@ def test_image_provider_timeout_is_bounded_and_configurable(monkeypatch):
     monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "45")
     assert _image_provider_timeout_seconds() == 45
     monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "999")
-    assert _image_provider_timeout_seconds() == 120
+    assert _image_provider_timeout_seconds() == 300
     monkeypatch.setenv("REEL_IMAGE_PROVIDER_TIMEOUT_SECONDS", "invalid")
     assert _image_provider_timeout_seconds() == 60
 
@@ -127,7 +127,7 @@ def test_scene_visual_qa_rejection_falls_through_to_next_provider_and_local_scen
     assert result["qa"]["decision"] == "PASS"
 
 
-def test_tts_fallback_chain_uses_edge_before_google_cloud(monkeypatch, tmp_path):
+def test_tts_fallback_chain_skips_edge_and_uses_google_cloud(monkeypatch, tmp_path):
     import sys
     sys.path.insert(0, str(ROOT / "src"))
     import reel_pipeline
@@ -136,20 +136,16 @@ def test_tts_fallback_chain_uses_edge_before_google_cloud(monkeypatch, tmp_path)
     def fail_gemini(*args, **kwargs):
         calls.append("gemini")
         raise RuntimeError("429 quota")
-    def pass_edge(*args, **kwargs):
-        calls.append("edge")
-        return tmp_path / "voice.mp3"
-    def fail_google(*args, **kwargs):
+    def pass_google(*args, **kwargs):
         calls.append("google")
-        raise RuntimeError("403 forbidden")
+        return tmp_path / "voice.mp3"
     monkeypatch.setattr(reel_pipeline, "generate_gemini_tts_audio", fail_gemini)
-    monkeypatch.setattr(reel_pipeline, "generate_edge_arabic_tts_audio", pass_edge)
-    monkeypatch.setattr(reel_pipeline, "generate_google_cloud_arabic_tts_audio", fail_google)
+    monkeypatch.setattr(reel_pipeline, "generate_google_cloud_arabic_tts_audio", pass_google)
     result = reel_pipeline.generate_reel_narration_with_fallbacks(
         "key", {}, "نص تجريبي", [], tmp_path / "voice.mp3"
     )
     assert result == tmp_path / "voice.mp3"
-    assert calls == ["gemini", "edge"]
+    assert calls == ["gemini", "google"]
 
 
 def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaustion():
@@ -162,6 +158,8 @@ def test_explicit_source_id_recovery_is_one_shot_even_after_retry_budget_exhaust
 
 
 def test_image_provider_quota_failure_disables_provider_for_remaining_scenes(tmp_path):
+    import os
+    os.environ["REEL_IMAGE_CACHE_DIR"] = str(tmp_path / "isolated-cache")
     import sys
     sys.path.insert(0, str(ROOT / "src"))
     from reel_pipeline import _generate_scene_with_provider_fallbacks
