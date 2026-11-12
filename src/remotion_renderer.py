@@ -56,14 +56,19 @@ def render_reel_with_remotion(
     output_video.parent.mkdir(parents=True, exist_ok=True)
     voice_duration = _duration(voice_audio)
     slogan_duration = _duration(slogan_audio)
-    if voice_duration > 34.5:
-        raise RuntimeError(f"REMOTION_NARRATION_TOO_LONG: {voice_duration:.2f}s exceeds 34.5s content budget")
+    if voice_duration > 35.5:
+        raise RuntimeError(f"REMOTION_NARRATION_TOO_LONG: {voice_duration:.2f}s exceeds 35.5s content budget")
     if slogan_duration > 8.0:
         raise RuntimeError(f"REMOTION_SLOGAN_TOO_LONG: {slogan_duration:.2f}s exceeds 8s")
     voice_frames = max(1, math.ceil(voice_duration * fps))
-    # Keep the final file inside the 40-second delivery contract; do not append
-    # an extra 0.8s tail after the spoken sign-off.
-    total_frames = voice_frames + math.ceil(slogan_duration * fps)
+    slogan_frames = max(1, math.ceil(slogan_duration * fps))
+    total_frames = voice_frames + slogan_frames
+    combined_duration = total_frames / fps
+    if combined_duration > 40.0:
+        raise RuntimeError(
+            f"REMOTION_TOTAL_DURATION_EXCEEDED: narration+branded sign-off is "
+            f"{combined_duration:.2f}s; maximum is 40.00s"
+        )
 
     try:
         scene_props = []
