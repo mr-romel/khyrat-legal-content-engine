@@ -459,11 +459,11 @@ def create_legal_image(
                     if any(marker in error_text for marker in ("429", "resource_exhausted", "quota exceeded", "limit: 0")):
                         print("Gemini image quota is exhausted; skipping retries and switching to the next image provider.")
                         break
-                    if attempt < 3:
-                        delay = attempt * 2
-                        print(f"Transient image-generation failure; retry {attempt + 1}/3 in {delay}s: {exc}")
+                    if attempt < 5:
+                        delay = min(5 * (2 ** (attempt - 1)), 40)
+                        print(f"Transient image-generation failure; retry {attempt + 1}/5 in {delay}s: {exc}")
                         time.sleep(delay)
-            raise ImageGenerationError(f"Gemini image generation failed after 3 attempts: {last_error}") from last_error
+            raise ImageGenerationError(f"Gemini image generation failed after 5 attempts: {last_error}") from last_error
         except Exception as exc:
             raise ImageGenerationError(f"Gemini image fallback failed: {exc}") from exc
 
@@ -770,9 +770,9 @@ def create_legal_image(
                     break
             except requests.RequestException as exc:
                 cloudflare_error = str(exc)
-            if attempt < 3:
-                delay = attempt * 2
-                print(f"Cloudflare image service transient failure; retry {attempt + 1}/3 in {delay}s: {cloudflare_error}")
+            if attempt < 5:
+                delay = min(5 * (2 ** (attempt - 1)), 40)
+                print(f"Cloudflare image service transient failure; retry {attempt + 1}/5 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
     if provider_preference == "local_scene":
