@@ -1,1 +1,2 @@
-Run the Reel backlog catch-up worker after dependency-installation hardening. Trigger revision: 2026-11-11T18:35 Cairo.
+Run a safe, topic-aligned Reel backlog catch-up after source-selection and workflow gating fixes.
+Revision: 2026-11-12T12:20 Cairo.
