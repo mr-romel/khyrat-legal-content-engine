@@ -560,11 +560,16 @@ def _generate_scene_with_provider_fallbacks(
     providers: dict[int, str],
     create_image,
     qa_image,
+    disabled_providers: set[str] | None = None,
 ) -> dict[str, Any]:
     """QA each provider result before accepting it; a rejected model image falls through to local original art."""
     errors = []
     provenance_path = output_path.with_suffix(output_path.suffix + ".provenance.json")
+    disabled_providers = disabled_providers if disabled_providers is not None else set()
     for attempt, provider_name in providers.items():
+        if provider_name in disabled_providers:
+            print(f"REEL_STAGE scene_provider_skipped={provider_name} reason=provider disabled after quota/auth failure")
+            continue
         output_path.unlink(missing_ok=True)
         provenance_path.unlink(missing_ok=True)
         try:
@@ -599,7 +604,20 @@ def _generate_scene_with_provider_fallbacks(
             )
             return {"path": output_path, "provider": provider_name, "qa": qa}
         except Exception as exc:
-            errors.append(f"{provider_name}: {str(exc)[:500]}")
+            error_text = str(exc)
+            errors.append(f"{provider_name}: {error_text[:500]}")
+            error_lower = error_text.casefold()
+            quota_or_auth_failure = (
+                "http 429" in error_lower
+                or "http 402" in error_lower
+                or "key_budget_exhausted" in error_lower
+                or "daily free allocation" in error_lower
+                or "quota exceeded" in error_lower
+                or "budget too low" in error_lower
+            )
+            if quota_or_auth_failure and provider_name in {"pollinations", "cloudflare"}:
+                disabled_providers.add(provider_name)
+                print(f"REEL_STAGE scene_provider_disabled={provider_name} reason=quota_or_auth_failure")
             print(
                 f"REEL_STAGE scene_provider_rejected={provider_name} "
                 f"attempt={attempt} reason={str(exc)[:500]}"
@@ -1284,6 +1302,7 @@ def main() -> int:
             json.dumps(reel_plan, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         scenes = []
+        unavailable_visual_providers: set[str] = set()
         try:
             from image_generator import create_legal_image
             from image_qa import qa_image
@@ -1311,6 +1330,7 @@ def main() -> int:
                     providers=visual_providers,
                     create_image=create_legal_image,
                     qa_image=qa_image,
+                    disabled_providers=unavailable_visual_providers,
                 )
                 scenes.append(scene_result["path"])
                 print(
