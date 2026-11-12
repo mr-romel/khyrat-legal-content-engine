@@ -75,6 +75,7 @@ jobs:
           from sheets import create_service, get_values, row_to_dict
           cfg = load_reel_config()
           source_id = os.environ.get('REEL_SOURCE_ID', '').strip()
+          force_replace = os.getenv('REEL_FORCE_REPLACE', '').strip().lower() == 'true'
           service = create_service(cfg['service_account_info'])
           sheet_name = cfg['sheet_range'].split('!', 1)[0]
           values = get_values(service, cfg['sheet_id'], f'{sheet_name}!A:BZ')
@@ -83,20 +84,21 @@ jobs:
           headers = [str(x or '').strip() for x in values[0]]
           rows = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2)]
           protected_statuses = {'REVIEW', 'APPROVED', 'PUBLISHED', 'REGENERATING', 'GENERATING'}
-          def eligible(row):
+          def eligible(row, allow_replace=False):
               rid = str(row.get('ID', '') or '').strip()
               topic = str(row.get('الموضوع', '') or '').strip()
               content = str(row.get('المحتوى', '') or '').strip()
               social_ok = any(str(row.get(k, '') or '').strip().upper() == 'PUBLISHED' for k in ('Facebook Status', 'LinkedIn Status'))
               status = str(row.get('Reel Status', '') or '').strip().upper()
               external_ids = [str(row.get(k, '') or '').strip() for k in ('Reel Facebook ID', 'Reel YouTube ID')]
-              return bool(rid and topic and content and social_ok and not any(external_ids) and status not in protected_statuses)
+              status_ok = status not in protected_statuses or (allow_replace and status in {'REVIEW', 'APPROVED', 'PUBLISHED'})
+              return bool(rid and topic and content and social_ok and not any(external_ids) and status_ok)
           if source_id:
               matches = [(n, row) for n, row in rows if str(row.get('ID', '') or '').strip() == source_id]
               if len(matches) != 1:
                   raise SystemExit(f'Immutable source ID must match exactly one row; matches={len(matches)}.')
               row_number, row = matches[0]
-              if not eligible(row):
+              if not eligible(row, allow_replace=force_replace):
                   raise SystemExit('The explicitly selected source row is not eligible: it must be published on Facebook/LinkedIn, contain topic/content, have no external Reel video IDs, and not be locked or already reviewed.')
               selection_mode = 'explicit_id'
           else:
