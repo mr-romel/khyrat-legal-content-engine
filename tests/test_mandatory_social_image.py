@@ -39,3 +39,20 @@ def test_social_image_qa_unavailable_or_rejected_blocks_publication():
     assert "raise ImageQAError(image_qa_summary) from qa_exc" in source
     assert "raise ImageQAError(" in source
     assert "Replacement image failed visual relevance/text QA" in source
+
+
+def test_image_qa_retry_budget_is_persistent_and_bounded():
+    source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
+    assert "MAX_IMAGE_QA_ATTEMPTS = 6" in source
+    assert "IMAGE_QA_ATTEMPTS_PER_RUN = 3" in source
+    assert "IMAGE_QA_RETRY_BUDGET_EXHAUSTED" in source
+    assert 'error.startswith("IMAGE_QA_BLOCKED:")' in source
+    assert "Avoid people and hands when possible" not in source
+
+
+def test_image_regeneration_uses_qa_corrections_without_removing_original_brief():
+    source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
+    assert "build_image_regeneration_brief(visual_description, regeneration_notes)" in source
+    generator = (Path(__file__).resolve().parents[1] / "src" / "image_generator.py").read_text(encoding="utf-8")
+    assert "Keep every required subject, person, action" in generator
+    assert "do not add new exclusions" in generator
