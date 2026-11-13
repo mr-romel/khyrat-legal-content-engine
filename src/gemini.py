@@ -199,14 +199,14 @@ def _deterministic_legal_scene(topic: str, post: str) -> str | None:
 
 def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: str = "") -> str:
     """Derive one concrete visual scene from the final post, using stable briefs for abstract legal angles."""
-    if not api_key and not has_any_provider_key():
-        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     post = " ".join(str(post or "").split()).strip()
     if not post:
         raise RuntimeError("Final post content is required.")
     deterministic_scene = _deterministic_legal_scene(topic, post)
     if deterministic_scene:
         return deterministic_scene
+    if not api_key and not has_any_provider_key():
+        raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
     client = create_client(api_key=api_key, task="image_description")
     prompt = f"""
