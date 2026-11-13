@@ -214,12 +214,12 @@ Transform the FINAL POST below into one concrete, image-ready scene description.
 
 STRICT RULES:
 - The final post is the ONLY semantic source.
-- Extract the specific situation, people, actions, setting, and visible evidence described by the post.
-- Convert abstract legal explanations into the closest direct visual representation supported by the post.
-- Never add a generic courtroom, lawyer, law books, justice scales, office, contract, police scene, or other legal stock imagery unless the post itself supports it.
-- Use a contemporary everyday setting and current objects that are directly supported by the post.
-- Depict the exact legal situation, not national symbols, historical decoration, monuments, or period styling.
-- Keep every visual detail tied to the described people, action, place, or evidence; do not add unsupported scenery.
+- Identify the main subject and at least ONE concrete visual element connected to any meaningful part of the post.
+- For abstract legal explanations, choose the simplest recognizable everyday object, setting, action, or document that reasonably relates to the topic.
+- The scene may illustrate only ONE aspect of the topic; it does not need to explain the entire legal doctrine or reproduce every detail.
+- Prefer a clear, ordinary, topic-related scene over a complicated or overly literal composition.
+- Do not force a courtroom, lawyer, scales, police scene, contract, or any stock legal symbol when it is not relevant.
+- Use a contemporary everyday setting. Keep the image understandable and visually clean; a partial but genuine topic connection is sufficient.
 - Never invent people, actions, documents, locations, events, numbers, logos, or facts.
 - Use one scene only, not a collage or multiple panels.
 - Describe subject, action, setting, important visual evidence, composition, camera angle, and lighting.
