@@ -48,6 +48,8 @@ def test_image_qa_retry_budget_is_persistent_and_bounded():
     assert "IMAGE_QA_RETRY_BUDGET_EXHAUSTED" in source
     assert 'error.startswith("IMAGE_QA_BLOCKED:")' in source
     assert "Avoid people and hands when possible" not in source
+    assert "attempt_number >= attempt_limit" in source
+    assert "image_qa_attempt >= 3" not in source
 
 
 def test_image_regeneration_uses_qa_corrections_without_removing_original_brief():
