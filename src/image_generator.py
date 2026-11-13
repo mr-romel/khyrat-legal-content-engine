@@ -443,7 +443,7 @@ def create_legal_image(
         # Keep the generated scene anchored to the legal issue in the post.
         # Do not impose a country, culture, era, cast, or decorative art direction.
         prompt += (
-            f"\\nCOMPOSITION FORMAT: portrait {aspect_ratio}; "
+            chr(10) + f"COMPOSITION FORMAT: portrait {aspect_ratio}; "
             "show a clear, concrete visual representation of the specific "
             "legal problem, evidence, action, document, or consequence described "
             "in the post. Avoid generic legal clichés and unrelated decoration. "
