@@ -15,7 +15,7 @@ from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
-from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene
+from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
@@ -368,12 +368,19 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     # Never reuse a prior row's image brief for a new legal post: it can produce a visually unrelated image.
     image_brief = ""
     try:
+        editorial_brief = build_editorial_brief(
+            topic=topic,
+            legal_sources=legal_sources,
+            previous_context=previous_context,
+        )
+        print("EDITORIAL BRIEF READY: " + json.dumps(editorial_brief, ensure_ascii=False))
         result = generate_post(
             api_key=config["gemini_api_key"],
             model=config["gemini_model"],
             topic=topic,
             legal_sources=legal_sources,
             previous_context=previous_context,
+            editorial_brief=editorial_brief,
         )
         post = str(result.get("post", "") or "").strip() or _fallback_post(topic, legal_sources)
         if not _topic_post_aligned(topic, post):
