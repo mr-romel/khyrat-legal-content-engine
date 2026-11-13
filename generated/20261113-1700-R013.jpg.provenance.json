@@ -1,0 +1,24 @@
+{
+  "topic": "الميعاد في دعوى الإلغاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑30s businessperson sits at a tidy office desk near a window, the soft afternoon light spilling onto the surface. In front of them lies an official‑looking notice on white paper, its top corner marked by a bold red circle that draws the eye to the date of issuance. To the right of the notice, an open wall calendar hangs on the wall; several recent days are lightly crossed out, while the current month’s page is clearly visible, emphasizing the passage of time. A simple analog wall clock behind the calendar shows the hands near the middle of the hour, underscoring the urgency of the deadline. The person’s hand rests on a pen, poised as they compare the highlighted date on the notice with the calendar, their \nLEGAL TOPIC: الميعاد في دعوى الإلغاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a present-day Egyptian setting. Use contemporary 2020s architecture, infrastructure, clothing and materials. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: متى آخر ميعاد ممكن تقدم فيه دعوى إلغاء ضد قرار إداري؟ السؤال ده بيظهر لكل صاحب شركة أو مدير بيستلم إشعار بقرار بيأثر على شغله، ولازم يعرف إذا كان الوقت لسه متاح ولا فات، القانون الإداري بيحدد إن الميعاد لتقديم الطعن يبدأ من تاريخ الإخطار بالقرار، ولو ما تم تقديم الدعوى خلال المدة المحددة يبقى الطلب مرفوض تلقائيًا، وده بيخلي أي محاولة لاحقة غير مجدية، قبل ما تقرر إنك هتقدم الدعوى، ابص على ثلاث علامات تحذيرية: أولًا، ت\nCOMPOSITION FORMAT: portrait 4:5; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avo",
+  "prompt_sha256": "96157965ca073f39fd418eb300ee85f4511b260339543ec498a04dc0fc6af572",
+  "image_sha256": "79a17c094835b1a8257563bee0ff096b9c21be7164c8920f774d547e71addfe3",
+  "image_path": "generated/20261113-1700-R013.jpg",
+  "visual_description": "A mid‑30s businessperson sits at a tidy office desk near a window, the soft afternoon light spilling onto the surface. In front of them lies an official‑looking notice on white paper, its top corner marked by a bold red circle that draws the eye to the date of issuance. To the right of the notice, an open wall calendar hangs on the wall; several recent days are lightly crossed out, while the current month’s page is clearly visible, emphasizing the passage of time. A simple analog wall clock behind the calendar shows the hands near the middle of the hour, underscoring the urgency of the deadline. The person’s hand rests on a pen, poised as they compare the highlighted date on the notice with the calendar, their expression focused. The composition is a medium shot, centered on the desk scene, with shallow depth of field that keeps the notice, calendar, and clock sharp while the background office elements fade softly. The lighting is natural, warm, and even, casting gentle shadows that highlight the paper and calendar without any glare.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 8,
+  "qa_relevance_score": 7,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "79a17c094835b1a8257563bee0ff096b9c21be7164c8920f774d547e71addfe3"
+}
