@@ -180,21 +180,21 @@ def _deterministic_legal_scene(topic: str, post: str) -> str | None:
     if not (criminal_contribution and checklist_angle):
         return None
     return (
-        "A single photorealistic overhead editorial still life on a clean, contemporary "
-        "Egyptian law-office desk, illustrating preparation of a legal checklist about "
-        "criminal participation before taking procedural action. The focal subject is "
-        "one large, completely blank white checklist sheet with a neat column of empty "
-        "square checkboxes and a few simple nonverbal check marks only; absolutely no "
-        "letters, words, numbers, signatures, seals, or readable writing. Beside it are "
-        "one closed dark legal case folder, two neatly aligned blank evidence/document "
-        "sheets with all surfaces entirely out of focus and unreadable, and one elegant "
-        "black pen placed diagonally toward the checklist. No people, no hands, no faces, "
-        "no courtroom, no judge, no police, no scales of justice, no historical objects, "
-        "no maps, no kitchen or lifestyle items. Tight overhead composition, checklist "
-        "and folder occupy most of the frame, realistic paper texture, restrained navy "
-        "and warm neutral palette, soft directional daylight, crisp professional "
-        "photography, vertical 9:16 framing. The scene is an illustrative preparation "
-        "still life, not a depiction of a real case or a claim about actual evidence."
+        "Photorealistic overhead still-life photograph, tightly framed on a modern "
+        "law-office desk. The image must communicate a practical pre-action checklist "
+        "for criminal participation: one large blank checklist page with a short column "
+        "of empty square boxes, beside three small distinct neutral metal markers "
+        "connected by thin lines to represent separate legal roles in one case. Include "
+        "one closed navy case folder and one black pen. The checklist page and three "
+        "connected role markers are the unmistakable main subject and fill most of the "
+        "image. Contemporary, restrained navy, ivory and muted-gold palette; clean "
+        "professional editorial photography; soft natural side lighting; simple "
+        " uncluttered composition. Absolutely no people, human figures, faces, hands, "
+        "newspapers, magazines, courtroom, police, judge, scales, gavel, extra props, "
+        "collage, panels, symbols resembling letters, or text of any kind. All paper "
+        "surfaces must be completely blank apart from the empty checkbox outlines. "
+        "Use the requested output aspect ratio exactly; do not add borders or crop "
+        "the checklist or role markers. Illustrative still life only, not real evidence."
     )
 
 def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: str = "") -> str:
