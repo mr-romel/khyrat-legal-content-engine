@@ -189,7 +189,7 @@ def _deterministic_legal_scene(topic: str, post: str) -> str | None:
         "connected role markers are the unmistakable main subject and fill most of the "
         "image. Contemporary, restrained navy, ivory and muted-gold palette; clean "
         "professional editorial photography; soft natural side lighting; simple "
-        " uncluttered composition. Absolutely no people, human figures, faces, hands, "
+        "uncluttered composition. Absolutely no people, human figures, faces, hands, "
         "newspapers, magazines, courtroom, police, judge, scales, gavel, extra props, "
         "collage, panels, symbols resembling letters, or text of any kind. All paper "
         "surfaces must be completely blank apart from the empty checkbox outlines. "
