@@ -203,6 +203,50 @@ def _metadata_relevance_fallback(path: Path, topic: str, image_brief: str, hard:
         return None
 
 
+
+def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) -> dict[str, Any]:
+    """Treat scores and missing scene details as advisory; block only concrete defects."""
+    findings = []
+    for field in ("issues", "relevance_findings", "composition_findings"):
+        value = data.get(field, [])
+        if isinstance(value, list):
+            findings.extend(str(item).casefold() for item in value)
+        elif value:
+            findings.append(str(value).casefold())
+    joined = " ".join(findings)
+
+    explicit_unrelated = any(term in joined for term in (
+        "completely unrelated", "no connection to the topic", "no reasonable connection",
+        "no identifiable connection", "unrelated to the topic", "irrelevant to the topic",
+        "entirely unrelated", "does not relate to the topic",
+    ))
+    material_defect = any(term in joined for term in (
+        "visibly fused limb", "impossible hand", "severe distortion",
+        "material geometry defect", "broken geometry", "unusable image",
+        "prominent generated text", "gibberish text",
+    ))
+    hard_failure = (
+        not bool(hard.get("aspect_ratio_ok"))
+        or bool(data.get("text_detected"))
+        or explicit_unrelated
+        or material_defect
+    )
+
+    data["advisories"] = list(data.get("advisories") or [])
+    data["qa_policy"] = "LENIENT_PARTIAL_RELEVANCE_V1"
+    if data.get("decision") == "REGENERATE" and not hard_failure:
+        data["decision"] = "PASS"
+        data["qa_policy_override"] = (
+            "Model regeneration request was based on advisory scores, incomplete scene details, "
+            "or subjective composition; no concrete publication-blocking defect was identified."
+        )
+        data["advisories"].append(data["qa_policy_override"])
+    elif hard_failure:
+        data["decision"] = "REGENERATE"
+        data["qa_policy_override"] = "A concrete hard visual defect was identified."
+    return data
+
+
 def qa_image(
     *,
     api_key: str,
@@ -352,22 +396,23 @@ def qa_image(
     data["hard_checks"] = hard
     data["image_mode"] = image_mode
 
-    # Visual QA gates publication on legal relevance and actual image defects.
+    # Scores are telemetry only. They never block a usable partial-topic image.
     soft_warnings = []
     if not hard["aspect_ratio_ok"]:
-        soft_warnings.append(f"Aspect-ratio advisory: expected 4:5, got {hard['width']}x{hard['height']}.")
+        soft_warnings.append(f"Hard format check failed: {hard['width']}x{hard['height']} is not 9:16 or 4:5.")
     if data["composition_score"] < QA_MIN_COMPOSITION:
         soft_warnings.append(f"Composition advisory below {QA_MIN_COMPOSITION}.")
     if data["relevance_score"] < QA_MIN_RELEVANCE:
         soft_warnings.append(f"Relevance advisory below {QA_MIN_RELEVANCE}.")
     if data["overall_score"] < QA_MIN_OVERALL:
         soft_warnings.append(f"Overall advisory below {QA_MIN_OVERALL}.")
-    # Keep soft score warnings separate from actionable defects so retry prompts
-    # do not amplify advisory scores into invented visual requirements.
     data["advisories"] = soft_warnings
-    if data["decision"] != "REGENERATE":
-        data["decision"] = "PASS"
-    data["issues"] = soft_warnings + data["issues"]
+    data["issues"] = [
+        item for item in data["issues"]
+        if not any(label in item.casefold() for label in ("composition advisory below", "relevance advisory below", "overall advisory below"))
+    ]
+    data = _apply_lenient_relevance_policy(data, hard)
+    data["issues"] = list(dict.fromkeys(data["issues"] + data["advisories"]))
 
     if data["decision"] == "REGENERATE" and not data["regeneration_prompt"]:
         data["regeneration_prompt"] = ""
