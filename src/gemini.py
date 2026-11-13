@@ -168,13 +168,45 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
     return _validate_data(_extract_json(raw_text))
 
 
-def generate_image_scene_from_post(api_key: str, model: str, post: str) -> str:
-    """Derive one concrete visual scene from the final post only."""
+
+def _deterministic_legal_scene(topic: str, post: str) -> str | None:
+    """Return a stable, non-fictional visual brief for abstract legal checklist topics."""
+    source = " ".join(f"{topic or ''} {post or ''}".casefold().split())
+    criminal_contribution = "المساهمة الجنائية" in source or "criminal contribution" in source
+    checklist_angle = any(term in source for term in (
+        "checklist", "check list", "قائمة مراجعة", "قبل بدء أي إجراء",
+        "قبل اتخاذ أي إجراء", "قبل البدء في الإجراءات",
+    ))
+    if not (criminal_contribution and checklist_angle):
+        return None
+    return (
+        "A single photorealistic overhead editorial still life on a clean, contemporary "
+        "Egyptian law-office desk, illustrating preparation of a legal checklist about "
+        "criminal participation before taking procedural action. The focal subject is "
+        "one large, completely blank white checklist sheet with a neat column of empty "
+        "square checkboxes and a few simple nonverbal check marks only; absolutely no "
+        "letters, words, numbers, signatures, seals, or readable writing. Beside it are "
+        "one closed dark legal case folder, two neatly aligned blank evidence/document "
+        "sheets with all surfaces entirely out of focus and unreadable, and one elegant "
+        "black pen placed diagonally toward the checklist. No people, no hands, no faces, "
+        "no courtroom, no judge, no police, no scales of justice, no historical objects, "
+        "no maps, no kitchen or lifestyle items. Tight overhead composition, checklist "
+        "and folder occupy most of the frame, realistic paper texture, restrained navy "
+        "and warm neutral palette, soft directional daylight, crisp professional "
+        "photography, vertical 9:16 framing. The scene is an illustrative preparation "
+        "still life, not a depiction of a real case or a claim about actual evidence."
+    )
+
+def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: str = "") -> str:
+    """Derive one concrete visual scene from the final post, using stable briefs for abstract legal angles."""
     if not api_key and not has_any_provider_key():
         raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
     post = " ".join(str(post or "").split()).strip()
     if not post:
         raise RuntimeError("Final post content is required.")
+    deterministic_scene = _deterministic_legal_scene(topic, post)
+    if deterministic_scene:
+        return deterministic_scene
     selected_model = (model or DEFAULT_TEXT_MODEL).strip().removeprefix("models/") or DEFAULT_TEXT_MODEL
     client = create_client(api_key=api_key, task="image_description")
     prompt = f"""
