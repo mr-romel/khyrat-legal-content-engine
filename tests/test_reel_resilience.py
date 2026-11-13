@@ -91,7 +91,9 @@ def test_external_tts_retries_use_longer_exponential_backoff():
 
 def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    assert "for image_qa_attempt in range(1, 4)" in main_source
+    assert "for attempt_number in range(1, attempt_limit + 1)" in main_source
+    assert "MAX_IMAGE_QA_ATTEMPTS = 6" in main_source
+    assert "build_image_regeneration_brief(visual_description, regeneration_notes)" in main_source
     assert 'image_qa_status = "QA_REJECTED"' in main_source
     assert "IMAGE SEMANTIC QA: rejected attempt" in main_source
     assert "IMAGE SEMANTIC QA: PASS" in main_source
