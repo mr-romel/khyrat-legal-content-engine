@@ -220,11 +220,18 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
         "no identifiable connection", "unrelated to the topic", "irrelevant to the topic",
         "entirely unrelated", "does not relate to the topic",
     ))
-    material_defect = any(term in joined for term in (
+    defect_terms = (
         "visibly fused limb", "impossible hand", "severe distortion",
         "material geometry defect", "broken geometry", "unusable image",
         "prominent generated text", "gibberish text",
-    ))
+    )
+    material_defect = False
+    for finding in findings:
+        if any(term in finding for term in defect_terms):
+            # QA models often list defects as absent; do not invert a clean finding.
+            if not re.search(r"\\b(no|not|none|without|absent|absence|neither|does not|isn't|aren't)\\b", finding):
+                material_defect = True
+                break
     hard_failure = (
         not bool(hard.get("aspect_ratio_ok"))
         or bool(data.get("text_detected"))
