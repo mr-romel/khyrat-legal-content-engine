@@ -229,7 +229,7 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
     for finding in findings:
         if any(term in finding for term in defect_terms):
             # QA models often list defects as absent; do not invert a clean finding.
-            if not re.search(r"\\b(no|not|none|without|absent|absence|neither|does not|isn't|aren't)\\b", finding):
+            if not re.search(r"\b(no|not|none|without|absent|absence|neither|does not|isn\'t|aren\'t)\b", finding):
                 material_defect = True
                 break
     hard_failure = (
