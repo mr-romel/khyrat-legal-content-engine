@@ -58,3 +58,11 @@ def test_image_regeneration_uses_qa_corrections_without_removing_original_brief(
     generator = (Path(__file__).resolve().parents[1] / "src" / "image_generator.py").read_text(encoding="utf-8")
     assert "Keep every required subject, person, action" in generator
     assert "do not add new exclusions" in generator
+
+
+def test_known_abstract_legal_angle_overrides_stale_sheet_image_brief():
+    main_source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
+    assert "deterministic_scene = _deterministic_legal_scene(topic, post)" in main_source
+    assert "if deterministic_scene:" in main_source
+    assert "return deterministic_scene" in main_source
+    assert "generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)" in main_source
