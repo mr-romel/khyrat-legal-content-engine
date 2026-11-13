@@ -15,7 +15,7 @@ from content_diversity import build_diversity_context
 from content_system import choose_visual_concept, infer_audience_persona, record_fingerprint
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
-from gemini import generate_post, generate_image_scene_from_post
+from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
@@ -113,7 +113,10 @@ def _has_pharaonic_visual_terms(description: str) -> bool:
 def _ensure_contemporary_visual_brief(
     *, topic: str, post: str, brief: str, api_key: str, model: str
 ) -> str:
-    """Reject stale pharaonic prompts for modern legal posts and derive a fresh scene."""
+    """Reject stale prompts and prefer deterministic briefs for known abstract legal angles."""
+    deterministic_scene = _deterministic_legal_scene(topic, post)
+    if deterministic_scene:
+        return deterministic_scene
     if _is_ancient_history_topic(topic):
         return brief or generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)
     candidate = str(brief or "").strip()
