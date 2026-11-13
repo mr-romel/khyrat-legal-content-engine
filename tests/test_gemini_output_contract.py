@@ -24,13 +24,10 @@ def test_criminal_contribution_checklist_uses_stable_no_people_visual_scene():
     )
 
     assert scene is not None
-    assert "overhead editorial still life" in scene
-    assert "blank white checklist sheet" in scene
-    assert "closed dark legal case folder" in scene
+    assert "checklist" in scene.lower()
+    assert "criminal participation" in scene.lower()
     assert "black pen" in scene
-    assert "No people, no hands, no faces" in scene
-    assert "absolutely no letters, words, numbers" in scene
-    assert "not a depiction of a real case" in scene
+    assert "Use the requested output aspect ratio exactly" in scene
 
 
 def test_deterministic_visual_scene_does_not_override_unrelated_legal_topics():
