@@ -423,7 +423,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "IMAGE_QA_RETRY_BUDGET_EXHAUSTED: the scene brief requires correction before another automatic generation."
             )
         image_qa_attempt = prior_image_qa_attempts
-        regeneration_notes = ""
+        # Carry the previous run's QA findings into the next bounded retry.
+        regeneration_notes = str(row.get("Image QA Issues", "") or "").strip()
         remaining_attempts = MAX_IMAGE_QA_ATTEMPTS - prior_image_qa_attempts
         for attempt_number in range(1, min(IMAGE_QA_ATTEMPTS_PER_RUN, remaining_attempts) + 1):
             image_qa_attempt = prior_image_qa_attempts + attempt_number
