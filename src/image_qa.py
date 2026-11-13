@@ -105,7 +105,7 @@ No character-reference images are supplied or required. Evaluate the generated s
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 LEGAL RELEVANCE RULE:
-Judge the image by whether it clearly and accurately represents the specific legal problem, action, evidence, document, or consequence described in the post and visual brief. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction. Any visual style or setting is acceptable when it is materially relevant to the legal issue and not misleading. Reject generic legal clichés or unrelated decorative imagery when they fail to explain the actual issue.
+Use a PRACTICAL, LENIENT relevance standard suitable for a library of thousands of different legal topics. PASS the image when at least ONE clearly identifiable visual element, object, action, setting, or document has a reasonable connection to ANY meaningful part of the legal topic or post. The image does NOT need to explain the entire legal doctrine, show every party, or reproduce the whole post. A partial but genuine topic connection is sufficient. Accept a relevant phone, document, workplace, home, vehicle, street, contract, family setting, money, or other topic-related object even when the overall scene is simple. Do not demand exact props, complete storytelling, a perfect metaphor, or a full literal depiction. Do not reject merely because the scene is generic-looking if one visible element is still relevant. Reject only when the image has NO reasonable connection at all to the topic/post, or is materially misleading. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
 
 BRAND OVERLAY RULE:
 A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_OVERLAY_SUBTEXT}" is intentionally
@@ -128,11 +128,11 @@ CHECK THESE FIVE THINGS:
    reflections, shadows, or ambiguous artifacts. If the scene is a still life with no people, do not invent
    anatomy findings.
 DECISION:
-PASS when the image is usable for publication and materially related to the topic.
-REGENERATE only when the scene is materially unrelated, visibly distorted, anatomically implausible, contains duplicated/fused objects, is unusable, or contains generated text that damages the asset.
+PASS when the image is usable for publication and at least one visible element has a reasonable connection to any part of the topic/post. Partial relevance is enough.
+REGENERATE only for a truly unrelated image with no identifiable topic connection, a materially misleading scene, severe visible distortion, unusable output, or prominent generated text that damages the asset. Low scores, imperfect composition, missing optional props, incomplete storytelling, and minor aesthetic issues are NOT rejection reasons.
 Do not reject a valid 9:16 Reel image for not being 4:5; use the measured target format above.
 Do not invent negative constraints or missing mandatory props. The absence of a person, lawyer, courtroom, justice scales, or any illustrative prop is NOT a defect unless the supplied visual brief explicitly makes that exact element essential. Do not demand generic legal symbols. Judge whether the actual scene communicates the stated legal issue, not whether it matches an imagined stock-photo template.
-Do not reject solely for advisory scores or minor aesthetic imperfections when the image is coherent, readable, and materially relevant.
+Do not reject solely for advisory scores or minor aesthetic imperfections when the image is coherent, readable, and has at least one reasonable topic-related element. If uncertain between partial relevance and irrelevance, prefer PASS unless the image is clearly unrelated.
 A clearly visible, material anatomy or geometry defect is a valid rejection reason; ambiguous reflections, tiny artifacts, and speculative defects are not.
 Do not reject a clean, coherent image merely because composition or styling is not perfect.
 The image is a first-class publishing asset; do not publish a visibly malformed image just to avoid another generation attempt.
