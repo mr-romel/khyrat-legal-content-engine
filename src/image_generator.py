@@ -46,9 +46,9 @@ def build_image_regeneration_brief(original_brief: str, correction_notes: str) -
         return original
     return (
         original
-        + "\\n\\nQA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: "
+        + chr(10) + chr(10) + "QA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: "
         + notes[:900]
-        + "\\nPRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, "
+        + chr(10) + "PRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, "
         "setting, interaction, and legal prop stated above. Do not remove requested people or "
         "hands, do not replace the scene with a still life, and do not add new exclusions. "
         "Change only what is necessary to correct the QA findings."
