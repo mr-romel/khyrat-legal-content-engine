@@ -16,7 +16,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -27,6 +27,9 @@ from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 
 GENERATED_DIR = Path("generated")
+
+MAX_IMAGE_QA_ATTEMPTS = 6
+IMAGE_QA_ATTEMPTS_PER_RUN = 3
 
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
@@ -160,10 +163,22 @@ def _is_due(row: dict[str, str], current) -> bool:
     return 0 <= (current - target).total_seconds() < 3600 and current.date() >= target_date
 
 
+def _image_qa_attempt_count(row: dict[str, str]) -> int:
+    try:
+        return max(0, int(str(row.get("Image QA Attempt", "0") or "0").strip()))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _failed_retry(row: dict[str, str], current) -> bool:
     if _linkedin_token_blocked(row):
         return False
-    return str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
+    status = str(row.get("الحالة", "")).strip().upper()
+    error = str(row.get("آخر خطأ", "") or "").strip().upper()
+    if error.startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(row) >= MAX_IMAGE_QA_ATTEMPTS:
+        print("Skipping automatic retry: semantic image QA retry budget exhausted; the visual brief needs human correction.")
+        return False
+    return status in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
 
 
 def _is_permission_blocked(value) -> bool:
@@ -402,17 +417,21 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         image_qa_summary = ""
         image_qa_score = ""
         image_qa_status = "QA_REJECTED"
-        image_qa_attempt = 0
+        prior_image_qa_attempts = _image_qa_attempt_count(row)
+        if prior_image_qa_attempts >= MAX_IMAGE_QA_ATTEMPTS:
+            raise ImageQAError(
+                "IMAGE_QA_RETRY_BUDGET_EXHAUSTED: the scene brief requires correction before another automatic generation."
+            )
+        image_qa_attempt = prior_image_qa_attempts
         regeneration_notes = ""
-        for image_qa_attempt in range(1, 4):
+        remaining_attempts = MAX_IMAGE_QA_ATTEMPTS - prior_image_qa_attempts
+        for attempt_number in range(1, min(IMAGE_QA_ATTEMPTS_PER_RUN, remaining_attempts) + 1):
+            image_qa_attempt = prior_image_qa_attempts + attempt_number
             image_path.unlink(missing_ok=True)
-            attempt_brief = visual_description
-            if regeneration_notes:
-                attempt_brief += (
-                    "\n\nMANDATORY VISUAL REGENERATION NOTES: "
-                    + regeneration_notes
-                    + "\nAvoid people and hands when possible. Prefer a clean, realistic scene with objects/documents only."
-                )
+            attempt_brief = (
+                build_image_regeneration_brief(visual_description, regeneration_notes)
+                if regeneration_notes else visual_description
+            )
             try:
                 create_legal_image(
                     topic=topic,
