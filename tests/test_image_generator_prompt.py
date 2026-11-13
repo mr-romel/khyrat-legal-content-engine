@@ -235,3 +235,25 @@ def test_openverse_scene_fallback_preserves_cc_by_attribution(monkeypatch, tmp_p
     assert provenance["source_metadata"]["license"] == "CC BY"
     assert provenance["source_metadata"]["artist"] == "Example Openverse Photographer"
     assert provenance["source_metadata"]["attribution_required"] == "true"
+
+
+def test_image_regeneration_brief_preserves_people_actions_and_required_props():
+    original = (
+        "A clerk and two business partners reviewing a criminal case checklist "
+        "at a modern legal office desk with a case file, pen and signed statement."
+    )
+    regenerated = image_generator.build_image_regeneration_brief(
+        original,
+        "Make the checklist and case file more prominent; remove unrelated objects.",
+    )
+    assert original in regenerated
+    assert "A clerk and two business partners" in regenerated
+    assert "every required subject, person, action" in regenerated.lower()
+    assert "Avoid people and hands" not in regenerated
+    assert "do not replace the scene with a still life" in regenerated.lower()
+
+
+def test_image_regeneration_brief_requires_the_original_scene():
+    import pytest
+    with pytest.raises(ValueError, match="original visual brief"):
+        image_generator.build_image_regeneration_brief("", "Fix the scene.")
