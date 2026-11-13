@@ -39,8 +39,8 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "No platform-specific icon is used" in prompt
     assert "legal situation" in prompt
     assert "Do not impose an unrequested country" in prompt
-    assert "Any visual style or setting is acceptable" in prompt
-    assert "materially relevant to the legal issue" in prompt
+    assert "A partial but genuine topic connection is sufficient" in prompt
+    assert "reasonable connection to ANY meaningful part" in prompt
     assert "Do not invent negative constraints" in prompt
     assert "The absence of a person, lawyer, courtroom" in prompt
 
@@ -68,7 +68,7 @@ def test_qa_prompt_treats_visible_distortion_as_mandatory_regeneration():
         0,
         "CONTEXT_ONLY",
     )
-    assert "visibly distorted" in prompt
+    assert "visibly fused limb" in prompt
     assert "Do not reject solely for advisory scores" in prompt
     assert "ambiguous reflections" in prompt
 
