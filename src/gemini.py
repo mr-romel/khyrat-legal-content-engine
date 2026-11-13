@@ -273,12 +273,42 @@ Return only the English visual scene description.
     return scene
 
 
+
+def build_editorial_brief(topic: str, legal_sources: str = "", previous_context: str = "") -> dict[str, Any]:
+    """Build a compact, deterministic per-topic brief before drafting."""
+    clean_topic = re.sub(r"\\s+", " ", str(topic or "")).strip()
+    if not clean_topic:
+        raise RuntimeError("Cannot build an editorial brief for an empty topic.")
+    source_text = str(legal_sources or "").strip()
+    intent = "إجرائية/معلوماتية" if any(x in clean_topic for x in ("ميعاد", "إجراء", "دعوى", "طعن", "إلغاء", "ترخيص", "تظلم", "عقد")) else "معلوماتية"
+    audience = "صاحب الشأن أو صاحب الشركة المتأثر بالمسألة القانونية"
+    return {
+        "primary_query": clean_topic,
+        "search_intent": intent,
+        "target_audience": audience,
+        "reader_job": f"فهم القاعدة القانونية المتعلقة بـ {clean_topic} وتحديد الخطوة العملية الآمنة التالية",
+        "direct_answer_required": True,
+        "legal_evidence": "استخدم فقط النصوص والأحكام المثبتة في حزمة المصادر؛ لا تخترع أرقام مواد أو مواعيد أو أحكام",
+        "subquestions": [
+            "ما القاعدة القانونية الأساسية؟",
+            "ما شروط تطبيقها والاستثناءات المهمة؟",
+            "ما الميعاد أو الإجراء الواجب اتباعه إن وجد؟",
+            "ما المستندات أو الوقائع التي تغيّر التقييم؟",
+        ],
+        "content_gap": "اشرح الأثر العملي والخطوة التالية بوضوح، ولا تكرر التعريفات العامة",
+        "outline": ["السؤال والإجابة المباشرة", "القاعدة القانونية وحدودها", "الإجراء العملي والمخاطر", "ما الذي يجب مراجعته قبل اتخاذ القرار"],
+        "source_status": "متاحة" if source_text else "لا توجد حزمة مصادر إضافية؛ يلزم تجنب الإحالات الدقيقة غير المثبتة",
+        "previous_context": str(previous_context or "")[:1200],
+    }
+
+
 def generate_post(
     api_key: str,
     model: str,
     topic: str,
     legal_sources: str,
     previous_context: str = "",
+    editorial_brief: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not api_key and not has_any_provider_key():
         raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
@@ -297,7 +327,7 @@ def generate_post(
 
 السياق السابق لتجنب التكرار:
 {previous_context or "لا يوجد."}
-
+\nالموجز التحريري الداخلي الخاص بهذا الموضوع (استخدمه للتخطيط فقط ولا تطبعه في المنشور):\n{json.dumps(editorial_brief or build_editorial_brief(topic, legal_sources, previous_context), ensure_ascii=False, indent=2)}\n
 اكتب مسودة قانونية جاهزة لكي تمر على المراجع القانوني والتحرير النهائي.
 استهدف تقريبًا 180 إلى 320 كلمة، لكن لا تحشو النص فقط للوصول إلى رقم. اجعل الصياغة بشرية ومتفاوتة الإيقاع، ولا تكرر نفس البناء من منشور إلى آخر.
 قبل الكتابة، اختر Hook Pattern واحدًا مناسبًا فعلًا للموضوع والزاوية والهدف، ولا تستخدم نفس نمط الافتتاح المستخدم في المنشورات السابقة الواردة في السياق. الخيارات: سؤال مباشر، واقعة قانونية، معلومة مفاجئة، خطأ شائع، سيناريو عملي، مشكلة عميل، قاعدة قانونية، مفارقة/مقارنة، افتتاحية سردية، أو نتيجة/استنتاج يبدأ منه البوست. المطلوب تغيير بنية الدخول نفسها، وليس تبديل كلمات القالب فقط. لا تبدأ كل المنشورات بصيغ محفوظة مثل "لو..." أو "ناس كتير..." أو "خليني أقولك...".
