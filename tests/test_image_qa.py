@@ -163,3 +163,48 @@ def test_image_qa_metadata_fallback_rejects_unrelated_openverse_image(monkeypatc
         image_brief="Municipal water treatment plant with filtration tanks and industrial pipes",
     )
     assert result["decision"] == "QA_UNAVAILABLE"
+
+
+
+def test_lenient_policy_accepts_partial_relevance_despite_low_advisory_scores():
+    from image_qa import _apply_lenient_relevance_policy
+    result = _apply_lenient_relevance_policy({
+        "decision": "REGENERATE",
+        "composition_score": 31,
+        "relevance_score": 22,
+        "overall_score": 28,
+        "text_detected": False,
+        "issues": ["Composition advisory below 55.", "Relevance advisory below 55.", "Overall advisory below 60."],
+        "relevance_findings": ["Some requested still-life props are missing."],
+        "composition_findings": ["The composition is not ideal."],
+        "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    assert result["decision"] == "PASS"
+    assert result["qa_policy"] == "LENIENT_PARTIAL_RELEVANCE_V1"
+    assert "qa_policy_override" in result
+
+
+def test_lenient_policy_still_rejects_explicitly_unrelated_image():
+    from image_qa import _apply_lenient_relevance_policy
+    result = _apply_lenient_relevance_policy({
+        "decision": "REGENERATE",
+        "text_detected": False,
+        "issues": [],
+        "relevance_findings": ["The image is completely unrelated to the topic and has no reasonable connection."],
+        "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    assert result["decision"] == "REGENERATE"
+
+
+def test_lenient_policy_still_rejects_generated_text_and_bad_format():
+    from image_qa import _apply_lenient_relevance_policy
+    text_result = _apply_lenient_relevance_policy({
+        "decision": "PASS", "text_detected": True, "issues": [],
+        "relevance_findings": [], "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    ratio_result = _apply_lenient_relevance_policy({
+        "decision": "PASS", "text_detected": False, "issues": [],
+        "relevance_findings": [], "advisories": [],
+    }, {"aspect_ratio_ok": False})
+    assert text_result["decision"] == "REGENERATE"
+    assert ratio_result["decision"] == "REGENERATE"
