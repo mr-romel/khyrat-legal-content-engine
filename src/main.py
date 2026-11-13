@@ -426,7 +426,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         # Carry the previous run's QA findings into the next bounded retry.
         regeneration_notes = str(row.get("Image QA Issues", "") or "").strip()
         remaining_attempts = MAX_IMAGE_QA_ATTEMPTS - prior_image_qa_attempts
-        for attempt_number in range(1, min(IMAGE_QA_ATTEMPTS_PER_RUN, remaining_attempts) + 1):
+        attempt_limit = min(IMAGE_QA_ATTEMPTS_PER_RUN, remaining_attempts)
+        for attempt_number in range(1, attempt_limit + 1):
             image_qa_attempt = prior_image_qa_attempts + attempt_number
             image_path.unlink(missing_ok=True)
             attempt_brief = (
@@ -447,14 +448,14 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
             except Exception as generation_exc:
                 image_qa_summary = f"Image generation attempt {image_qa_attempt} failed: {generation_exc}"
                 print(image_qa_summary)
-                if image_qa_attempt >= 3:
+                if attempt_number >= attempt_limit:
                     raise ImageGenerationError(image_qa_summary) from generation_exc
                 continue
 
             if not image_path.is_file() or image_path.stat().st_size == 0:
                 image_qa_summary = f"Image generation attempt {image_qa_attempt} returned an empty file."
                 print(image_qa_summary)
-                if image_qa_attempt >= 3:
+                if attempt_number >= attempt_limit:
                     raise ImageGenerationError(image_qa_summary)
                 continue
 
