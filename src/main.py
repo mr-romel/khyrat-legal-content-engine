@@ -115,13 +115,13 @@ def _ensure_contemporary_visual_brief(
 ) -> str:
     """Reject stale pharaonic prompts for modern legal posts and derive a fresh scene."""
     if _is_ancient_history_topic(topic):
-        return brief or generate_image_scene_from_post(api_key=api_key, model=model, post=post)
+        return brief or generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)
     candidate = str(brief or "").strip()
     if candidate and _has_pharaonic_visual_terms(candidate):
         print("Discarding stale pharaonic image brief for a contemporary legal topic.")
         candidate = ""
     if not candidate:
-        candidate = generate_image_scene_from_post(api_key=api_key, model=model, post=post)
+        candidate = generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)
     if _has_pharaonic_visual_terms(candidate):
         raise ImageGenerationError(
             "Generated visual description still contains ancient-Egypt imagery for a modern legal topic."
