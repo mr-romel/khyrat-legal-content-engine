@@ -36,6 +36,25 @@ CLOUDFLARE_IMAGE_ENDPOINT = (
 class ImageGenerationError(RuntimeError):
     """Raised when Cloudflare cannot generate an image."""
 
+def build_image_regeneration_brief(original_brief: str, correction_notes: str) -> str:
+    """Apply QA corrections without contradicting the original scene requirements."""
+    original = " ".join(str(original_brief or "").split()).strip()
+    notes = " ".join(str(correction_notes or "").split()).strip()
+    if not original:
+        raise ValueError("The original visual brief is required for image regeneration.")
+    if not notes:
+        return original
+    return (
+        original
+        + "\\n\\nQA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: "
+        + notes[:900]
+        + "\\nPRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, "
+        "setting, interaction, and legal prop stated above. Do not remove requested people or "
+        "hands, do not replace the scene with a still life, and do not add new exclusions. "
+        "Change only what is necessary to correct the QA findings."
+    )
+
+
 
 def _extract_image_bytes(
     response: requests.Response,
