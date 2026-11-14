@@ -1,0 +1,26 @@
+{
+  "topic": "المضبوطات — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A middle‑aged business owner stands at a tidy office desk, holding a clipboard with a visible checklist and a pen poised over it. In front of the desk rests a large, sealed cardboard box with a bright red security tape wrapped around it, and a sealed envelope with a stamped seal lies beside the box. A uniformed government officer, seen only from the shoulders down, extends the box toward the owner. Sunlight streams through a nearby window, casting soft, even light across the scene, while the background shows a simple office wall with a framed certificate (blurred, no legible text). The camera is positioned at eye level, framing the owner’s hands, the clipboard, and the sealed box in a clear, single‑shot composi\nLEGAL TOPIC: المضبوطات — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a present-day Egyptian setting. Use contemporary 2020s architecture, infrastructure, clothing and materials. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: ضبط بضائع أو معدات أو حتى مستندات في إطار إجراء قانوني بيحط صاحب الشأن في موقف محتاج سرعة وتأني في نفس الوقت، لأن التعامل مع المضبوطات مش مجرد استلام إيصال، ده إجراء بيترتب عليه مراكز قانونية ومسؤوليات عن الحفظ والحراسة، وأي خطأ في الإجراءات دي ممكن يقلب الموازين ضدك. قبل ما توقع على أي محضر ضبط أو تستلم المضبوطات، لازم تمر على قائمة فحص سريعة: أولاً، هل جرد المضبوطات تم بدقة وبحضورك أو حضور من ينوب عنك؟ أي نقص أو اخ\nCOMPOSITION FORMAT: portrait 4:5; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid generic lega",
+  "prompt_sha256": "52126a7b1726bcff01251c9b93cf14ce75dc95dfa33e29bab550f9b3c997bfd4",
+  "image_sha256": "79a17c094835b1a8257563bee0ff096b9c21be7164c8920f774d547e71addfe3",
+  "image_path": "generated/20261114-1900-R014.jpg",
+  "visual_description": "A middle‑aged business owner stands at a tidy office desk, holding a clipboard with a visible checklist and a pen poised over it. In front of the desk rests a large, sealed cardboard box with a bright red security tape wrapped around it, and a sealed envelope with a stamped seal lies beside the box. A uniformed government officer, seen only from the shoulders down, extends the box toward the owner. Sunlight streams through a nearby window, casting soft, even light across the scene, while the background shows a simple office wall with a framed certificate (blurred, no legible text). The camera is positioned at eye level, framing the owner’s hands, the clipboard, and the sealed box in a clear, single‑shot composition that emphasizes the careful handover and inventory check.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 2,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "The generated image does not follow the visual brief instructions at all, resulting in a generic scene that is irrelevant to the legal topic.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60.",
+    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  ],
+  "qa_checked_image_sha256": "79a17c094835b1a8257563bee0ff096b9c21be7164c8920f774d547e71addfe3"
+}
