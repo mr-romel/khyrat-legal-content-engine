@@ -257,3 +257,34 @@ def test_image_regeneration_brief_requires_the_original_scene():
     import pytest
     with pytest.raises(ValueError, match="original visual brief"):
         image_generator.build_image_regeneration_brief("", "Fix the scene.")
+
+
+
+def test_each_post_gets_a_distinct_row_specific_composition_prompt(monkeypatch, tmp_path):
+    prompts = []
+
+    def fake_post(url, *, headers, files, timeout):
+        prompts.append(files["prompt"][1])
+        return FakeResponse()
+
+    monkeypatch.setattr(image_generator.requests, "post", fake_post)
+    monkeypatch.setattr(image_generator, "_extract_image_bytes", lambda response: _valid_image_bytes())
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    common = {
+        "topic": "القرارات الإدارية",
+        "image_brief": "A company manager reviewing an official administrative decision at a desk.",
+        "visual_description": "A company manager reviewing an official administrative decision at a desk.",
+        "post_context": "A legal post explaining how to challenge an administrative decision.",
+        "cloudflare_account_id": "test-account",
+        "cloudflare_api_token": "test-token",
+    }
+    image_generator.create_legal_image(output_path=str(tmp_path / "row-101.jpg"), **common)
+    image_generator.create_legal_image(output_path=str(tmp_path / "row-102.jpg"), **common)
+
+    assert len(prompts) == 2
+    assert prompts[0] != prompts[1]
+    assert "POST-SPECIFIC VISUAL VARIATION" in prompts[0]
+    assert "POST-SPECIFIC VISUAL VARIATION" in prompts[1]
+    assert "VISUAL ID:" in prompts[0]
+    assert "VISUAL ID:" in prompts[1]
