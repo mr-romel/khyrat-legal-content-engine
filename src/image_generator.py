@@ -432,25 +432,50 @@ def create_legal_image(
     if not visual_description:
         raise ImageGenerationError("A post-derived visual description is required.")
 
-    # Use the post-derived visual description directly as requested. Avoid extra
-    # negative prompts and arbitrary subject restrictions that can block generation.
+    # Give every post a stable but distinct art direction. The row-specific output
+    # identity is included so two posts about related legal subjects do not collapse
+    # into the same stock-looking composition.
+    variation_key = hashlib.sha256(
+        (str(topic) + chr(10) + str(post_context) + chr(10) + str(output_path)).encode("utf-8")
+    ).hexdigest()
+    composition_variants = (
+        "camera: close-up evidence detail, shallow depth of field, subject fills the frame",
+        "camera: three-quarter desk view, layered foreground and background, asymmetric layout",
+        "camera: eye-level documentary view, strong leading lines, subject placed off-center",
+        "camera: overhead flat-lay with distinct object spacing and clear visual hierarchy",
+        "camera: wide environmental view with the relevant action or place as the focal point",
+        "camera: low oblique angle, foreground object prominent, realistic depth and perspective",
+        "camera: side-lit editorial photograph, diagonal composition, tactile material details",
+        "camera: medium shot with contextual surroundings and one unmistakable topic-specific focal object",
+    )
+    variation_index = int(variation_key[:8], 16) % len(composition_variants)
+    composition_direction = composition_variants[variation_index]
     try:
         prompt = build_editorial_image_prompt(
             topic=topic,
             post_context=post_context,
             visual_description=visual_description,
         )
-        # Keep the generated scene anchored to the legal issue in the post.
-        # Do not impose a country, culture, era, cast, or decorative art direction.
         prompt += (
             chr(10) + f"COMPOSITION FORMAT: portrait {aspect_ratio}; "
             "show a clear, concrete visual representation of the specific "
             "legal problem, evidence, action, document, or consequence described "
             "in the post. Avoid generic legal clichés and unrelated decoration. "
             "No added text or labels; keep the main subject clearly framed."
+            + chr(10) + "POST-SPECIFIC VISUAL VARIATION: " + composition_direction
+            + ". This must be a genuinely distinct composition, not a recolor, "
+            "crop, or near-duplicate of other legal posts. Preserve the actual "
+            "topic-specific objects and action from the visual description."
+            + chr(10) + "VISUAL ID: " + variation_key[:12]
         )
-        # Cloudflare FLUX accepts a maximum of 2048 prompt characters.
-        prompt = prompt[:2048]
+        # Keep the unique direction near the end while respecting provider limits.
+        if len(prompt) > 2048:
+            suffix = (
+                chr(10) + "POST-SPECIFIC VISUAL VARIATION: " + composition_direction
+                + ". Distinct composition, not a recolor, crop, or near-duplicate. "
+                + "VISUAL ID: " + variation_key[:12]
+            )
+            prompt = prompt[:2048-len(suffix)] + suffix
     except ValueError as exc:
         raise ImageGenerationError(str(exc)) from exc
     negative_prompt = ""
