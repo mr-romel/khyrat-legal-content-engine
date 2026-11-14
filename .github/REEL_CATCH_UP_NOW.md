@@ -1,2 +1,2 @@
-Run the read-only Reel backlog audit and safe topic-aligned recovery with Gemini-first scene generation, investigation-specific visual fallback, and the strict 40-second Remotion audio cap.
-Revision: 2026-11-13T00:30 Cairo.
+Run the read-only Reel backlog audit and safe topic-aligned recovery immediately. Generate a fresh Reel from the oldest eligible, already-socially-published row with Gemini-first scene generation and topic-specific image fallback. Deliver the finished review package to Telegram only; do not publish publicly. Require five verified scene images and a fresh MP4; do not reuse stale video output.
+Revision: 2026-11-14T13:45 Cairo.
