@@ -288,3 +288,32 @@ def test_each_post_gets_a_distinct_row_specific_composition_prompt(monkeypatch, 
     assert "POST-SPECIFIC VISUAL VARIATION" in prompts[1]
     assert "VISUAL ID:" in prompts[0]
     assert "VISUAL ID:" in prompts[1]
+
+
+
+def test_duplicate_post_image_guard_rejects_same_visual(tmp_path):
+    import pytest
+
+    reference_dir = tmp_path / "generated"
+    reference_dir.mkdir()
+    first = reference_dir / "old-post.jpg"
+    current = reference_dir / "new-post.jpg"
+
+    image = Image.effect_noise((640, 800), 80).convert("RGB")
+    image.save(first, format="JPEG", quality=94)
+    image.save(current, format="JPEG", quality=94)
+
+    with pytest.raises(image_generator.ImageGenerationError, match="DUPLICATE_POST_IMAGE_BLOCKED"):
+        image_generator.assert_image_not_duplicate(str(current), reference_dir=str(reference_dir))
+
+
+def test_duplicate_post_image_guard_allows_different_visual(tmp_path):
+    reference_dir = tmp_path / "generated"
+    reference_dir.mkdir()
+    first = reference_dir / "old-post.jpg"
+    current = reference_dir / "new-post.jpg"
+
+    Image.effect_noise((640, 800), 20).convert("RGB").save(first, format="JPEG", quality=94)
+    Image.effect_noise((640, 800), 110).convert("RGB").save(current, format="JPEG", quality=94)
+
+    image_generator.assert_image_not_duplicate(str(current), reference_dir=str(reference_dir))
