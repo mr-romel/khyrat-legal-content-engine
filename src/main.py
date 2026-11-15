@@ -16,7 +16,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief, assert_image_not_duplicate
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -455,11 +455,20 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     cloudflare_api_token=config["cloudflare_api_token"],
                     api_key=config.get("gemini_api_key", ""),
                 )
+                assert_image_not_duplicate(str(image_path), reference_dir=str(GENERATED_DIR))
             except Exception as generation_exc:
                 image_qa_summary = f"Image generation attempt {image_qa_attempt} failed: {generation_exc}"
                 print(image_qa_summary)
                 if attempt_number >= attempt_limit:
+                    if "DUPLICATE_POST_IMAGE_BLOCKED" in str(generation_exc):
+                        raise ImageQAError(image_qa_summary) from generation_exc
                     raise ImageGenerationError(image_qa_summary) from generation_exc
+                regeneration_notes = (
+                    "Create a substantially different photographic scene with different subject, camera position, "
+                    "objects, and background. Do not reproduce any earlier post image."
+                    if "DUPLICATE_POST_IMAGE_BLOCKED" in str(generation_exc)
+                    else regeneration_notes
+                )
                 continue
 
             if not image_path.is_file() or image_path.stat().st_size == 0:
