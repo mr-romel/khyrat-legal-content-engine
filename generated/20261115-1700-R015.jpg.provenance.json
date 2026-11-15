@@ -1,0 +1,24 @@
+{
+  "topic": "النقل كجزاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/black-forest-labs/flux-2-dev",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A modest, contemporary office space bathed in soft natural light from a large window. At a tidy desk, a mid‑level manager in business‑casual attire is extending a plain folder with a bright red tab toward a seated employee who is dressed in similar office wear. The employee’s shoulders are slightly hunched and their expression is uneasy, suggesting concern about the document being handed over. On the desk beside the folder lie a coffee mug, a small potted plant, and a wall‑mounted calendar with today’s date circled in a subtle marker. The composition is a single‑scene, eye‑level shot: the manager on the left side of the frame, the employee on the right, the folder positioned in the foreground to draw attention.\nLEGAL TOPIC: النقل كجزاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a present-day Egyptian setting. Use contemporary 2020s architecture, infrastructure, clothing and materials. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake or unrelated office. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: قرار نقل الموظف من مكان عمله لآخر كنوع من الجزاء التأديبي هو إجراء دقيق جداً، وأي خطأ في تنفيذه ممكن يحول القرار من أداة إدارية قانونية إلى مخالفة تفتح باب التعويض أو الإلغاء أمام القضاء، قبل ما تاخد قرار زي ده، لازم تراجع 3 علامات تحذيرية أساسية، أولها: هل النقل ده بيؤدي لخفض الدرجة الوظيفية أو الأجر أو بيغير في طبيعة العمل بشكل يمس المركز القانوني للموظف؟ لو الإجابة أيوة، فأنت هنا بتخرج من نطاق سلطة الإدار\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 499da6282d77",
+  "prompt_sha256": "ee088d55d6cb674198d90bb9e69be099595dbeb8ccfc1647757f61146a6f5a5c",
+  "image_sha256": "25c684ffba592f18a52d98142f372434b030e7a9b9c561d8cd939bb765d76659",
+  "image_path": "generated/20261115-1700-R015.jpg",
+  "visual_description": "A modest, contemporary office space bathed in soft natural light from a large window. At a tidy desk, a mid‑level manager in business‑casual attire is extending a plain folder with a bright red tab toward a seated employee who is dressed in similar office wear. The employee’s shoulders are slightly hunched and their expression is uneasy, suggesting concern about the document being handed over. On the desk beside the folder lie a coffee mug, a small potted plant, and a wall‑mounted calendar with today’s date circled in a subtle marker. The composition is a single‑scene, eye‑level shot: the manager on the left side of the frame, the employee on the right, the folder positioned in the foreground to draw attention. Light streams in from the window, creating gentle highlights on the folder and casting soft shadows that give depth to the scene while keeping the overall look clean and everyday.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 10,
+  "qa_relevance_score": 10,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 55.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "25c684ffba592f18a52d98142f372434b030e7a9b9c561d8cd939bb765d76659"
+}
