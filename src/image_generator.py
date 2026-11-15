@@ -36,6 +36,49 @@ CLOUDFLARE_IMAGE_ENDPOINT = (
 class ImageGenerationError(RuntimeError):
     """Raised when Cloudflare cannot generate an image."""
 
+
+def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated", threshold: float = 0.965) -> None:
+    """Reject exact/near-duplicate post images against previously generated root assets.
+
+    Uses a normalized grayscale perceptual signature, not filenames or URLs.
+    The current file is excluded. A repeated image is a hard publication blocker.
+    """
+    target = Path(image_path)
+    if not target.is_file() or target.stat().st_size < 10_000:
+        raise ImageGenerationError("Cannot run duplicate-image check on a missing or undersized image.")
+    try:
+        with Image.open(target) as im:
+            sample = ImageOps.fit(im.convert("L"), (32, 32)).resize((16, 16))
+            pixels = list(sample.getdata())
+            mean = sum(pixels) / len(pixels)
+            signature = tuple(value >= mean for value in pixels)
+    except Exception as exc:
+        raise ImageGenerationError(f"Could not fingerprint generated image: {exc}") from exc
+
+    directory = Path(reference_dir)
+    if not directory.exists():
+        return
+    for candidate in directory.glob("*"):
+        if not candidate.is_file() or candidate.resolve() == target.resolve():
+            continue
+        if candidate.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+            continue
+        try:
+            with Image.open(candidate) as im:
+                sample = ImageOps.fit(im.convert("L"), (32, 32)).resize((16, 16))
+                pixels = list(sample.getdata())
+                mean = sum(pixels) / len(pixels)
+                other = tuple(value >= mean for value in pixels)
+            similarity = sum(a == b for a, b in zip(signature, other)) / len(signature)
+            if similarity >= threshold:
+                raise ImageGenerationError(
+                    f"DUPLICATE_POST_IMAGE_BLOCKED: generated image is {similarity:.1%} perceptually similar to {candidate.name}."
+                )
+        except ImageGenerationError:
+            raise
+        except Exception as exc:
+            print(f"Duplicate-image reference skipped ({candidate.name}): {exc}")
+
 def build_image_regeneration_brief(original_brief: str, correction_notes: str) -> str:
     """Apply QA corrections without contradicting the original scene requirements."""
     original = " ".join(str(original_brief or "").split()).strip()
