@@ -1,0 +1,47 @@
+{
+  "cache_key": "7256b3902e928ceb542cfc5cc167de200c3af282ada7403b94543f244c9ebf69",
+  "image_sha256": "abab6a82e7b53b9cf034cc36d660d958158a7007d25cb536d425e21e61aec0fe",
+  "provider": "gemini",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 2,
+    "relevance_score": 1,
+    "reference_score": 100,
+    "overall_score": 1,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "The generated image is a solid texture of brown paper and does not contain the requested elements from the visual brief (employment contract folder, pen, office desk)."
+    ],
+    "relevance_findings": [
+      "The image fails to represent any of the requested visual elements, making it impossible to connect to the legal topic of employee transfer as a disciplinary action."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "The generation failed to include any objects or scene elements requested in the brief; it only produced a textured background.",
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "regeneration_prompt": "A professional high-quality 9:16 portrait image of an employment contract folder placed on a clean, modern office desk, beside it a high-quality fountain pen and a blank sheet of white paper. The scene should look like a workspace for legal documentation. No people, no text.",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "qa_policy": "LENIENT_PARTIAL_RELEVANCE_V1",
+    "qa_policy_override": "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  },
+  "topic": "قرار نقل الموظف من مكان عمله لآخر كنوع من الجزاء التأديبي هو إجراء دقيق جداً، وأي خطأ في تنفيذه ممكن يحول القرار من أداة إدارية قانونية إلى مخالفة تفتح باب التعويض أو الإلغاء أمام القضاء، قبل ما تاخد قرار زي ده، لازم تراجع 3 علامات تحذيرية ",
+  "image_brief": "A plain employment contract folder beside blank paper and a capped pen on a modern office desk, no people or readable writing."
+}

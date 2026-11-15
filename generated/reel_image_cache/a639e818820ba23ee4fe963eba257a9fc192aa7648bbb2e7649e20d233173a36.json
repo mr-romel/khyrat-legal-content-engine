@@ -1,0 +1,47 @@
+{
+  "cache_key": "a639e818820ba23ee4fe963eba257a9fc192aa7648bbb2e7649e20d233173a36",
+  "image_sha256": "5d9a84e6222bac26991563e51c282daf9ab559741b82d8ece4b6938bd977c232",
+  "provider": "gemini",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 5,
+    "relevance_score": 1,
+    "reference_score": 100,
+    "overall_score": 2,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "The composition is clean but entirely irrelevant to the requested legal topic."
+    ],
+    "relevance_findings": [
+      "The generated image depicts candles in a dark setting, which has no connection to the legal topic of employee transfer, disciplinary actions, payroll, or administrative documents as requested in the brief."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "The image content completely ignores the visual brief provided (payroll statement, calculator, salary-payment records).",
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "regeneration_prompt": "A close-up, professional shot of a stack of legal documents and payroll records on an office desk, with a calculator and a pen nearby. The documents should be blurred or have illegible text to focus on the professional administrative environment. Portrait orientation 9:16.",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "qa_policy": "LENIENT_PARTIAL_RELEVANCE_V1",
+    "qa_policy_override": "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  },
+  "topic": "قرار نقل الموظف من مكان عمله لآخر كنوع من الجزاء التأديبي هو إجراء دقيق جداً، وأي خطأ في تنفيذه ممكن يحول القرار من أداة إدارية قانونية إلى مخالفة تفتح باب التعويض أو الإلغاء أمام القضاء، قبل ما تاخد قرار زي ده، لازم تراجع 3 علامات تحذيرية ",
+  "image_brief": "A payroll statement and dated salary-payment records beside a calculator, all text blurred."
+}

@@ -1,0 +1,47 @@
+{
+  "cache_key": "c65a3e1bf62e21788144454597d0957edddd346329f81dfd0d367df0f7aaec1b",
+  "image_sha256": "0859558b59e5487302f7e36162f27d551b63f0eb9bc80241c8bf90ef58d65f17",
+  "provider": "gemini",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 8,
+    "relevance_score": 0,
+    "reference_score": 100,
+    "overall_score": 2,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "The composition is aesthetically pleasing but completely irrelevant to the legal prompt."
+    ],
+    "relevance_findings": [
+      "The generated image depicts lemons and macaroons, which has no connection to the legal topic of employee relocation or disciplinary files."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "The model failed to follow the visual brief entirely, generating a food-related image instead of an office/employee file scene.",
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "regeneration_prompt": "A professional, high-quality, cinematic shot of a closed manila employee file folder lying on a clean modern office desk next to a small stack of blank, professional-looking leave-request documents. Neutral lighting, office environment background slightly out of focus, no people, no legible text, 9:16 portrait orientation.",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 55.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "qa_policy": "LENIENT_PARTIAL_RELEVANCE_V1",
+    "qa_policy_override": "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  },
+  "topic": "قرار نقل الموظف من مكان عمله لآخر كنوع من الجزاء التأديبي هو إجراء دقيق جداً، وأي خطأ في تنفيذه ممكن يحول القرار من أداة إدارية قانونية إلى مخالفة تفتح باب التعويض أو الإلغاء أمام القضاء، قبل ما تاخد قرار زي ده، لازم تراجع 3 علامات تحذيرية ",
+  "image_brief": "A closed employee file beside a small stack of blank leave-request forms, no people or legible text."
+}
