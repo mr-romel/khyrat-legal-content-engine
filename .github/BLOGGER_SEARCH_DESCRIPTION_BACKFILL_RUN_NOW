@@ -1,1 +1,1 @@
-Retry the one remaining live Blogger article without a search description and verify its public meta tag.
+Retry the remaining live Blogger search description after normalizing the existing sheet row; require public-page read-after-write verification.
