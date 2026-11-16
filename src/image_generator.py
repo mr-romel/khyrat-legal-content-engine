@@ -60,7 +60,7 @@ def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated"
 
     directory = Path(reference_dir)
     if not directory.exists():
-        return
+        return exact_hash
     for candidate in directory.glob("*"):
         if not candidate.is_file() or candidate.resolve() == target.resolve():
             continue
