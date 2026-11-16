@@ -32,7 +32,7 @@ def test_scene_query_uses_topic_specific_visual_terms_for_recent_legal_posts():
     from repair_recent_blogger_images import _scene_query
     assert "customs" in _scene_query("إجراءات التحفظ على المضبوطات ومخاطر التوقيع على محضر الضبط في مصر")
     assert "shipping containers" in _scene_query("أثر اللائحة التنفيذية لقانون الجمارك والقرارات الوزارية على المستوردين والشركات في مصر")
-    assert "calendar deadline" in _scene_query("كيفية حساب ميعاد دعوى إلغاء القرار الإداري أمام مجلس الدولة")
+    assert "calendar documents" in _scene_query("كيفية حساب ميعاد دعوى إلغاء القرار الإداري أمام مجلس الدولة")
 
 
 def test_quota_safe_local_illustrations_are_topic_specific_and_distinct(tmp_path):
