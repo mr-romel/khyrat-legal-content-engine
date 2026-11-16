@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from blogger_site_setup import PAGES, WHATSAPP
+from blogger_pages_ui_worker import build_service_navigation
 
 
 def test_conversion_service_pages_have_distinct_reader_intent_and_contact_route():
@@ -33,3 +34,22 @@ def test_service_pages_do_not_promise_legal_outcomes():
     }]
     forbidden = ("نضمن كسب", "مضمون 100%", "نضمن الحكم")
     assert all(not any(term in page["content"] for term in forbidden) for page in pages)
+
+
+
+def test_service_navigation_uses_verified_urls_and_is_idempotent():
+    from blogger_pages_ui_worker import SERVICE_PAGE_TITLES
+
+    hub = "الخدمات القانونية للأفراد والشركات"
+    labor = "محامي قضايا العمل ومستحقات العامل في مصر"
+    pages = [
+        {"title": hub, "url": "https://askmahmoudkhyrat.blogspot.com/p/services.html"},
+        {"title": labor, "url": "https://askmahmoudkhyrat.blogspot.com/p/labor.html"},
+        {"title": "صفحة غير مدارة", "url": "https://askmahmoudkhyrat.blogspot.com/p/other.html"},
+    ]
+    content = build_service_navigation("<article>محتوى</article>", hub, pages)
+    assert "https://askmahmoudkhyrat.blogspot.com/p/labor.html" in content
+    assert "p/other.html" not in content
+    assert labor in content
+    again = build_service_navigation(content, hub, pages)
+    assert again.count('class="khyrat-service-links"') == 1
