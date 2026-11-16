@@ -208,7 +208,20 @@ jobs:
           RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           mkdir -p review-package
-          gh run download "$RUN_ID" -n khyrat-daily-reel -D review-package
+          if gh run download "$RUN_ID" -n khyrat-daily-reel -D review-package; then
+            echo "Downloaded the exact approved Reel review artifact."
+          else
+            echo "Artifact unavailable or expired; checking the committed immutable Reel package for the exact row/source/run."
+            SAFE_SOURCE_ID="$(python -c 'import os,re; print(re.sub(r"[^A-Za-z0-9._-]+", "_", os.environ["SOURCE_ID"].strip()))')"
+            SOURCE_DIR="generated/reels/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}"
+            if [ ! -s "$SOURCE_DIR/daily-reel.mp4" ] || [ ! -s "$SOURCE_DIR/reel_plan.json" ]; then
+              echo "::error::Neither the named GitHub artifact nor the exact committed Reel package exists for this approved row/run."
+              exit 1
+            fi
+            mkdir -p "review-package/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}"
+            cp -a "$SOURCE_DIR/." "review-package/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}/"
+            echo "Recovered exact Reel package from committed generated/reels; SHA verification remains mandatory before upload."
+          fi
 
       - name: Verify manual approval
         if: ${{ steps.target.outputs.row_number != '' }}
