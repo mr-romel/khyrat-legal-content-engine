@@ -317,7 +317,18 @@ def main() -> int:
     post = str(row.get("المحتوى", "")).strip()
     image_url = str(row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
-    image_path = resolve_image_path(image_url, source_id, row_number)
+    # Never let two Blogger rows inherit the same source image URL.
+    normalized_image_url = image_url.split("?", 1)[0].rstrip("/")
+    duplicate_owner = next((
+        str(other.get("ID", "")).strip() for other in rows
+        if str(other.get("ID", "")).strip() != source_id
+        and normalized_image_url
+        and str(other.get("رابط الصورة", "")).strip().split("?", 1)[0].rstrip("/") == normalized_image_url
+    ), "")
+    image_path = "" if duplicate_owner else resolve_image_path(image_url, source_id, row_number)
+    if duplicate_owner:
+        print(f"BLOGGER_DUPLICATE_IMAGE_REPLACEMENT: row={row_number} shared image belongs to source_id={duplicate_owner}; generating a new row-specific hero.")
+        image_url = ""
     if image_path:
         # Repair legacy raw GitHub URLs that omitted the branch component.
         corrected_public_image = github_raw_url(image_path)
@@ -351,6 +362,15 @@ def main() -> int:
             # Preserve the established no-cancel publishing policy if every image provider is unavailable.
             print(f"Blogger: hero image generation unavailable; continuing article publication: {image_exc}")
 
+    if image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0 and image_url:
+        import hashlib
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "رابط الصورة": image_url,
+                "Image SHA256": hashlib.sha256(Path(image_path).read_bytes()).hexdigest(),
+            })
+        except Exception as fingerprint_exc:
+            print(f"Blogger image identity persistence warning: {fingerprint_exc}")
     # If image generation succeeded but the first Blogger upload attempt failed,
     # retry once before composing the article. Image failure must never cancel publication.
     if image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0 and not image_url:
