@@ -81,3 +81,18 @@ def test_managed_page_navigation_exposes_service_hub_without_duplicate_links():
     assert "الخدمات القانونية" in content
     again = _page_content({"content": content})
     assert again.count(SERVICE_HUB_URL) == 1
+
+
+
+def test_contact_page_has_both_channels_and_idempotent_contact_events():
+    import blogger_site_setup
+
+    page = next(item for item in PAGES if item["title"] == "تواصل معنا")
+    before = page["content"]
+    blogger_site_setup._apply_dual_contact_actions()
+    after = page["content"]
+    assert 'data-contact-method="whatsapp"' in after
+    assert 'data-contact-method="phone"' in after
+    assert 'href="tel:+201022718375"' in after
+    assert after.count('data-contact-method="phone"') == before.count('data-contact-method="phone"')
+    assert "contact_click" in after
