@@ -26,3 +26,10 @@ def test_does_not_mutate_source_string():
     original = '<article><img src="old.jpg"></article>'
     _replace_hero(original, "https://example.com/new.jpg", "عنوان")
     assert 'src="old.jpg"' in original
+
+
+def test_scene_query_uses_topic_specific_visual_terms_for_recent_legal_posts():
+    from repair_recent_blogger_images import _scene_query
+    assert "customs" in _scene_query("إجراءات التحفظ على المضبوطات ومخاطر التوقيع على محضر الضبط في مصر")
+    assert "shipping containers" in _scene_query("أثر اللائحة التنفيذية لقانون الجمارك والقرارات الوزارية على المستوردين والشركات في مصر")
+    assert "calendar deadline" in _scene_query("كيفية حساب ميعاد دعوى إلغاء القرار الإداري أمام مجلس الدولة")
