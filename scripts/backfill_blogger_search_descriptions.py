@@ -52,6 +52,21 @@ def _url_key(value: str) -> str:
     return str(value or "").split("#", 1)[0].split("?", 1)[0].rstrip("/").casefold()
 
 
+def _existing_row_seo_fields(row: dict, post_id: str, url: str, title: str, description: str, notes: str) -> dict:
+    """Normalize an existing live Blogger row so the SEO worker can select it."""
+    return {
+        "Blogger Status": "PUBLISHED",
+        "Blogger Post ID": post_id,
+        "Blogger URL": url,
+        "Blogger Search Title": title,
+        "Blogger Search Query": title,
+        "Blogger Meta Description": description[:150],
+        "Blogger SEO Status": "PENDING",
+        "Blogger SEO Error": "",
+        "ملاحظات": notes,
+    }
+
+
 def main() -> int:
     apply = os.getenv("BLOGGER_SEARCH_DESCRIPTION_APPLY", "false").strip().lower() in {"1", "true", "yes"}
     limit = max(1, min(500, int(os.getenv("BLOGGER_SEARCH_DESCRIPTION_LIMIT", "500"))))
@@ -138,18 +153,10 @@ def main() -> int:
                 notes = str(row.get("ملاحظات", "") or "").strip()
                 if "LEGACY SEO BACKFILL" not in notes.upper():
                     notes = (notes + " | " if notes else "") + "LEGACY SEO BACKFILL"
-                update_row(sheet_service, config["sheet_id"], sheet_name, row_number, {
-                    # Normalize the legacy row so the existing UI worker can discover it.
-                    "Blogger Status": "PUBLISHED",
-                    "Blogger Post ID": post_id,
-                    "Blogger URL": url,
-                    "Blogger Search Title": title,
-                    "Blogger Search Query": title,
-                    "Blogger Meta Description": description[:150],
-                    "Blogger SEO Status": "PENDING",
-                    "Blogger SEO Error": "",
-                    "ملاحظات": notes,
-                })
+                update_row(
+                    sheet_service, config["sheet_id"], sheet_name, row_number,
+                    _existing_row_seo_fields(row, post_id, url, title, description, notes),
+                )
                 item["sheet_row"] = row_number
                 item["status"] = "STAGED_EXISTING_ROW"
             else:
