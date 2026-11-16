@@ -16,10 +16,10 @@ OUT = Path("artifacts/blogger-recent-image-repair")
 def _replace_hero(content: str, new_url: str, title: str) -> str:
     image = f'<img src="{new_url}" alt="{title}" title="{title}" loading="eager" decoding="async" style="width:100%;height:auto;border-radius:12px">'
     figure = f'<figure>{image}</figure>'
-    pattern = re.compile(r'<figure\\b[^>]*>\\s*<img\\b[^>]*>\\s*</figure>', re.I | re.S)
+    pattern = re.compile(r'<figure\b[^>]*>\s*<img\b[^>]*>\s*</figure>', re.I | re.S)
     if pattern.search(content):
         return pattern.sub(figure, content, count=1)
-    img = re.compile(r'<img\\b[^>]*>', re.I | re.S)
+    img = re.compile(r'<img\b[^>]*>', re.I | re.S)
     if img.search(content):
         return img.sub(image, content, count=1)
     return figure + content
