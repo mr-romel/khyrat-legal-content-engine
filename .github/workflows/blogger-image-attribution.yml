@@ -1,0 +1,36 @@
+name: Verify Blogger Image License Attributions
+
+on:
+  push:
+    paths:
+      - ".github/BLOGGER_IMAGE_ATTRIBUTION_RUN_NOW"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply-attributions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      PYTHONPATH: src:scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Blogger API dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-worker.txt
+      - name: Apply and verify Wikimedia image credits
+        run: python scripts/apply_blogger_image_attributions.py
+      - name: Preserve attribution backup and verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-image-attribution-report
+          path: artifacts/blogger-image-attribution/
+          if-no-files-found: warn
+          retention-days: 90
