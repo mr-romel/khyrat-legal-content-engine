@@ -99,3 +99,32 @@ def test_ledger_records_only_observed_queries_and_uses_previous_period():
     assert rows[0][13] in {"REFRESH_EXISTING_PAGE", "IMPROVE_TITLE_AND_SNIPPET"}
     assert rows[0][18] == "-2.0"
     assert rows[0][19] == "50.0"
+
+
+
+def test_query_csv_schema_accepts_internal_query_page_key(tmp_path):
+    import csv
+
+    from run_blogger_growth_loop import _query
+
+    class QueryRequest:
+        def execute(self):
+            return {"rows": [{"keys": ["فسخ عقد", "https://example.com/a"], "clicks": 2, "impressions": 10, "ctr": 0.2, "position": 4}]}
+
+    class SearchAnalytics:
+        def query(self, **kwargs):
+            return QueryRequest()
+
+    class Service:
+        def searchanalytics(self):
+            return SearchAnalytics()
+
+    rows = _query(Service(), "sc-domain:example.com", "2026-11-01", "2026-11-07", ["query", "page"])
+    output = tmp_path / "queries.csv"
+    with output.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["query", "page", "query_page_key", "clicks", "impressions", "ctr", "position"], extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+    with output.open("r", encoding="utf-8-sig", newline="") as handle:
+        saved = list(csv.DictReader(handle))
+    assert saved[0]["query_page_key"] == "فسخ عقد||https://example.com/a"
