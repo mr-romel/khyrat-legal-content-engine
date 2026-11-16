@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from blogger_site_setup import PAGES, WHATSAPP
-from blogger_pages_ui_worker import build_service_navigation
+from blogger_pages_ui_worker import build_service_navigation, _page_content, SERVICE_HUB_URL
 
 
 def test_conversion_service_pages_have_distinct_reader_intent_and_contact_route():
@@ -53,3 +53,13 @@ def test_service_navigation_uses_verified_urls_and_is_idempotent():
     assert labor in content
     again = build_service_navigation(content, hub, pages)
     assert again.count('class="khyrat-service-links"') == 1
+
+
+
+def test_managed_page_navigation_exposes_service_hub_without_duplicate_links():
+    page = {"content": '<nav aria-label="روابط الموقع"><a href="/">الرئيسية</a></nav><p>محتوى</p>'}
+    content = _page_content(page)
+    assert SERVICE_HUB_URL in content
+    assert "الخدمات القانونية" in content
+    again = _page_content({"content": content})
+    assert again.count(SERVICE_HUB_URL) == 1
