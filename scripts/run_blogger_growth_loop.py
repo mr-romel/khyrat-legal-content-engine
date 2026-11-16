@@ -78,6 +78,16 @@ def inspect_index_status(service, site: str, urls: list[str], limit: int = 100) 
     return results
 
 
+def select_daily_inspection_urls(urls: list[str], limit: int, day_ordinal: int) -> list[str]:
+    """Select a deterministic rotating slice; no URL repeats within a batch."""
+    unique = list(dict.fromkeys(str(value).strip() for value in urls if str(value).strip()))
+    bounded = max(1, min(200, int(limit)))
+    if len(unique) <= bounded:
+        return unique
+    offset = (int(day_ordinal) * bounded) % len(unique)
+    return (unique[offset:] + unique[:offset])[:bounded]
+
+
 def _totals(rows: list[dict]) -> dict[str, float]:
     clicks = sum(float(row.get("clicks", 0) or 0) for row in rows)
     impressions = sum(float(row.get("impressions", 0) or 0) for row in rows)
@@ -202,10 +212,9 @@ def main() -> int:
     audit_urls = [row.get("url", "") for row in audit.get("posts", []) if row.get("url")]
     # URL Inspection is quota-limited and sequential; rotate a small daily slice.
     index_limit = max(1, min(200, int(os.getenv("SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT", "40"))))
-    if len(audit_urls) > index_limit:
-        offset = (cairo_today.toordinal() * index_limit) % len(audit_urls)
-        audit_urls = (audit_urls[offset:] + audit_urls[:offset])[:index_limit]
+    audit_urls = select_daily_inspection_urls(audit_urls, index_limit, cairo_today.toordinal())
     index_rows = inspect_index_status(service, site, audit_urls, limit=index_limit)
+    print(f"Search Console URL inspection: selected={len(audit_urls)}; configured_daily_limit={index_limit}; total_candidates={len([row for row in audit.get('posts', []) if row.get('url')])}")
     snapshot = build_growth_snapshot(
         audit, page_rows, query_rows, start_date.isoformat(), end_date.isoformat(),
         index_rows=index_rows, previous_page_rows=previous_page_rows,
