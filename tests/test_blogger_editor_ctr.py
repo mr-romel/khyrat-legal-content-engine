@@ -11,7 +11,7 @@ def test_blogger_editor_prioritizes_clickworthy_truthful_titles_and_snippets():
     assert "45-65 characters" in prompt
     assert "120-155 arabic characters" in prompt
     assert "without clickbait" in prompt
-    assert "exact core search phrase near the beginning" in prompt
+    assert "putting the exact core phrase near the beginning" in prompt
     assert "why this page is the best match" in prompt
 
 
