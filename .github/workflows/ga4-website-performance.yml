@@ -1,0 +1,49 @@
+name: GA4 Website Performance Report
+
+on:
+  schedule:
+    - cron: "10 22 * * *"
+      timezone: "Africa/Cairo"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ga4-website-performance-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GA4_PROPERTY_ID: "497002086"
+      GA4_SITE_URL: "https://askmahmoudkhyrat.blogspot.com/"
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GA4 reporting dependencies
+        run: python -m pip install --disable-pip-version-check "google-api-python-client>=2.0.0" "google-auth>=2.0.0"
+      - name: Validate report logic
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pip install pytest
+          pytest -q tests/test_ga4_reporting.py
+      - name: Read GA4 website performance (read-only)
+        env:
+          PYTHONPATH: src
+        run: python src/ga4_reporting.py
+      - name: Preserve dated GA4 report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ga4-website-performance
+          path: artifacts/ga4/
+          if-no-files-found: warn
+          retention-days: 90

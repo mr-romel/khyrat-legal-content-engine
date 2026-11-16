@@ -1,0 +1,40 @@
+name: Blogger Conversion and GA4 Tests
+
+on:
+  push:
+    branches: [codex/blogger-conversion-ga4]
+    paths:
+      - "src/blogger_site_setup.py"
+      - "src/blogger_pages_ui_worker.py"
+      - "src/ga4_reporting.py"
+      - "tests/test_blogger_conversion_pages.py"
+      - "tests/test_ga4_reporting.py"
+      - ".github/workflows/blogger-conversion-ci.yml"
+  pull_request:
+    paths:
+      - "src/blogger_site_setup.py"
+      - "src/blogger_pages_ui_worker.py"
+      - "src/ga4_reporting.py"
+      - "tests/test_blogger_conversion_pages.py"
+      - "tests/test_ga4_reporting.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install repository worker dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-worker.txt -r requirements-browser.txt
+      - name: Compile changed Python modules
+        run: python -m compileall -q src/blogger_site_setup.py src/blogger_pages_ui_worker.py src/ga4_reporting.py
+      - name: Run focused regression tests
+        env:
+          PYTHONPATH: src
+        run: pytest -q tests/test_blogger_conversion_pages.py tests/test_ga4_reporting.py tests/test_blogger_internal_link_planner.py tests/test_blogger_seo_audit.py

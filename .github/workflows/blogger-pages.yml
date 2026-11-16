@@ -28,6 +28,10 @@ jobs:
           pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
           python -m playwright install --with-deps chromium
+      - name: Test conversion-page content and verified internal links
+        env:
+          PYTHONPATH: src
+        run: pytest -q tests/test_blogger_conversion_pages.py
       - name: Publish or update Blogger foundation pages through authenticated UI
         env:
           BLOGGER_ENABLED: ${{ secrets.BLOGGER_ENABLED || 'true' }}
