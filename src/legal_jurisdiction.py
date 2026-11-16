@@ -52,7 +52,7 @@ def choose_related(source: dict, posts: list[dict], max_links: int = 2) -> list[
     source_jurisdiction = jurisdiction(source_title)
     existing_html = str(source.get("content", "") or "")
     # Use article text as additional context, not generic title overlap alone.
-    source_text = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", existing_html, flags=re.I | re.S)
+    source_text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", existing_html, flags=re.I | re.S)
     source_text = re.sub(r"<[^>]+>", " ", source_text)
     source_terms = terms(source_title) | terms(source_text[:5000])
     existing_urls = set(re.findall(r'''href\s*=\s*["']([^"']+)["']''', existing_html, flags=re.I))
