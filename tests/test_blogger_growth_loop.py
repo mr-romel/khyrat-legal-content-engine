@@ -128,3 +128,21 @@ def test_query_csv_schema_accepts_internal_query_page_key(tmp_path):
     with output.open("r", encoding="utf-8-sig", newline="") as handle:
         saved = list(csv.DictReader(handle))
     assert saved[0]["query_page_key"] == "فسخ عقد||https://example.com/a"
+
+
+def test_daily_inspection_rotation_returns_40_unique_urls_and_changes_by_day():
+    from run_blogger_growth_loop import select_daily_inspection_urls
+    urls = [f"https://example.com/{index}" for index in range(128)]
+    first = select_daily_inspection_urls(urls, 40, 100)
+    next_day = select_daily_inspection_urls(urls, 40, 101)
+    assert len(first) == 40
+    assert len(set(first)) == 40
+    assert len(next_day) == 40
+    assert set(first).isdisjoint(set(next_day))
+
+
+def test_daily_inspection_rotation_deduplicates_and_bounds_limit():
+    from run_blogger_growth_loop import select_daily_inspection_urls
+    urls = ["https://example.com/a", "https://example.com/a", "https://example.com/b"]
+    assert select_daily_inspection_urls(urls, 40, 1) == ["https://example.com/a", "https://example.com/b"]
+    assert len(select_daily_inspection_urls(urls * 100, 999, 1)) <= 200
