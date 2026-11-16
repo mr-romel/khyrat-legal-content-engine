@@ -201,7 +201,7 @@ def main() -> int:
     audit = json.loads(Path("artifacts/seo-audit/report.json").read_text(encoding="utf-8"))
     audit_urls = [row.get("url", "") for row in audit.get("posts", []) if row.get("url")]
     # URL Inspection is quota-limited and sequential; rotate a small daily slice.
-    index_limit = max(1, min(200, int(os.getenv("SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT", "20"))))
+    index_limit = max(1, min(200, int(os.getenv("SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT", "40"))))
     if len(audit_urls) > index_limit:
         offset = (cairo_today.toordinal() * index_limit) % len(audit_urls)
         audit_urls = (audit_urls[offset:] + audit_urls[:offset])[:index_limit]
