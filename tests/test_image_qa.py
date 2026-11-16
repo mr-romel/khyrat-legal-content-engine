@@ -182,7 +182,7 @@ def test_strict_policy_rejects_low_topic_relevance_even_when_composition_is_advi
     }, {"aspect_ratio_ok": True})
     assert result["decision"] == "REGENERATE"
     assert result["qa_policy"] == "STRICT_CENTRAL_SUBJECT_RELEVANCE_V2"
-    assert "qa_policy_override" not in result
+    assert "insufficient central-subject relevance" in result["qa_policy_override"]
 
 
 def test_strict_policy_rejects_explicitly_unrelated_image():
