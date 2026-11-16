@@ -1,0 +1,54 @@
+name: Repair Recent Blogger Article Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Number of latest live Blogger articles to regenerate (1-10)"
+        required: true
+        default: "6"
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_RECENT_IMAGE_REPAIR_RUN_NOW"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-publication-v3
+  cancel-in-progress: false
+
+jobs:
+  repair-recent-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      BLOGGER_RECENT_IMAGE_REPAIR_LIMIT: ${{ github.event_name == 'push' && '6' || inputs.limit }}
+      PYTHONPATH: src:scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install image and Blogger dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-worker.txt
+      - name: Validate image repair contract
+        run: |
+          python -m compileall -q scripts/repair_recent_blogger_images.py
+          pytest -q tests/test_blogger_recent_image_repair.py tests/test_image_generator_prompt.py
+      - name: Regenerate and verify unique covers for the six latest live posts
+        run: python scripts/repair_recent_blogger_images.py
+      - name: Preserve originals and read-after-write verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blogger-recent-image-repair
+          path: artifacts/blogger-recent-image-repair/
+          if-no-files-found: warn
+          retention-days: 90
