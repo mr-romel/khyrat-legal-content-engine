@@ -149,7 +149,8 @@ def build_growth_snapshot(
         "urls_inspected": len(index_rows),
         "indexed_pass": sum(1 for row in index_rows if row.get("verdict") == "PASS"),
         "not_indexed_or_blocked": sum(1 for row in index_rows if row.get("verdict") == "FAIL"),
-        "unknown_or_api_error": sum(1 for row in index_rows if row.get("verdict") not in {"PASS", "FAIL"}),
+        "neutral_not_yet_indexed_or_decided": sum(1 for row in index_rows if row.get("verdict") == "NEUTRAL"),
+        "unknown_or_api_error": sum(1 for row in index_rows if row.get("verdict") == "UNKNOWN" or bool(row.get("error"))),
         "results": index_rows,
     }
     return {
