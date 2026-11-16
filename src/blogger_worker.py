@@ -291,7 +291,7 @@ def main() -> int:
     # Image repair must use the Blogger API service, never the Google Sheets
     # service created above. In UI-session mode, skip API-only repair entirely.
     repair_service = None
-    if not use_ui and os.getenv("BLOGGER_OAUTH_JSON", "").strip():
+    if os.getenv("BLOGGER_OAUTH_JSON", "").strip():
         try:
             repair_service = blogger_service()
         except Exception as exc:
