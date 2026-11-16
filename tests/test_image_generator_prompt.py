@@ -317,3 +317,24 @@ def test_duplicate_post_image_guard_allows_different_visual(tmp_path):
     Image.effect_noise((640, 800), 110).convert("RGB").save(current, format="JPEG", quality=94)
 
     image_generator.assert_image_not_duplicate(str(current), reference_dir=str(reference_dir))
+
+
+def test_duplicate_guard_returns_hash_without_reference_directory(tmp_path):
+    image_path = tmp_path / "new.jpg"
+    Image.effect_noise((640, 800), 75).convert("RGB").save(image_path, format="JPEG", quality=94)
+    result = image_generator.assert_image_not_duplicate(
+        str(image_path), reference_dir=str(tmp_path / "not-created")
+    )
+    import hashlib
+    assert result == hashlib.sha256(image_path.read_bytes()).hexdigest()
+
+
+def test_duplicate_guard_rejects_hash_from_persistent_registry(tmp_path):
+    image_path = tmp_path / "new.jpg"
+    Image.effect_noise((640, 800), 75).convert("RGB").save(image_path, format="JPEG", quality=94)
+    import hashlib
+    digest = hashlib.sha256(image_path.read_bytes()).hexdigest()
+    with pytest.raises(image_generator.ImageGenerationError, match="DUPLICATE_POST_IMAGE_BLOCKED"):
+        image_generator.assert_image_not_duplicate(
+            str(image_path), reference_dir=str(tmp_path / "empty"), known_hashes={digest}
+        )
