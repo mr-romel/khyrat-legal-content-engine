@@ -218,7 +218,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(page_rows)
     with (out / "search-console-queries.csv").open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["query", "page", "clicks", "impressions", "ctr", "position"])
+        writer = csv.DictWriter(handle, fieldnames=["query", "page", "query_page_key", "clicks", "impressions", "ctr", "position"], extrasaction="ignore")
         writer.writeheader()
         writer.writerows(query_rows)
     (out / "growth-priorities.json").write_text(
