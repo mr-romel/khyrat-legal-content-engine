@@ -146,3 +146,19 @@ def test_daily_inspection_rotation_deduplicates_and_bounds_limit():
     urls = ["https://example.com/a", "https://example.com/a", "https://example.com/b"]
     assert select_daily_inspection_urls(urls, 40, 1) == ["https://example.com/a", "https://example.com/b"]
     assert len(select_daily_inspection_urls(urls * 100, 999, 1)) <= 200
+
+
+def test_url_inspection_separates_neutral_not_indexed_from_api_errors():
+    result = build_growth_snapshot(
+        {"summary": {}, "posts": [], "findings": []},
+        [], [], "2026-10-01", "2026-10-28",
+        index_rows=[
+            {"url": "https://example.com/a", "verdict": "NEUTRAL", "coverage_state": "Discovered - currently not indexed"},
+            {"url": "https://example.com/b", "verdict": "UNKNOWN", "error": "API unavailable"},
+            {"url": "https://example.com/c", "verdict": "PASS"},
+        ],
+    )
+    summary = result["url_inspection"]
+    assert summary["neutral_not_yet_indexed_or_decided"] == 1
+    assert summary["unknown_or_api_error"] == 1
+    assert summary["indexed_pass"] == 1
