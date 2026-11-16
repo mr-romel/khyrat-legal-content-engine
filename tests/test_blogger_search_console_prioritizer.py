@@ -24,3 +24,21 @@ def test_prioritizes_impressions_ctr_and_internal_links():
     assert result["priorities"][0]["url"] == "https://example.com/a"
     assert "HIGH_IMPRESSIONS_LOW_CTR" in result["priorities"][0]["reasons"]
     assert result["priorities"][0]["suggested_internal_links"][0]["url"] == "https://example.com/b"
+
+
+def test_prioritizer_waits_for_reliable_ctr_sample_but_keeps_striking_distance():
+    audit = {"posts": [
+        {"title": "دعوى إلغاء القرار الإداري", "url": "https://example.com/a",
+         "internal_links_to_known_posts": ["https://example.com/b"]},
+    ], "findings": []}
+    low_sample = prioritize(audit, [
+        {"url": "https://example.com/a", "clicks": 0, "impressions": 19, "ctr": 0, "position": 8},
+    ])
+    assert "HIGH_IMPRESSIONS_LOW_CTR" not in low_sample["priorities"][0]["reasons"]
+    assert "RANKING_NEAR_PAGE_ONE" not in low_sample["priorities"][0]["reasons"]
+
+    meaningful = prioritize(audit, [
+        {"url": "https://example.com/a", "clicks": 0, "impressions": 120, "ctr": 0, "position": 8},
+    ])
+    assert "HIGH_IMPRESSIONS_LOW_CTR" in meaningful["priorities"][0]["reasons"]
+    assert "RANKING_NEAR_PAGE_ONE" in meaningful["priorities"][0]["reasons"]
