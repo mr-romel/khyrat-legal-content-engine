@@ -323,7 +323,7 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
         else:
             d.ellipse((int(width*.69),int(height*.29),int(width*.82),int(height*.42)),outline=gold,width=7)
             d.line((int(width*.755),int(height*.30),int(width*.755),int(height*.35)),fill=gold,width=5)
-    elif any(w in key for w in ("إجاز", "راحة", "عمل", "موظف", "حضور", "leave", "employment", "vacation")):
+    elif any(w in key for w in ("إجاز", "راحة", "حضور", "leave", "employment", "vacation")):
         d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.69)),radius=20,fill=(255,255,252,255),outline=(56,83,111,255),width=7)
         d.rounded_rectangle((int(width*.18),int(height*.20),int(width*.76),int(height*.34)),radius=18,fill=(49,83,119,255))
         for col in range(4):
