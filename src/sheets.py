@@ -27,6 +27,7 @@ HEADERS = [
     "Reel Facebook Comments Status", "Reel Facebook Comment IDs",
     "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
     "Reel Facebook Description Status", "Reel YouTube Description Status", "Reel Video SHA256",
+    "Image SHA256",
 ]
 
 SHEET_LAST_COLUMN = "BZ"
