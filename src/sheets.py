@@ -101,25 +101,29 @@ def row_to_dict(row: list[str], headers: list[str] | None = None) -> dict[str, s
 
 
 def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") -> None:
-    """Initialize an empty sheet header, but never overwrite a live/reordered header row.
-
-    Existing tabs may contain additional columns or a deliberate column order.
-    Replacing that row with HEADERS would silently remap every stored value.
-    Named-column writers and row_to_dict use the live header row instead.
-    """
+    """Initialize headers or append required columns without reordering live data."""
     existing = get_values(service, spreadsheet_id, f"{sheet_name}!A1:{SHEET_LAST_COLUMN}1")
-    if existing and any(str(value or "").strip() for value in existing[0]):
+    live = [str(value or "").strip() for value in existing[0]] if existing else []
+    if not any(live):
+        merged = list(HEADERS)
+    else:
+        merged = list(live)
+        for header in HEADERS:
+            if header not in merged:
+                merged.append(header)
+    if merged == live:
         return
+    if len(merged) > 78:
+        raise RuntimeError(f"Cannot append required sheet headers: {len(merged)} columns exceed A:BZ.")
     _execute_with_retry(
         lambda: service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
             range=f"{sheet_name}!A1:{SHEET_LAST_COLUMN}1",
             valueInputOption="RAW",
-            body={"values": [HEADERS]},
+            body={"values": [merged]},
         ),
-        f"initializing headers in {sheet_name}",
+        f"initializing/appending headers in {sheet_name}",
     )
-
 
 def update_row(service, spreadsheet_id: str, sheet_name: str, row_number: int, values: dict[str, Any]) -> None:
     """Update named cells using the sheet's actual header positions, preserving unrelated columns."""
