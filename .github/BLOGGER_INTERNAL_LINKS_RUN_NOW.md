@@ -1,1 +1,1 @@
-Apply conservative, legally relevant internal links and retain the full backup report.
+Apply safe, jurisdiction-matched related links to eligible live posts; back up every original.
