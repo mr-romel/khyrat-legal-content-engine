@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from run_blogger_growth_loop import build_growth_snapshot
+from run_blogger_growth_loop import build_growth_snapshot, classify_indexing_action
 from search_console_growth_ledger import build_query_ledger_rows
 
 
@@ -174,3 +174,18 @@ def test_query_opportunity_requires_enough_impressions_before_ctr_or_position_cl
     )
     assert result["query_opportunities"] == []
     assert result["measurement"]["queries_below_reliable_sample"] == 1
+
+
+def test_indexing_action_recommendations_distinguish_discovery_from_quality():
+    assert classify_indexing_action({
+        "verdict": "NEUTRAL", "coverage_state": "Discovered - currently not indexed"
+    }) == "IMPROVE_DISCOVERY_AND_CONTEXTUAL_LINKS"
+    assert classify_indexing_action({
+        "verdict": "NEUTRAL", "coverage_state": "Crawled - currently not indexed"
+    }) == "REVIEW_UNIQUENESS_AND_CONTENT_VALUE"
+    assert classify_indexing_action({
+        "verdict": "NEUTRAL", "coverage_state": "Duplicate, Google chose different canonical than user"
+    }) == "REVIEW_CANONICAL_AND_DUPLICATION"
+    assert classify_indexing_action({
+        "verdict": "UNKNOWN", "error": "API unavailable"
+    }) == "RECHECK_INSPECTION_API"
