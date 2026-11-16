@@ -17,7 +17,7 @@ DEFAULT_PROPERTY_ID = "497002086"
 SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 METRICS = [
     "activeUsers", "newUsers", "sessions", "engagementRate",
-    "averageSessionDuration", "screenPageViews", "eventCount",
+    "averageSessionDuration", "screenPageViews", "eventCount", "keyEvents",
 ]
 
 
