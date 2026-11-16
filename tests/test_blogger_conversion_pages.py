@@ -24,6 +24,24 @@ def test_conversion_service_pages_have_distinct_reader_intent_and_contact_route(
         assert "واتساب" in content
 
 
+def test_service_pages_offer_whatsapp_and_phone_with_ga4_click_intent():
+    expected = {
+        "الخدمات القانونية للأفراد والشركات",
+        "محامي قضايا العمل ومستحقات العامل في مصر",
+        "مراجعة وصياغة العقود للشركات والأفراد",
+        "الخدمات القانونية للشركات وتأسيسها",
+        "قضايا التعويض والمسؤولية المدنية",
+    }
+    by_title = {page["title"]: page["content"] for page in PAGES}
+    for title in expected:
+        content = by_title[title]
+        assert 'data-contact-method="whatsapp"' in content
+        assert 'data-contact-method="phone"' in content
+        assert 'href="tel:+201022718375"' in content
+        assert "contact_click" in content
+        assert "service_page:" in content
+
+
 def test_service_pages_do_not_promise_legal_outcomes():
     pages = [page for page in PAGES if page["title"] in {
         "الخدمات القانونية للأفراد والشركات",
