@@ -98,7 +98,7 @@ def _apply_dual_contact_actions() -> None:
         if page.get("title") not in SERVICE_CONVERSION_TITLES:
             continue
         content = str(page.get("content", "") or "")
-        pattern = re.compile(r'<a href="(https://wa\\.me/[^"]+)">([^<]+)</a>')
+        pattern = re.compile(r'<a href="(https://wa\.me/[^"]+)">([^<]+)</a>')
         match = pattern.search(content)
         if not match:
             raise ValueError(f"Missing WhatsApp CTA in managed service page: {page.get('title')}")
