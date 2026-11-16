@@ -25,7 +25,7 @@ def _page_content(page):
     service_link = f'<a href="{SERVICE_HUB_URL}">الخدمات القانونية</a>'
     if 'aria-label="روابط الموقع"' in content:
         if SERVICE_HUB_URL not in content:
-            content = re.sub(r"(</nav>)", service_link + r"\\1", content, count=1, flags=re.I)
+            content = re.sub(r"(</nav>)", service_link + r"\1", content, count=1, flags=re.I)
         return content
     return SITE_NAV.replace("</nav>", service_link + "</nav>") + content
 
