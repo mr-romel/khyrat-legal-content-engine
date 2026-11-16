@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -40,10 +40,12 @@ def _value(row: dict[str, Any], index: int) -> float | None:
 
 
 def _run_report(service, property_id: str, start: str, end: str,
-                dimensions: list[str] | None = None, limit: int = 100) -> dict:
+                dimensions: list[str] | None = None, limit: int = 100,
+                metrics: list[str] | None = None) -> dict:
+    requested_metrics = metrics or METRICS
     body: dict[str, Any] = {
         "dateRanges": [{"startDate": start, "endDate": end}],
-        "metrics": [{"name": name} for name in METRICS],
+        "metrics": [{"name": name} for name in requested_metrics],
         "limit": limit,
     }
     if dimensions:
@@ -53,14 +55,15 @@ def _run_report(service, property_id: str, start: str, end: str,
     ).execute()
 
 
-def _metric_map(response: dict) -> dict[str, float | None]:
+def _metric_map(response: dict, metric_names: list[str] | None = None) -> dict[str, float | None]:
+    requested_metrics = metric_names or METRICS
     headers = [x.get("name", "") for x in response.get("metricHeaders", [])]
     rows = response.get("rows", []) or []
     if not rows:
-        return {name: None for name in METRICS}
+        return {name: None for name in requested_metrics}
     values = rows[0].get("metricValues", []) or []
     output = {}
-    for name in METRICS:
+    for name in requested_metrics:
         try:
             index = headers.index(name)
             output[name] = _value({"metricValues": values}, index)
@@ -93,14 +96,18 @@ def build_snapshot(service, property_id: str, end_date: date) -> dict:
     previous_end = current_start - timedelta(days=1)
     previous_start = previous_end - timedelta(days=6)
 
-    def report(start: date, end: date, dims: list[str] | None = None, limit: int = 100):
-        return _run_report(service, property_id, start.isoformat(), end.isoformat(), dims, limit)
+    def report(start: date, end: date, dims: list[str] | None = None, limit: int = 100,
+               metrics: list[str] | None = None):
+        return _run_report(service, property_id, start.isoformat(), end.isoformat(), dims, limit, metrics)
 
     current = report(current_start, current_end)
     previous = report(previous_start, previous_end)
-    channels = report(current_start, current_end, ["sessionDefaultChannelGroup"], 50)
-    pages = report(current_start, current_end, ["pagePathPlusQueryString"], 100)
-    events = report(current_start, current_end, ["eventName"], 100)
+    channels = report(current_start, current_end, ["sessionDefaultChannelGroup"], 50,
+                       ["activeUsers", "sessions", "engagementRate"])
+    pages = report(current_start, current_end, ["pagePathPlusQueryString"], 100,
+                    ["activeUsers", "sessions", "screenPageViews", "keyEvents"])
+    events = report(current_start, current_end, ["eventName"], 100,
+                    ["eventCount", "keyEvents"])
 
     current_metrics = _metric_map(current)
     previous_metrics = _metric_map(previous)
@@ -110,7 +117,7 @@ def build_snapshot(service, property_id: str, end_date: date) -> dict:
         deltas[key] = round(value - old, 4) if value is not None and old is not None else None
 
     return {
-        "generated_at": date.today().isoformat(),
+        "generated_at": datetime.now(CAIRO).isoformat(),
         "property_id": str(property_id),
         "site": os.getenv("GA4_SITE_URL", "https://askmahmoudkhyrat.blogspot.com/"),
         "status": "OK" if current.get("rows") is not None and previous.get("rows") is not None else "PARTIAL",
@@ -133,7 +140,7 @@ def main() -> int:
     property_id = os.getenv("GA4_PROPERTY_ID", DEFAULT_PROPERTY_ID).strip()
     if not property_id.isdigit():
         raise ValueError("GA4_PROPERTY_ID must be a numeric GA4 property ID.")
-    today = date.today()
+    today = datetime.now(CAIRO).date()
     end_date = today - timedelta(days=1)
     service = _analytics_service()
     snapshot = build_snapshot(service, property_id, end_date)
