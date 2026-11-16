@@ -1,1 +1,1 @@
-Apply safe contextual links now; retain backup and verify each live update.
+Apply conservative, legally relevant internal links and retain the full backup report.
