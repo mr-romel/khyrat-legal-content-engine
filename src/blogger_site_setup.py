@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
 from typing import Any
 
 from blogger_publisher import BloggerPublishError, blog_id, service
@@ -15,6 +16,7 @@ WHATSAPP = "https://wa.me/201022718375"
 FACEBOOK = "https://www.facebook.com/AskMahmoudNow"
 LINKEDIN = "https://www.linkedin.com/in/mahmoud-khyrat"
 YOUTUBE = "https://www.youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA"
+LEGAL_PHONE_E164 = os.getenv("LEGAL_PHONE_E164", "+201022718375").strip()
 
 PAGES: list[dict[str, str]] = [
     {
@@ -74,6 +76,49 @@ PAGES: list[dict[str, str]] = [
     },
 
 ]
+
+
+SERVICE_CONVERSION_TITLES = {
+    "الخدمات القانونية للأفراد والشركات",
+    "محامي قضايا العمل ومستحقات العامل في مصر",
+    "مراجعة وصياغة العقود للشركات والأفراد",
+    "الخدمات القانونية للشركات وتأسيسها",
+    "قضايا التعويض والمسؤولية المدنية",
+}
+
+
+def _apply_dual_contact_actions() -> None:
+    """Add WhatsApp + phone CTAs and GA4 click-intent events to service pages."""
+    phone = re.sub(r"[^0-9+]", "", LEGAL_PHONE_E164)
+    if not phone:
+        raise ValueError("LEGAL_PHONE_E164 must contain a callable phone number.")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+    for page in PAGES:
+        if page.get("title") not in SERVICE_CONVERSION_TITLES:
+            continue
+        content = str(page.get("content", "") or "")
+        pattern = re.compile(r'<a href="(https://wa\\.me/[^"]+)">([^<]+)</a>')
+        match = pattern.search(content)
+        if not match:
+            raise ValueError(f"Missing WhatsApp CTA in managed service page: {page.get('title')}")
+        whatsapp_url, whatsapp_label = match.groups()
+        service_slug = re.sub(r"[^a-z0-9-]", "-", str(page.get("slug", "service"))).strip("-") or "service"
+        block = (
+            '<div class="khyrat-contact-actions" style="display:flex;flex-wrap:wrap;gap:10px;margin:18px 0">'
+            f'<a class="khyrat-contact-button khyrat-whatsapp" data-contact-method="whatsapp" '
+            f'data-service-page="{service_slug}" href="{whatsapp_url}" '
+            f'onclick="if(typeof window.gtag===\'function\'){{window.gtag(\'event\',\'contact_click\',{{contact_method:\'whatsapp\',service_page:\'{service_slug}\'}});}}">'
+            f'{whatsapp_label}</a>'
+            f'<a class="khyrat-contact-button khyrat-phone" data-contact-method="phone" '
+            f'data-service-page="{service_slug}" href="tel:{phone}" '
+            f'onclick="if(typeof window.gtag===\'function\'){{window.gtag(\'event\',\'contact_click\',{{contact_method:\'phone\',service_page:\'{service_slug}\'}});}}">'
+            'اتصل هاتفيًا الآن</a></div>'
+        )
+        page["content"] = content[:match.start()] + block + content[match.end():]
+
+
+_apply_dual_contact_actions()
 
 
 def _norm(value: str) -> str:
