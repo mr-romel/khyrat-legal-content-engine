@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 import time
-from html import unescape
+from html import escape, unescape
 
 import requests
 
@@ -20,6 +20,39 @@ SITE_NAV = '<nav aria-label="روابط الموقع" style="margin:0 0 22px;pad
 def _page_content(page):
     content = str(page.get("content", "") or "")
     return content if 'aria-label="روابط الموقع"' in content else SITE_NAV + content
+
+SERVICE_PAGE_TITLES = {
+    "الخدمات القانونية للأفراد والشركات",
+    "محامي قضايا العمل ومستحقات العامل في مصر",
+    "مراجعة وصياغة العقود للشركات والأفراد",
+    "الخدمات القانونية للشركات وتأسيسها",
+    "قضايا التعويض والمسؤولية المدنية",
+}
+
+
+def build_service_navigation(content: str, current_title: str, pages: list[dict]) -> str:
+    """Build reciprocal links from actual Blogger page URLs, never guessed slugs."""
+    cleaned = re.sub(
+        r'<nav[^>]*class=["\\']khyrat-service-links["\\'][^>]*>[\\s\\S]*?</nav>',
+        "",
+        str(content or ""),
+        flags=re.I,
+    )
+    links = []
+    current_key = _clean(current_title).casefold()
+    for item in pages:
+        title = _clean(item.get("title", ""))
+        url = _clean(item.get("url", ""))
+        if title.casefold() == current_key or title not in SERVICE_PAGE_TITLES or not url.startswith(BLOG_URL):
+            continue
+        links.append(f'<li><a href="{escape(url, quote=True)}">{escape(title)}</a></li>')
+    if not links:
+        return cleaned
+    navigation = (
+        '<nav class="khyrat-service-links" aria-label="الخدمات القانونية ذات الصلة">'
+        '<h2>خدمات قانونية ذات صلة</h2><ul>' + "".join(links) + '</ul></nav>'
+    )
+    return cleaned.rstrip() + navigation
 
 
 
@@ -124,8 +157,23 @@ def _publish_pages_via_api() -> bool:
             "Blogger REST API publication verification failed; missing pages or public URLs: "
             + ", ".join(missing)
         )
+    verified_pages = [
+        {"title": str(item.get("title", "")), "url": str(item.get("url", ""))}
+        for item in verified.values()
+    ]
     for page in PAGES:
         item = verified[page["title"].casefold()]
+        if page["title"] in SERVICE_PAGE_TITLES:
+            page_id = str(item.get("id", "")).strip()
+            updated_content = build_service_navigation(
+                str(item.get("content", "") or ""), page["title"], verified_pages
+            )
+            if page_id and updated_content != str(item.get("content", "") or ""):
+                svc.pages().patch(
+                    blogId=target_blog_id, pageId=page_id,
+                    body={"content": updated_content},
+                ).execute()
+                print(f"Blogger service cross-links updated: {page['title']}")
         print(f"Blogger static page REST-verified: {page['title']} -> {item.get('url', '')}")
     return True
 
@@ -175,8 +223,19 @@ def main() -> int:
             time.sleep(3)
     if missing:
         raise RuntimeError("Static-page publication verification failed after feed retries; pages not found: " + ", ".join(missing))
+    verified_pages = list(verified.values())
     for page in PAGES:
         item = verified[page["title"].casefold()]
+        if page["title"] in SERVICE_PAGE_TITLES:
+            updated_content = build_service_navigation(
+                str(item.get("content", "") or ""), page["title"], verified_pages
+            )
+            if updated_content != str(item.get("content", "") or ""):
+                result = publish_page_ui(
+                    title=page["title"], content_html=updated_content,
+                    blog_id=blog_id, page_id=item.get("page_id", ""),
+                )
+                print(f"Blogger service cross-links updated through UI: {page['title']}")
         print(f"Blogger static page verified: {page['title']} -> {item.get('url', '')}")
     return 0
 
