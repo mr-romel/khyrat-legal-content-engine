@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import traceback
@@ -433,6 +434,17 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "IMAGE_QA_RETRY_BUDGET_EXHAUSTED: the scene brief requires correction before another automatic generation."
             )
         image_qa_attempt = prior_image_qa_attempts
+        # Persistent duplicate registry lives in the shared Content sheet, not the ephemeral runner.
+        registry_values = get_values(service, config["sheet_id"], f"{sheet_name}!A:BZ")
+        registry_headers = [str(x or "").strip() for x in registry_values[0]] if registry_values else []
+        known_image_hashes = set()
+        for registry_raw in registry_values[1:]:
+            registry_row = row_to_dict(registry_raw, registry_headers)
+            if str(registry_row.get("ID", "")).strip() == str(row.get("ID", "")).strip():
+                continue
+            saved_hash = str(registry_row.get("Image SHA256", "")).strip().lower()
+            if saved_hash:
+                known_image_hashes.add(saved_hash)
         # Carry the previous run's QA findings into the next bounded retry.
         regeneration_notes = str(row.get("Image QA Issues", "") or "").strip()
         remaining_attempts = MAX_IMAGE_QA_ATTEMPTS - prior_image_qa_attempts
@@ -455,7 +467,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     cloudflare_api_token=config["cloudflare_api_token"],
                     api_key=config.get("gemini_api_key", ""),
                 )
-                assert_image_not_duplicate(str(image_path), reference_dir=str(GENERATED_DIR))
+                image_sha256 = assert_image_not_duplicate(str(image_path), reference_dir=str(GENERATED_DIR), known_hashes=known_image_hashes)
             except Exception as generation_exc:
                 image_qa_summary = f"Image generation attempt {image_qa_attempt} failed: {generation_exc}"
                 print(image_qa_summary)
@@ -524,6 +536,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "رابط الصورة": image_url,
+                "Image SHA256": image_sha256,
                 "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
                 "Image QA Attempt": str(image_qa_attempt),
                 "Image QA Status": image_qa_status,
