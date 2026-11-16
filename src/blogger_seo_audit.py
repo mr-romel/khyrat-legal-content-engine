@@ -312,5 +312,4 @@ def run(output_dir: str = "artifacts/seo-audit") -> dict:
 if __name__ == "__main__":
     result = run()
     print(json.dumps(result["summary"], ensure_ascii=False, indent=2))
-    if result["summary"]["high_findings"]:
-        sys.exit(1)
+    # Findings are actionable report output, not a reason to block daily Search Console measurement.
