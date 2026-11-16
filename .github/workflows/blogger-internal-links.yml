@@ -21,12 +21,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: blogger-publication-v3
+  group: blogger-internal-links-maintenance
   cancel-in-progress: false
 
 jobs:
   apply-contextual-links:
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'BLOGGER_INTERNAL_LINKS_RUN_NOW' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
