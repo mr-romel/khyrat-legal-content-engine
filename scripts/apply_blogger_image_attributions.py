@@ -36,10 +36,10 @@ def add_credit(content: str, item: dict) -> str:
         '<a href="' + license_url + '" rel="license nofollow noopener">ترخيص الاستخدام</a>'
         '</figcaption><!-- Khyrat image attribution -->'
     )
-    match = re.search(r"<figure\\b[^>]*>.*?</figure>", content, flags=re.I | re.S)
+    match = re.search(r"<figure\b[^>]*>.*?</figure>", content, flags=re.I | re.S)
     if match:
         block = match.group(0)
-        return content[:match.start()] + re.sub(r"</figure>\\s*$", caption + "</figure>", block, flags=re.I) + content[match.end():]
+        return content[:match.start()] + re.sub(r"</figure>\s*$", caption + "</figure>", block, flags=re.I) + content[match.end():]
     return content
 
 def main() -> int:
