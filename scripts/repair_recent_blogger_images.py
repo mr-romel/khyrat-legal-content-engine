@@ -95,7 +95,15 @@ def main() -> int:
                 print(f"LOCAL_TOPIC_ILLUSTRATION_FALLBACK post_id={post_id}: {str(provider_error)[:500]}")
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             if digest in hashes:
-                raise RuntimeError("DUPLICATE_GENERATED_IMAGE_HASH")
+                create_legal_image(
+                    topic=title, image_brief=f"Unique original illustration for {title}",
+                    visual_description=_scene_query(title) + " distinct layout " + safe_id,
+                    post_context=content[:5000], output_path=str(path),
+                    aspect_ratio="4:5", provider="local_scene",
+                )
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest in hashes:
+                raise RuntimeError("DUPLICATE_GENERATED_IMAGE_HASH_AFTER_LOCAL_SCENE_FALLBACK")
             hashes.add(digest)
             hosted = upload_blogger_image(str(path))
             updated = _replace_hero(content, hosted, title)
