@@ -13,6 +13,24 @@ from image_generator import create_legal_image
 OUT = Path("artifacts/blogger-recent-image-repair")
 
 
+def _scene_query(title: str) -> str:
+    value = str(title or "")
+    mappings = [
+        (("نقل الموظف", "جزاء تأديبي", "العمل"), "employee workplace transfer personnel file disciplinary notice office desk"),
+        (("السياسية", "العقود", "الالتزامات"), "international business contracts signed documents world map trade logistics"),
+        (("التحفظ على المضبوطات", "محضر الضبط"), "customs inspection seized goods evidence inventory warehouse documents"),
+        (("الجمارك", "المستوردين", "الاستيراد"), "shipping containers customs declaration import cargo port warehouse"),
+        (("حظر الاستيراد", "السلع"), "imported consumer goods cargo inspection customs clearance shipping boxes"),
+        (("ميعاد دعوى", "إلغاء القرار الإداري"), "administrative legal decision paper calendar deadline date stamp desk"),
+        (("الحزام الأخضر", "تخطيط الأراضي"), "urban land planning architectural site plan green belt aerial map"),
+        (("ترخيص شركة", "استثمار رياضي"), "sports business company registration documents stadium office"),
+    ]
+    for terms, query in mappings:
+        if any(term in value for term in terms):
+            return query
+    return "Egypt legal administration business contract documents office evidence"
+
+
 def _replace_hero(content: str, new_url: str, title: str) -> str:
     image = f'<img src="{new_url}" alt="{title}" title="{title}" loading="eager" decoding="async" style="width:100%;height:auto;border-radius:12px">'
     figure = f'<figure>{image}</figure>'
@@ -59,7 +77,7 @@ def main() -> int:
             create_legal_image(
                 topic=title,
                 image_brief=f"Distinct editorial cover image for this exact legal subject: {title}. Use a unique visual composition, different objects and scene from other recent covers. No generic repeated stock portrait.",
-                visual_description=f"Topic-specific Egyptian legal article cover: {title}.",
+                visual_description=_scene_query(title),
                 post_context=content[:5000], output_path=str(path),
                 api_key=os.getenv("GEMINI_API_KEY", "").strip(),
                 cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
