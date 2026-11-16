@@ -65,10 +65,10 @@ def prioritize(audit: dict, performance: list[dict], limit: int = 100) -> dict:
         clicks, impressions, ctr, position = (metrics[k] for k in ("clicks", "impressions", "ctr", "position"))
         ctr_pct = ctr * 100 if 0 < ctr <= 1 else ctr
         opportunity, reasons = 0.0, []
-        if impressions >= 100 and ctr_pct < 3:
+        if impressions >= 100 and ctr_pct < 2:
             opportunity += min(impressions / 100, 30) * (3 - ctr_pct + 1)
             reasons.append("HIGH_IMPRESSIONS_LOW_CTR")
-        if impressions >= 50 and 4 <= position <= 20:
+        if impressions >= 20 and 4 <= position <= 20:
             opportunity += min(impressions / 100, 30) * 2
             reasons.append("RANKING_NEAR_PAGE_ONE")
         if url in findings_by_url:
