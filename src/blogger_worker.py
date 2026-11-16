@@ -299,16 +299,18 @@ def main() -> int:
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     if repair_service is not None:
-        seen_image_identities = set()
+        seen_image_urls = set()
+        seen_image_hashes = set()
         for existing_row_number, existing in enumerate(rows, start=2):
             if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
                 continue
             image_url_key = str(existing.get("رابط الصورة", "")).strip().split("?", 1)[0].rstrip("/")
             image_hash_key = str(existing.get("Image SHA256", "")).strip().lower()
-            identity = image_hash_key or image_url_key
-            duplicate_image = bool(identity and identity in seen_image_identities)
-            if identity:
-                seen_image_identities.add(identity)
+            duplicate_image = bool((image_url_key and image_url_key in seen_image_urls) or (image_hash_key and image_hash_key in seen_image_hashes))
+            if image_url_key:
+                seen_image_urls.add(image_url_key)
+            if image_hash_key:
+                seen_image_hashes.add(image_hash_key)
             if duplicate_image:
                 try:
                     regenerate_duplicate_published_image(repair_service, service, config["sheet_id"], sheet_name, bid, existing_row_number, existing)
