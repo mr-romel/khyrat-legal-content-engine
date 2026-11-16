@@ -252,7 +252,7 @@ jobs:
           echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify manual approval
-        if: ${{ steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
+        if: ${{ steps.target.outputs.row_number != '' && (steps.target.outputs.task != 'publish' || steps.recovery.outputs.available == 'true') }}
         env:
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
