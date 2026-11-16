@@ -113,6 +113,8 @@ def _apply_dual_contact_actions() -> None:
             continue
         if page.get("title") not in SERVICE_CONVERSION_TITLES:
             continue
+        if 'data-contact-method="whatsapp"' in content and 'data-contact-method="phone"' in content:
+            continue
         pattern = re.compile(r'<a href="(https://wa\.me/[^"]+)">([^<]+)</a>')
         match = pattern.search(content)
         if not match:
