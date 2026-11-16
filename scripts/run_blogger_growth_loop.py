@@ -88,6 +88,29 @@ def select_daily_inspection_urls(urls: list[str], limit: int, day_ordinal: int) 
     return (unique[offset:] + unique[:offset])[:bounded]
 
 
+def classify_indexing_action(row: dict) -> str:
+    """Translate Google URL Inspection states into conservative, actionable next steps."""
+    coverage = str(row.get("coverage_state", "") or "").casefold()
+    verdict = str(row.get("verdict", "") or "").upper()
+    if row.get("error") or verdict == "UNKNOWN":
+        return "RECHECK_INSPECTION_API"
+    if verdict == "PASS":
+        return "MONITOR_PERFORMANCE"
+    if "discovered - currently not indexed" in coverage:
+        return "IMPROVE_DISCOVERY_AND_CONTEXTUAL_LINKS"
+    if "crawled - currently not indexed" in coverage:
+        return "REVIEW_UNIQUENESS_AND_CONTENT_VALUE"
+    if "duplicate" in coverage or "alternate page" in coverage:
+        return "REVIEW_CANONICAL_AND_DUPLICATION"
+    if "blocked by robots" in coverage or "blocked due to access" in coverage:
+        return "FIX_CRAWL_ACCESS"
+    if "soft 404" in coverage or "not found" in coverage:
+        return "VERIFY_URL_AND_CONTENT_STATUS"
+    if verdict == "FAIL":
+        return "INVESTIGATE_INDEXING_EXCLUSION"
+    return "INSPECT_COVERAGE_DETAILS"
+
+
 def _totals(rows: list[dict]) -> dict[str, float]:
     clicks = sum(float(row.get("clicks", 0) or 0) for row in rows)
     impressions = sum(float(row.get("impressions", 0) or 0) for row in rows)
@@ -145,12 +168,17 @@ def build_growth_snapshot(
     previous_query_rows = previous_query_rows or []
     previous_totals = _totals(previous_page_rows)
     index_rows = index_rows or []
+    index_rows = [{**row, "recommended_action": classify_indexing_action(row)} for row in index_rows]
     index_summary = {
         "urls_inspected": len(index_rows),
         "indexed_pass": sum(1 for row in index_rows if row.get("verdict") == "PASS"),
         "not_indexed_or_blocked": sum(1 for row in index_rows if row.get("verdict") == "FAIL"),
         "neutral_not_yet_indexed_or_decided": sum(1 for row in index_rows if row.get("verdict") == "NEUTRAL"),
         "unknown_or_api_error": sum(1 for row in index_rows if row.get("verdict") == "UNKNOWN" or bool(row.get("error"))),
+        "recommended_actions": {
+            action: sum(1 for row in index_rows if row["recommended_action"] == action)
+            for action in sorted({row["recommended_action"] for row in index_rows})
+        },
         "results": index_rows,
     }
     return {
