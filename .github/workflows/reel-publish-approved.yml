@@ -201,6 +201,7 @@ jobs:
           exit 0
 
       - name: Download reviewed reel package
+        id: recovery
         if: ${{ steps.target.outputs.row_number != '' && steps.target.outputs.task == 'publish' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -216,16 +217,42 @@ jobs:
             SAFE_SOURCE_ID="$(python -c 'import os,re; print(re.sub(r"[^A-Za-z0-9._-]+", "_", os.environ["SOURCE_ID"].strip()))')"
             SOURCE_DIR="generated/reels/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}"
             if [ ! -s "$SOURCE_DIR/daily-reel.mp4" ] || [ ! -s "$SOURCE_DIR/reel_plan.json" ]; then
-              echo "::error::Neither the named GitHub artifact nor the exact committed Reel package exists for this approved row/run."
-              exit 1
+              echo "Exact artifact and committed package are both missing. Releasing this stale approval for regeneration."
+              PYTHONPATH=src python - <<'PY'
+              import os
+              from config import load_video_config
+              from sheets import create_service, get_values, row_to_dict, update_row
+              cfg = load_video_config()
+              svc = create_service(cfg["service_account_info"])
+              tab = cfg["sheet_range"].split("!", 1)[0]
+              values = get_values(svc, cfg["sheet_id"], f"{tab}!A:BZ")
+              headers = values[0] if values else []
+              source_id = os.environ["SOURCE_ID"].strip()
+              run_id = os.environ["RUN_ID"].strip()
+              matches = [(n, row_to_dict(raw, headers)) for n, raw in enumerate(values[1:], start=2) if str(row_to_dict(raw, headers).get("ID", "")).strip() == source_id]
+              if len(matches) != 1: raise SystemExit(f"Cannot safely release stale approval; source matches={len(matches)}")
+              row_number, row = matches[0]
+              if str(row.get("Reel Run ID", "")).strip() != run_id or str(row.get("Reel Approval", "")).strip().upper() != "APPROVED":
+                  raise SystemExit("Reel row changed during stale-artifact recovery; refusing to modify it.")
+              update_row(svc, cfg["sheet_id"], tab, row_number, {
+                  "Reel Status": "REGENERATE_REQUIRED",
+                  "Reel Approval": "",
+                  "Reel Last Error": "APPROVED_REEL_ARTIFACT_MISSING: old review artifact and committed package are unavailable; a fresh Reel must be generated and reviewed.",
+                  "Reel Review": "الموافقة القديمة أُلغيت لأن ملف الفيديو غير متاح؛ مطلوب إنتاج ريل جديد ومراجعته."
+              })
+              print(f"Released stale Reel approval for regeneration: row={row_number}, source_id={source_id}, run_id={run_id}")
+              PY
+              echo "available=false" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
             mkdir -p "review-package/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}"
             cp -a "$SOURCE_DIR/." "review-package/row_${ROW_NUMBER}/${SAFE_SOURCE_ID}/run_${RUN_ID}/"
             echo "Recovered exact Reel package from committed generated/reels; SHA verification remains mandatory before upload."
           fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify manual approval
-        if: ${{ steps.target.outputs.row_number != '' }}
+        if: ${{ steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
         env:
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
@@ -250,7 +277,7 @@ jobs:
           PY
 
       - name: Publish approved reel
-        if: ${{ steps.target.outputs.row_number != '' }}
+        if: ${{ steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
         env:
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
@@ -475,7 +502,7 @@ jobs:
 
 
       - name: Record publication in Google Sheets
-        if: ${{ success() && steps.target.outputs.row_number != '' }}
+        if: ${{ success() && steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
         env:
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
@@ -507,7 +534,7 @@ jobs:
           PY
 
       - name: Upload publication proof
-        if: ${{ always() && steps.target.outputs.row_number != '' }}
+        if: ${{ always() && steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: khyrat-reel-publication-proof
