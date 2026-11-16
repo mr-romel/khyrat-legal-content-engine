@@ -9,6 +9,7 @@ STOPWORDS = {
     "هذا", "هذه", "ذلك", "تلك", "التي", "الذي", "و", "او", "أو", "ثم",
     "الذى", "التى", "بين", "بعد", "قبل", "عند", "كل", "وقد",
     "قانون", "القانون", "مصر", "المصري", "المصرية", "دليل", "شرح", "كيفية",
+    "اثر", "أثر", "علي", "على", "ضوابط", "التعامل", "القانوني", "اجراءات", "خطوات",
 }
 
 FOREIGN_JURISDICTIONS = {
@@ -49,8 +50,11 @@ def jurisdiction(title: str) -> str:
 def choose_related(source: dict, posts: list[dict], max_links: int = 2) -> list[dict]:
     source_title = str(source.get("title", ""))
     source_jurisdiction = jurisdiction(source_title)
-    source_terms = terms(source_title)
     existing_html = str(source.get("content", "") or "")
+    # Use article text as additional context, not generic title overlap alone.
+    source_text = re.sub(r"<(script|style)\\b[^>]*>.*?</\\1>", " ", existing_html, flags=re.I | re.S)
+    source_text = re.sub(r"<[^>]+>", " ", source_text)
+    source_terms = terms(source_title) | terms(source_text[:5000])
     existing_urls = set(re.findall(r'''href\s*=\s*["']([^"']+)["']''', existing_html, flags=re.I))
     candidates = []
     for target in posts:
