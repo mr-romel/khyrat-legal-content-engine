@@ -33,10 +33,10 @@ SERVICE_PAGE_TITLES = {
 def build_service_navigation(content: str, current_title: str, pages: list[dict]) -> str:
     """Build reciprocal links from actual Blogger page URLs, never guessed slugs."""
     cleaned = re.sub(
-        r"""<nav[^>]*class=["']khyrat-service-links["'][^>]*>[\\s\\S]*?</nav>""",
+        r"""<nav[^>]*class=["']khyrat-service-links["'][^>]*>.*?</nav>""",
         "",
         str(content or ""),
-        flags=re.I,
+        flags=re.I | re.S,
     )
     links = []
     current_key = _clean(current_title).casefold()
