@@ -16,14 +16,14 @@ OUT = Path("artifacts/blogger-recent-image-repair")
 def _scene_query(title: str) -> str:
     value = str(title or "")
     mappings = [
-        (("نقل الموظف", "جزاء تأديبي", "العمل"), "employee workplace transfer personnel file disciplinary notice office desk"),
-        (("السياسية", "العقود", "الالتزامات"), "international business contracts signed documents world map trade logistics"),
-        (("التحفظ على المضبوطات", "محضر الضبط"), "customs inspection seized goods evidence inventory warehouse documents"),
-        (("الجمارك", "المستوردين", "الاستيراد"), "shipping containers customs declaration import cargo port warehouse"),
-        (("حظر الاستيراد", "السلع"), "imported consumer goods cargo inspection customs clearance shipping boxes"),
-        (("ميعاد دعوى", "إلغاء القرار الإداري"), "administrative legal decision paper calendar deadline date stamp desk"),
-        (("الحزام الأخضر", "تخطيط الأراضي"), "urban land planning architectural site plan green belt aerial map"),
-        (("ترخيص شركة", "استثمار رياضي"), "sports business company registration documents stadium office"),
+        (("نقل الموظف", "جزاء تأديبي", "العمل"), "office paperwork"),
+        (("السياسية", "العقود", "الالتزامات"), "business contract"),
+        (("التحفظ على المضبوطات", "محضر الضبط"), "customs warehouse"),
+        (("الجمارك", "المستوردين", "الاستيراد"), "shipping containers"),
+        (("حظر الاستيراد", "السلع"), "import goods"),
+        (("ميعاد دعوى", "إلغاء القرار الإداري"), "calendar documents"),
+        (("الحزام الأخضر", "تخطيط الأراضي"), "urban planning"),
+        (("ترخيص شركة", "استثمار رياضي"), "sports business"),
     ]
     for terms, query in mappings:
         if any(term in value for term in terms):
