@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - "scripts/run_blogger_growth_loop.py"
+      - "scripts/repair_recent_blogger_images.py"
+      - "tests/test_blogger_recent_image_repair.py"
       - "scripts/run_search_geo.py"
       - "src/search_geo.py"
       - "src/search_console_growth_ledger.py"
@@ -38,6 +40,7 @@ jobs:
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BG' }}
+      SEARCH_CONSOLE_INDEX_INSPECTION_LIMIT: "40"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
