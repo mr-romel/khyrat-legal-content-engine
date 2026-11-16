@@ -129,7 +129,7 @@ CHECK THESE FIVE THINGS:
    anatomy findings.
 DECISION:
 PASS only when the dominant subject/action directly matches the specific topic and original visual brief, is recognizable at normal feed size, and the image is otherwise usable. A loosely related prop or generic legal scene is not enough.
-REGENERATE only for a truly unrelated image with no identifiable topic connection, a materially misleading scene, severe visible distortion, unusable output, or prominent generated text that damages the asset. Low scores, imperfect composition, missing optional props, incomplete storytelling, and minor aesthetic issues are NOT rejection reasons.
+REGENERATE when the central subject/action does not directly match the visual brief, the scene is materially misleading, visibly distorted, unusable, or contains prominent generated text. Composition scores and minor aesthetic issues remain advisory; topic relevance is a publication gate.
 Do not reject a valid 9:16 Reel image for not being 4:5; use the measured target format above.
 Do not invent negative constraints or missing mandatory props. The absence of a person, lawyer, courtroom, justice scales, or any illustrative prop is NOT a defect unless the supplied visual brief explicitly makes that exact element essential. Do not demand generic legal symbols. Judge whether the actual scene communicates the stated legal issue, not whether it matches an imagined stock-photo template.
 A low relevance score is a substantive warning, not a cosmetic advisory. If relevance is below the configured threshold, or the main scene is generic/ambiguous, REGENERATE. If uncertain whether the central subject matches, do not infer relevance from generic props.
