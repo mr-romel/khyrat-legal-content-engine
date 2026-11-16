@@ -334,6 +334,66 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
         cx,cy=int(width*.725),int(height*.715)
         d.line((cx,cy,cx,cy-int(height*.10)),fill=(48,79,111,255),width=9)
         d.line((cx,cy,cx+int(width*.08),cy+int(height*.04)),fill=(48,79,111,255),width=9)
+    elif any(w in key for w in ("جمارك", "استيراد", "مضبوطات", "customs", "import", "shipping", "cargo", "warehouse", "containers")):
+        navy=(25,48,70,255); blue=(76,132,164,255); gold=(190,151,76,255); pale=(246,248,249,255)
+        d.rectangle((0,0,width,height),fill=(211,225,232,255))
+        d.rectangle((0,int(height*.68),width,height),fill=(160,177,184,255))
+        for j,(x,y,w,h,c) in enumerate([
+            (.10,.30,.34,.34,(64,105,137,255)),(.49,.22,.38,.42,(184,139,67,255)),(.22,.51,.42,.22,(78,125,146,255))
+        ]):
+            x0,y0,x1,y1=int(width*x),int(height*y),int(width*(x+w)),int(height*(y+h))
+            d.rectangle((x0,y0,x1,y1),fill=c,outline=navy,width=6)
+            for k in range(1,5):
+                xx=x0+int((x1-x0)*k/5); d.line((xx,y0+8,xx,y1-8),fill=(240,243,244,180),width=4)
+        d.rounded_rectangle((int(width*.12),int(height*.78),int(width*.88),int(height*.91)),radius=16,fill=pale,outline=navy,width=5)
+        for j in range(4):
+            yy=int(height*(.81+j*.022)); d.line((int(width*.20),yy,int(width*(.52+(j%2)*.18)),yy),fill=(140,155,166,255),width=4)
+        d.ellipse((int(width*.70),int(height*.77),int(width*.84),int(height*.91)),outline=gold,width=9)
+    elif any(w in key for w in ("عقد", "التزام", "شركات", "contract", "business", "company", "agreement")):
+        navy=(25,48,70,255); gold=(190,151,76,255); pale=(255,255,252,255); slate=(145,160,173,255)
+        d.rectangle((0,0,width,height),fill=(220,229,235,255))
+        d.rounded_rectangle((int(width*.12),int(height*.18),int(width*.77),int(height*.78)),radius=20,fill=pale,outline=navy,width=6)
+        d.rectangle((int(width*.12),int(height*.18),int(width*.77),int(height*.29)),fill=navy)
+        for j in range(6):
+            yy=int(height*(.38+j*.055)); d.line((int(width*.22),yy,int(width*(.58+(j%2)*.12)),yy),fill=slate,width=5)
+        d.arc((int(width*.53),int(height*.55),int(width*.88),int(height*.89)),190,345,fill=gold,width=13)
+        d.line((int(width*.68),int(height*.70),int(width*.80),int(height*.62)),fill=gold,width=10)
+        d.ellipse((int(width*.72),int(height*.73),int(width*.85),int(height*.86)),outline=navy,width=7)
+    elif any(w in key for w in ("ميعاد", "دعوى", "قرار اداري", "calendar", "deadline", "administrative")):
+        navy=(25,48,70,255); gold=(190,151,76,255); pale=(255,255,252,255); blue=(78,126,157,255)
+        d.rectangle((0,0,width,height),fill=(218,228,235,255))
+        x0,y0,x1,y1=int(width*.20),int(height*.16),int(width*.80),int(height*.80)
+        d.rounded_rectangle((x0,y0,x1,y1),radius=22,fill=pale,outline=navy,width=7)
+        d.rounded_rectangle((x0,y0,x1,int(height*.33)),radius=18,fill=navy)
+        for col in range(4):
+            for row in range(3):
+                xx=int(width*(.29+col*.12)); yy=int(height*(.41+row*.11))
+                d.rounded_rectangle((xx,yy,xx+int(width*.07),yy+int(height*.065)),radius=8,fill=gold if (col,row)==(2,1) else (218,228,235,255))
+        d.ellipse((int(width*.62),int(height*.61),int(width*.88),int(height*.87)),fill=(238,242,245,255),outline=blue,width=8)
+        d.line((int(width*.75),int(height*.74),int(width*.75),int(height*.65)),fill=navy,width=8)
+        d.line((int(width*.75),int(height*.74),int(width*.82),int(height*.78)),fill=navy,width=8)
+    elif any(w in key for w in ("اراضي", "تخطيط", "حزام اخضر", "land", "urban planning", "green belt")):
+        navy=(25,48,70,255); green=(83,139,108,255); pale=(245,248,246,255); gold=(190,151,76,255)
+        d.rectangle((0,0,width,height),fill=(215,228,231,255))
+        d.rounded_rectangle((int(width*.10),int(height*.16),int(width*.90),int(height*.84)),radius=20,fill=pale,outline=navy,width=6)
+        for x in range(1,5):
+            xx=int(width*(.10+x*.16)); d.line((xx,int(height*.18),xx,int(height*.82)),fill=(156,174,179,255),width=4)
+        for y in range(1,4):
+            yy=int(height*(.16+y*.17)); d.line((int(width*.12),yy,int(width*.88),yy),fill=(156,174,179,255),width=4)
+        d.rectangle((int(width*.27),int(height*.34),int(width*.59),int(height*.67)),fill=(164,198,169,255),outline=green,width=5)
+        for x,y in [(.35,.42),(.48,.48),(.40,.58),(.54,.60)]:
+            cx,cy=int(width*x),int(height*y); d.ellipse((cx-18,cy-18,cx+18,cy+18),fill=green)
+        d.polygon([(int(width*.66),int(height*.27)),(int(width*.82),int(height*.27)),(int(width*.82),int(height*.69)),(int(width*.66),int(height*.69))],fill=(220,207,172,255),outline=gold)
+    elif any(w in key for w in ("نقل الموظف", "موظف", "workplace", "employee", "transfer", "personnel")):
+        navy=(25,48,70,255); gold=(190,151,76,255); pale=(248,250,251,255); blue=(85,130,157,255)
+        d.rectangle((0,0,width,height),fill=(218,229,235,255))
+        d.rectangle((int(width*.08),int(height*.18),int(width*.92),int(height*.58)),fill=(232,239,242,255),outline=navy,width=5)
+        for x in (.18,.48,.76):
+            xx=int(width*x); d.rectangle((xx,int(height*.26),xx+int(width*.13),int(height*.50)),fill=(119,163,181,255),outline=navy,width=5)
+        d.polygon([(int(width*.15),int(height*.70)),(int(width*.85),int(height*.70)),(int(width*.94),int(height*.81)),(int(width*.07),int(height*.81))],fill=(124,91,65,255))
+        d.rounded_rectangle((int(width*.31),int(height*.53),int(width*.68),int(height*.77)),radius=16,fill=pale,outline=gold,width=6)
+        d.line((int(width*.39),int(height*.62),int(width*.59),int(height*.62)),fill=blue,width=5)
+        d.line((int(width*.39),int(height*.68),int(width*.55),int(height*.68)),fill=blue,width=5)
     elif any(w in key for w in ("المرفق", "مرافق", "خدمة عامة", "مياه", "كهرباء", "نقل عام", "public utility", "economic facility", "water utility", "water treatment", "power plant", "electricity", "public transport", "infrastructure", "municipal")):
         # Original, topic-specific infrastructure artwork. It contains no generated
         # lettering, police/security imagery, logos, or externally sourced stock.
