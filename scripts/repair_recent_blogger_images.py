@@ -74,15 +74,25 @@ def main() -> int:
         safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", post_id)
         path = OUT / f"{index:02d}-{safe_id}.jpg"
         try:
-            create_legal_image(
-                topic=title,
-                image_brief=f"Distinct editorial cover image for this exact legal subject: {title}. Use a unique visual composition, different objects and scene from other recent covers. No generic repeated stock portrait.",
-                visual_description=_scene_query(title),
-                post_context=content[:5000], output_path=str(path),
-                api_key=os.getenv("GEMINI_API_KEY", "").strip(),
-                cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
-                cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
-            )
+            try:
+                create_legal_image(
+                    topic=title,
+                    image_brief=f"Distinct editorial cover image for this exact legal subject: {title}. Use a unique visual composition, different objects and scene from other recent covers. No generic repeated stock portrait.",
+                    visual_description=_scene_query(title),
+                    post_context=content[:5000], output_path=str(path),
+                    api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+                    cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
+                    cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+                )
+            except Exception as provider_error:
+                # Quota-safe local artwork: topic-specific vector scene, not a repeated stock fallback.
+                from image_generator import _generate_zero_cost_editorial_image, brand_published_image
+                _generate_zero_cost_editorial_image(
+                    topic=title, visual_description=_scene_query(title),
+                    output_path=str(path), width=1024, height=1280,
+                )
+                brand_published_image(str(path))
+                print(f"LOCAL_TOPIC_ILLUSTRATION_FALLBACK post_id={post_id}: {str(provider_error)[:500]}")
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             if digest in hashes:
                 raise RuntimeError("DUPLICATE_GENERATED_IMAGE_HASH")
