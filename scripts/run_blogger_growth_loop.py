@@ -123,9 +123,9 @@ def build_growth_snapshot(
         if impressions < 1:
             continue
         reasons = []
-        if impressions >= 10 and ctr < 0.02:
+        if impressions >= 100 and ctr < 0.02:
             reasons.append("LOW_CTR")
-        if 4 <= position <= 20:
+        if impressions >= 20 and 4 <= position <= 20:
             reasons.append("STRIKING_DISTANCE")
         if reasons:
             query_opportunities.append({
@@ -174,6 +174,7 @@ def build_growth_snapshot(
             "impressions": totals["impressions"],
             "ctr": totals["ctr"],
             "query_opportunities": len(query_opportunities),
+            "queries_below_reliable_sample": sum(1 for row in query_rows if float(row.get("impressions", 0) or 0) < 100),
             "page_opportunities": sum(1 for item in priorities["priorities"] if any(reason in item["reasons"] for reason in ("HIGH_IMPRESSIONS_LOW_CTR", "RANKING_NEAR_PAGE_ONE"))),
             "pages_in_technical_backlog": sum(1 for item in priorities["priorities"] if any(reason != "NO_SEARCH_CONSOLE_ROW" for reason in item["reasons"])),
         },
