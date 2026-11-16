@@ -107,7 +107,7 @@ def _apply_dual_contact_actions() -> None:
                 f'<li><a href="tel:{phone}" data-contact-method="phone" data-service-page="contact" '
                 'onclick="if(typeof window.gtag===&quot;function&quot;){window.gtag(&quot;event&quot;,&quot;contact_click&quot;,{contact_method:&quot;phone&quot;,service_page:&quot;contact&quot;});}">اتصال هاتفي مباشر</a></li>'
             )
-            if "data-contact-method=\\\"phone\\\"" not in content:
+            if 'data-contact-method="phone"' not in content:
                 content = content.replace("</ul>", phone_item + "</ul>", 1)
             page["content"] = content
             continue
