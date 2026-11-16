@@ -205,6 +205,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
+          SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           mkdir -p review-package
