@@ -100,12 +100,12 @@ def _apply_dual_contact_actions() -> None:
             whatsapp_anchor = f'<a href="{WHATSAPP}">واتساب مباشر</a>'
             tracked_whatsapp = (
                 f'<a href="{WHATSAPP}" data-contact-method="whatsapp" data-service-page="contact" '
-                'onclick="if(typeof window.gtag===\\'function\\'){window.gtag(\\'event\\',\\'contact_click\\',{contact_method:\\'whatsapp\\',service_page:\\'contact\\'});}">واتساب مباشر</a>'
+                'onclick="if(typeof window.gtag===&quot;function&quot;){window.gtag(&quot;event&quot;,&quot;contact_click&quot;,{contact_method:&quot;whatsapp&quot;,service_page:&quot;contact&quot;});}">واتساب مباشر</a>'
             )
             content = content.replace(whatsapp_anchor, tracked_whatsapp)
             phone_item = (
                 f'<li><a href="tel:{phone}" data-contact-method="phone" data-service-page="contact" '
-                'onclick="if(typeof window.gtag===\\'function\\'){window.gtag(\\'event\\',\\'contact_click\\',{contact_method:\\'phone\\',service_page:\\'contact\\'});}">اتصال هاتفي مباشر</a></li>'
+                'onclick="if(typeof window.gtag===&quot;function&quot;){window.gtag(&quot;event&quot;,&quot;contact_click&quot;,{contact_method:&quot;phone&quot;,service_page:&quot;contact&quot;});}">اتصال هاتفي مباشر</a></li>'
             )
             if "data-contact-method=\\\"phone\\\"" not in content:
                 content = content.replace("</ul>", phone_item + "</ul>", 1)
