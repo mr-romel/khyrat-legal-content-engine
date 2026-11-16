@@ -43,7 +43,7 @@ def build_service_navigation(content: str, current_title: str, pages: list[dict]
     for item in pages:
         title = _clean(item.get("title", ""))
         url = _clean(item.get("url", ""))
-        if title.casefold() == current_key or title not in SERVICE_PAGE_TITLES or not url.startswith(BLOG_URL):
+        if title.casefold() == current_key or title not in SERVICE_PAGE_TITLES or not (url == BLOG_URL or url.startswith(BLOG_URL + "/")):
             continue
         links.append(f'<li><a href="{escape(url, quote=True)}">{escape(title)}</a></li>')
     if not links:
