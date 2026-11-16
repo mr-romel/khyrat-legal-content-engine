@@ -37,7 +37,7 @@ class ImageGenerationError(RuntimeError):
     """Raised when Cloudflare cannot generate an image."""
 
 
-def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated", threshold: float = 0.965) -> None:
+def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated", threshold: float = 0.965, known_hashes: set[str] | None = None) -> str:
     """Reject exact/near-duplicate post images against previously generated root assets.
 
     Uses a normalized grayscale perceptual signature, not filenames or URLs.
@@ -46,6 +46,9 @@ def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated"
     target = Path(image_path)
     if not target.is_file() or target.stat().st_size < 10_000:
         raise ImageGenerationError("Cannot run duplicate-image check on a missing or undersized image.")
+    exact_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+    if exact_hash in {str(value).strip().lower() for value in (known_hashes or set()) if str(value).strip()}:
+        raise ImageGenerationError("DUPLICATE_POST_IMAGE_BLOCKED: exact image fingerprint already belongs to a previously published post.")
     try:
         with Image.open(target) as im:
             sample = ImageOps.fit(im.convert("L"), (32, 32)).resize((16, 16))
@@ -78,6 +81,7 @@ def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated"
             raise
         except Exception as exc:
             print(f"Duplicate-image reference skipped ({candidate.name}): {exc}")
+    return exact_hash
 
 def build_image_regeneration_brief(original_brief: str, correction_notes: str) -> str:
     """Apply QA corrections without contradicting the original scene requirements."""
