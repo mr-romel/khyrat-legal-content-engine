@@ -33,3 +33,21 @@ def test_scene_query_uses_topic_specific_visual_terms_for_recent_legal_posts():
     assert "customs" in _scene_query("إجراءات التحفظ على المضبوطات ومخاطر التوقيع على محضر الضبط في مصر")
     assert "shipping containers" in _scene_query("أثر اللائحة التنفيذية لقانون الجمارك والقرارات الوزارية على المستوردين والشركات في مصر")
     assert "calendar deadline" in _scene_query("كيفية حساب ميعاد دعوى إلغاء القرار الإداري أمام مجلس الدولة")
+
+
+def test_quota_safe_local_illustrations_are_topic_specific_and_distinct(tmp_path):
+    import hashlib
+    from image_generator import _generate_zero_cost_editorial_image
+    customs = tmp_path / "customs.jpg"
+    contract = tmp_path / "contract.jpg"
+    _generate_zero_cost_editorial_image(
+        topic="إجراءات التحفظ على المضبوطات", visual_description="customs warehouse",
+        output_path=str(customs), width=640, height=800,
+    )
+    _generate_zero_cost_editorial_image(
+        topic="أثر القرارات على العقود", visual_description="business contract",
+        output_path=str(contract), width=640, height=800,
+    )
+    assert customs.stat().st_size > 10_000
+    assert contract.stat().st_size > 10_000
+    assert hashlib.sha256(customs.read_bytes()).hexdigest() != hashlib.sha256(contract.read_bytes()).hexdigest()
