@@ -76,7 +76,7 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
         print(f"Blogger image repair unavailable for {post_id}: {exc}")
         return False
 
-def regenerate_duplicate_published_image(svc, bid: str, row_number: int, row: dict[str, str]) -> bool:
+def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str, sheet_name: str, bid: str, row_number: int, row: dict[str, str]) -> bool:
     """Generate and attach a new topic-specific image when a published row reuses another row's image."""
     import hashlib
     from image_generator import create_legal_image
@@ -106,7 +106,7 @@ def regenerate_duplicate_published_image(svc, bid: str, row_number: int, row: di
         figure = f'<figure><img src="{new_url}" alt="{topic}" loading="eager" style="width:100%;height:auto;border-radius:12px"></figure>'
         content = figure + content
     svc.posts().patch(blogId=bid, postId=post_id, body={"content": content}).execute()
-    update_row(svc, os.getenv("GOOGLE_SHEET_ID", "").strip(), "Content", row_number, {
+    update_row(sheet_service, spreadsheet_id, sheet_name, row_number, {
         "رابط الصورة": new_url,
         "Image SHA256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
     })
@@ -311,7 +311,7 @@ def main() -> int:
                 seen_image_identities.add(identity)
             if duplicate_image:
                 try:
-                    regenerate_duplicate_published_image(repair_service, bid, existing_row_number, existing)
+                    regenerate_duplicate_published_image(repair_service, service, config["sheet_id"], sheet_name, bid, existing_row_number, existing)
                 except Exception as exc:
                     print(f"BLOGGER_DUPLICATE_IMAGE_REPAIR_FAILED: row={existing_row_number}: {exc}")
                 continue
