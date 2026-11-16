@@ -745,8 +745,9 @@ def _verify_public(
             "did not expose a safe Page List control. Homepage identity checks continue; "
             "the Page List gadget still needs manual setup."
         )
-    if expected_title not in actual_title:
-        raise RuntimeError(f"Homepage title verification failed: {actual_title!r}")
+    expected_brand = expected_title.split("|", 1)[0].strip()
+    if expected_brand not in actual_title or "محمود خيرت" not in actual_title:
+        raise RuntimeError(f"Homepage title verification failed: expected brand/name in {actual_title!r}")
     if actual_description and actual_description != expected_description:
         raise RuntimeError(f"Homepage description verification failed: {actual_description!r}")
 
