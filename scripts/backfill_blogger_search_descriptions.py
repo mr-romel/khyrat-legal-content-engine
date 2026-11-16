@@ -139,6 +139,12 @@ def main() -> int:
                 if "LEGACY SEO BACKFILL" not in notes.upper():
                     notes = (notes + " | " if notes else "") + "LEGACY SEO BACKFILL"
                 update_row(sheet_service, config["sheet_id"], sheet_name, row_number, {
+                    # Normalize the legacy row so the existing UI worker can discover it.
+                    "Blogger Status": "PUBLISHED",
+                    "Blogger Post ID": post_id,
+                    "Blogger URL": url,
+                    "Blogger Search Title": title,
+                    "Blogger Search Query": title,
                     "Blogger Meta Description": description[:150],
                     "Blogger SEO Status": "PENDING",
                     "Blogger SEO Error": "",
@@ -238,7 +244,7 @@ def main() -> int:
         "failed_count": report.get("failed_count", 0),
         "verification_missing_meta_descriptions": report.get("verification_missing_meta_descriptions"),
     }, ensure_ascii=False))
-    return 1 if report["errors"] or report.get("failed_count", 0) else 0
+    return 1 if (report["errors"] or report.get("failed_count", 0) or (apply and report.get("verification_missing_meta_descriptions", 0))) else 0
 
 
 if __name__ == "__main__":
