@@ -20,7 +20,7 @@ def test_growth_snapshot_uses_observed_page_and_query_data():
         {"page": "https://example.com/a", "clicks": 0, "impressions": 120, "ctr": 0, "position": 8},
     ]
     queries = [
-        {"query": "تقسيم التركة", "page": "https://example.com/a", "clicks": 0, "impressions": 30, "ctr": 0, "position": 9},
+        {"query": "تقسيم التركة", "page": "https://example.com/a", "clicks": 0, "impressions": 120, "ctr": 0, "position": 9},
     ]
     result = build_growth_snapshot(audit, pages, queries, "2026-10-01", "2026-10-28")
     assert result["measurement"]["pages_with_data"] == 1
@@ -162,3 +162,15 @@ def test_url_inspection_separates_neutral_not_indexed_from_api_errors():
     assert summary["neutral_not_yet_indexed_or_decided"] == 1
     assert summary["unknown_or_api_error"] == 1
     assert summary["indexed_pass"] == 1
+
+
+def test_query_opportunity_requires_enough_impressions_before_ctr_or_position_claim():
+    result = build_growth_snapshot(
+        {"summary": {}, "posts": [], "findings": []},
+        [],
+        [{"query": "استشارة قانونية", "page": "https://example.com/a",
+          "clicks": 0, "impressions": 19, "ctr": 0, "position": 8}],
+        "2026-10-01", "2026-10-28",
+    )
+    assert result["query_opportunities"] == []
+    assert result["measurement"]["queries_below_reliable_sample"] == 1
