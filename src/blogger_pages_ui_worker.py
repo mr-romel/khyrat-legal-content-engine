@@ -17,9 +17,17 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AskMahmoudBloggerPages/1.0)"}
 
 SITE_NAV = '<nav aria-label="روابط الموقع" style="margin:0 0 22px;padding:12px 16px;border:1px solid #ddd;border-radius:10px;display:flex;flex-wrap:wrap;gap:12px"><a href="https://askmahmoudkhyrat.blogspot.com/">الرئيسية</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_03.html">الهوية الرسمية</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page.html">من نحن</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_980.html">فهرس الموضوعات</a><a href="https://askmahmoudkhyrat.blogspot.com/p/blog-page_07.html">تواصل معنا</a></nav>'
 
+SERVICE_HUB_URL = "https://askmahmoudkhyrat.blogspot.com/p/blog-page_16.html"
+
+
 def _page_content(page):
     content = str(page.get("content", "") or "")
-    return content if 'aria-label="روابط الموقع"' in content else SITE_NAV + content
+    service_link = f'<a href="{SERVICE_HUB_URL}">الخدمات القانونية</a>'
+    if 'aria-label="روابط الموقع"' in content:
+        if SERVICE_HUB_URL not in content:
+            content = re.sub(r"(</nav>)", service_link + r"\\1", content, count=1, flags=re.I)
+        return content
+    return SITE_NAV.replace("</nav>", service_link + "</nav>") + content
 
 SERVICE_PAGE_TITLES = {
     "الخدمات القانونية للأفراد والشركات",
