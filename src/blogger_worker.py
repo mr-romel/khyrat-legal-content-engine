@@ -76,6 +76,43 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
         print(f"Blogger image repair unavailable for {post_id}: {exc}")
         return False
 
+def regenerate_duplicate_published_image(svc, bid: str, row_number: int, row: dict[str, str]) -> bool:
+    """Generate and attach a new topic-specific image when a published row reuses another row's image."""
+    import hashlib
+    from image_generator import create_legal_image
+    post_id = str(row.get("Blogger Post ID", "")).strip()
+    source_id = str(row.get("ID", "row-" + str(row_number))).strip()
+    topic = str(row.get("الموضوع", "")).strip()
+    post = str(row.get("المحتوى", "")).strip()
+    old_url = str(row.get("رابط الصورة", "")).strip()
+    if not post_id or not topic or not post:
+        return False
+    safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in source_id)
+    image_path = Path(BLOGGER_ARTIFACT_DIR) / ("row_" + str(row_number)) / ("dedup-" + safe_id + ".jpg")
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    create_legal_image(
+        topic=topic, image_brief=post[:1400], visual_description=post[:1400],
+        post_context=post, output_path=str(image_path),
+        api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
+        cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+    )
+    new_url = upload_blogger_image(str(image_path))
+    current = svc.posts().get(blogId=bid, postId=post_id).execute()
+    content = str(current.get("content", "") or "")
+    if old_url and old_url in content:
+        content = content.replace(old_url, new_url, 1)
+    else:
+        figure = f'<figure><img src="{new_url}" alt="{topic}" loading="eager" style="width:100%;height:auto;border-radius:12px"></figure>'
+        content = figure + content
+    svc.posts().patch(blogId=bid, postId=post_id, body={"content": content}).execute()
+    update_row(svc, os.getenv("GOOGLE_SHEET_ID", "").strip(), "Content", row_number, {
+        "رابط الصورة": new_url,
+        "Image SHA256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
+    })
+    print(f"BLOGGER_DUPLICATE_IMAGE_REPAIRED: row={row_number}; post_id={post_id}; source_id={source_id}")
+    return True
+
 def _norm_text(value: str) -> str:
     import re
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
@@ -262,11 +299,24 @@ def main() -> int:
     # Never re-upload/re-generate an already published image on every run.
     # Repair is reserved for an explicit bad-image state only.
     if repair_service is not None:
-        for existing in rows:
+        seen_image_identities = set()
+        for existing_row_number, existing in enumerate(rows, start=2):
             if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
                 continue
+            image_url_key = str(existing.get("رابط الصورة", "")).strip().split("?", 1)[0].rstrip("/")
+            image_hash_key = str(existing.get("Image SHA256", "")).strip().lower()
+            identity = image_hash_key or image_url_key
+            duplicate_image = bool(identity and identity in seen_image_identities)
+            if identity:
+                seen_image_identities.add(identity)
+            if duplicate_image:
+                try:
+                    regenerate_duplicate_published_image(repair_service, bid, existing_row_number, existing)
+                except Exception as exc:
+                    print(f"BLOGGER_DUPLICATE_IMAGE_REPAIR_FAILED: row={existing_row_number}: {exc}")
+                continue
             mode = str(existing.get("Image Mode", "") or "").strip().upper()
-            qa = str(existing.get("Image QA Status", "") or "").strip().upper()
+            qa = str(existing.get("Image QA Status", "")).strip().upper()
             if "FALLBACK" in mode or "FALLBACK" in qa:
                 repair_published_image(repair_service, bid, existing)
     candidates = []
