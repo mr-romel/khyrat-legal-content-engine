@@ -1,1 +1,1 @@
-Retry the reviewed theme patch after installing both worker and browser dependencies. Preserve backup and verify the saved template and public homepage. Trigger: 2026-11-17T18:04:00+02:00
+Retry theme editor activation using the visible Edit HTML menu item; preserve original backup and verify save plus public page source. Trigger: 2026-11-17T18:06:00+02:00
