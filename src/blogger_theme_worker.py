@@ -262,26 +262,12 @@ def main():
                                 break
                     if not bid:
                         raise BloggerUIPublishError("Could not resolve authenticated Blogger blog ID.")
-                    page.goto(f"https://draft.blogger.com/blog/themes/{bid}", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2000)
+                    # Blogger's authenticated HTML editor route avoids fragile overflow-menu clicks.
+                    page.goto(f"https://draft.blogger.com/blog/themes/edit/{bid}", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(2200)
                     body = page.locator("body").inner_text(timeout=5000)
                     if "unusual traffic" in body.lower() or "not a robot" in body.lower():
                         raise BloggerUIPublishError("Blogger anti-bot challenge is active; no theme changes were made.")
-                    edit = page.get_by_text("Edit HTML", exact=True)
-                    if edit.count() == 0:
-                        buttons = page.get_by_role("button").all_text_contents()
-                        print("BLOGGER_THEME_INSPECT_BUTTONS=" + repr(buttons[:60]))
-                        links = page.locator("a").all_text_contents()
-                        print("BLOGGER_THEME_INSPECT_LINKS=" + repr(links[:60]))
-                        raise BloggerUIPublishError("Edit HTML control not found on Blogger Theme page.")
-                    if edit.count() != 1:
-                        raise BloggerUIPublishError(f"Edit HTML control is ambiguous: {edit.count()} matches.")
-                    edit.scroll_into_view_if_needed(timeout=5000)
-                    try:
-                        edit.click(timeout=5000, force=True)
-                    except Exception:
-                        edit.evaluate("(el) => el.click()")
-                    page.wait_for_timeout(1800)
                     kind, current = _editor_value(page)
                     (artifact_dir / "backup-before.xml").write_text(current, encoding="utf-8")
                     if MARKER in current:
