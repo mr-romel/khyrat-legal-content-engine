@@ -269,6 +269,7 @@ def main():
                     if "unusual traffic" in body.lower() or "not a robot" in body.lower():
                         raise BloggerUIPublishError("Blogger anti-bot challenge is active; no theme changes were made.")
                     kind, current = _editor_value(page)
+                    print(f"BLOGGER_THEME_CURRENT editor={kind} chars={len(current)} marker={MARKER in current} phone={PHONE in current} contact_event={'contact_click' in current} consultation_event={'consultation_click' in current}")
                     (artifact_dir / "backup-before.xml").write_text(current, encoding="utf-8")
                     if MARKER in current:
                         updated = current
@@ -278,14 +279,23 @@ def main():
                         print(f"BLOGGER_THEME_DRY_RUN_OK editor={kind} original_chars={len(current)} updated_chars={len(updated)}")
                         return
                     _set_editor_value(page, kind, updated)
+                    staged_kind, staged = _editor_value(page)
+                    if MARKER not in staged or PHONE not in staged or "contact_click" not in staged or "consultation_click" not in staged:
+                        raise BloggerUIPublishError(f"Theme editor did not accept staged content: editor={staged_kind} chars={len(staged)} marker={MARKER in staged}.")
+                    print(f"BLOGGER_THEME_STAGED editor={staged_kind} chars={len(staged)} marker=True")
+                    page.screenshot(path=str(artifact_dir / "editor-before-save.png"), full_page=True)
                     save = page.get_by_role("button", name=re.compile(r"^(save|حفظ)$", re.I))
                     if save.count() != 1:
                         raise BloggerUIPublishError(f"Could not uniquely identify Blogger theme Save button: {save.count()}.")
                     save.click()
                     page.wait_for_timeout(5000)
+                    save_body = page.locator("body").inner_text(timeout=5000)
+                    print("BLOGGER_THEME_SAVE_FEEDBACK=" + repr(save_body[:1200]))
+                    page.screenshot(path=str(artifact_dir / "editor-after-save.png"), full_page=True)
                     page.reload(wait_until="domcontentloaded")
                     page.wait_for_timeout(1800)
                     verify_kind, saved = _editor_value(page)
+                    print(f"BLOGGER_THEME_READBACK editor={verify_kind} chars={len(saved)} marker={MARKER in saved} phone={PHONE in saved} contact_event={'contact_click' in saved} consultation_event={'consultation_click' in saved}")
                     if MARKER not in saved or PHONE not in saved or "contact_click" not in saved or "consultation_click" not in saved:
                         raise BloggerUIPublishError("Saved theme did not pass Blogger editor read-after-write verification.")
                     (artifact_dir / "updated-theme.xml").write_text(saved, encoding="utf-8")
