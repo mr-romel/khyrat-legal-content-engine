@@ -5,6 +5,7 @@ def _minimal_theme():
     return """<?xml version='1.0' encoding='UTF-8'?>
 <root xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data'>
   <b:skin><![CDATA[body { color: black; }]]></b:skin>
+  <b:section id='ads' ads='true'><b:widget id='AdSense1' visible='false'></b:widget><b:widget id='AdSense2' visible='false'></b:widget></b:section>
   <nav><b:section id='page_list_top'></b:section></nav>
   <main id='main'><b:if cond='data:view.isMultipleItems'>posts</b:if></main>
   <b:includable id='postBody'><data:post.body/></b:includable>
@@ -22,6 +23,8 @@ def test_theme_patch_adds_confirmed_contact_links_and_ga4_events():
     assert "contact_click" in updated
     assert "consultation_click" in updated
     assert "wa.target = '_blank'" in updated
+    assert "AdSense1" not in updated
+    assert "AdSense2" not in updated
 
 
 def test_theme_patch_is_idempotent():
