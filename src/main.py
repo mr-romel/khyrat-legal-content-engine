@@ -19,7 +19,7 @@ from facebook_publisher import FacebookPublishError, delete_post as delete_faceb
 from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
 from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief, assert_image_not_duplicate
 from image_qa import ImageQAError, qa_image, summarize_qa
-from legal_research import research_legal_topic, validate_legal_citations
+from legal_research import has_verified_legal_source, research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
 from linkedin_publisher import LinkedInPublishError, delete_post as delete_linkedin_post, publish_to_linkedin, resolve_member_urn
 from post_bank import add_published_post, build_previous_context, get_bank_rows
@@ -365,6 +365,12 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     except Exception as research_exc:
         legal_sources = sheet_legal_sources
         print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
+
+    if not has_verified_legal_source(legal_sources):
+        raise RuntimeError(
+            "LEGAL_SOURCE_GATE_BLOCKED: no live, whitelisted Egyptian legal source URL was verified; "
+            "the article will not proceed to publication without a source link."
+        )
 
     # Never reuse a prior row's image brief for a new legal post: it can produce a visually unrelated image.
     image_brief = ""
