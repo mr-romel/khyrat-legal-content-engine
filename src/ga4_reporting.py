@@ -52,7 +52,7 @@ def _run_report(service, property_id: str, start: str, end: str,
     if dimensions:
         body["dimensions"] = [{"name": name} for name in dimensions]
     return service.properties().runReport(
-        name=f"properties/{property_id}", body=body
+        property=f"properties/{property_id}", body=body
     ).execute()
 
 
