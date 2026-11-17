@@ -10,6 +10,7 @@ from telegram_bot import send_message
 from ga4_reporting import DEFAULT_PROPERTY_ID, _analytics_service, build_snapshot, read_lead_summary
 
 TZ = ZoneInfo("Africa/Cairo")  # The worker gates scheduled runs to exactly 22:00 Cairo local time.
+# The acquisition block uses GA4 events for intent signals and the Lead CRM tab for confirmed inquiries.
 
 PLATFORMS = [
     ("Facebook", "Facebook Status", "Facebook Post URL", "Facebook Post ID"),
