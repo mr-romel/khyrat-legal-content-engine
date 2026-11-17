@@ -12,6 +12,7 @@ from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui, _pub
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 from utils import parse_date
+from legal_research import has_verified_legal_source
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
@@ -509,6 +510,11 @@ def main() -> int:
             print(f"Blogger: image upload retry failed ({retry_exc}); using persisted generated image URL fallback: {image_url or 'unavailable'}")
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
+    if not has_verified_legal_source(legal_sources):
+        raise BloggerPublishError(
+            "LEGAL_SOURCE_GATE_BLOCKED: no verified Egyptian HTTPS legal source is attached; "
+            "the Blogger article was withheld."
+        )
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "Blogger Status": "PROCESSING",
