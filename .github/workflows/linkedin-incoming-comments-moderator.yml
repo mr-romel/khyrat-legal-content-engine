@@ -1,0 +1,48 @@
+name: LinkedIn Incoming Comments Moderator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/LINKEDIN_INCOMING_COMMENTS_RUN_NOW"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linkedin-incoming-comments-moderator
+  cancel-in-progress: false
+
+jobs:
+  moderate:
+    name: Read, classify and safely reply to LinkedIn comments
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+      LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION || '202607' }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BC' }}
+      LINKEDIN_INCOMING_MAX_POSTS: "10"
+      LINKEDIN_INCOMING_MAX_COMMENTS: "15"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install worker dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Compile moderation worker
+        run: python -m py_compile src/comment_moderation.py src/linkedin_incoming_comments_worker.py
+      - name: Read and moderate incoming LinkedIn comments
+        run: PYTHONPATH=src python src/linkedin_incoming_comments_worker.py
