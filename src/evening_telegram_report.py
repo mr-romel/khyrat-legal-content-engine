@@ -154,18 +154,32 @@ def main() -> int:
         f"التاريخ: {now:%Y-%m-%d} | الساعة: {now:%H:%M} بتوقيت القاهرة",
         "",
     ]
+    property_id = os.getenv("GA4_PROPERTY_ID", DEFAULT_PROPERTY_ID).strip()
     try:
-        property_id = os.getenv("GA4_PROPERTY_ID", DEFAULT_PROPERTY_ID).strip()
+        lead_summary = read_lead_summary()
+    except Exception as crm_exc:
+        lead_summary = {"status": "UNAVAILABLE", "inquiries_received": None, "qualified_leads": None, "clients_confirmed": None}
+        crm_error = str(crm_exc)[:300]
+    else:
+        crm_error = ""
+    try:
         snapshot = build_snapshot(_analytics_service(), property_id, now.date() - timedelta(days=1))
-        snapshot["lead_crm"] = read_lead_summary()
-        lines.extend(_acquisition_lines(snapshot))
+        ga4_error = ""
     except Exception as analytics_exc:
-        lines.extend([
-            "",
-            "📊 اكتساب العملاء: بيانات GA4/CRM غير متاحة في هذا التشغيل.",
-            f"سبب التعذر: {str(analytics_exc)[:300]}",
-            "لن تُحسب أي زيارة أو ضغطة باعتبارها عميلًا فعليًا.",
-        ])
+        ga4_error = str(analytics_exc)[:500]
+        end_date = now.date() - timedelta(days=1)
+        current_start = end_date - timedelta(days=6)
+        snapshot = {
+            "period": {"start": current_start.isoformat(), "end": end_date.isoformat()},
+            "current": {"metrics": {"sessions": None, "activeUsers": None}},
+            "events": [],
+        }
+    snapshot["lead_crm"] = lead_summary
+    lines.extend(_acquisition_lines(snapshot))
+    if ga4_error:
+        lines.append(f"• حالة GA4: غير متاحة — {ga4_error[:250]}")
+    if crm_error:
+        lines.append(f"• حالة سجل العملاء CRM: غير متاح — {crm_error[:250]}")
     if not today_rows:
         lines.extend([
             "لا توجد صفوف خطة بتاريخ اليوم في Google Sheets.",
