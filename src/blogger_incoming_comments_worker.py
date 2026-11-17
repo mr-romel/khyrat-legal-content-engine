@@ -75,7 +75,7 @@ def run():
     comments = []
     while len(comments) < MAX_COMMENTS:
         response = api.comments().listByBlog(
-            blogId=bid, fetchBodies=True, status="live", maxResults=min(100, MAX_COMMENTS - len(comments)),
+            blogId=bid, fetchBodies=True, status="LIVE", maxResults=min(100, MAX_COMMENTS - len(comments)),
             pageToken=page_token,
         ).execute()
         comments.extend(response.get("items", []) or [])
