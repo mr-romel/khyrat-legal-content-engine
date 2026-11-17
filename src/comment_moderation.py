@@ -43,6 +43,15 @@ def classify_comment(text: str) -> CommentDecision:
 
 
 def build_public_reply(decision: CommentDecision, *, whatsapp_url: str = "https://wa.me/201022718375", phone: str = "01022718375") -> str:
+    # These drafts are stored for human review and are never auto-published.
+    if decision.category == "SPAM":
+        return ""
+    if decision.category == "COMPLAINT":
+        return "نعتذر لو تجربة التواصل ما كانتش بالمستوى المتوقع. يهمنا نفهم المشكلة ونراجعها، من فضلك ابعت تفاصيل التواصل بشكل خاص من غير نشر بيانات شخصية في التعليقات"
+    if decision.category == "SENSITIVE":
+        return "حرصًا على خصوصيتك، من فضلك ما تنشرش رقم قومي أو بيانات قضية أو مستندات شخصية في تعليق عام. الأفضل حذف البيانات الحساسة والتواصل مع المكتب بشكل خاص"
+    if decision.category == "OTHER":
+        return "شكرًا على تعليقك. لو فيه نقطة محددة محتاج توضيحها، اكتبها من غير بيانات شخصية وهنراجعها"
     if decision.action != "AUTO_REPLY":
         return ""
     if decision.category == "LEAD":
