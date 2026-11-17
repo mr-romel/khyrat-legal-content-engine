@@ -1,1 +1,1 @@
-Apply theme patch using direct HTML editor; verify staged editor value before saving and capture post-save feedback plus readback. Preserve backup and screenshot artifacts. Trigger: 2026-11-17T18:14:00+02:00
+Retry theme deployment with the disabled legacy AdSense placeholder section removed only; preserve all visible ads, save, and verify editor readback plus public homepage. Trigger: 2026-11-17T18:28:00+02:00
