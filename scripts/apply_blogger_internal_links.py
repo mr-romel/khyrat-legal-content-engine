@@ -6,23 +6,48 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service
 from legal_jurisdiction import choose_related
 
 BACKUP_DIR = Path(os.getenv("BLOGGER_LINK_BACKUP_DIR", "artifacts/blogger-internal-links/backups"))
 REPORT_DIR = Path(os.getenv("BLOGGER_LINK_REPORT_DIR", "artifacts/blogger-internal-links"))
+def _related_heading_match(content: str):
+    return re.search(r"<h[23][^>]*>\s*(?:اقرأ\s+أيضًا|مقالات\s+ذات\s+صلة|related\s+articles)\s*</h[23]>", content, re.I)
+
+
+def has_internal_related_links(content: str, blog_url: str) -> bool:
+    heading = _related_heading_match(str(content or ""))
+    if not heading:
+        return False
+    tail = content[heading.start():]
+    end_positions = [pos for pos in (tail.lower().find("</section>"), tail.lower().find("</article>")) if pos >= 0]
+    section = tail[:min(end_positions)] if end_positions else tail
+    blog_host = urlparse(blog_url).netloc.lower()
+    for href in re.findall(r"""href\s*=\s*['"]([^'"]+)['"]""", section, re.I):
+        parsed = urlparse(href)
+        if not parsed.netloc or parsed.netloc.lower() == blog_host:
+            return True
+    return False
+
+
 def add_related_section(content: str, related: list[dict]) -> str:
     content = str(content or "")
     if not related:
-        return content
-    # Idempotent: never append a second related-links section.
-    if re.search(r"(?:اقرأ\s+أيضًا|مقالات\s+ذات\s+صلة|related\s+articles)", content, re.I):
         return content
     items = "".join(
         f'<li><a href="{html.escape(item["url"], quote=True)}">{html.escape(item["title"])}</a></li>'
         for item in related
     )
+    heading = _related_heading_match(content)
+    if heading:
+        tail = content[heading.end():]
+        ul = re.search(r"<ul([^>]*)>(.*?)</ul>", tail, re.I | re.S)
+        if ul:
+            start, end = heading.end() + ul.start(2), heading.end() + ul.end(2)
+            return content[:end] + items + content[end:]
+        return content[:heading.end()] + "<ul>" + items + "</ul>" + content[heading.end():]
     section = '<section class="khyrat-related-articles"><h2>اقرأ أيضًا</h2><ul>' + items + "</ul></section>"
     if re.search(r"</article\s*>\s*$", content, re.I):
         return re.sub(r"</article\s*>\s*$", section + "</article>", content, flags=re.I)
@@ -64,8 +89,8 @@ def main() -> int:
         if not post_id or not title or not content:
             report["skipped"].append({"id": post_id, "title": title, "reason": "missing id/title/content"})
             continue
-        if re.search(r"(?:اقرأ\s+أيضًا|مقالات\s+ذات\s+صلة|related\s+articles)", content, re.I):
-            report["skipped"].append({"id": post_id, "title": title, "reason": "related section already exists"})
+        if has_internal_related_links(content, blog_url):
+            report["skipped"].append({"id": post_id, "title": title, "reason": "related section already has internal links"})
             continue
         related = choose_related(post, posts)
         if not related:
