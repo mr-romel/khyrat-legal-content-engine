@@ -82,6 +82,12 @@ def infer_intent(topic: str, post: str = "") -> str:
 def build_primary_question(topic: str, post: str = "") -> str:
     topic = _clean(topic, 160)
     post = _clean(post, 220)
+    if infer_intent(topic, post) == "SERVICE":
+        if any(term in f"{topic} {post}" for term in ("استشارة", "أونلاين", "اونلاين")):
+            return "كيف تطلب استشارة قانونية في مصر؟"
+        if any(term in topic for term in ("القاهرة", "الجيزة", "مصر")):
+            return f"كيف تتواصل مع {topic}؟"
+        return f"كيف تختار {topic} في القاهرة والجيزة؟"
     if "؟" in post:
         first = post.split("؟", 1)[0].strip()
         if first:
@@ -93,6 +99,13 @@ def build_primary_question(topic: str, post: str = "") -> str:
 def build_related_questions(topic: str, post: str = "") -> str:
     entity = infer_legal_entity(topic, post)
     q = build_primary_question(topic, post).rstrip("؟")
+    if infer_intent(topic, post) == "SERVICE":
+        return " | ".join([
+            q + "؟",
+            "ما المستندات التي تساعد على تقييم الموقف قبل التواصل؟",
+            "كيف يتم تحديد نطاق التكليف والأتعاب؟",
+            "هل يمكن إجراء استشارة قانونية أونلاين في مصر؟",
+        ])
     variants = [
         q + "؟",
         f"ما الشروط أو الحالات المرتبطة بذلك في {JURISDICTION}؟",
