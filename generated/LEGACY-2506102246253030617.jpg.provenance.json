@@ -1,0 +1,25 @@
+{
+  "topic": "ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑day office scene shows a gender‑neutral small‑business owner sitting at a wooden desk, leaning slightly forward as they examine a stack of employee folders. One open folder is placed prominently on the desk; its top page is a blank employee record, while a bright red “Missing” sticker sits on the corner where a work‑license document should be. To the right of the desk hangs a wall calendar turned to the year 2025; a three‑year arrow is drawn across the months, highlighting the deadline period allowed by the new law. Sunlight streams through a nearby window, casting soft, even light across the desk, while the background features a simple bookshelf and a potted plant, keeping the composition clean and focus\nLEGAL TOPIC: ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: كتير من أصحاب الأعمال بيتعاملوا مع ترخيص مزاولة المهنة للعمال كإجراء روتيني ممكن تأجيله أو تجاهله، لكن الحقيقة إن التشغيل دون ترخيص بيحط المنشأة في مواجهة مباشرة م\nPOST-SPECIFIC VISUAL VARIATION: camera: side-lit editorial photograph, diagonal composition, tactile material details. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: b3e677c67878",
+  "prompt_sha256": "dcd519d3e12474f331097be1cb30ca4e032950e888dfcd2c0e129d29673187f3",
+  "image_sha256": "49dd322dd6bb855d1af1901cab9b41f2d2452772832d478152eb759b307772d4",
+  "image_path": "generated/LEGACY-2506102246253030617.jpg",
+  "visual_description": "A mid‑day office scene shows a gender‑neutral small‑business owner sitting at a wooden desk, leaning slightly forward as they examine a stack of employee folders. One open folder is placed prominently on the desk; its top page is a blank employee record, while a bright red “Missing” sticker sits on the corner where a work‑license document should be. To the right of the desk hangs a wall calendar turned to the year 2025; a three‑year arrow is drawn across the months, highlighting the deadline period allowed by the new law. Sunlight streams through a nearby window, casting soft, even light across the desk, while the background features a simple bookshelf and a potted plant, keeping the composition clean and focused on the owner’s concerned expression and the conspicuous missing‑license marker. The camera is positioned at eye level, slightly off‑center to capture both the desk surface and the calendar on the wall. QA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: A mid-day office scene with a gender-neutral small-business owner sitting at a wooden desk, leaning slightly forward while examining a stack of employee folders. One open folder on the desk features a blank employee record with a prominent bright red 'Missing' sticker on the corner where a work-license document should be. To the right, a wall calendar for the year 2025 has a three-year arrow drawn across the months to indicate a legal deadline. Professional, clean composition, eye-level, soft sunlight, bookshelf and potted plant in the background, focused on the owner's concern. PRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, setting, interaction, and legal prop stated above. Do not remove requested people or hands, do not replace the scene with a still life, and do not add new exclusions. Change only what is necessary to correct the QA findings.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "The generated image is entirely unrelated to the provided visual brief.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "49dd322dd6bb855d1af1901cab9b41f2d2452772832d478152eb759b307772d4"
+}
