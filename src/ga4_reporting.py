@@ -183,6 +183,20 @@ def _ensure_lead_sheet(sheets, spreadsheet_id: str) -> None:
             "properties": {"sheetId": sheet_id, "gridProperties": {"frozenRowCount": 1}},
             "fields": "gridProperties.frozenRowCount",
         }})
+        requests.append({"updateCells": {
+            "start": {"sheetId": sheet_id, "rowIndex": 0, "columnIndex": 0},
+            "rows": [
+                {"values": [{"note": "One row per real inquiry received. Do not count website visits or button clicks as leads. Avoid storing names, phone numbers, case documents or other personal data in this reporting tab."}]},
+                {"values": [{"note": "Use Cairo local date/time when the inquiry was first received."}]},
+                {"values": [{"note": "Choose the originating platform/channel. Use GOOGLE_ORGANIC for unpaid Google Search."}]},
+                {"values": [{"note": "Optional campaign/source detail such as campaign name or UTM campaign."}]},
+                {"values": [{"note": "Internal Blogger page URL where the inquiry originated, if known."}]},
+                {"values": [{"note": "Allowed values: WHATSAPP, PHONE, WEBSITE_FORM, FACEBOOK, LINKEDIN, YOUTUBE, OTHER."}]},
+                {"values": [{"note": "Use the legal service category; avoid adding client-identifying details."}]},
+                {"values": [{"note": "Allowed values: NEW, CONTACTED, QUALIFIED, CONSULTATION_BOOKED, CLIENT, LOST. CLIENT is counted only after engagement is confirmed."}]},
+            ],
+            "fields": "note",
+        }})
         sheets.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id, body={"requests": requests}
         ).execute()
