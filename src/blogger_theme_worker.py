@@ -167,6 +167,15 @@ def apply_theme_patch(original: str) -> str:
         raise BloggerUIPublishError("Theme CSS anchor not found; no theme changes were applied.")
     updated = original.replace("]]></b:skin>", CSS + "\n]]></b:skin>", 1)
     updated = updated.replace("http://askmahmoudkhyrat.blogspot.com/", "https://askmahmoudkhyrat.blogspot.com/")
+    # Remove only the theme's disabled AdSense placeholder section. Blogger currently
+    # rejects its legacy style settings at save time; visible/active ad units are preserved.
+    ads_match = re.search(r"<b:section[^>]*id='ads'[^>]*>.*?</b:section>", updated, re.S)
+    if ads_match:
+        ads_widgets = re.findall(r"<b:widget\\b.*?</b:widget>", ads_match.group(0), re.S)
+        if ads_widgets and all("visible='false'" in widget for widget in ads_widgets):
+            updated = updated[:ads_match.start()] + updated[ads_match.end():]
+        elif ads_widgets:
+            raise BloggerUIPublishError("Ads section contains a visible AdSense widget; refusing to remove it.")
     nav_anchor = updated.find("</nav>", updated.find("id='page_list_top'"))
     if nav_anchor < 0:
         raise BloggerUIPublishError("Header page navigation anchor not found.")
