@@ -38,5 +38,6 @@ jobs:
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           BLOGGER_OAUTH_JSON: ${{ secrets.BLOGGER_OAUTH_JSON }}
           BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          LEGAL_PHONE_E164: ${{ secrets.LEGAL_PHONE_E164 || '+201022718375' }}
           BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
         run: PYTHONPATH=src python src/blogger_pages_ui_worker.py

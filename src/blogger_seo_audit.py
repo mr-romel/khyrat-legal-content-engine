@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 import requests
 
-BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"
+BLOG_URL = "https://askmahmoudkhyrat.blogspot.com/"  # Public audit target for the conversion rollout
 TIMEOUT = 20
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; KhyratLegalSEOAudit/1.0)"}
 
