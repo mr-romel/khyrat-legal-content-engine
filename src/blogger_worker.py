@@ -14,6 +14,80 @@ from utils import parse_date
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
+def _internal_terms(value: str) -> set[str]:
+    text = str(value or "").casefold()
+    text = re.sub(r"[إأآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
+    words = re.findall(r"[a-z0-9\u0621-\u064a]{3,}", text)
+    stop = {"في", "من", "على", "عن", "الى", "الي", "ما", "هل", "كيف", "مع", "هذا", "هذه", "التي", "الذي", "القانون", "القانوني", "مصر"}
+    return {word for word in words if word not in stop}
+
+
+def _blogger_feed_entries(feed_type: str) -> list[dict[str, str]]:
+    base = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
+    url = f"{base}/feeds/{feed_type}/default"
+    response = requests.get(url, params={"alt": "json", "max-results": "100"}, timeout=25)
+    response.raise_for_status()
+    entries = response.json().get("feed", {}).get("entry", []) or []
+    result = []
+    for entry in entries:
+        title = str((entry.get("title") or {}).get("$t", "")).strip()
+        href = next((str(link.get("href", "")).strip() for link in entry.get("link", []) or [] if link.get("rel") == "alternate"), "")
+        if title and href.startswith(base + "/"):
+            result.append({"title": title, "url": href})
+    return result
+
+
+def _related_internal_pages(topic: str, *, limit: int = 3) -> list[dict[str, str]]:
+    """Choose verified live Blogger pages/posts using practice-area routing and title overlap."""
+    try:
+        pages = _blogger_feed_entries("pages")
+        posts = _blogger_feed_entries("posts")
+    except Exception as exc:
+        print(f"Blogger internal links: public feed unavailable; no speculative links added: {exc}")
+        return []
+
+    rules = [
+        (("جنائي", "جريمة", "اتهام", "محضر", "بلاغ", "حبس", "تحقيق"), "محامي قضايا جنائية في القاهرة والجيزة"),
+        (("أسرة", "طلاق", "نفقة", "حضانة", "رؤية", "خلع"), "محامي أحوال شخصية وأسرة في القاهرة والجيزة"),
+        (("عمل", "عامل", "موظف", "فصل", "مرتب", "أجر", "إجاز"), "محامي قضايا العمل ومستحقات العامل في مصر"),
+        (("عقد", "اتفاق", "صياغة", "تعاقد"), "مراجعة وصياغة العقود للشركات والأفراد"),
+        (("شركة", "شركات", "تأسيس", "شريك", "تجارة"), "الخدمات القانونية للشركات وتأسيسها"),
+        (("تعويض", "مسؤولية", "ضرر", "مطالبة"), "قضايا التعويض والمسؤولية المدنية"),
+    ]
+    page_by_title = {item["title"]: item for item in pages}
+    chosen: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for markers, title in rules:
+        if any(marker in topic for marker in markers):
+            item = page_by_title.get(title)
+            if item and item["url"] not in seen:
+                chosen.append(item)
+                seen.add(item["url"])
+                break
+    hub = page_by_title.get("الخدمات القانونية للأفراد والشركات")
+    if hub and hub["url"] not in seen and len(chosen) < limit:
+        chosen.append(hub)
+        seen.add(hub["url"])
+
+    source_terms = _internal_terms(topic)
+    ranked = []
+    for item in posts:
+        if item["url"] in seen or "الجزائر" in item["title"] or "الجزائري" in item["title"]:
+            continue
+        overlap = source_terms & _internal_terms(item["title"])
+        if len(overlap) >= 2:
+            ranked.append((len(overlap), item["title"], item))
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    for _score, _title, item in ranked:
+        if len(chosen) >= limit:
+            break
+        if item["url"] not in seen:
+            chosen.append(item)
+            seen.add(item["url"])
+    print(f"Blogger internal links selected={len(chosen)} for topic={topic!r}")
+    return chosen
+
+
 def github_raw_url(relative_path: str) -> str:
     repository = os.getenv("GITHUB_REPOSITORY", "").strip()
     branch = os.getenv("GITHUB_REF_NAME", "main").strip() or "main"
@@ -504,7 +578,8 @@ def main() -> int:
                 print(f"Blogger editorial output too short/incomplete (chars={article_text_length}); switching to structured full-article fallback.")
                 article = _fallback_article(topic, post, legal_sources)
             title = str(article.get("title") or topic).strip()[:110]
-            content = build_article_html(title, topic, post, blogger_image_url, legal_sources, [], article=article)
+            related = _related_internal_pages(topic)
+            content = build_article_html(title, topic, post, blogger_image_url, legal_sources, related, article=article)
             if len(content) < 1500:
                 print("Blogger HTML remained unusually short; rebuilding with the deterministic full-article fallback.")
                 article = _fallback_article(topic, post, legal_sources)
