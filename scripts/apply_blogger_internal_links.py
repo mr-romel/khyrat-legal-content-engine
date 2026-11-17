@@ -27,7 +27,9 @@ def has_internal_related_links(content: str, blog_url: str) -> bool:
     blog_host = urlparse(blog_url).netloc.lower()
     for href in re.findall(r"""href\s*=\s*['"]([^'"]+)['"]""", section, re.I):
         parsed = urlparse(href)
-        if not parsed.netloc or parsed.netloc.lower() == blog_host:
+        if href.startswith("/") and not href.startswith("//"):
+            return True
+        if parsed.scheme in {"http", "https"} and parsed.netloc.lower() == blog_host:
             return True
     return False
 
