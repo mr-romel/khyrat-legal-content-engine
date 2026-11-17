@@ -11,7 +11,9 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=18000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-LAWS=("cc.gov.eg","www.cc.gov.eg","manshurat.org","fra.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","www.mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","www.gafi.gov.eg","eta.gov.eg","www.eta.gov.eg","nosi.gov.eg","www.nosi.gov.eg","moi.gov.eg","www.moi.gov.eg","cabinet.gov.eg","www.cabinet.gov.eg","presidency.eg","www.presidency.eg","moj.gov.eg","www.moj.gov.eg")
+SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
+LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
 class _P(HTMLParser):
     def __init__(self): super().__init__(); self.parts=[]; self.skip=0
@@ -89,7 +91,9 @@ def _quote(t,topic,max_words=24):
     ss.sort(key=lambda s:sum(term in s for term in terms),reverse=True)
     return _clean(" ".join(ss[0].split()[:max_words]))
 def _allowed(u):
-    d=_domain(u); return d in COURT or d in ADMIN or d in LAWS
+    parsed=urlparse(str(u or ""))
+    d=_domain(u)
+    return parsed.scheme == "https" and (d in COURT or d in ADMIN or d in LAWS)
 
 
 
@@ -151,6 +155,9 @@ def research_legal_topic(topic, existing=""):
         f'site:esc.gov.eg "{topic}" "الطعن رقم"',
         f'site:esc.gov.eg "{topic}" "المحكمة الإدارية العليا"',
         f'site:cc.gov.eg "أحدث التشريعات" {topic} {CURRENT_YEAR}',
+        f'site:elpai.idsc.gov.eg {topic} قانون {CURRENT_YEAR}',
+        f'site:mof.gov.eg {topic} تشريع {CURRENT_YEAR}',
+        f'site:gafi.gov.eg {topic} قانون قرار {CURRENT_YEAR}',
         f'site:manshurat.org {topic} قانون {CURRENT_YEAR}',
         f'site:manshurat.org {topic} قانون {CURRENT_YEAR - 1}',
     ]
@@ -178,8 +185,10 @@ def research_legal_topic(topic, existing=""):
         case=_case(body)
         if case and court:
             records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],body[:3000]))
-        elif d in LAWS:
-            records.append(("current_legislation_source","تشريع","",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
+        elif d in OFFICIAL_LAWS:
+            records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
+        elif d in SECONDARY_LAWS:
+            records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
         f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
