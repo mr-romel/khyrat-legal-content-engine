@@ -1,1 +1,1 @@
-Retry the remaining live Blogger search description after normalizing the existing sheet row; require public-page read-after-write verification.
+Run the missing-description-only Blogger backfill. Preserve backups and require public-page read-after-write verification. Trigger: 2026-11-17.
