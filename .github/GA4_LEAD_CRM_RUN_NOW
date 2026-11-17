@@ -1,1 +1,1 @@
-Retry GA4 website performance and Lead CRM initialization using the correct Analytics Data API property parameter. Trigger: 2026-11-17T18:26:00+02:00
+Run GA4/Lead CRM report. Always initialize the Lead CRM tab and report real inquiry counts even if Google Analytics Data API remains disabled; preserve unavailable GA4 metrics as null. Trigger: 2026-11-17T18:31:00+02:00
