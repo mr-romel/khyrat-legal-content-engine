@@ -1,1 +1,1 @@
-Open the authenticated Blogger HTML editor directly at /blog/themes/edit/{blogId}, back up current theme, apply contact and GA4 conversion patch, save, and verify. Trigger: 2026-11-17T18:08:00+02:00
+Apply theme patch through direct Blogger HTML editor route; save and read the saved XML back from the same editor route. Preserve before/after backup and verify public page source. Trigger: 2026-11-17T18:09:00+02:00
