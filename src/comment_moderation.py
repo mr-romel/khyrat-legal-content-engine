@@ -27,7 +27,7 @@ def classify_comment(text: str) -> CommentDecision:
         return CommentDecision("EMPTY", "UNKNOWN", "REVIEW", 0.99, "empty_comment")
     if _SPAM.search(value):
         return CommentDecision("SPAM", "PROMOTION_OR_LINK", "SKIP", 0.96, "spam_pattern")
-    if re.search(r"(?<!\\d)\\d{14}(?!\\d)|01[0-2,5]\\d{8}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", value, re.I):
+    if re.search(r"(?<!\\d)\\d{14}(?!\\d)|01[0125]\\d{8}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", value, re.I):
         return CommentDecision("SENSITIVE", "PERSONAL_DATA", "REVIEW", 0.99, "possible_personal_data")
     if _SENSITIVE.search(value):
         return CommentDecision("SENSITIVE", "CASE_SPECIFIC_OR_PRIVATE_DATA", "REVIEW", 0.95, "private_case_details")
