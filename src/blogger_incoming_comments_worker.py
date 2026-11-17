@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from blogger_publisher import blog_id, service as blogger_service
+from blogger_publisher import DEFAULT_BLOG_URL, blog_id, service as blogger_service
 from comment_moderation import classify_comment, build_public_reply
 from config import load_blogger_config
 from sheets import create_service
@@ -64,7 +64,7 @@ def run():
     if not cfg.get("enabled"):
         print("Blogger comments: BLOGGER_ENABLED is false; read-only scan skipped.")
         return 0
-    bid = blog_id()
+    bid = blog_id(api, os.getenv("BLOGGER_URL", DEFAULT_BLOG_URL))
     if not bid:
         raise RuntimeError("Blogger blog ID is not configured.")
     api = blogger_service()
