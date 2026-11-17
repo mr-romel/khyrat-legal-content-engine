@@ -56,7 +56,7 @@ def test_blocks_unverified_court_case_and_session_date():
 def test_accepts_law_number_when_official_source_uses_definite_article():
     post = "الجرائم الإلكترونية وفق قانون رقم 175 لسنة 2018"
     packet = (
-        "SOURCE 1\\n"
+        "SOURCE 1\n"
         "VERIFIED SOURCE TEXT (retrieved): القانون رقم ١٧٥ لسنة ٢٠١٨ في شأن مكافحة جرائم تقنية المعلومات"
     )
     assert validate_legal_citations(post, packet) == []
@@ -103,6 +103,7 @@ def test_employment_topic_injects_verified_primary_law_sources(monkeypatch):
     monkeypatch.setattr(legal_research, "_fetch", lambda url: "قانون رقم 14 لسنة 2025 قانون العمل")
     monkeypatch.setattr(legal_research, "_search", lambda query: [])
     packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
+    assert "https://media.mof.gov.eg/mof-prd/qanwn_aleml_2025_14_f8e36d8b4f.pdf" in packet
     assert "https://sis.gov.eg/media/760267/" in packet
     assert "قانون العمل رقم 14 لسنة 2025" in packet
     assert legal_research.has_verified_legal_source(packet)
