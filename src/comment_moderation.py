@@ -13,12 +13,12 @@ class CommentDecision:
     reason: str
 
 
-_SPAM = re.compile(r"(https?://|www\\.|كسب\\s+فلوس|اربح|استثمار\\s+مضمون|تسويق|اعلان|تابعني\\s+خاص|واتساب\\s+للتوظيف)", re.I)
-_LEAD = re.compile(r"(محتاج\\s*(محامي|محاميه|محاماة)|عايز\\s*(محامي|استشارة)|محتاج\\s*استشارة|عايز\\s*اتواصل|رقم\\s*المكتب|اتواصلوا?\\s*معايا|توكيل|تولي\\s*قضيه|ارفع\\s*قضيه|عندي\\s*قضيه)", re.I)
-_COMPLAINT = re.compile(r"(نصب|نصاب|مش\\s*بترد|محدش\\s*رد|تجربه\\s*سيئه|شكوى|شكوى|هشتكي|بلاغ|مضلل|معلومات\\s*غلط)", re.I)
-_SENSITIVE = re.compile(r"(رقم\\s*قومي|بطاقه|عنواني|رقم\\s*القضيه|رقم\\s*المحضر|اسم\\s*الخصم|بياناتي|مرفق\\s*صوره|هرفع\\s*المستند)", re.I)
-_THANKS = re.compile(r"(شكرا|شكرًا|متشكر|جزاك\\s*الله|ربنا\\s*يكرمك|مفيد|تسلم|بارك\\s*الله|احسنتم)", re.I)
-_QUESTION = re.compile(r"(\\?|؟|ازاي|إزاي|كيف|هل|متى|امتى|فين|ما\\s*هو|ايه|إيه|ينفع|يجوز|القانون\\s*بيقول|اعمل\\s*ايه)", re.I)
+_SPAM = re.compile(r"(https?://|www\.|كسب\s+فلوس|اربح|استثمار\s+مضمون|تسويق|اعلان|تابعني\s+خاص|واتساب\s+للتوظيف)", re.I)
+_LEAD = re.compile(r"(محتاج\s*(محامي|محاميه|محاماة)|عايز\s*(محامي|استشارة)|محتاج\s*استشارة|عايز\s*اتواصل|رقم\s*المكتب|اتواصلوا?\s*معايا|توكيل|تولي\s*قضيه|ارفع\s*قضيه|عندي\s*قضيه)", re.I)
+_COMPLAINT = re.compile(r"(نصب|نصاب|مش\s*بترد|محدش\s*رد|تجربه\s*سيئه|شكوى|شكوى|هشتكي|بلاغ|مضلل|معلومات\s*غلط)", re.I)
+_SENSITIVE = re.compile(r"(رقم\s*قومي|بطاقه|عنواني|رقم\s*القضيه|رقم\s*المحضر|اسم\s*الخصم|بياناتي|مرفق\s*صوره|هرفع\s*المستند)", re.I)
+_THANKS = re.compile(r"(شكرا|شكرًا|متشكر|جزاك\s*الله|ربنا\s*يكرمك|مفيد|تسلم|بارك\s*الله|احسنتم)", re.I)
+_QUESTION = re.compile(r"(\?|؟|ازاي|إزاي|كيف|هل|متى|امتى|فين|ما\s*هو|ايه|إيه|ينفع|يجوز|القانون\s*بيقول|اعمل\s*ايه)", re.I)
 
 
 def classify_comment(text: str) -> CommentDecision:
@@ -27,7 +27,7 @@ def classify_comment(text: str) -> CommentDecision:
         return CommentDecision("EMPTY", "UNKNOWN", "REVIEW", 0.99, "empty_comment")
     if _SPAM.search(value):
         return CommentDecision("SPAM", "PROMOTION_OR_LINK", "SKIP", 0.96, "spam_pattern")
-    if re.search(r"(?<!\\d)\\d{14}(?!\\d)|01[0125]\\d{8}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", value, re.I):
+    if re.search(r"(?<!\d)\d{14}(?!\d)|01[0125]\d{8}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", value, re.I):
         return CommentDecision("SENSITIVE", "PERSONAL_DATA", "REVIEW", 0.99, "possible_personal_data")
     if _SENSITIVE.search(value):
         return CommentDecision("SENSITIVE", "CASE_SPECIFIC_OR_PRIVATE_DATA", "REVIEW", 0.95, "private_case_details")
