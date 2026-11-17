@@ -302,7 +302,7 @@ def main():
                     (artifact_dir / "updated-theme.xml").write_text(saved, encoding="utf-8")
                     public = requests.get(BLOG_URL + "/", headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
                     if public.ok and "unusual traffic" not in public.text.lower():
-                        required = ("contact_click", "consultation_click", "wa.me/201022718375", "tel:+201022718375")
+                        required = ("contact_click", "consultation_click", "phone: '+201022718375'", "whatsapp: '201022718375'")
                         missing = [item for item in required if item not in public.text]
                         if missing:
                             raise BloggerUIPublishError("Public homepage verification missing: " + ", ".join(missing))
