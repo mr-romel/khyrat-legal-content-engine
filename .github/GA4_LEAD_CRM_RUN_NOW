@@ -1,1 +1,1 @@
-Initialize/verify Lead CRM tab with status dropdowns and privacy notes; run current GA4 snapshot and acquisition report. Trigger: 2026-11-17T18:24:00+02:00
+Retry GA4 website performance and Lead CRM initialization using the correct Analytics Data API property parameter. Trigger: 2026-11-17T18:26:00+02:00
