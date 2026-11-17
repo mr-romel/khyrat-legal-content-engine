@@ -428,7 +428,12 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                 url_match = re.search(r"(?m)^URL:\s*(https?://\S+)", block)
                 if not url_match:
                     continue
-                source_url = url_match.group(1).strip()
+                source_url = url_match.group(1).strip().rstrip(").,;")
+                # Only render HTTPS sources that passed legal_research's live retrieval
+                # and belong to the Egyptian court/government/approved legal registry.
+                from legal_research import _allowed as _allowed_legal_source
+                if not _allowed_legal_source(source_url):
+                    continue
                 title_match = re.search(r"(?m)^Title:\s*(.+)$", block)
                 court_match = re.search(r"(?m)^Court/source:\s*(.+)$", block)
                 case_match = re.search(r"(?m)^Case number:\s*(.+)$", block)
@@ -443,7 +448,7 @@ def build_article_html(title: str, topic: str, post: str, image_url: str, legal_
                     details.append("التاريخ: " + _clean(date_match.group(1)))
                 detail_html = f"<small>{html.escape(' — '.join(details))}</small>" if details else ""
                 source_items.append(
-                    f'<li><a href="{html.escape(source_url, quote=True)}" target="_blank" rel="noopener">{html.escape(source_title)}</a>{detail_html}</li>'
+                    f'<li><a href="{html.escape(source_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(source_title)}</a>{detail_html}</li>'
                 )
             if source_items:
                 sources_html = '<section><h2>المصادر القانونية</h2><ul>' + "".join(source_items) + "</ul></section>"
