@@ -14,6 +14,8 @@ def test_conversion_service_pages_have_distinct_reader_intent_and_contact_route(
         "مراجعة وصياغة العقود للشركات والأفراد",
         "الخدمات القانونية للشركات وتأسيسها",
         "قضايا التعويض والمسؤولية المدنية",
+        "محامي قضايا جنائية في القاهرة والجيزة",
+        "محامي أحوال شخصية وأسرة في القاهرة والجيزة",
     }
     by_title = {page["title"]: page["content"] for page in PAGES}
     assert expected.issubset(by_title)
