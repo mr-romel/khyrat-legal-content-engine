@@ -21,7 +21,7 @@ def test_theme_patch_adds_confirmed_contact_links_and_ga4_events():
     assert "wa.me/" in updated
     assert "contact_click" in updated
     assert "consultation_click" in updated
-    assert "target='_blank'" in updated
+    assert "wa.target = '_blank'" in updated
 
 
 def test_theme_patch_is_idempotent():
