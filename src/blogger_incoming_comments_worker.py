@@ -64,10 +64,10 @@ def run():
     if not cfg.get("enabled"):
         print("Blogger comments: BLOGGER_ENABLED is false; read-only scan skipped.")
         return 0
+    api = blogger_service()
     bid = blog_id(api, os.getenv("BLOGGER_URL", DEFAULT_BLOG_URL))
     if not bid:
         raise RuntimeError("Blogger blog ID is not configured.")
-    api = blogger_service()
     sheets = create_service(cfg["service_account_info"])
     ensure_sheet(sheets, cfg["sheet_id"])
     seen = read_seen(sheets, cfg["sheet_id"])
