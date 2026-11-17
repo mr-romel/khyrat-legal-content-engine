@@ -41,7 +41,7 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "Do not impose an unrequested country" in prompt
     assert "PRIMARY SUBJECT and MAIN ACTION" in prompt
     assert "generic legal office" in prompt
-    assert "central subject/action directly matches" in prompt
+    assert "require the central subject/action to match" in prompt
     assert "Do not invent negative constraints" in prompt
     assert "The absence of a person, lawyer, courtroom" in prompt
 
