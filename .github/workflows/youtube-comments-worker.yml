@@ -5,9 +5,13 @@ on:
     branches: [main]
     paths:
       - ".github/YOUTUBE_COMMENTS_RUN_NOW"
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      publish_comments:
+        description: "Publish one eligible comment (leave false for a safe no-publish run)"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -32,6 +36,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
       - name: Run YouTube Shorts comments worker
+        if: ${{ inputs.publish_comments == true }}
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
