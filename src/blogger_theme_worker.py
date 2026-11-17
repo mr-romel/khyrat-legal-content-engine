@@ -188,7 +188,7 @@ def apply_theme_patch(original: str) -> str:
         ElementTree.fromstring(updated.encode("utf-8"))
     except Exception as exc:
         raise BloggerUIPublishError(f"Updated Blogger theme is not valid XML: {exc}") from exc
-    for required in (MARKER, PHONE, WHATSAPP, "contact_click", "consultation_click", "target='_blank'"):
+    for required in (MARKER, PHONE, WHATSAPP, "contact_click", "consultation_click", "wa.target = '_blank'"):
         if required not in updated:
             raise BloggerUIPublishError(f"Theme patch verification failed: missing {required!r}.")
     return updated
