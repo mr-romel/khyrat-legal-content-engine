@@ -1,1 +1,1 @@
-Retry incoming YouTube Shorts comment moderation using the channel uploads playlist rather than stale spreadsheet video IDs. Trigger: 2026-11-17T18:05:00+02:00
+Retry scan of latest real Shorts from channel uploads playlist and record only new audience comments. Trigger: 2026-11-17T18:10:02+02:00
