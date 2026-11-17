@@ -77,3 +77,33 @@ def test_canonical_identity_page_has_profilepage_person_entity():
     assert "facebook.com/AskMahmoudNow" in identity["content"]
     assert "linkedin.com/in/mahmoud-khyrat" in identity["content"]
     assert "youtube.com/channel/UCc6NY-Y6w7can5GdTtLVtMA" in identity["content"]
+
+
+
+def test_legal_source_links_are_verified_and_open_in_a_new_tab():
+    from blogger_publisher import build_article_html
+
+    packet = """LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY
+SOURCE 1
+Type: current_legislation_source
+Court/source: elpai.idsc.gov.eg
+Case number: N/A
+Date: not stated
+Title: بوابة التشريعات المصرية
+URL: https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation
+SOURCE 2
+Type: current_legislation_source
+Court/source: untrusted.example
+Case number: N/A
+Date: not stated
+Title: مصدر غير موثوق
+URL: https://untrusted.example/fake-law
+"""
+    content = build_article_html(
+        "عنوان قانوني", "موضوع", "نص قانوني", "", packet, [],
+        article={"lead": "مقدمة", "meta_description": "وصف", "sections": [
+            {"heading": "التفاصيل", "body": "شرح"}
+        ]},
+    )
+    assert 'href="https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation" target="_blank" rel="noopener noreferrer"' in content
+    assert "untrusted.example" not in content

@@ -12,6 +12,7 @@ from config import load_facebook_engagement_config
 from facebook_publisher import like_comment, reply_to_comment
 from sheets import create_service, get_values
 from engagement_strategy import remove_blogger_link
+from comment_moderation import classify_comment, build_public_reply as build_moderated_reply
 
 # This worker intentionally handles PUBLIC threaded replies only.
 # It never sends private messages.
@@ -21,6 +22,7 @@ HEADERS = [
     "post_topic", "comment_text", "like_status", "like_http_status",
     "reply_status", "reply_id", "reply_text", "reply_http_status",
     "last_error", "created_at", "updated_at", "platform_proof",
+    "comment_category", "comment_intent", "reply_policy", "confidence", "suggested_reply",
 ]
 CAIRO = ZoneInfo("Africa/Cairo")
 MAX_RECENT_POSTS = int(os.getenv("FACEBOOK_COMMENT_REPLY_RECENT_POSTS", "150") or "60")
@@ -279,8 +281,8 @@ def main():
         comment_id = str(item.get("comment_id", "")).strip()
         if comment_id:
             existing_by_comment[comment_id] = item
-    reply_done_states = {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED", "SKIPPED_NOT_REPLYABLE"}
-    like_done_states = {"LIKED", "SKIPPED_ALREADY_LIKED"}
+    reply_done_states = {"REPLIED", "REPLIED_UNVERIFIED", "SKIPPED_ALREADY_REPLIED", "SKIPPED_NOT_REPLYABLE", "SKIPPED_SPAM", "REVIEW_REQUIRED"}
+    like_done_states = {"LIKED", "SKIPPED_ALREADY_LIKED", "SKIPPED_REVIEW"}
 
     posts = recent_posts(service, sheet_id, sheet_range)
     print(f"Facebook public comment reply scope: latest {len(posts)} post(s)")
@@ -310,6 +312,8 @@ def main():
             previous = existing_by_comment.get(comment_id, {})
             previous_reply_status = str(previous.get("reply_status", "")).upper()
             previous_like_status = str(previous.get("like_status", "")).upper()
+            decision = classify_comment(str(comment.get("message", "") or ""))
+            suggested_reply = build_moderated_reply(decision)
             reply_done = previous_reply_status in reply_done_states
             like_done = previous_like_status in like_done_states
             if reply_done and like_done:
@@ -342,6 +346,8 @@ def main():
                     "http_status": previous.get("like_http_status", ""),
                     "platform_proof": "",
                 }
+            elif decision.category in {"COMPLAINT", "SENSITIVE", "SPAM"}:
+                like_result = {"status": "SKIPPED_REVIEW", "http_status": ""}
             elif comment.get("user_likes") is True:
                 like_result = {"status": "SKIPPED_ALREADY_LIKED", "http_status": ""}
             else:
@@ -360,9 +366,24 @@ def main():
                     "http_status": previous.get("reply_http_status", ""),
                     "platform_proof": previous.get("platform_proof", ""),
                 }
+            elif decision.action == "SKIP":
+                reply_text = ""
+                reply_result = {
+                    "status": "SKIPPED_SPAM",
+                    "http_status": "",
+                    "error": "Spam/promotion pattern detected; no public reply was sent.",
+                }
+            elif decision.action == "REVIEW":
+                reply_text = suggested_reply
+                reply_result = {
+                    "status": "REVIEW_REQUIRED",
+                    "http_status": "",
+                    "error": decision.reason,
+                }
+                print(f"Human review required: category={decision.category} comment={comment_id}")
             elif can_comment is False:
                 skipped_not_replyable += 1
-                reply_text = ""
+                reply_text = suggested_reply
                 reply_result = {
                     "status": "SKIPPED_NOT_REPLYABLE",
                     "http_status": "",
@@ -370,11 +391,7 @@ def main():
                 }
                 print(f"Public reply not eligible; comment may still be liked: {comment_id}")
             else:
-                reply_text = build_public_reply(
-                    comment.get("message", ""),
-                    post_row.get("الموضوع", ""),
-                    processed,
-                )
+                reply_text = suggested_reply
                 reply_result = reply_to_comment(
                     comment_id=comment_id,
                     page_access_token=token,
@@ -385,7 +402,7 @@ def main():
             errors = []
             if like_result.get("status") not in {"LIKED", "SKIPPED_ALREADY_LIKED"}:
                 errors.append(f"LIKE: {like_result.get('error', '')}")
-            if reply_result.get("status") not in {"REPLIED", "REPLIED_UNVERIFIED"}:
+            if reply_result.get("status") not in {"REPLIED", "REPLIED_UNVERIFIED", "REVIEW_REQUIRED", "SKIPPED_SPAM"}:
                 errors.append(f"REPLY: {reply_result.get('error', '')}")
 
             event = {
@@ -406,6 +423,11 @@ def main():
                 "created_at": iso(current),
                 "updated_at": iso(current),
                 "platform_proof": reply_result.get("platform_proof", "") or like_result.get("platform_proof", ""),
+                "comment_category": decision.category,
+                "comment_intent": decision.intent,
+                "reply_policy": decision.action,
+                "confidence": str(decision.confidence),
+                "suggested_reply": suggested_reply,
             }
             append_row(service, sheet_id, event)
             existing_by_comment[comment_id] = event

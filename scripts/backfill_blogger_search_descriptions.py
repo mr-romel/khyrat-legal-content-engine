@@ -112,7 +112,17 @@ def main() -> int:
         if not token:
             break
 
-    targets = [post for post in posts if _url_key(post.get("url", "")) in missing_urls][:limit]
+    targets = []
+    for post in posts:
+        key = _url_key(post.get("url", ""))
+        if key not in missing_urls:
+            continue
+        matched_row = row_by_url.get(key)
+        if matched_row and str(matched_row[1].get("Blogger SEO Status", "")).strip().upper() == "VERIFIED":
+            print(f"Search description backfill skipped: editor-verified post={post.get('id', '')}")
+            continue
+        targets.append(post)
+    targets = targets[:limit]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup = []
     report = {

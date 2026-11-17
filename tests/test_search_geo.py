@@ -37,3 +37,38 @@ def test_sheet_id_prefers_explicit_id_over_url(monkeypatch):
     monkeypatch.setenv("GOOGLE_SHEET_ID", "explicit-sheet-id")
     monkeypatch.setenv("GOOGLE_SHEET_URL", "https://docs.google.com/spreadsheets/d/url-sheet-id/edit")
     assert _sheet_id() == "explicit-sheet-id"
+
+
+
+def test_detects_commercial_intent_for_hiring_a_lawyer():
+    from search_geo import build_metadata, infer_intent
+
+    topic = "محامي قضايا جنائية في القاهرة"
+    assert infer_intent(topic) == "SERVICE"
+    metadata = build_metadata(
+        post_id="SERVICE-1",
+        topic=topic,
+        post="طلب التواصل مع محامٍ لمراجعة موقف جنائي في القاهرة.",
+        platform="BLOGGER",
+    )
+    assert metadata["Search Intent"] == "SERVICE"
+    assert metadata["Page Type"] == "SERVICE_LANDING"
+    assert "القاهرة" in metadata["SEO Title"]
+    assert "اسأل محمود" in metadata["SEO Title"]
+    assert "اطلب تقييمًا أوليًا" in metadata["Meta Description"]
+    assert "كيف تتواصل" in metadata["Primary Search Question"]
+
+
+def test_detects_online_legal_consultation_service_intent_nationwide():
+    from search_geo import build_metadata, infer_intent
+
+    topic = "استشارة قانونية أونلاين في مصر"
+    assert infer_intent(topic) == "SERVICE"
+    metadata = build_metadata(
+        post_id="SERVICE-2",
+        topic=topic,
+        post="طلب استشارة قانونية أونلاين.",
+        platform="BLOGGER",
+    )
+    assert metadata["Local Intent"] == "ONLINE_CONSULTATIONS | ALL_EGYPT"
+    assert metadata["Page Type"] == "SERVICE_LANDING"

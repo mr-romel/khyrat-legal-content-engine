@@ -7,8 +7,21 @@ on:
       - "src/blogger_site_setup.py"
       - "src/blogger_pages_ui_worker.py"
       - "src/ga4_reporting.py"
+      - "src/blogger_theme_worker.py"
+      - "src/blogger_seo_worker.py"
+      - "src/comment_moderation.py"
+      - "src/blogger_worker.py"
+      - "src/search_geo.py"
+      - "src/legal_research.py"
       - "tests/test_blogger_conversion_pages.py"
       - "tests/test_ga4_reporting.py"
+      - "tests/test_blogger_theme_worker.py"
+      - "tests/test_blogger_internal_links_runtime.py"
+      - "tests/test_comment_moderation.py"
+      - "tests/test_search_geo.py"
+      - "tests/test_blogger_publisher_payload.py"
+      - "tests/test_legal_research.py"
+      - "tests/test_blogger_seo_worker.py"
       - ".github/workflows/blogger-conversion-ci.yml"
   pull_request:
     paths:
@@ -33,8 +46,8 @@ jobs:
       - name: Install repository worker dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-worker.txt -r requirements-browser.txt
       - name: Compile changed Python modules
-        run: python -m compileall -q src/blogger_site_setup.py src/blogger_pages_ui_worker.py src/ga4_reporting.py
+        run: python -m compileall -q src/blogger_site_setup.py src/blogger_pages_ui_worker.py src/blogger_theme_worker.py src/blogger_seo_worker.py src/blogger_worker.py src/comment_moderation.py src/search_geo.py src/legal_research.py
       - name: Run focused regression tests
         env:
           PYTHONPATH: src
-        run: pytest -q tests/test_blogger_conversion_pages.py tests/test_ga4_reporting.py tests/test_blogger_internal_link_planner.py tests/test_blogger_seo_audit.py
+        run: pytest -q tests/test_blogger_conversion_pages.py tests/test_ga4_reporting.py tests/test_blogger_internal_link_planner.py tests/test_blogger_seo_audit.py tests/test_blogger_theme_worker.py tests/test_blogger_internal_links_runtime.py tests/test_comment_moderation.py tests/test_search_geo.py tests/test_blogger_publisher_payload.py tests/test_legal_research.py tests/test_blogger_seo_worker.py
