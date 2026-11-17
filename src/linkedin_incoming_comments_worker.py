@@ -103,7 +103,7 @@ def run():
             print(f"LinkedIn comment read network failure for post={post_urn}: {exc}")
             continue
         if response.status_code in {401, 403}:
-            print(f"LINKEDIN_INCOMING_READ_BLOCKED: HTTP {response.status_code}; API permission r_member_social_feed or r_organization_social_feed may be unavailable. No replies were attempted.")
+            print(f"LINKEDIN_INCOMING_READ_BLOCKED: HTTP {response.status_code}; API permission or post-level read access may be unavailable. details={response.text[:800]!r}. No replies were attempted.")
             return 0
         if not response.ok:
             print(f"LinkedIn comment read failed: HTTP {response.status_code} {response.text[:800]}")
