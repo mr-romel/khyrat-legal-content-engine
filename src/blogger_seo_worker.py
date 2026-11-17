@@ -215,10 +215,10 @@ def _read_public_meta_http(url: str) -> str:
         response = requests.get(url, headers=headers, timeout=12, allow_redirects=True)
         if not response.ok or "unusual traffic" in response.text.lower() or "not a robot" in response.text.lower():
             return ""
-        for tag in re.findall(r"<meta\\b[^>]*>", response.text, flags=re.I):
-            if not re.search(r"""\\bname\\s*=\\s*['"]description['"]""", tag, flags=re.I):
+        for tag in re.findall(r"<meta\b[^>]*>", response.text, flags=re.I):
+            if not re.search(r"""\bname\s*=\s*['"]description['"]""", tag, flags=re.I):
                 continue
-            match = re.search(r"""\\bcontent\\s*=\\s*(['"])(.*?)\\1""", tag, flags=re.I | re.S)
+            match = re.search(r"""\bcontent\s*=\s*(['"])(.*?)\1""", tag, flags=re.I | re.S)
             if match:
                 return _clean(html.unescape(match.group(2)))
     except Exception:
