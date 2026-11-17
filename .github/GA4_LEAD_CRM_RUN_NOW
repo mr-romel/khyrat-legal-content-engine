@@ -1,1 +1,1 @@
-Initialize Lead CRM with source, contact method and lead-status dropdowns; generate GA4 report with separate sessions, contact clicks, inquiries, qualified leads and confirmed clients. Trigger: 2026-11-17T18:22:00+02:00
+Initialize/verify Lead CRM tab with status dropdowns and privacy notes; run current GA4 snapshot and acquisition report. Trigger: 2026-11-17T18:24:00+02:00
