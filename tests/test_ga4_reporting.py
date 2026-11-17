@@ -32,7 +32,7 @@ class _Request:
 
 
 class _Properties:
-    def runReport(self, name, body):
+    def runReport(self, property, body):
         dimensions = [item["name"] for item in body.get("dimensions", [])]
         if dimensions:
             return _Request(_response(dimensions=dimensions))
