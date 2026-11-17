@@ -1,1 +1,1 @@
-Retry Blogger comment read and classification after API client initialization fix. Keep reply drafts queued for Blogger UI review. Trigger: 2026-11-17T18:05:01+02:00
+Retry Blogger incoming comment read/classification with Blogger API client initialized before blog ID resolution. Trigger: 2026-11-17T18:10:00+02:00
