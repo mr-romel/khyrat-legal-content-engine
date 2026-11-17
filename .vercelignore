@@ -1,0 +1,36 @@
+# Vercel serves the Marketplace API only. The publishing engine, media,
+# reference photos, generated assets, and automation workers run from GitHub
+# Actions and do not belong in this API deployment.
+
+# Large media and generated publishing artifacts (about 119 MB in the current tree)
+generated/
+assets/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
+# CI workflows and non-runtime project material
+.github/
+docs/
+tests/
+remotion/
+android/
+workers/
+ops/
+reports/
+backups/
+video_backups/
+video_state/
+
+# Project notes and local-only setup files
+PROJECT_CONTEXT.md
+PROJECT_CONTEXT.context
+BACKUP*
+*.bat
+.env.example
