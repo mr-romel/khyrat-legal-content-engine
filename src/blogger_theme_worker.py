@@ -276,7 +276,11 @@ def main():
                         raise BloggerUIPublishError("Edit HTML control not found on Blogger Theme page.")
                     if edit.count() != 1:
                         raise BloggerUIPublishError(f"Edit HTML control is ambiguous: {edit.count()} matches.")
-                    edit.click()
+                    edit.scroll_into_view_if_needed(timeout=5000)
+                    try:
+                        edit.click(timeout=5000, force=True)
+                    except Exception:
+                        edit.evaluate("(el) => el.click()")
                     page.wait_for_timeout(1800)
                     kind, current = _editor_value(page)
                     (artifact_dir / "backup-before.xml").write_text(current, encoding="utf-8")
