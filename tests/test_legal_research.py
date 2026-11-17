@@ -60,3 +60,13 @@ def test_accepts_law_number_when_official_source_uses_definite_article():
         "VERIFIED SOURCE TEXT (retrieved): القانون رقم ١٧٥ لسنة ٢٠١٨ في شأن مكافحة جرائم تقنية المعلومات"
     )
     assert validate_legal_citations(post, packet) == []
+
+
+
+def test_official_egyptian_legislation_portal_is_allowed_but_arbitrary_domain_is_not():
+    from legal_research import _allowed
+
+    assert _allowed("https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation")
+    assert _allowed("https://mof.gov.eg/ar/legislation/legislation")
+    assert not _allowed("https://example.com/egypt-law")
+    assert not _allowed("http://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases")
