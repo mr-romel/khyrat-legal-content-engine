@@ -1,1 +1,1 @@
-Probe LinkedIn incoming comment read permission and moderate only if authorized. Trigger: 2026-11-17T18:03:01+02:00
+Retry LinkedIn incoming comment read permission probe and record API denial details if access is not granted. Trigger: 2026-11-17T18:10:01+02:00
