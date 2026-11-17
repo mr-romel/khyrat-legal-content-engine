@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -10,12 +11,12 @@ from googleapiclient.discovery import build
 
 from comment_moderation import classify_comment, build_public_reply
 from config import load_video_config
-from sheets import create_service, get_values
+from sheets import create_service
 
 CAIRO = ZoneInfo("Africa/Cairo")
 SHEET_NAME = os.getenv("YOUTUBE_INCOMING_REPLY_SHEET", "YouTube Incoming Replies").strip()
 HEADERS = [
-    "event_id", "video_id", "comment_id", "author", "comment_text",
+    "event_id", "video_id", "video_title", "video_url", "comment_id", "author", "comment_text",
     "category", "intent", "confidence", "reply_policy", "suggested_reply",
     "reply_status", "reply_id", "error", "created_at",
 ]
@@ -48,6 +49,54 @@ def youtube_service():
     return build("youtube", "v3", credentials=credentials, cache_discovery=False)
 
 
+def _parse_duration(value: str) -> int:
+    match = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?", str(value or ""))
+    if not match:
+        return 10**9
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2) or 0)
+    seconds = float(match.group(3) or 0)
+    return int(hours * 3600 + minutes * 60 + seconds)
+
+
+def list_recent_shorts(yt, *, max_videos: int = MAX_VIDEOS) -> tuple[str, list[dict]]:
+    channel_response = yt.channels().list(part="id,contentDetails", mine=True).execute()
+    channel_items = channel_response.get("items", [])
+    if not channel_items:
+        raise RuntimeError("YouTube OAuth identity returned no owned channel.")
+    channel = channel_items[0]
+    channel_id = str(channel.get("id", "")).strip()
+    uploads_id = str(((channel.get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads", "")).strip()
+    if not channel_id or not uploads_id:
+        raise RuntimeError("YouTube channel response did not include the uploads playlist.")
+    playlist = yt.playlistItems().list(
+        part="contentDetails,snippet", playlistId=uploads_id, maxResults=50
+    ).execute()
+    ids = [
+        str((item.get("contentDetails") or {}).get("videoId", "")).strip()
+        for item in playlist.get("items", [])
+    ]
+    ids = [video_id for video_id in ids if video_id]
+    if not ids:
+        return channel_id, []
+    details = yt.videos().list(part="snippet,contentDetails", id=",".join(ids[:50])).execute()
+    candidates = []
+    for video in details.get("items", []):
+        duration = _parse_duration(str((video.get("contentDetails") or {}).get("duration", "")))
+        # Shorts can be up to three minutes; exclude long-form videos.
+        if duration > 180:
+            continue
+        snippet = video.get("snippet") or {}
+        candidates.append({
+            "video_id": str(video.get("id", "")).strip(),
+            "title": str(snippet.get("title", "")).strip(),
+            "published_at": str(snippet.get("publishedAt", "")).strip(),
+            "url": "https://www.youtube.com/shorts/" + str(video.get("id", "")).strip(),
+        })
+    candidates.sort(key=lambda item: item["published_at"], reverse=True)
+    return channel_id, candidates[:max_videos]
+
+
 def _col(n):
     result = ""
     while n:
@@ -77,7 +126,7 @@ def read_existing(sheets, spreadsheet_id):
     rows = sheets.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=f"{SHEET_NAME}!A2:{last}"
     ).execute().get("values", [])
-    return {str(row[2]).strip() for row in rows if len(row) > 2 and str(row[2]).strip()}
+    return {str(row[4]).strip() for row in rows if len(row) > 4 and str(row[4]).strip()}
 
 
 def append_event(sheets, spreadsheet_id, event):
@@ -94,38 +143,23 @@ def run():
     sheets = create_service(cfg["service_account_info"])
     ensure_tracking_sheet(sheets, cfg["sheet_id"])
     seen = read_existing(sheets, cfg["sheet_id"])
-    values = get_values(sheets, cfg["sheet_id"], "Content!A:BZ")
-    if not values:
-        print("YouTube incoming comments: Content sheet is empty.")
-        return 0
-    headers = [str(x or "").strip() for x in values[0]]
-    candidates = []
-    for row_number, raw in enumerate(values[1:], start=2):
-        row = {headers[i]: str(raw[i] or "") for i in range(min(len(headers), len(raw)))}
-        video_id = str(row.get("Reel YouTube ID", "")).strip()
-        status = str(row.get("Reel Status", "")).strip().upper()
-        if video_id and status in {"PUBLISHED", "SUCCESS", "POSTED"}:
-            candidates.append((row_number, video_id, row))
-    candidates = candidates[-MAX_VIDEOS:]
     yt = youtube_service()
-    channel_response = yt.channels().list(part="id", mine=True).execute()
-    channel_items = channel_response.get("items", [])
-    if not channel_items:
-        raise RuntimeError("YouTube OAuth identity returned no owned channel.")
-    own_channel_id = str(channel_items[0].get("id", "")).strip()
+    own_channel_id, videos = list_recent_shorts(yt, max_videos=MAX_VIDEOS)
     processed = 0
-    for row_number, video_id, row in reversed(candidates):
+    for video in videos:
+        video_id = video["video_id"]
         try:
             response = yt.commentThreads().list(
                 part="snippet", videoId=video_id, maxResults=100, order="time", textFormat="plainText"
             ).execute()
         except Exception as exc:
-            print(f"YouTube comments read blocked for video={video_id}: {exc}")
+            print(f"YouTube comments read blocked for video={video_id}: {str(exc)[:500]}")
             continue
         for thread in response.get("items", []):
             if processed >= MAX_COMMENTS:
                 break
-            snippet = thread.get("snippet", {}).get("topLevelComment", {})
+            thread_snippet = thread.get("snippet", {}) or {}
+            snippet = thread_snippet.get("topLevelComment", {}) or {}
             comment_id = str(snippet.get("id", "")).strip()
             body = snippet.get("snippet", {}) or {}
             author = str(body.get("authorDisplayName", "")).strip()
@@ -151,26 +185,25 @@ def run():
                 except Exception as exc:
                     status = "FAILED"
                     error = str(exc)[:1000]
-            elif decision.action == "REVIEW":
-                error = decision.reason
-            elif decision.action == "SKIP":
+            elif decision.action in {"REVIEW", "SKIP"}:
                 error = decision.reason
             event = {
                 "event_id": "YT_INCOMING_REPLY:" + comment_id,
-                "video_id": video_id, "comment_id": comment_id, "author": author,
-                "comment_text": comment_text, "category": decision.category,
-                "intent": decision.intent, "confidence": str(decision.confidence),
-                "reply_policy": decision.action, "suggested_reply": suggested,
-                "reply_status": status, "reply_id": reply_id, "error": error,
+                "video_id": video_id, "video_title": video["title"], "video_url": video["url"],
+                "comment_id": comment_id, "author": author, "comment_text": comment_text,
+                "category": decision.category, "intent": decision.intent,
+                "confidence": str(decision.confidence), "reply_policy": decision.action,
+                "suggested_reply": suggested, "reply_status": status,
+                "reply_id": reply_id, "error": error,
                 "created_at": datetime.now(CAIRO).isoformat(),
             }
             append_event(sheets, cfg["sheet_id"], event)
             seen.add(comment_id)
             processed += 1
-            print(f"YouTube incoming comment={comment_id} category={decision.category} status={status} reply_id={reply_id}")
+            print(f"YouTube incoming comment={comment_id} video={video_id} category={decision.category} status={status} reply_id={reply_id}")
         if processed >= MAX_COMMENTS:
             break
-    print(f"YouTube incoming comment worker processed={processed} across {len(candidates)} published Shorts.")
+    print(f"YouTube incoming comment worker processed={processed} across {len(videos)} recent Shorts.")
     return 0
 
 
