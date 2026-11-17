@@ -284,7 +284,6 @@ def main():
                     save.click()
                     page.wait_for_timeout(5000)
                     page.reload(wait_until="domcontentloaded")
-                    page.get_by_text("Edit HTML", exact=True).click()
                     page.wait_for_timeout(1800)
                     verify_kind, saved = _editor_value(page)
                     if MARKER not in saved or PHONE not in saved or "contact_click" not in saved or "consultation_click" not in saved:
