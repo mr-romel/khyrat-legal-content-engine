@@ -315,6 +315,8 @@ def main():
                         if missing:
                             raise BloggerUIPublishError("Public homepage verification missing: " + ", ".join(missing))
                         print("BLOGGER_THEME_PUBLISHED_AND_PUBLICLY_VERIFIED")
+                    elif public.status_code in {403, 429} or "unusual traffic" in public.text.lower():
+                        print(f"BLOGGER_THEME_SAVED_AND_EDITOR_VERIFIED_PUBLIC_CHECK_DEFERRED_HTTP_{public.status_code}")
                     else:
                         raise BloggerUIPublishError(f"Theme saved in Blogger editor, but public verification failed: HTTP {public.status_code}.")
                 finally:
