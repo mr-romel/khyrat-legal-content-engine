@@ -11,7 +11,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=18000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","www.mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","www.gafi.gov.eg","eta.gov.eg","www.eta.gov.eg","nosi.gov.eg","www.nosi.gov.eg","moi.gov.eg","www.moi.gov.eg","cabinet.gov.eg","www.cabinet.gov.eg","presidency.eg","www.presidency.eg","moj.gov.eg","www.moj.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -25,7 +25,13 @@ class _P(HTMLParser):
         if not self.skip and data.strip(): self.parts.append(data.strip())
 
 def _clean(x): return re.sub(r"\s+"," ",str(x or "")).strip()
-def _domain(u): return urlparse(u).netloc.lower().removeprefix("www.")
+def _domain(u):
+    return (urlparse(str(u or "")).hostname or "").lower().rstrip(".").removeprefix("www.")
+
+
+def _host_matches(host, roots):
+    host = str(host or "").lower().rstrip(".").removeprefix("www.")
+    return any(host == root or host.endswith("." + root) for root in roots)
 def _unwrap(u):
     q=parse_qs(urlparse(u).query).get("uddg",[""])[0]
     return unquote(q) if q else u
@@ -93,7 +99,7 @@ def _quote(t,topic,max_words=24):
 def _allowed(u):
     parsed=urlparse(str(u or ""))
     d=_domain(u)
-    return parsed.scheme == "https" and (d in COURT or d in ADMIN or d in LAWS)
+    return parsed.scheme == "https" and bool(parsed.hostname) and (_host_matches(d, COURT) or _host_matches(d, ADMIN) or _host_matches(d, LAWS))
 
 
 
@@ -166,6 +172,8 @@ def research_legal_topic(topic, existing=""):
         f'site:esc.gov.eg "{topic}" "الطعن رقم"',
         f'site:esc.gov.eg "{topic}" "المحكمة الإدارية العليا"',
         f'site:cc.gov.eg "أحدث التشريعات" {topic} {CURRENT_YEAR}',
+        f'site:labour.gov.eg {topic} قانون العمل',
+        f'site:sis.gov.eg قانون العمل 14 لسنة 2025',
         f'site:elpai.idsc.gov.eg {topic} قانون {CURRENT_YEAR}',
         f'site:mof.gov.eg {topic} تشريع {CURRENT_YEAR}',
         f'site:gafi.gov.eg {topic} قانون قرار {CURRENT_YEAR}',
@@ -180,6 +188,16 @@ def research_legal_topic(topic, existing=""):
     if cybercrime_topic:
         queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
     cand=[]; seen=set()
+    employment_topic = any(term in topic_norm for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
+    if employment_topic:
+        # Primary text of Law 14/2025 as published in the Official Gazette.
+        official_employment_sources = [
+            ("https://sis.gov.eg/media/760267/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "الجريدة الرسمية — قانون العمل رقم 14 لسنة 2025"),
+            ("https://www.labour.gov.eg/media/0iedik3q/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "وزارة العمل — قانون العمل رقم 14 لسنة 2025"),
+        ]
+        for url, title in official_employment_sources:
+            cand.append({"url": url, "title": title})
+            seen.add(url)
     if cybercrime_topic:
         official_law_pdf = "https://fra.gov.eg/wp-content/uploads/2025/01/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018-%D8%A8%D8%AA%D8%A7%D8%B1%D9%8A%D8%AE-2018-08-14.pdf"
         cand.append({"url": official_law_pdf, "title": "القانون رقم 175 لسنة 2018 — النسخة المنشورة على موقع الهيئة العامة للرقابة المالية"})
@@ -196,9 +214,9 @@ def research_legal_topic(topic, existing=""):
         case=_case(body)
         if case and court:
             records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],body[:3000]))
-        elif d in OFFICIAL_LAWS:
+        elif _host_matches(d, OFFICIAL_LAWS):
             records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
-        elif d in SECONDARY_LAWS:
+        elif _host_matches(d, SECONDARY_LAWS):
             records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
