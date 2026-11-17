@@ -12,9 +12,17 @@ from blogger_ui_publisher import BloggerUIPublishError, publish_article_ui, _pub
 from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 from utils import parse_date
-from legal_research import has_verified_legal_source
+from legal_research import has_verified_legal_source, research_legal_topic
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
+
+
+def _refresh_missing_legal_sources(topic: str, legal_sources: str) -> str:
+    """Recover an older Blogger queue row by live-researching before the publication gate."""
+    if has_verified_legal_source(legal_sources):
+        return legal_sources
+    refreshed = research_legal_topic(topic, legal_sources)
+    return refreshed if has_verified_legal_source(refreshed) else legal_sources
 
 def _internal_terms(value: str) -> set[str]:
     text = str(value or "").casefold()
@@ -510,6 +518,17 @@ def main() -> int:
             print(f"Blogger: image upload retry failed ({retry_exc}); using persisted generated image URL fallback: {image_url or 'unavailable'}")
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
+    if not has_verified_legal_source(legal_sources):
+        try:
+            refreshed_legal_sources = _refresh_missing_legal_sources(topic, legal_sources)
+            if has_verified_legal_source(refreshed_legal_sources):
+                legal_sources = refreshed_legal_sources
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "المصادر القانونية": legal_sources[:12000],
+                })
+                print("Blogger legal source recovery: refreshed the queued row with a live verified Egyptian source.")
+        except Exception as research_exc:
+            print(f"Blogger legal source recovery unavailable: {research_exc}")
     if not has_verified_legal_source(legal_sources):
         raise BloggerPublishError(
             "LEGAL_SOURCE_GATE_BLOCKED: no verified Egyptian HTTPS legal source is attached; "
