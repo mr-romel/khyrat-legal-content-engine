@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-from config import _service_account_info
+from config import _service_account_info, load_video_config
+from sheets import create_service
 
 CAIRO = ZoneInfo("Africa/Cairo")
 DEFAULT_PROPERTY_ID = "497002086"
@@ -136,6 +137,88 @@ def build_snapshot(service, property_id: str, end_date: date) -> dict:
     }
 
 
+LEAD_SHEET_NAME = os.getenv("GA4_LEAD_SHEET_NAME", "Lead CRM").strip()
+LEAD_HEADERS = [
+    "lead_ref", "received_at", "source_platform", "source_campaign", "landing_page",
+    "contact_method", "service_type", "lead_status", "first_response_at",
+    "consultation_booked_at", "client_confirmed_at", "owner", "next_action", "notes",
+]
+CONFIRMED_STATUSES = {"QUALIFIED", "CONSULTATION_BOOKED", "CLIENT"}
+
+
+def _ensure_lead_sheet(sheets, spreadsheet_id: str) -> None:
+    metadata = sheets.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
+    exists = any(
+        str(item.get("properties", {}).get("title", "")).casefold() == LEAD_SHEET_NAME.casefold()
+        for item in metadata.get("sheets", [])
+    )
+    if not exists:
+        sheets.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": LEAD_SHEET_NAME}}}]},
+        ).execute()
+    current = sheets.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=f"{LEAD_SHEET_NAME}!A1:N1"
+    ).execute().get("values", [])
+    if not current or current[0][:len(LEAD_HEADERS)] != LEAD_HEADERS:
+        sheets.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id, range=f"{LEAD_SHEET_NAME}!A1:N1",
+            valueInputOption="RAW", body={"values": [LEAD_HEADERS]},
+        ).execute()
+
+
+def summarize_leads(rows: list[list[str]]) -> dict:
+    status_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    method_counts: dict[str, int] = {}
+    total = 0
+    confirmed = 0
+    clients = 0
+    pending = 0
+    for row in rows:
+        values = {name: (str(row[index]).strip() if index < len(row) else "") for index, name in enumerate(LEAD_HEADERS)}
+        if not any(values.get(key) for key in ("lead_ref", "received_at", "contact_method", "service_type")):
+            continue
+        total += 1
+        status = values.get("lead_status", "").upper() or "UNCLASSIFIED"
+        source = values.get("source_platform", "").strip() or "UNKNOWN"
+        method = values.get("contact_method", "").strip() or "UNKNOWN"
+        status_counts[status] = status_counts.get(status, 0) + 1
+        source_counts[source] = source_counts.get(source, 0) + 1
+        method_counts[method] = method_counts.get(method, 0) + 1
+        if status in CONFIRMED_STATUSES:
+            confirmed += 1
+        if status == "CLIENT":
+            clients += 1
+        if status in {"NEW", "CONTACTED", "UNCLASSIFIED"}:
+            pending += 1
+    return {
+        "status": "CONNECTED",
+        "inquiries_received": total,
+        "qualified_leads": confirmed,
+        "clients_confirmed": clients,
+        "pending_follow_up": pending,
+        "by_status": dict(sorted(status_counts.items())),
+        "by_source_platform": dict(sorted(source_counts.items())),
+        "by_contact_method": dict(sorted(method_counts.items())),
+        "definition": (
+            "CRM rows only. A website visit or GA4 contact click is not a lead. "
+            "Qualified leads are statuses QUALIFIED, CONSULTATION_BOOKED, or CLIENT; "
+            "clients are counted only when status is CLIENT."
+        ),
+    }
+
+
+def read_lead_summary() -> dict:
+    cfg = load_video_config()
+    sheets = create_service(cfg["service_account_info"])
+    _ensure_lead_sheet(sheets, cfg["sheet_id"])
+    values = sheets.spreadsheets().values().get(
+        spreadsheetId=cfg["sheet_id"], range=f"{LEAD_SHEET_NAME}!A2:N"
+    ).execute().get("values", [])
+    return summarize_leads(values)
+
+
 def main() -> int:
     property_id = os.getenv("GA4_PROPERTY_ID", DEFAULT_PROPERTY_ID).strip()
     if not property_id.isdigit():
@@ -144,6 +227,7 @@ def main() -> int:
     end_date = today - timedelta(days=1)
     service = _analytics_service()
     snapshot = build_snapshot(service, property_id, end_date)
+    snapshot["lead_crm"] = read_lead_summary()
     out = Path(os.getenv("GA4_REPORT_DIR", "artifacts/ga4"))
     out.mkdir(parents=True, exist_ok=True)
     (out / "weekly-report.json").write_text(
@@ -159,6 +243,7 @@ def main() -> int:
         "top_pages": snapshot["top_pages"][:10],
         "channels": snapshot["channels"],
         "events": snapshot["events"],
+        "lead_crm": snapshot["lead_crm"],
     }, ensure_ascii=False, indent=2))
     return 0
 
