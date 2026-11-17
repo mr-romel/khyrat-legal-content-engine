@@ -1,1 +1,1 @@
-Retry Blogger comment scan after fixing the API client initialization order. Classify and queue safe drafts; no unsupported API reply calls. Trigger: 2026-11-17T18:11:00+02:00
+Retry Blogger incoming comment scan with the API-supported LIVE status enum. Classify comments and queue suggested responses; no unsupported insert endpoint. Trigger: 2026-11-17T18:12:00+02:00
