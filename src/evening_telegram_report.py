@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sheets import HEADERS, create_service, get_values, row_to_dict
 from telegram_bot import send_message
+from ga4_reporting import DEFAULT_PROPERTY_ID, _analytics_service, build_snapshot, read_lead_summary
 
 TZ = ZoneInfo("Africa/Cairo")  # The worker gates scheduled runs to exactly 22:00 Cairo local time.
 
@@ -85,6 +86,44 @@ def _video_results(row: dict[str, str]) -> list[str]:
     return results
 
 
+def _fmt_metric(value) -> str:
+    if value is None:
+        return "غير متاح"
+    try:
+        number = float(value)
+        return f"{number:,.0f}" if number.is_integer() else f"{number:,.2f}"
+    except (TypeError, ValueError):
+        return "غير متاح"
+
+
+def _acquisition_lines(snapshot: dict) -> list[str]:
+    current = snapshot.get("current", {}).get("metrics", {})
+    events = snapshot.get("events", []) or []
+    event_map = {str(row.get("eventName", "")): row.get("eventCount") for row in events}
+    event_data_available = bool(events)
+
+    def event_value(name: str) -> str:
+        value = event_map.get(name)
+        if value is None and not event_data_available:
+            return "لا توجد بيانات أحداث بعد"
+        return _fmt_metric(value if value is not None else 0)
+
+    leads = snapshot.get("lead_crm", {}) or {}
+    return [
+        "",
+        "📊 اكتساب العملاء — آخر 7 أيام مكتملة",
+        f"الفترة: {snapshot.get('period', {}).get('start', '')} إلى {snapshot.get('period', {}).get('end', '')}",
+        f"• جلسات الموقع: {_fmt_metric(current.get('sessions'))}",
+        f"• المستخدمون النشطون: {_fmt_metric(current.get('activeUsers'))}",
+        f"• ضغطات طلب الاستشارة (consultation_click): {event_value('consultation_click')}",
+        f"• ضغطات التواصل (contact_click): {event_value('contact_click')}",
+        f"• الاستفسارات المسجلة في CRM: {_fmt_metric(leads.get('inquiries_received'))}",
+        f"• العملاء المحتملون المؤهلون: {_fmt_metric(leads.get('qualified_leads'))}",
+        f"• العملاء المؤكدون: {_fmt_metric(leads.get('clients_confirmed'))}",
+        "قاعدة القياس: الزيارة أو ضغطة التواصل ليست عميلًا. العميل يُحسب فقط من سجل CRM بعد تأكيد حالته.",
+    ]
+
+
 def main() -> int:
     now = datetime.now(TZ)
     if os.getenv("FORCE_EVENING_REPORT", "").strip().lower() not in {"1", "true", "yes"} and now.hour != 22:
@@ -110,10 +149,22 @@ def main() -> int:
     today_rows.sort(key=lambda r: str(r.get("ساعة النشر", "")))
 
     lines = [
-        "تقرير نتيجة النشر المسائي",
+        "تقرير نتيجة النشر المسائي واكتساب العملاء",
         f"التاريخ: {now:%Y-%m-%d} | الساعة: {now:%H:%M} بتوقيت القاهرة",
         "",
     ]
+    try:
+        property_id = os.getenv("GA4_PROPERTY_ID", DEFAULT_PROPERTY_ID).strip()
+        snapshot = build_snapshot(_analytics_service(), property_id, now.date() - timedelta(days=1))
+        snapshot["lead_crm"] = read_lead_summary()
+        lines.extend(_acquisition_lines(snapshot))
+    except Exception as analytics_exc:
+        lines.extend([
+            "",
+            "📊 اكتساب العملاء: بيانات GA4/CRM غير متاحة في هذا التشغيل.",
+            f"سبب التعذر: {str(analytics_exc)[:300]}",
+            "لن تُحسب أي زيارة أو ضغطة باعتبارها عميلًا فعليًا.",
+        ])
     if not today_rows:
         lines.extend([
             "لا توجد صفوف خطة بتاريخ اليوم في Google Sheets.",
