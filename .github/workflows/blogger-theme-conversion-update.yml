@@ -1,0 +1,47 @@
+name: Blogger Theme Conversion Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/BLOGGER_THEME_RUN_NOW"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blogger-theme-conversion-update
+  cancel-in-progress: false
+
+jobs:
+  update-theme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BLOGGER_URL: ${{ secrets.BLOGGER_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+      BLOGGER_UI_STORAGE_STATE_B64: ${{ secrets.BLOGGER_UI_STORAGE_STATE_B64 }}
+      BLOGGER_THEME_APPLY: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install browser dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-browser.txt
+          python -m playwright install --with-deps chromium
+      - name: Validate theme patch syntax
+        run: python -m py_compile src/blogger_theme_worker.py
+      - name: Back up, update and verify Blogger theme
+        run: PYTHONPATH=src python src/blogger_theme_worker.py
+      - name: Preserve before/after theme backup
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blogger-theme-before-after
+          path: artifacts/blogger-theme/
+          if-no-files-found: warn
+          retention-days: 30
