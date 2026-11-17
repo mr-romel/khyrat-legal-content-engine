@@ -107,3 +107,31 @@ def test_employment_topic_injects_verified_primary_law_sources(monkeypatch):
     assert "https://sis.gov.eg/media/760267/" in packet
     assert "قانون العمل رقم 14 لسنة 2025" in packet
     assert legal_research.has_verified_legal_source(packet)
+
+def test_employment_source_evidence_extracts_relevant_late_articles():
+    from legal_research import _source_evidence
+
+    source = (
+        ("مقدمة عامة لا تتعلق بالترخيص " * 1800)
+        + "المادة السادسة يجوز لأصحاب الأعمال تشغيل العمال دون التقيد بشرط الترخيص وتوفيق الأوضاع خلال ثلاث سنوات. "
+        + "مادة (٢٧): يلتزم من يرغب في مزاولة مهنة أو حرفة بالحصول على ترخيص. "
+        + "مادة (٢٩١): يعاقب من يزاول عمليات إلحاق العمالة دون ترخيص."
+    )
+    evidence = _source_evidence(source, "ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
+    assert "المادة السادسة" in evidence
+    assert "مادة (٢٧)" in evidence
+    assert "مادة (٢٩١)" in evidence
+    assert "مقدمة عامة لا تتعلق" not in evidence
+
+
+def test_verified_source_url_precedes_long_evidence_in_packet():
+    import legal_research
+
+    monkeypatch = __import__("pytest").MonkeyPatch()
+    try:
+        monkeypatch.setattr(legal_research, "_fetch", lambda url: "مادة (٢٧): ترخيص المهنة")
+        monkeypatch.setattr(legal_research, "_search", lambda query: [])
+        packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة")
+        assert packet.index("URL: https://media.mof.gov.eg/") < packet.index("VERIFIED SOURCE TEXT (retrieved):")
+    finally:
+        monkeypatch.undo()
