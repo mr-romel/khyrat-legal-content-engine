@@ -76,7 +76,7 @@ def main() -> int:
     for item in items:
         snippet = item.get("snippet") or {}
         print("YouTube channel access OK: " + str(snippet.get("title") or "channel title unavailable"))
-    print("SAFE_CHECK_COMPLETE: no upload, comment, description update, or sheet write was performed.")
+    print("SAFE_CHECK_COMPLETE: no upload, comment, description update, or sheet write was performed. # rerun after comment token rotation")
     return 0
 
 
