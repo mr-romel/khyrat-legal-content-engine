@@ -108,7 +108,7 @@ def _source_evidence(text: str, topic: str) -> str:
                 if snippet and snippet not in excerpts:
                     excerpts.append(snippet)
         if excerpts:
-            return _clean(" ".join(excerpts))[:14000]
+            return _clean(" ".join(excerpts))[:9000]
     return value[:5000]
 
 def _quote(t,topic,max_words=24):
@@ -257,6 +257,6 @@ def research_legal_topic(topic, existing=""):
     ]
     if not records: lines.append("No sufficiently verified topic-specific court/legislation source was retrieved automatically.")
     for i,(typ,court,case,date,effective,title,quote,url,evidence) in enumerate(records[:6],1):
-        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"VERIFIED SOURCE TEXT (retrieved): {evidence}",f"URL: {url}",""]
+        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"URL: {url}",f"VERIFIED SOURCE TEXT (retrieved): {evidence}",""]
     if existing: lines += ["EXISTING SHEET LEGAL SOURCES:",_clean(existing)[:8000]]
     return "\n".join(lines)
