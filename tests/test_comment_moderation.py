@@ -25,7 +25,8 @@ def test_personal_data_is_never_auto_replied():
     decision = classify_comment("رقمي القومي 12345678901234 وعايز استشارة")
     assert decision.category == "SENSITIVE"
     assert requires_human_review(decision)
-    assert build_public_reply(decision) == ""
+    assert "خصوصيتك" in build_public_reply(decision)
+    assert decision.action == "REVIEW"
 
 
 def test_complaint_is_held_for_human_review():
