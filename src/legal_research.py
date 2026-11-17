@@ -148,9 +148,9 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
 def has_verified_legal_source(packet: str) -> bool:
     """True only when the research packet contains at least one whitelisted HTTPS source."""
     text = str(packet or "")
-    blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", text)
+    blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", text)
     for block in blocks[1:]:
-        match = re.search(r"(?m)^URL:\\s*(https://\\S+)", block)
+        match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
         if match and _allowed(match.group(1).rstrip(").,;")):
             return True
     return False
