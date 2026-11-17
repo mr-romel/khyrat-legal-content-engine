@@ -159,11 +159,10 @@ def _ensure_lead_sheet(sheets, spreadsheet_id: str) -> None:
             body={"requests": [{"addSheet": {"properties": {"title": LEAD_SHEET_NAME}}}]},
         ).execute()
         sheet_properties = next(
-            (item.get("properties", {}) for item in created.get("replies", [])
+            (item.get("addSheet", {}).get("properties", {}) for item in created.get("replies", [])
              if item.get("addSheet", {}).get("properties")),
             {},
         )
-        sheet_properties = sheet_properties.get("properties", sheet_properties)
     sheet_id = sheet_properties.get("sheetId")
     if sheet_id is not None:
         validations = [
