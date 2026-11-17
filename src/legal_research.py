@@ -8,7 +8,7 @@ import requests
 TIMEOUT=15
 CURRENT_YEAR=datetime.now(timezone.utc).year
 MAX_RESULTS=8
-MAX_SOURCE_CHARS=18000
+MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
 OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg")
@@ -88,6 +88,28 @@ def _effective(t):
         if m:
             return _clean(m.group(1))
     return ""
+
+
+def _source_evidence(text: str, topic: str) -> str:
+    """Keep topic-relevant statutory passages, not merely the first pages of a long PDF."""
+    value = _clean(text)
+    normalized_topic = _norm_legal_text(topic)
+    employment = any(term in normalized_topic for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
+    if employment:
+        patterns = [
+            r"(?:المادة\s+السادسة|مادة\s*\(?\s*(?:السادسة|6|٦)\s*\)?)[^:]{0,20}:?.{0,1400}",
+            r"مادة\s*\(?\s*(?:27|٢٧)\s*\)?\s*:?.{0,1600}",
+            r"مادة\s*\(?\s*(?:33|٣٣|34|٣٤|40|٤٠|41|٤١|42|٤٢|43|٤٣|291|٢٩١)\s*\)?\s*:?.{0,1600}",
+        ]
+        excerpts = []
+        for pattern in patterns:
+            for match in re.finditer(pattern, value, re.I):
+                snippet = _clean(match.group(0))
+                if snippet and snippet not in excerpts:
+                    excerpts.append(snippet)
+        if excerpts:
+            return _clean(" ".join(excerpts))[:14000]
+    return value[:5000]
 
 def _quote(t,topic,max_words=24):
     terms=[x for x in re.findall(r"[\u0600-\u06ff]{4,}",topic) if x not in {"قانون","مصر","الموضوع"}]
@@ -214,7 +236,7 @@ def research_legal_topic(topic, existing=""):
         d=_domain(x["url"]); court="محكمة النقض" if d in COURT else ("المحكمة الإدارية العليا" if d in ADMIN else "")
         case=_case(body)
         if case and court:
-            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],body[:3000]))
+            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],_source_evidence(body, topic)))
         elif _host_matches(d, OFFICIAL_LAWS):
             records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
         elif _host_matches(d, SECONDARY_LAWS):
