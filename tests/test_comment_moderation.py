@@ -45,3 +45,13 @@ def test_positive_feedback_gets_brief_thank_you():
     decision = classify_comment("شكرا جدا المحتوى مفيد")
     assert decision.category == "POSITIVE"
     assert "شكرًا" in build_public_reply(decision)
+
+
+
+def test_complaint_and_sensitive_comments_get_review_drafts_without_auto_publish():
+    complaint = classify_comment("محدش رد عليا ودي تجربة سيئة")
+    sensitive = classify_comment("رقمي القومي 12345678901234 وعايز استشارة")
+    assert complaint.action == "REVIEW"
+    assert "نعتذر" in build_public_reply(complaint)
+    assert sensitive.action == "REVIEW"
+    assert "خصوصيتك" in build_public_reply(sensitive)
