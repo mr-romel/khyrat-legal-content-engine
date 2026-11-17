@@ -39,8 +39,9 @@ def test_qa_prompt_is_context_only_and_never_requires_reference_identity():
     assert "No platform-specific icon is used" in prompt
     assert "legal situation" in prompt
     assert "Do not impose an unrequested country" in prompt
-    assert "A partial but genuine topic connection is sufficient" in prompt
-    assert "reasonable connection to ANY meaningful part" in prompt
+    assert "PRIMARY SUBJECT and MAIN ACTION" in prompt
+    assert "generic legal office" in prompt
+    assert "require the central subject/action to match" in prompt
     assert "Do not invent negative constraints" in prompt
     assert "The absence of a person, lawyer, courtroom" in prompt
 
@@ -69,7 +70,7 @@ def test_qa_prompt_treats_visible_distortion_as_mandatory_regeneration():
         "CONTEXT_ONLY",
     )
     assert "visibly fused limb" in prompt
-    assert "Do not reject solely for advisory scores" in prompt
+    assert "A low relevance score is a substantive warning" in prompt
     assert "ambiguous reflections" in prompt
 
 
@@ -166,7 +167,7 @@ def test_image_qa_metadata_fallback_rejects_unrelated_openverse_image(monkeypatc
 
 
 
-def test_lenient_policy_accepts_partial_relevance_despite_low_advisory_scores():
+def test_strict_policy_rejects_low_topic_relevance_even_when_composition_is_advisory():
     from image_qa import _apply_lenient_relevance_policy
     result = _apply_lenient_relevance_policy({
         "decision": "REGENERATE",
@@ -179,12 +180,12 @@ def test_lenient_policy_accepts_partial_relevance_despite_low_advisory_scores():
         "composition_findings": ["The composition is not ideal."],
         "advisories": [],
     }, {"aspect_ratio_ok": True})
-    assert result["decision"] == "PASS"
-    assert result["qa_policy"] == "LENIENT_PARTIAL_RELEVANCE_V1"
-    assert "qa_policy_override" in result
+    assert result["decision"] == "REGENERATE"
+    assert result["qa_policy"] == "STRICT_CENTRAL_SUBJECT_RELEVANCE_V2"
+    assert "insufficient central-subject relevance" in result["qa_policy_override"]
 
 
-def test_lenient_policy_still_rejects_explicitly_unrelated_image():
+def test_strict_policy_rejects_explicitly_unrelated_image():
     from image_qa import _apply_lenient_relevance_policy
     result = _apply_lenient_relevance_policy({
         "decision": "REGENERATE",
@@ -196,7 +197,7 @@ def test_lenient_policy_still_rejects_explicitly_unrelated_image():
     assert result["decision"] == "REGENERATE"
 
 
-def test_lenient_policy_still_rejects_generated_text_and_bad_format():
+def test_strict_policy_still_rejects_generated_text_and_bad_format():
     from image_qa import _apply_lenient_relevance_policy
     text_result = _apply_lenient_relevance_policy({
         "decision": "PASS", "text_detected": True, "issues": [],

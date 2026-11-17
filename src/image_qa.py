@@ -15,7 +15,7 @@ from brand_identity import BRAND_OVERLAY_TEXT, BRAND_OVERLAY_SUBTEXT
 DEFAULT_QA_MODEL = os.getenv("KHYRAT_IMAGE_QA_MODEL", "gemini-3.1-flash-lite")
 # Publication gate: unavailable or rejected semantic QA must never be treated as approval.
 QA_MIN_COMPOSITION = int(os.getenv("KHYRAT_IMAGE_QA_MIN_COMPOSITION", "55"))
-QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "55"))
+QA_MIN_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_MIN_RELEVANCE", "72"))
 QA_MIN_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_MIN_OVERALL", "60"))
 QA_HARD_REJECT_RELEVANCE = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_RELEVANCE", "5"))
 QA_HARD_REJECT_OVERALL = int(os.getenv("KHYRAT_IMAGE_QA_HARD_REJECT_OVERALL", "10"))
@@ -105,7 +105,7 @@ No character-reference images are supplied or required. Evaluate the generated s
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 LEGAL RELEVANCE RULE:
-Use a PRACTICAL, LENIENT relevance standard suitable for a library of thousands of different legal topics. PASS the image when at least ONE clearly identifiable visual element, object, action, setting, or document has a reasonable connection to ANY meaningful part of the legal topic or post. The image does NOT need to explain the entire legal doctrine, show every party, or reproduce the whole post. A partial but genuine topic connection is sufficient. Accept a relevant phone, document, workplace, home, vehicle, street, contract, family setting, money, or other topic-related object even when the overall scene is simple. Do not demand exact props, complete storytelling, a perfect metaphor, or a full literal depiction. Do not reject merely because the scene is generic-looking if one visible element is still relevant. Reject only when the image has NO reasonable connection at all to the topic/post, or is materially misleading. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
+Apply a STRICT TOPIC-FIRST relevance standard. The PRIMARY SUBJECT and MAIN ACTION of the image must depict the concrete legal situation, object, evidence, procedure, place, or consequence stated in the ORIGINAL VISUAL BRIEF. A generic legal office, lawyer portrait, courthouse, scales, gavel, paperwork, handshake, phone, money, family, workplace, or document is NOT relevant merely because it can appear in legal content. Such an element counts only when it is the actual subject or action required by this specific brief. The topic-specific subject must be visually dominant and recognizable at normal feed size; incidental background props do not qualify. If the brief names a distinctive object/action/place, verify that it is actually visible. Reject images whose main scene could illustrate dozens of unrelated legal topics equally well. Do not require every detail, but require the central subject/action to match. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
 
 BRAND OVERLAY RULE:
 A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_OVERLAY_SUBTEXT}" is intentionally
@@ -114,7 +114,7 @@ Any other visible generated text, fake Arabic/English lettering, gibberish, wate
 caption, sign, document writing, or typography is a defect.
 
 CHECK THESE FIVE THINGS:
-1. LEGAL RELEVANCE: Does the image clearly represent the specific legal problem, evidence, action, or consequence described in the post?
+1. LEGAL RELEVANCE: Does the MAIN SUBJECT and MAIN ACTION directly depict the specific topic and original visual brief? Ignore incidental generic legal props.
 2. COMPOSITION: Is the visual clean and professionally composed for the measured {aspect_ratio_label} publishing format?
    Is the focal subject visible? Is the crop safe? Are important hands, faces, documents, and actions
    not awkwardly cut? Is there enough visual breathing room? Is the scene understandable without text?
@@ -128,11 +128,11 @@ CHECK THESE FIVE THINGS:
    reflections, shadows, or ambiguous artifacts. If the scene is a still life with no people, do not invent
    anatomy findings.
 DECISION:
-PASS when the image is usable for publication and at least one visible element has a reasonable connection to any part of the topic/post. Partial relevance is enough.
-REGENERATE only for a truly unrelated image with no identifiable topic connection, a materially misleading scene, severe visible distortion, unusable output, or prominent generated text that damages the asset. Low scores, imperfect composition, missing optional props, incomplete storytelling, and minor aesthetic issues are NOT rejection reasons.
+PASS only when the dominant subject/action directly matches the specific topic and original visual brief, is recognizable at normal feed size, and the image is otherwise usable. A loosely related prop or generic legal scene is not enough.
+REGENERATE when the central subject/action does not directly match the visual brief, the scene is materially misleading, visibly distorted, unusable, or contains prominent generated text. Composition scores and minor aesthetic issues remain advisory; topic relevance is a publication gate.
 Do not reject a valid 9:16 Reel image for not being 4:5; use the measured target format above.
 Do not invent negative constraints or missing mandatory props. The absence of a person, lawyer, courtroom, justice scales, or any illustrative prop is NOT a defect unless the supplied visual brief explicitly makes that exact element essential. Do not demand generic legal symbols. Judge whether the actual scene communicates the stated legal issue, not whether it matches an imagined stock-photo template.
-Do not reject solely for advisory scores or minor aesthetic imperfections when the image is coherent, readable, and has at least one reasonable topic-related element. If uncertain between partial relevance and irrelevance, prefer PASS unless the image is clearly unrelated.
+A low relevance score is a substantive warning, not a cosmetic advisory. If relevance is below the configured threshold, or the main scene is generic/ambiguous, REGENERATE. If uncertain whether the central subject matches, do not infer relevance from generic props.
 A clearly visible, material anatomy or geometry defect is a valid rejection reason; ambiguous reflections, tiny artifacts, and speculative defects are not.
 Do not reject a clean, coherent image merely because composition or styling is not perfect.
 The image is a first-class publishing asset; do not publish a visibly malformed image just to avoid another generation attempt.
@@ -205,7 +205,7 @@ def _metadata_relevance_fallback(path: Path, topic: str, image_brief: str, hard:
 
 
 def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) -> dict[str, Any]:
-    """Treat scores and missing scene details as advisory; block only concrete defects."""
+    """Keep aesthetics advisory, but enforce a strict minimum for topic relevance."""
     findings = []
     for field in ("issues", "relevance_findings", "composition_findings"):
         value = data.get(field, [])
@@ -232,15 +232,17 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
             if not re.search(r"\b(no|not|none|without|absent|absence|neither|does not|isn\'t|aren\'t)\b", finding):
                 material_defect = True
                 break
+    relevance_score = _normalize_score(data.get("relevance_score"))
     hard_failure = (
         not bool(hard.get("aspect_ratio_ok"))
         or bool(data.get("text_detected"))
         or explicit_unrelated
         or material_defect
+        or relevance_score < QA_MIN_RELEVANCE
     )
 
     data["advisories"] = list(data.get("advisories") or [])
-    data["qa_policy"] = "LENIENT_PARTIAL_RELEVANCE_V1"
+    data["qa_policy"] = "STRICT_CENTRAL_SUBJECT_RELEVANCE_V2"
     if data.get("decision") == "REGENERATE" and not hard_failure:
         data["decision"] = "PASS"
         data["qa_policy_override"] = (
@@ -250,7 +252,7 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
         data["advisories"].append(data["qa_policy_override"])
     elif hard_failure:
         data["decision"] = "REGENERATE"
-        data["qa_policy_override"] = "A concrete hard visual defect was identified."
+        data["qa_policy_override"] = "A concrete visual defect or insufficient central-subject relevance was identified."
     return data
 
 
