@@ -197,6 +197,35 @@ def _fill_description(page, description: str) -> None:
         page.keyboard.type(description)
 
 
+def _read_editor_description(page) -> str:
+    locator = _open_post_settings(page)
+    if locator is None:
+        raise RuntimeError("Could not reopen Blogger Search Description field for read-after-write verification.")
+    try:
+        return _clean(locator.input_value(timeout=3000))
+    except Exception:
+        return _clean(locator.inner_text(timeout=3000))
+
+
+def _read_public_meta_http(url: str) -> str:
+    if not url:
+        return ""
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; KhyratLegalSEO/1.0)"}
+    try:
+        response = requests.get(url, headers=headers, timeout=12, allow_redirects=True)
+        if not response.ok or "unusual traffic" in response.text.lower() or "not a robot" in response.text.lower():
+            return ""
+        for tag in re.findall(r"<meta\\b[^>]*>", response.text, flags=re.I):
+            if not re.search(r"""\\bname\\s*=\\s*['"]description['"]""", tag, flags=re.I):
+                continue
+            match = re.search(r"""\\bcontent\\s*=\\s*(['"])(.*?)\\1""", tag, flags=re.I | re.S)
+            if match:
+                return _clean(html.unescape(match.group(2)))
+    except Exception:
+        return ""
+    return ""
+
+
 def _click_update(page) -> None:
     candidates = [
         page.get_by_role("button", name=re.compile(r"update|تحديث|تعديل|حفظ|save|publish|نشر", re.I)),
@@ -263,21 +292,33 @@ def process_row(page, blog_id: str, row_number: int, row: dict[str, str], sheet_
 
         _fill_description(page, description)
         _click_update(page)
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1200)
 
-        if public_url:
-            actual = _read_public_meta(page, public_url)
-            if actual != description:
-                raise RuntimeError(
-                    f"SEO verification mismatch: expected={description!r}, actual={actual!r}"
-                )
+        # Read the saved field back from Blogger's authenticated editor.
+        # Public Blogger pages can return Google's anti-bot interstitial to
+        # automation; that must not be confused with a failed UI save.
+        page.goto(edit_url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(900)
+        actual = _read_editor_description(page)
+        if actual != description:
+            raise RuntimeError(
+                f"Editor read-after-write mismatch: expected={description!r}, actual={actual!r}"
+            )
+
+        public_meta = _read_public_meta_http(public_url) if public_url else ""
+        if public_meta and public_meta != description:
+            raise RuntimeError(
+                f"Public meta mismatch after editor save: expected={description!r}, actual={public_meta!r}"
+            )
+        verification_method = "EDITOR_AND_PUBLIC_META" if public_meta == description else "EDITOR_READBACK_PUBLIC_CHECK_UNAVAILABLE"
 
         update_row(sheet_service, sheet_id, sheet_name, row_number, {
             "Blogger SEO Status": "VERIFIED",
             "Blogger SEO Error": "",
             "Blogger SEO Verified At": datetime.now(timezone.utc).isoformat(),
+            "Blogger SEO Verification Method": verification_method,
         })
-        print(f"Blogger SEO verified: row={row_number}, post={post_id}")
+        print(f"Blogger SEO verified by {verification_method}: row={row_number}, post={post_id}")
         return True
     except (PlaywrightTimeoutError, Exception) as exc:
         error = str(exc)[:1500]
