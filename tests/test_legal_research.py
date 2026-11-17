@@ -87,3 +87,22 @@ URL: https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation
     assert not has_verified_legal_source("LEGAL RESEARCH PACKET: no sufficiently verified sources")
     bad = packet.replace("https://elpai.idsc.gov.eg", "https://example.com")
     assert not has_verified_legal_source(bad)
+
+def test_official_labour_and_state_information_subdomains_are_allowed():
+    from legal_research import _allowed
+
+    assert _allowed("https://www.labour.gov.eg/laws-and-legislations/")
+    assert _allowed("https://sis.gov.eg/media/760267/law-14-2025.pdf")
+    assert _allowed("https://media.mof.gov.eg/mof-prd/law.pdf")
+    assert not _allowed("https://fake-labour.gov.eg/law.pdf")
+
+
+def test_employment_topic_injects_verified_primary_law_sources(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_fetch", lambda url: "قانون رقم 14 لسنة 2025 قانون العمل")
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
+    assert "https://sis.gov.eg/media/760267/" in packet
+    assert "قانون العمل رقم 14 لسنة 2025" in packet
+    assert legal_research.has_verified_legal_source(packet)
