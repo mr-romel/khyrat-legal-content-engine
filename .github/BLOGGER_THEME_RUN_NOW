@@ -1,1 +1,1 @@
-Retry theme editor activation using the visible Edit HTML menu item; preserve original backup and verify save plus public page source. Trigger: 2026-11-17T18:06:00+02:00
+Open the authenticated Blogger HTML editor directly at /blog/themes/edit/{blogId}, back up current theme, apply contact and GA4 conversion patch, save, and verify. Trigger: 2026-11-17T18:08:00+02:00
