@@ -38,6 +38,9 @@ LEGAL_PATTERNS = [
 ]
 
 INTENT_RULES = [
+    (("محتاج محامي", "محتاجة محامي", "عايز محامي", "عاوز محامي", "ابحث عن محامي", "رقم محامي",
+      "محامي في القاهرة", "محامي في الجيزة", "حجز استشارة", "طلب استشارة", "اطلب استشارة",
+      "استشارة قانونية", "مكتب محاماة", "خدمات قانونية", "توكيل محامي"), "SERVICE"),
     (("ازاي", "إزاي", "كيف", "ماذا أفعل", "أعمل إيه", "اعمل ايه"), "HOW_TO"),
     (("هل يجوز", "هل ينفع", "يجوز", "هل يحق", "هل يصح"), "QUESTION"),
     (("حقوق", "حق", "واجب", "يستحق"), "INFORMATIONAL"),
@@ -129,6 +132,8 @@ def build_local_intent(topic: str, post: str = "") -> str:
     return "CAIRO_AND_GIZA_CASEWORK | ALL_EGYPT_ONLINE_CONSULTATIONS"
 
 def build_page_type(intent: str, entity: str) -> str:
+    if intent == "SERVICE":
+        return "SERVICE_LANDING"
     if intent == "HOW_TO":
         return "HOW_TO"
     if intent == "QUESTION":
@@ -144,8 +149,18 @@ def build_metadata(*, post_id: str, topic: str, post: str, platform: str, legal_
     entity = infer_legal_entity(topic, post)
     question = build_primary_question(topic, post)
     extract = build_answer_extract(topic, post)
-    title = _clean(question, 65)
-    description = _clean(f"{extract} شرح عملي مبني على القواعد القانونية المصرية والمصادر ذات الصلة.", 155)
+    if intent == "SERVICE":
+        is_online = any(term in f"{topic} {post}" for term in ("أونلاين", "اونلاين", "عن بعد", "عن بُعد"))
+        location = "في مصر" if is_online else "في القاهرة والجيزة"
+        title_topic = topic if any(term in topic for term in ("القاهرة", "الجيزة", "مصر")) else f"{topic} {location}"
+        title = _clean(f"{title_topic} | اسأل محمود", 65)
+        description = _clean(
+            f"اطلب تقييمًا أوليًا لخدمة {topic}. متابعة القضايا في القاهرة والجيزة، واستشارات أونلاين لجميع محافظات مصر. تواصل مع محمود خيرت.",
+            155,
+        )
+    else:
+        title = _clean(question, 65)
+        description = _clean(f"{extract} شرح عملي مبني على القواعد القانونية المصرية والمصادر ذات الصلة.", 155)
     return {
         "Post ID": _clean(post_id, 120),
         "Topic": topic,
