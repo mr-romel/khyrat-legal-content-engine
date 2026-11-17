@@ -1,1 +1,1 @@
-Apply theme patch through direct Blogger HTML editor route; save and read the saved XML back from the same editor route. Preserve before/after backup and verify public page source. Trigger: 2026-11-17T18:09:00+02:00
+Apply theme patch using direct HTML editor; verify staged editor value before saving and capture post-save feedback plus readback. Preserve backup and screenshot artifacts. Trigger: 2026-11-17T18:14:00+02:00
