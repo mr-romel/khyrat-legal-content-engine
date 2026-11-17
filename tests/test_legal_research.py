@@ -70,3 +70,20 @@ def test_official_egyptian_legislation_portal_is_allowed_but_arbitrary_domain_is
     assert _allowed("https://mof.gov.eg/ar/legislation/legislation")
     assert not _allowed("https://example.com/egypt-law")
     assert not _allowed("http://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases")
+
+
+
+def test_verified_legal_source_gate_requires_whitelisted_https_source_block():
+    from legal_research import has_verified_legal_source
+
+    packet = """LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY
+SOURCE 1
+Type: current_legislation_source
+Court/source: elpai.idsc.gov.eg
+Title: بوابة التشريعات المصرية
+URL: https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation
+"""
+    assert has_verified_legal_source(packet)
+    assert not has_verified_legal_source("LEGAL RESEARCH PACKET: no sufficiently verified sources")
+    bad = packet.replace("https://elpai.idsc.gov.eg", "https://example.com")
+    assert not has_verified_legal_source(bad)
