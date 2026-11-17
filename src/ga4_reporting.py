@@ -268,9 +268,40 @@ def main() -> int:
         raise ValueError("GA4_PROPERTY_ID must be a numeric GA4 property ID.")
     today = datetime.now(CAIRO).date()
     end_date = today - timedelta(days=1)
-    service = _analytics_service()
-    snapshot = build_snapshot(service, property_id, end_date)
-    snapshot["lead_crm"] = read_lead_summary()
+    lead_summary = {"status": "UNAVAILABLE", "inquiries_received": None, "qualified_leads": None, "clients_confirmed": None}
+    lead_error = ""
+    try:
+        lead_summary = read_lead_summary()
+    except Exception as exc:
+        lead_error = str(exc)[:1000]
+
+    ga4_error = ""
+    try:
+        service = _analytics_service()
+        snapshot = build_snapshot(service, property_id, end_date)
+    except Exception as exc:
+        ga4_error = str(exc)[:1500]
+        current_start = end_date - timedelta(days=6)
+        previous_end = current_start - timedelta(days=1)
+        previous_start = previous_end - timedelta(days=6)
+        snapshot = {
+            "generated_at": datetime.now(CAIRO).isoformat(),
+            "property_id": str(property_id),
+            "site": os.getenv("GA4_SITE_URL", "https://askmahmoudkhyrat.blogspot.com/"),
+            "status": "GA4_UNAVAILABLE",
+            "period": {"start": current_start.isoformat(), "end": end_date.isoformat()},
+            "previous_period": {"start": previous_start.isoformat(), "end": previous_end.isoformat()},
+            "current": {"has_rows": False, "metrics": {name: None for name in METRICS}},
+            "previous": {"has_rows": False, "metrics": {name: None for name in METRICS}},
+            "delta": {name: None for name in METRICS},
+            "channels": [], "top_pages": [], "events": [],
+            "interpretation_limit": "GA4 Data API unavailable; traffic and event metrics are null, not zero. CRM counts remain independent.",
+        }
+    snapshot["lead_crm"] = lead_summary
+    if ga4_error:
+        snapshot["ga4_error"] = ga4_error
+    if lead_error:
+        snapshot["lead_crm_error"] = lead_error
     out = Path(os.getenv("GA4_REPORT_DIR", "artifacts/ga4"))
     out.mkdir(parents=True, exist_ok=True)
     (out / "weekly-report.json").write_text(
