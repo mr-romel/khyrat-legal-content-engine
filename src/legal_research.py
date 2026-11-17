@@ -192,7 +192,8 @@ def research_legal_topic(topic, existing=""):
     if employment_topic:
         # Primary text of Law 14/2025 as published in the Official Gazette.
         official_employment_sources = [
-            ("https://sis.gov.eg/media/760267/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "الجريدة الرسمية — قانون العمل رقم 14 لسنة 2025"),
+            ("https://media.mof.gov.eg/mof-prd/qanwn_aleml_2025_14_f8e36d8b4f.pdf", "الجريدة الرسمية — وزارة المالية — قانون العمل رقم 14 لسنة 2025"),
+            ("https://sis.gov.eg/media/760267/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "الجريدة الرسمية — الهيئة العامة للاستعلامات — قانون العمل رقم 14 لسنة 2025"),
             ("https://www.labour.gov.eg/media/0iedik3q/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "وزارة العمل — قانون العمل رقم 14 لسنة 2025"),
         ]
         for url, title in official_employment_sources:
