@@ -1,1 +1,1 @@
-Read and classify new Blogger comments into the manual reply queue. Trigger: 2026-11-17T18:03:02+02:00
+Retry Blogger comment read and classification after API client initialization fix. Keep reply drafts queued for Blogger UI review. Trigger: 2026-11-17T18:05:01+02:00
