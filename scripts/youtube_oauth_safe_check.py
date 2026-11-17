@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Safe, read-only OAuth validation trigger after PR #57 production deployment.
+
 import os
 import sys
 import requests
