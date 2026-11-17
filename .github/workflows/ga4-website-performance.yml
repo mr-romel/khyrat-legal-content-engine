@@ -1,6 +1,10 @@
 name: GA4 Website Performance Report
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/GA4_LEAD_CRM_RUN_NOW"
   schedule:
     - cron: "10 22 * * *"
       timezone: "Africa/Cairo"
