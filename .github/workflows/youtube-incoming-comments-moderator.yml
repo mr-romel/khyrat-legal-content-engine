@@ -1,0 +1,48 @@
+name: YouTube Incoming Comments Moderator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/YOUTUBE_INCOMING_COMMENTS_RUN_NOW"
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: youtube-incoming-comments-moderator
+  cancel-in-progress: false
+
+jobs:
+  moderate:
+    name: Read, classify and safely reply to YouTube Shorts comments
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
+      YOUTUBE_COMMENT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_COMMENT_REFRESH_TOKEN }}
+      YOUTUBE_COMMENT_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID || secrets.YOUTUBE_COMMENT_CLIENT_ID }}
+      YOUTUBE_COMMENT_CLIENT_SECRET: ${{ secrets.YOUTUBE_COMMENT_CLIENT_SECRET }}
+      YOUTUBE_INCOMING_MAX_VIDEOS: "12"
+      YOUTUBE_INCOMING_MAX_COMMENTS: "15"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install worker dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Compile moderation worker
+        run: python -m py_compile src/comment_moderation.py src/youtube_incoming_comments_worker.py
+      - name: Read and moderate incoming YouTube comments
+        run: PYTHONPATH=src python src/youtube_incoming_comments_worker.py
