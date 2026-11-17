@@ -148,14 +148,44 @@ CONFIRMED_STATUSES = {"QUALIFIED", "CONSULTATION_BOOKED", "CLIENT"}
 
 def _ensure_lead_sheet(sheets, spreadsheet_id: str) -> None:
     metadata = sheets.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
-    exists = any(
-        str(item.get("properties", {}).get("title", "")).casefold() == LEAD_SHEET_NAME.casefold()
-        for item in metadata.get("sheets", [])
+    sheet_properties = next(
+        (item.get("properties", {}) for item in metadata.get("sheets", [])
+         if str(item.get("properties", {}).get("title", "")).casefold() == LEAD_SHEET_NAME.casefold()),
+        None,
     )
-    if not exists:
-        sheets.spreadsheets().batchUpdate(
+    if not sheet_properties:
+        created = sheets.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id,
             body={"requests": [{"addSheet": {"properties": {"title": LEAD_SHEET_NAME}}}]},
+        ).execute()
+        sheet_properties = next(
+            (item.get("properties", {}) for item in created.get("replies", [])
+             if item.get("addSheet", {}).get("properties")),
+            {},
+        )
+        sheet_properties = sheet_properties.get("properties", sheet_properties)
+    sheet_id = sheet_properties.get("sheetId")
+    if sheet_id is not None:
+        validations = [
+            (2, 3, ["GOOGLE_ORGANIC", "GOOGLE_ADS", "FACEBOOK", "INSTAGRAM", "LINKEDIN", "YOUTUBE", "DIRECT", "REFERRAL", "OTHER"]),
+            (5, 6, ["WHATSAPP", "PHONE", "WEBSITE_FORM", "FACEBOOK", "LINKEDIN", "YOUTUBE", "OTHER"]),
+            (7, 8, ["NEW", "CONTACTED", "QUALIFIED", "CONSULTATION_BOOKED", "CLIENT", "LOST"]),
+        ]
+        requests = []
+        for start_col, end_col, values in validations:
+            requests.append({"setDataValidation": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 1000,
+                          "startColumnIndex": start_col, "endColumnIndex": end_col},
+                "rule": {"condition": {"type": "ONE_OF_LIST",
+                                       "values": [{"userEnteredValue": value} for value in values]},
+                         "strict": True, "showCustomUi": True},
+            }})
+        requests.append({"updateSheetProperties": {
+            "properties": {"sheetId": sheet_id, "gridProperties": {"frozenRowCount": 1}},
+            "fields": "gridProperties.frozenRowCount",
+        }})
+        sheets.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id, body={"requests": requests}
         ).execute()
     current = sheets.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=f"{LEAD_SHEET_NAME}!A1:N1"
