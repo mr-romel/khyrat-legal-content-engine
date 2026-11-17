@@ -1,4 +1,8 @@
-from scripts.apply_blogger_internal_links import add_related_section, has_internal_related_links
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from apply_blogger_internal_links import add_related_section, has_internal_related_links
 
 
 def test_existing_related_heading_without_internal_links_gets_internal_links_appended():
