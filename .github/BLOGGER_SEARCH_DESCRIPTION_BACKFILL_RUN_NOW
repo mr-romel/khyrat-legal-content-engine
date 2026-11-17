@@ -1,1 +1,1 @@
-Run the missing-description-only Blogger backfill. Preserve backups and require public-page read-after-write verification. Trigger: 2026-11-17.
+Retry the missing-search-description backfill using authenticated Blogger editor read-after-write verification. Public CAPTCHA must be recorded as unavailable, not as an update failure. Skip any post already marked VERIFIED in Blogger editor. Trigger: 2026-11-17T18:00:00+02:00
