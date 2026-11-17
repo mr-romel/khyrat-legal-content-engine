@@ -33,6 +33,8 @@ def test_service_pages_do_not_promise_legal_outcomes():
         "مراجعة وصياغة العقود للشركات والأفراد",
         "الخدمات القانونية للشركات وتأسيسها",
         "قضايا التعويض والمسؤولية المدنية",
+        "محامي قضايا جنائية في القاهرة والجيزة",
+        "محامي أحوال شخصية وأسرة في القاهرة والجيزة",
     }]
     forbidden = ("نضمن كسب", "مضمون 100%", "نضمن الحكم")
     assert all(not any(term in page["content"] for term in forbidden) for page in pages)
