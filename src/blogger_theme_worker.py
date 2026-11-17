@@ -171,7 +171,7 @@ def apply_theme_patch(original: str) -> str:
     # rejects its legacy style settings at save time; visible/active ad units are preserved.
     ads_match = re.search(r"<b:section[^>]*id='ads'[^>]*>.*?</b:section>", updated, re.S)
     if ads_match:
-        ads_widgets = re.findall(r"<b:widget\\b.*?</b:widget>", ads_match.group(0), re.S)
+        ads_widgets = re.findall(r"<b:widget\b.*?</b:widget>", ads_match.group(0), re.S)
         if ads_widgets and all("visible='false'" in widget for widget in ads_widgets):
             updated = updated[:ads_match.start()] + updated[ads_match.end():]
         elif ads_widgets:
