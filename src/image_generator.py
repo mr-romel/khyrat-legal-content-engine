@@ -470,6 +470,26 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
     return output.read_bytes()
 
 
+def _supports_topic_specific_local_scene(topic: str, visual_description: str) -> bool:
+    """Only allow the local renderer when the subject maps to a concrete scene family."""
+    value = (str(topic or "") + " " + str(visual_description or "")).casefold()
+    scene_terms = (
+        "تهديد", "قتل", "رسالة", "مكالمة", "ابتزاز", "threat", "call",
+        "تصالح", "تنازل", "تسوية", "إقرار", "settlement", "waiver",
+        "تحقيق", "استجواب", "محضر", "موظف عام", "مساءلة", "investigation",
+        "إجاز", "راحة", "حضور", "leave", "employment", "vacation",
+        "جمارك", "استيراد", "مضبوطات", "customs", "import", "shipping",
+        "عقد", "التزام", "شركات", "contract", "business", "company",
+        "ميعاد", "دعوى", "قرار اداري", "calendar", "deadline",
+        "اراضي", "تخطيط", "حزام اخضر", "land", "urban planning",
+        "موظف", "workplace", "employee", "transfer", "personnel",
+        "المرفق", "مرافق", "خدمة عامة", "مياه", "كهرباء", "نقل عام",
+        "public utility", "economic facility", "water utility", "power plant",
+        "electricity", "public transport", "infrastructure", "municipal",
+    )
+    return any(term in value for term in scene_terms)
+
+
 def create_generic_legal_fallback_image(
     *,
     output_path: str,
@@ -966,6 +986,10 @@ def create_legal_image(
                 time.sleep(delay)
 
     if provider_preference == "local_scene":
+        if not _supports_topic_specific_local_scene(topic, visual_description):
+            raise ImageGenerationError(
+                "LOCAL_SCENE_UNSUPPORTED: no specialized local illustration exists for this legal subject; refusing a generic fallback."
+            )
         image_bytes = _generate_zero_cost_editorial_image(
             topic=str(topic or ""),
             visual_description=visual_description,
@@ -1025,7 +1049,25 @@ def create_legal_image(
                             image_bytes = _generate_with_pixabay()
                             provider = "PIXABAY_SCENE_STOCK"
                         except Exception as pixabay_error:
-                            raise ImageGenerationError("All scene-specific image providers failed. " f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}") from pixabay_error
+                            if _supports_topic_specific_local_scene(topic, visual_description):
+                                image_bytes = _generate_zero_cost_editorial_image(
+                                    topic=str(topic or ""), visual_description=visual_description,
+                                    output_path=output_path, width=width, height=height,
+                                )
+                                provider = "LOCAL_SCENE_ILLUSTRATION"
+                                source_metadata = {
+                                    "source": "Original local renderer",
+                                    "scene_brief": visual_description,
+                                    "text_free": "true",
+                                    "external_provider": "false",
+                                }
+                                print("External image providers exhausted; using a verified specialized local scene without consuming quota.")
+                            else:
+                                raise ImageGenerationError(
+                                    "NO_TOPIC_SPECIFIC_IMAGE: all scene-specific providers failed and no specialized local scene exists. "
+                                    f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; "
+                                    f"Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}"
+                                ) from pixabay_error
     elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
