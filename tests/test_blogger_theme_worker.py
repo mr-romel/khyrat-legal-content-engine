@@ -4,6 +4,7 @@ from blogger_theme_worker import apply_theme_patch, MARKER, PHONE, WHATSAPP, SIT
 def _minimal_theme():
     return """<?xml version='1.0' encoding='UTF-8'?>
 <root xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data'>
+  <head></head>
   <b:skin><![CDATA[body { color: black; }]]></b:skin>
   <b:section id='ads' ads='true'><b:widget id='AdSense1' visible='false'></b:widget><b:widget id='AdSense2' visible='false'></b:widget></b:section>
   <nav><b:section id='page_list_top'></b:section></nav>
