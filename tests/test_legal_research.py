@@ -250,3 +250,56 @@ URL: https://www.aca.gov.eg/News/1550.aspx
 VERIFIED SOURCE TEXT (retrieved): تحذر الهيئة من انتحال صفة بعض الموظفين العموميين وتطلب التحقق من هوية الأشخاص والجهات الرسمية.
 """
     assert has_verified_legal_source(packet)
+
+
+
+def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    def fake_fetch(url):
+        fetched.append(url)
+        return (
+            "قانون رقم 81 لسنة 2016 بإصدار قانون الخدمة المدنية. "
+            "تسري أحكامه على الوظائف في الوزارات ومصالحها والأجهزة الحكومية. "
+            "يكون التعيين في الوظائف العامة وفقاً للقواعد والإجراءات القانونية."
+        )
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic(
+        "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
+    )
+    assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "nosi.gov.eg" in packet
+
+
+def test_impersonation_topic_uses_official_anti_impersonation_sources(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    def fake_fetch(url):
+        fetched.append(url)
+        return (
+            "تحذر هيئة الرقابة الإدارية من انتحال صفة بعض الموظفين العموميين "
+            "وضرورة التأكد من هوية الأشخاص والجهات التي يمثلونها. "
+            "كما يجرم القانون اتخاذ صفة كاذبة للحصول على منفعة."
+        )
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic(
+        "انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
+    )
+    assert any("aca.gov.eg/News/1550.aspx" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "انتحال صفة" in packet
+
+
+def test_topic_evidence_terms_expand_legal_synonyms():
+    from legal_research import _topic_evidence_terms
+
+    impersonation = _topic_evidence_terms("انتحال الشخصية")
+    employment = _topic_evidence_terms("الوظيفة العامة والتعيين")
+    assert "صفة" in impersonation
+    assert "الخدمة" in employment
+    assert "المدنية" in employment
