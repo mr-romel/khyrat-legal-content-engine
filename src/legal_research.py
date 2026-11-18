@@ -158,14 +158,22 @@ def _topic_evidence_terms(topic: str) -> list[str]:
     terms = list(_research_topic_terms(topic))
     aliases = []
     if "انتحال" in normalized or "الشخصيه" in normalized:
-        aliases.extend(["انتحال صفة", "صفة كاذبة", "صفة غير صحيحة", "انتحال صفة موظف عام", "اسم كاذب"])
+        aliases.extend([
+            "انتحال صفة", "صفة كاذبة", "صفة غير صحيحة", "انتحال صفة موظف عام",
+            "اسم كاذب", "تداخل في وظيفة عمومية", "صفة رسمية من الحكومة",
+            "اختلاس الألقاب والوظائف", "الاتصاف بها بدون حق",
+        ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
-        aliases.extend(["الخدمة المدنية", "الوظائف العامة", "شغل الوظائف", "التعيين في الوظائف", "قانون الخدمة المدنية"])
+        aliases.extend([
+            "الخدمة المدنية", "الوظائف العامة", "شغل الوظائف", "التعيين في الوظائف",
+            "قانون الخدمة المدنية", "الكفاءة والجدارة", "وظائف شاغرة وممولة",
+            "لجنة الاختيار", "امتحان التعيين", "المادة 12",
+        ])
     for alias in aliases:
         for token in re.findall(r"[\u0621-\u064A]{3,}", _norm_legal_text(alias)):
             if token not in terms:
                 terms.append(token)
-    return terms[:18]
+    return terms[:28]
 
 def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]:
     """Match exact words and close Arabic inflections without a per-topic synonym table."""
@@ -362,12 +370,19 @@ def research_legal_topic(topic, existing=""):
             ("https://aca.gov.eg/News/1550.aspx", "الرقابة الإدارية: انتحال صفة الموظفين العموميين"),
             ("https://cc.gov.eg/heritage/index-entries?book=42&page=10", "محكمة النقض: انتحال صفة كاذبة"),
             ("https://aca.gov.eg/Media/News/2021/12/11/2021-637748484788261346-826.pdf", "هيئة الرقابة الإدارية: استغلال صفة الموظف العام"),
+            ("https://manshurat.org/node/14677", "قانون العقوبات رقم 58 لسنة 1937 — الباب العاشر، المواد 155 إلى 157"),
         ])
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
-        seed_urls.append((
-            "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/قانون%20الخدمة%20المدنية%2081%20لسنة%202016.pdf",
-            "قانون الخدمة المدنية رقم 81 لسنة 2016 — الهيئة القومية للتأمين الاجتماعي",
-        ))
+        seed_urls.extend([
+            (
+                "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/قانون%20الخدمة%20المدنية%2081%20لسنة%202016.pdf",
+                "قانون الخدمة المدنية رقم 81 لسنة 2016 — الجريدة الرسمية عبر الهيئة القومية للتأمين الاجتماعي",
+            ),
+            (
+                "https://manshurat.org/node/14678",
+                "قانون الخدمة المدنية رقم 81 لسنة 2016 — النص الكامل والمواد المنظمة للتعيين",
+            ),
+        ])
     for url, title in seed_urls:
         if _allowed(url) and url not in seen:
             seen.add(url)
