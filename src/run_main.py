@@ -700,6 +700,13 @@ def _smart_main() -> None:
             and production_main._is_bad_published_image(r)
             and (str(r.get("Facebook Post ID", "")).strip() or str(r.get("LinkedIn Post ID", "")).strip())
         ]
+        image_repairs.sort(
+            key=lambda item: (
+                parse_date(item[1].get("تاريخ النشر", "")) == current.date(),
+                item[0],
+            ),
+            reverse=True,
+        )
         candidates = [image_repairs[0]] if image_repairs else []
         print(
             f"REPAIR_BAD_PUBLISHED_IMAGES_FIRST: selected row={candidates[0][0]}."
