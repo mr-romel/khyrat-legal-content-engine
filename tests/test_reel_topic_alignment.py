@@ -95,6 +95,22 @@ def test_video_description_removes_mixed_english_gibberish_and_uses_approved_ara
     assert "https://wa.me/201022718375" in description
 
 
+
+def test_impersonation_topic_wins_over_incidental_employee_context():
+    assert _topic_family("انتحال الشخصية والتحقق من هوية الموظف") == "impersonation"
+    description = build_video_description(
+        topic="انتحال الشخصية",
+        post="انتحال الشخصية باستخدام بيانات موظف آخر يستلزم التحقق من مصدر الحساب والرسائل.",
+        script="لو حد استخدم بيانات موظف تاني وانتحل شخصيته، راجع مصدر الحساب والرسائل وسجل الدخول.",
+        platform="facebook",
+    )
+    assert "انتحال الشخصية" in description
+
+
+def test_public_service_topic_wins_over_generic_employee_words():
+    assert _topic_family("الوظيفة العامة والتعيين") == "public_service"
+    assert _topic_family("النقل كجزاء تأديبي للموظف العام") == "public_service"
+
 def test_video_metadata_recognizes_public_service_and_impersonation_subjects():
     from video_metadata import _topic_family
 
