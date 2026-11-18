@@ -33,7 +33,7 @@ def test_live_legal_research_is_retained_when_sheet_persistence_fails(monkeypatc
     assert has_verified_legal_source(result)
 
 
-def test_existing_sources_are_preserved_when_live_research_raises(monkeypatch):
+def test_old_sheet_sources_are_not_reused_when_live_research_raises(monkeypatch):
     import main
 
     monkeypatch.setattr(
@@ -41,7 +41,7 @@ def test_existing_sources_are_preserved_when_live_research_raises(monkeypatch):
         "research_legal_topic",
         lambda *args: (_ for _ in ()).throw(RuntimeError("search unavailable")),
     )
-    existing = "previous legal source notes"
+    existing = VERIFIED_PACKET
     result = _research_and_persist_legal_sources(
         topic="انتحال الشخصية",
         sheet_sources=existing,
@@ -50,7 +50,7 @@ def test_existing_sources_are_preserved_when_live_research_raises(monkeypatch):
         sheet_name="Content",
         row_number=13,
     )
-    assert result == existing
+    assert result == ""
 
 
 def test_researched_packet_is_persisted_when_sheet_is_available(monkeypatch):
