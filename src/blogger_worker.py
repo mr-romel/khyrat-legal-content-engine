@@ -438,20 +438,31 @@ def main() -> int:
             if image_hash_key:
                 seen_image_hashes.add(image_hash_key)
             if duplicate_image:
-                try:
-                    regenerate_duplicate_published_image(repair_service, service, config["sheet_id"], sheet_name, bid, existing_row_number, existing)
-                except Exception as exc:
-                    print(f"BLOGGER_DUPLICATE_IMAGE_REPAIR_FAILED: row={existing_row_number}: {exc}")
+                reason = (
+                    "BLOGGER_DUPLICATE_IMAGE_BLOCKED: this row's image matches another published Blogger image. "
+                    "The shared social/Blogger source image must be repaired by the core publisher before Blogger can proceed."
+                )
+                update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
+                    "Image Mode": "IMAGE_DUPLICATE_BLOCKED",
+                    "Image QA Status": "IMAGE_DUPLICATE_BLOCKED",
+                    "Image QA Issues": reason[:1500],
+                    "Blogger Status": "FAILED",
+                    "Blogger Last Error": reason[:1500],
+                })
+                print(f"BLOGGER_DUPLICATE_IMAGE_BLOCKED: row={existing_row_number}; repair delegated to core image pipeline.")
                 continue
             mode = str(existing.get("Image Mode", "") or "").strip().upper()
             qa = str(existing.get("Image QA Status", "")).strip().upper()
             if "FALLBACK" in mode or "FALLBACK" in qa:
-                try:
-                    regenerate_duplicate_published_image(
-                        repair_service, service, config["sheet_id"], sheet_name, bid, existing_row_number, existing
-                    )
-                except Exception as exc:
-                    print(f"BLOGGER_TOPIC_IMAGE_REPAIR_FAILED: row={existing_row_number}: {exc}")
+                reason = (
+                    "BLOGGER_SOURCE_IMAGE_BLOCKED: the existing social image is a generic fallback. "
+                    "The core publisher must replace it with a topic-specific QA-approved image first."
+                )
+                update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
+                    "Blogger Status": "FAILED",
+                    "Blogger Last Error": reason[:1500],
+                })
+                print(f"BLOGGER_TOPIC_IMAGE_BLOCKED: row={existing_row_number}; no generic image will be reused.")
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
