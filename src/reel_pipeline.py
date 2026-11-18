@@ -1274,7 +1274,28 @@ def main() -> int:
         print("REEL_STAGE brief=ok")
         output_dir.mkdir(parents=True, exist_ok=True)
         brief["script"] = prepare_tts_script(brief["script"])
+        # Never publish raw generative captions: rebuild Facebook/YouTube metadata
+        # from the approved Arabic narration and source post, with a language gate.
+        from video_metadata import build_video_description
+        article_url = str(row.get("Blogger URL", "") or "").strip()
+        brief["facebook_caption"] = build_video_description(
+            topic=topic, post=post, script=brief["script"],
+            article_url=article_url, platform="facebook",
+        )
+        brief["youtube_caption"] = build_video_description(
+            topic=topic, post=post, script=brief["script"],
+            article_url=article_url, platform="youtube",
+        )
+        brief["linkedin_caption"] = brief["facebook_caption"]
         (output_dir / "script.txt").write_text(brief["script"], encoding="utf-8")
+        (output_dir / "video_descriptions.json").write_text(
+            json.dumps({
+                "facebook": brief["facebook_caption"],
+                "youtube_shorts": brief["youtube_caption"],
+                "linkedin": brief["linkedin_caption"],
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         reel_plan = {
             "topic": topic,
             "source_id": safe_source_id,
