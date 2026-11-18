@@ -1,3 +1,3 @@
-# Safe immediate publishing run
-Run the scheduled pipeline now. Process every currently overdue eligible row in chronological order with per-row failure isolation. Do not republish PUBLISHED rows, bypass legal review, or auto-publish Reels.
-Trigger nonce: 2026-11-18T20:26:00Z
+# Safe controlled production run
+Run one controlled scheduled publishing cycle. Use existing READY work only; preserve legal review, fresh topic-specific image QA, and idempotency. Do not republish existing published rows or auto-publish Reels.
+Trigger nonce: 1795034840747
