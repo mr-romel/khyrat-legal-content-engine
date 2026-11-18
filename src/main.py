@@ -267,8 +267,8 @@ def _research_and_persist_legal_sources(*, topic: str, sheet_sources: str, servi
     try:
         legal_sources = research_legal_topic(topic, sheet_sources)
     except Exception as research_exc:
-        print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
-        return sheet_sources
+        print(f"Legal research unavailable; no current verified source is available: {research_exc}")
+        return ""
 
     if legal_sources and legal_sources != sheet_sources:
         try:
