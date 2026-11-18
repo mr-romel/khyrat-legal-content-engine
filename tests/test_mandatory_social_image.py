@@ -108,6 +108,6 @@ def test_image_provider_rotation_uses_only_external_independent_engines(monkeypa
     assert "local_scene" not in main.IMAGE_PROVIDER_ROTATION
     # FLUX and FLUX Klein share the same account quota; a daily limit on one
     # must never trigger a second request against the same Cloudflare account.
-    assert main._image_provider_for_attempt(6) == "local_scene"
+    assert main._image_provider_for_attempt(6) == "pixabay"
 
 
