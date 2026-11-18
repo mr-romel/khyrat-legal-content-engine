@@ -31,6 +31,15 @@ GENERATED_DIR = Path("generated")
 
 MAX_IMAGE_QA_ATTEMPTS = 6
 IMAGE_QA_ATTEMPTS_PER_RUN = 3
+IMAGE_PROVIDER_ROTATION = (
+    "cloudflare", "gemini", "openverse", "wikimedia", "cloudflare_klein", "pollinations",
+)
+
+
+def _image_provider_for_attempt(attempt_number: int) -> str:
+    """Rotate independent image engines across persistent QA retries instead of repeating one provider."""
+    index = max(0, min(int(attempt_number) - 1, len(IMAGE_PROVIDER_ROTATION) - 1))
+    return IMAGE_PROVIDER_ROTATION[index]
 
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
@@ -483,6 +492,8 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 if regeneration_notes else visual_description
             )
             try:
+                image_provider = _image_provider_for_attempt(image_qa_attempt)
+                print(f"IMAGE PROVIDER ROTATION: attempt={image_qa_attempt} provider={image_provider}")
                 create_legal_image(
                     topic=topic,
                     image_brief=attempt_brief,
@@ -492,6 +503,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                     cloudflare_account_id=config["cloudflare_account_id"],
                     cloudflare_api_token=config["cloudflare_api_token"],
                     api_key=config.get("gemini_api_key", ""),
+                    provider=image_provider,
                 )
                 image_sha256 = assert_image_not_duplicate(str(image_path), reference_dir=str(GENERATED_DIR), known_hashes=known_image_hashes)
             except Exception as generation_exc:
