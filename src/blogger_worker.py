@@ -726,21 +726,35 @@ def main() -> int:
                 output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
             )
         # Verify the published Blogger resource itself before recording success.
-        if has_blogger_oauth:
+        if not str(result.get("post_id", "")).strip() or not str(result.get("post_url", "")).startswith("https://"):
+            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: missing published post ID or HTTPS permalink.")
+
+        # Prefer authenticated API read-back after REST publication. If REST failed
+        # and the saved browser session published the article, verify the public URL
+        # directly so a revoked OAuth token cannot invalidate a real UI publication.
+        if has_blogger_oauth and str(result.get("publisher", "")).upper() in {"BLOGGER_REST_API", "BLOGGER_REST_REPAIR"}:
             verify_service = blogger_service()
             verified_post = verify_service.posts().get(
                 blogId=bid or blog_id(verify_service, config["blogger_url"]),
                 postId=str(result.get("post_id", "")).strip(),
             ).execute()
             verified_html = str(verified_post.get("content", "") or "")
-            verified_text = " ".join(re.sub(r"<[^>]+>", " ", verified_html).split())
-            if len(verified_text) < 900:
-                raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: API read-back found an incomplete article body.")
-            if image_url not in verified_html:
-                raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: API read-back did not find the required topic image.")
             result["post_url"] = str(verified_post.get("url", "") or result.get("post_url", "")).strip()
-        if not str(result.get("post_id", "")).strip() or not str(result.get("post_url", "")).startswith("https://"):
-            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: missing published post ID or HTTPS permalink.")
+        else:
+            public_response = requests.get(
+                str(result["post_url"]).strip(),
+                headers={"User-Agent": "Mozilla/5.0 KhyratLegalContentEngine/1.0"},
+                timeout=(10, 30),
+            )
+            public_response.raise_for_status()
+            verified_html = str(public_response.text or "")
+        verified_text = " ".join(re.sub(r"<[^>]+>", " ", verified_html).split())
+        if len(verified_text) < 900:
+            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: public/API read-back found an incomplete article body.")
+        if image_url not in verified_html:
+            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: public/API read-back did not find the required topic image.")
+        if not str(result.get("post_url", "")).startswith("https://"):
+            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: read-back did not return an HTTPS permalink.")
 
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Blogger Status": "PUBLISHED",
