@@ -978,7 +978,7 @@ def create_legal_image(
             raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
 
     provider_preference = str(provider or "auto").strip().lower()
-    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"}:
+    if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     quota_provider = "cloudflare" if provider_preference == "cloudflare_klein" else provider_preference
     if quota_provider in {"cloudflare", "gemini", "pollinations"} and is_image_provider_blocked(quota_provider):
@@ -989,8 +989,6 @@ def create_legal_image(
         # The auto path must not retry Cloudflare or its shared FLUX/Klein quota.
         if not is_image_provider_blocked("gemini"):
             provider_preference = "gemini"
-        elif _supports_topic_specific_local_scene(topic, visual_description or image_brief):
-            provider_preference = "local_scene"
         else:
             provider_preference = "openverse"
         print(f"Cloudflare daily quota circuit is open; auto mode bypasses Cloudflare and starts with {provider_preference}.")
@@ -1002,7 +1000,7 @@ def create_legal_image(
     endpoint = (
         "https://api.cloudflare.com/client/v4/accounts/"
         f"{account_id}/ai/run/{cloudflare_model}"
-        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"} else ""
+        if account_id and api_token and provider_preference not in {"gemini", "pollinations", "openverse", "wikimedia", "pixabay"} else ""
     )
 
     if aspect_ratio == "9:16":
@@ -1084,27 +1082,7 @@ def create_legal_image(
                 print(f"Cloudflare image service transient failure; retry {attempt + 1}/5 in {delay}s: {cloudflare_error}")
                 time.sleep(delay)
 
-    if provider_preference == "local_scene":
-        if not _supports_topic_specific_local_scene(topic, visual_description):
-            raise ImageGenerationError(
-                "LOCAL_SCENE_UNSUPPORTED: no specialized local illustration exists for this legal subject; refusing a generic fallback."
-            )
-        image_bytes = _generate_zero_cost_editorial_image(
-            topic=str(topic or ""),
-            visual_description=visual_description,
-            output_path=output_path,
-            width=width,
-            height=height,
-        )
-        provider = "LOCAL_SCENE_ILLUSTRATION"
-        source_metadata = {
-            "source": "Original local renderer",
-            "scene_brief": visual_description,
-            "text_free": "true",
-            "external_provider": "false",
-        }
-        print("Local topic-specific scene renderer selected; no external image quota consumed.")
-    elif provider_preference == "openverse":
+    if provider_preference == "openverse":
         image_bytes, source_metadata = _generate_with_openverse()
         provider = "OPENVERSE_SCENE_STOCK"
     elif provider_preference == "wikimedia":
@@ -1148,25 +1126,12 @@ def create_legal_image(
                             image_bytes = _generate_with_pixabay()
                             provider = "PIXABAY_SCENE_STOCK"
                         except Exception as pixabay_error:
-                            if _supports_topic_specific_local_scene(topic, visual_description):
-                                image_bytes = _generate_zero_cost_editorial_image(
-                                    topic=str(topic or ""), visual_description=visual_description,
-                                    output_path=output_path, width=width, height=height,
-                                )
-                                provider = "LOCAL_SCENE_ILLUSTRATION"
-                                source_metadata = {
-                                    "source": "Original local renderer",
-                                    "scene_brief": visual_description,
-                                    "text_free": "true",
-                                    "external_provider": "false",
-                                }
-                                print("External image providers exhausted; using a verified specialized local scene without consuming quota.")
-                            else:
-                                raise ImageGenerationError(
-                                    "NO_TOPIC_SPECIFIC_IMAGE: all scene-specific providers failed and no specialized local scene exists. "
-                                    f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; "
-                                    f"Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}"
-                                ) from pixabay_error
+                            raise ImageGenerationError(
+                                "NO_TOPIC_SPECIFIC_IMAGE: all external scene-specific providers failed; "
+                                "local/generated placeholder artwork is disabled. "
+                                f"Cloudflare={cloudflare_error}; Pollinations={pollinations_error}; Gemini={gemini_error}; "
+                                f"Openverse={openverse_error}; Wikimedia={wikimedia_error}; Pixabay={pixabay_error}"
+                            ) from pixabay_error
     elif image_bytes is None:
         try:
             image_bytes = _generate_with_gemini()
