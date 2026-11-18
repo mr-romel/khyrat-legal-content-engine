@@ -90,41 +90,62 @@ def _effective(t):
     return ""
 
 
+def _research_topic_terms(topic: str) -> list[str]:
+    """Extract topic terms generically; editorial angle suffixes are not legal subjects."""
+    value = re.sub(
+        r"(?i)(?:\\s*[—–|:;,-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle|"
+        r"hook\\s*pattern|خطة\\s*المحتوى).*$",
+        "",
+        str(topic or ""),
+    )
+    normalized = _norm_legal_text(value)
+    stop = {
+        "قانون", "القانون", "مصر", "المصري", "المصرية", "بشأن", "بخصوص",
+        "موضوع", "حالة", "حالات", "شرح", "معلومة", "علامات", "تحذيرية",
+        "قبل", "بعد", "اتخاذ", "قرار", "عملي", "عملية", "قائمة", "فحص",
+        "checklist", "جديدة", "زاوية", "مختلفة", "عن", "في", "من", "على",
+        "الى", "إلى", "و", "او", "أو", "مع", "هل", "كيف", "متى",
+    }
+    terms = []
+    for token in re.findall(r"[\\u0621-\\u064A]{3,}", normalized):
+        if token in stop:
+            continue
+        stem = token[:5] if len(token) >= 6 else token
+        if stem not in terms:
+            terms.append(stem)
+    return terms[:8]
+
+
 def _source_evidence(text: str, topic: str) -> str:
-    """Keep topic-relevant statutory passages, not merely the first pages of a long PDF."""
-    value = _clean(text)
-    normalized_topic = _norm_legal_text(topic)
-    employment = any(term in normalized_topic for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service = any(term in normalized_topic for term in ("وظيف", "تعيين", "الخدمه المدنيه", "الخدمة المدنية", "موظف"))
-    impersonation = any(term in normalized_topic for term in ("انتحال", "حساب مزيف", "هويه مزيفه", "هوية مزيفة", "اسم كاذب"))
-    if employment:
-        patterns = [
-            r"(?:المادة\s+السادسة|مادة\s*\(?\s*(?:السادسة|6|٦)\s*\)?)[^:]{0,20}:?.{0,1400}",
-            r"مادة\s*\(?\s*(?:27|٢٧)\s*\)?\s*:?.{0,1600}",
-            r"مادة\s*\(?\s*(?:33|٣٣|34|٣٤|40|٤٠|41|٤١|42|٤٢|43|٤٣|291|٢٩١)\s*\)?\s*:?.{0,1600}",
-        ]
-    elif public_service:
-        patterns = [r"(?:المادة|مادة)\s*\(?\s*(?:4|٤|12|١٢|13|١٣|14|١٤|15|١٥|16|١٦|17|١٧)\s*\)?\s*:?.{0,1800}"]
-    elif impersonation:
-        patterns = [r"(?:المادة|مادة)\s*\(?\s*(?:24|٢٤|155|١٥٥|156|١٥٦|157|١٥٧|336|٣٣٦)\s*\)?\s*:?.{0,1800}"]
-    if employment or public_service or impersonation:
-        excerpts = []
-        for pattern in patterns:
-            for match in re.finditer(pattern, value, re.I):
-                snippet = _clean(match.group(0))
-                if snippet and snippet not in excerpts:
-                    excerpts.append(snippet)
-        if excerpts:
-            # Preserve the exact law/year identifier even when the useful article
-            # appears much later in a PDF and the header is outside the excerpt.
-            law_refs = []
-            law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
-            for match in re.finditer(law_pattern, value, re.I):
-                reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
-                if reference not in law_refs:
-                    law_refs.append(reference)
-            return _clean(" ".join(law_refs + excerpts))[:9000]
-    return value[:5000]
+    """Extract topic-matched passages from any Egyptian legal subject, not a topic whitelist."""
+    value = _norm_legal_text(text)
+    terms = _research_topic_terms(topic)
+    if not value or not terms:
+        return ""
+    windows = []
+    for term in terms:
+        for match in re.finditer(re.escape(term), value):
+            start = max(0, match.start() - 360)
+            end = min(len(value), match.end() + 900)
+            snippet = value[start:end].strip()
+            if snippet and all(abs(start - old_start) > 240 for old_start, _ in windows):
+                windows.append((start, snippet))
+            if len(windows) >= 8:
+                break
+        if len(windows) >= 8:
+            break
+    if not windows:
+        return ""
+    # Keep legal identifiers wherever they occur, even when the matching article is deep in a PDF.
+    law_refs = []
+    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\\s*)?([٠-٩0-9]+)\\s+لسنة\\s+([٠-٩0-9]+)"
+    for match in re.finditer(law_pattern, value, re.I):
+        reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
+        if reference not in law_refs:
+            law_refs.append(reference)
+    excerpts = [snippet for _, snippet in sorted(windows)]
+    return _clean(" ".join(law_refs + excerpts))[:9000]
 
 def _quote(t,topic,max_words=24):
     terms=[x for x in re.findall(r"[\u0600-\u06ff]{4,}",topic) if x not in {"قانون","مصر","الموضوع"}]
@@ -202,95 +223,113 @@ def has_verified_legal_source(packet: str) -> bool:
 
 
 def research_legal_topic(topic, existing=""):
-    topic=_clean(topic)
-    if not topic:return _clean(existing)
-    queries=[
+    """Discover and verify Egyptian legal sources for any topic through generic topic-first search."""
+    raw_topic = _clean(topic)
+    if not raw_topic:
+        return _clean(existing)
+    topic = re.sub(
+        r"(?i)(?:\\s*[—–|:;,-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle|"
+        r"hook\\s*pattern|خطة\\s*المحتوى).*$",
+        "",
+        raw_topic,
+    ).strip()
+    terms = _research_topic_terms(topic)
+    if not terms:
+        return (
+            "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\\n"
+            f"Research date: {datetime.now(timezone.utc).date().isoformat()}\\n"
+            f"Topic: {topic}\\n"
+            "No sufficiently specific legal search terms could be extracted automatically."
+        )
+
+    # Topic-first discovery across Egyptian courts, official government domains,
+    # the Egyptian legislation portal and a secondary legal database.
+    queries = [
+        f'"{topic}" مصر قانون تشريع',
+        f'"{topic}" نص قانوني مصر',
         f'site:cc.gov.eg/principle "{topic}"',
-        f'site:cc.gov.eg/principle {topic} "الطعن رقم" {CURRENT_YEAR}',
-        f'site:cc.gov.eg/principle {topic} "الطعن رقم" {CURRENT_YEAR - 1}',
-        f'site:esc.gov.eg "{topic}" "الطعن رقم"',
-        f'site:esc.gov.eg "{topic}" "المحكمة الإدارية العليا"',
-        f'site:cc.gov.eg "أحدث التشريعات" {topic} {CURRENT_YEAR}',
-        f'site:labour.gov.eg {topic} قانون العمل',
-        f'site:sis.gov.eg قانون العمل 14 لسنة 2025',
-        f'site:nosi.gov.eg {topic} قانون الخدمة المدنية 81 لسنة 2016',
-        f'site:caoa.gov.eg {topic} قانون الخدمة المدنية اللائحة التنفيذية',
-        f'site:fra.gov.eg {topic} قانون 175 لسنة 2018 انتحال الشخصية',
-        f'site:manshurat.org {topic} قانون العقوبات انتحال الشخصية',
-        f'site:elpai.idsc.gov.eg {topic} قانون {CURRENT_YEAR}',
-        f'site:mof.gov.eg {topic} تشريع {CURRENT_YEAR}',
-        f'site:gafi.gov.eg {topic} قانون قرار {CURRENT_YEAR}',
-        f'site:manshurat.org {topic} قانون {CURRENT_YEAR}',
-        f'site:manshurat.org {topic} قانون {CURRENT_YEAR - 1}',
+        f'site:esc.gov.eg "{topic}" حكم المحكمة الإدارية العليا',
+        f'site:gov.eg "{topic}" قانون OR قرار OR لائحة',
+        f'site:elpai.idsc.gov.eg "{topic}" تشريع',
+        f'site:moj.gov.eg "{topic}" قانون',
+        f'site:manshurat.org "{topic}" قانون مصر',
     ]
-    # Law 175/2018 is frequently cited in cybercrime content. Retrieve its
-    # official FRA-hosted PDF directly so exact statutory references can be
-    # checked against primary government text rather than user notes.
-    topic_norm = _norm_legal_text(topic)
-    cybercrime_topic = any(term in topic_norm for term in ("جرائم الكترونيه", "جرائم تقنيه المعلومات", "الابتزاز الالكتروني", "الجرائم المعلوماتيه"))
-    if cybercrime_topic:
-        queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
-    cand=[]; seen=set()
-    employment_topic = any(term in topic_norm for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service_topic = any(term in topic_norm for term in ("وظيف", "تعيين", "الخدمه المدنيه", "الخدمة المدنية", "موظف"))
-    impersonation_topic = any(term in topic_norm for term in ("انتحال", "حساب مزيف", "هويه مزيفه", "هوية مزيفة", "اسم كاذب"))
-    if employment_topic:
-        # Primary text of Law 14/2025 as published in the Official Gazette.
-        official_employment_sources = [
-            ("https://media.mof.gov.eg/mof-prd/qanwn_aleml_2025_14_f8e36d8b4f.pdf", "الجريدة الرسمية — وزارة المالية — قانون العمل رقم 14 لسنة 2025"),
-            ("https://sis.gov.eg/media/760267/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "الجريدة الرسمية — الهيئة العامة للاستعلامات — قانون العمل رقم 14 لسنة 2025"),
-            ("https://www.labour.gov.eg/media/0iedik3q/%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-14-%D9%84%D8%B3%D9%86%D8%A9-2025-%D8%A8%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%B9%D9%85%D9%84.pdf", "وزارة العمل — قانون العمل رقم 14 لسنة 2025"),
-        ]
-        for url, title in official_employment_sources:
-            cand.append({"url": url, "title": title})
+    candidates = []
+    seen = set()
+    for query in queries:
+        for item in _search(query):
+            url = str(item.get("url", "")).strip()
+            if not url or url in seen or not _allowed(url):
+                continue
             seen.add(url)
-    if cybercrime_topic or impersonation_topic:
-        official_law_pdf = "https://fra.gov.eg/wp-content/uploads/2025/01/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018-%D8%A8%D8%AA%D8%A7%D8%B1%D9%8A%D8%AE-2018-08-14.pdf"
-        cand.append({"url": official_law_pdf, "title": "القانون رقم 175 لسنة 2018 — مكافحة جرائم تقنية المعلومات — الهيئة العامة للرقابة المالية"})
-        seen.add(official_law_pdf)
-    if public_service_topic:
-        civil_service_pdf = "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/%D9%82%D8%A7%D9%86%D9%88%D9%86%20%D8%A7%D9%84%D8%AE%D8%AF%D9%85%D8%A9%20%D8%A7%D9%84%D9%85%D8%AF%D9%86%D9%8A%D8%A9%2081%20%D9%84%D8%B3%D9%86%D8%A9%202016.pdf"
-        cand.append({"url": civil_service_pdf, "title": "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016 — الهيئة القومية للتأمين الاجتماعي"})
-        seen.add(civil_service_pdf)
-        civil_service_rules = "https://www.caoa.gov.eg/WebForms/laws.aspx"
-        cand.append({"url": civil_service_rules, "title": "الجهاز المركزي للتنظيم والإدارة — قوانين ومبادئ مستقرة واللائحة التنفيذية"})
-        seen.add(civil_service_rules)
-    if impersonation_topic:
-        penal_code_url = "https://manshurat.org/node/14677"
-        cand.append({"url": penal_code_url, "title": "قانون العقوبات رقم 58 لسنة 1937 — المواد 155 و156 و157 و336"})
-        seen.add(penal_code_url)
-    for q in queries:
-        for x in _search(q):
-            if x["url"] in seen or not _allowed(x["url"]): continue
-            seen.add(x["url"]); cand.append(x)
-    records=[]
-    for x in cand[:MAX_RESULTS]:
-        body=_fetch(x["url"])
-        if not body: continue
-        d=_domain(x["url"]); court="محكمة النقض" if d in COURT else ("المحكمة الإدارية العليا" if d in ADMIN else "")
-        case=_case(body)
-        if case and court:
-            records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],_source_evidence(body, topic)))
-        elif _host_matches(d, OFFICIAL_LAWS):
-            records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],_source_evidence(body, topic)))
-        elif _host_matches(d, SECONDARY_LAWS):
-            records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],_source_evidence(body, topic)))
-    lines=[
+            candidates.append({"url": url, "title": str(item.get("title", "")).strip()})
+
+    records = []
+    fetch_limit = max(MAX_RESULTS, 12)
+    for item in candidates[:fetch_limit]:
+        url = item["url"]
+        body = _fetch(url)
+        if not body:
+            continue
+        evidence = _source_evidence(body, topic)
+        if len(evidence) < 30:
+            continue
+        searchable = _norm_legal_text(item["title"] + " " + body)
+        matched = [term for term in terms if term in searchable]
+        required_matches = 1 if len(terms) <= 2 else 2
+        if len(set(matched)) < required_matches:
+            continue
+
+        domain = _domain(url)
+        court = "محكمة النقض" if _host_matches(domain, COURT) else (
+            "المحكمة الإدارية العليا" if _host_matches(domain, ADMIN) else domain
+        )
+        case = _case(body)
+        if case and (_host_matches(domain, COURT) or _host_matches(domain, ADMIN)):
+            source_type = "judgment_or_principle"
+            quote = _quote(body, topic)
+        elif _host_matches(domain, OFFICIAL_LAWS):
+            source_type = "current_legislation_source"
+            quote = ""
+        elif _host_matches(domain, SECONDARY_LAWS):
+            source_type = "secondary_legislation_reference"
+            quote = ""
+        else:
+            continue
+        records.append((
+            source_type, court, case, _date(body), _effective(body),
+            item["title"] or f"مصدر قانوني — {domain}", quote, url, evidence,
+        ))
+        if len(records) >= 6:
+            break
+
+    lines = [
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
         f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
         f"Topic: {topic}",
         "",
+        "AUTOMATIC RESEARCH METHOD: topic-first discovery across Egyptian court and government sources.",
         "WRITER RULES:",
+        "- Use only sources retrieved successfully in this run and listed below.",
         "- Prefer the newest effective legislation; check publication and commencement dates.",
         "- If an amendment replaced an older rule, use the current effective rule and explain the change when material.",
         "- Quote only text actually retrieved from a source, max 24 words per source.",
         "- Every judicial quotation must include the verified court and exact case number.",
         "- Never invent a case number, date, quotation, statute number, or legal rule.",
-        "- If no relevant verified judgment exists, omit the judicial quotation and use a verified general principle or current legislation instead.",
-        ""
+        "- If no verified topic-matched source exists, do not invent a citation; keep the item blocked for legal review.",
+        "",
     ]
-    if not records: lines.append("No sufficiently verified topic-specific court/legislation source was retrieved automatically.")
-    for i,(typ,court,case,date,effective,title,quote,url,evidence) in enumerate(records[:6],1):
-        lines += [f"SOURCE {i}",f"Type: {typ}",f"Court/source: {court}",f"Case number: {case or 'N/A'}",f"Date: {date or 'not stated'}",f"Effective/publication detail: {effective or 'not stated'}",f"Title: {title}",f"Verified short quotation: {quote or 'N/A'}",f"URL: {url}",f"VERIFIED SOURCE TEXT (retrieved): {evidence}",""]
-    if existing: lines += ["EXISTING SHEET LEGAL SOURCES:",_clean(existing)[:8000]]
+    if not records:
+        lines.append("No sufficiently verified topic-matched Egyptian court/legislation source was retrieved automatically.")
+    for index, (kind, source, case, date, effective, title, quote, url, evidence) in enumerate(records, 1):
+        lines += [
+            f"SOURCE {index}", f"Type: {kind}", f"Court/source: {source}",
+            f"Case number: {case or 'N/A'}", f"Date: {date or 'not stated'}",
+            f"Effective/publication detail: {effective or 'not stated'}",
+            f"Title: {title}", f"Verified short quotation: {quote or 'N/A'}",
+            f"URL: {url}", f"VERIFIED SOURCE TEXT (retrieved): {evidence}", "",
+        ]
+    if existing:
+        lines += ["EXISTING SHEET LEGAL SOURCES:", _clean(existing)[:8000]]
     return "\n".join(lines)
