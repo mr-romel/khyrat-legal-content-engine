@@ -232,3 +232,20 @@ def test_topic_evidence_keeps_law_number_when_article_is_deep_in_document():
     evidence = _source_evidence(source, "انتحال الشخصية")
     assert "قانون رقم 58 لسنة 1937" in evidence
     assert "المادة (336)" in evidence
+
+
+def test_live_source_gate_ignores_old_sources_in_sheet_reference_section():
+    from legal_research import has_verified_legal_source
+
+    packet = """LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY
+Research date: 2026-11-18
+No sufficiently verified topic-specific court/legislation source was retrieved automatically.
+EXISTING SHEET LEGAL SOURCES:
+SOURCE 1
+Type: current_legislation_source
+Court/source: nosi.gov.eg
+Title: Old Civil Service Law source
+URL: https://www.nosi.gov.eg/old-law.pdf
+VERIFIED SOURCE TEXT (retrieved): Previously retrieved statutory text that is no longer verified in this run.
+"""
+    assert not has_verified_legal_source(packet)
