@@ -69,7 +69,8 @@ def _valid_article_url(value: str) -> bool:
 def _topic_family(topic: str) -> str:
     normalized = str(topic or "").casefold()
     # More specific families must win over broad families.
-    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "public_service", "impersonation", "family", "companies", "rent", "contracts", "payments", "inheritance", "compensation", "criminal"):
+    # Narrow legal subjects outrank incidental context words (e.g. an employee mentioned in an impersonation example).
+    for family in ("secret_threat", "unauthorized_recording", "harassment", "impersonation", "public_service", "employment", "family", "companies", "rent", "contracts", "payments", "inheritance", "compensation", "criminal"):
         if any(term in normalized for term in SUBJECT_FAMILIES[family]):
             return family
     return ""
