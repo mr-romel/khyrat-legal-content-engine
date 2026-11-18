@@ -1421,7 +1421,24 @@ def main() -> int:
         if attributions:
             credit_text = "\n\nمصادر المواد البصرية (ترخيص Creative Commons Attribution):\n" + "\n".join(attributions)
             brief["facebook_caption"] = (brief["facebook_caption"] or brief["script"]) + credit_text
+            brief["youtube_caption"] = (brief.get("youtube_caption") or brief["script"]) + credit_text
             brief["linkedin_caption"] = (brief["linkedin_caption"] or brief["script"]) + credit_text
+            reel_plan.update({
+                "facebook_caption": brief["facebook_caption"],
+                "youtube_caption": brief["youtube_caption"],
+                "linkedin_caption": brief["linkedin_caption"],
+            })
+            (output_dir / "reel_plan.json").write_text(
+                json.dumps(reel_plan, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            (output_dir / "video_descriptions.json").write_text(
+                json.dumps({
+                    "facebook": brief["facebook_caption"],
+                    "youtube_shorts": brief["youtube_caption"],
+                    "linkedin": brief["linkedin_caption"],
+                }, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         (output_dir / "media_sources.json").write_text(
             json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8"
         )
