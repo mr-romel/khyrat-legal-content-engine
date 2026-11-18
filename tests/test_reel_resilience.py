@@ -28,17 +28,24 @@ def test_urlopen_retries_transient_tls_eof(monkeypatch):
     assert calls[0][1] == 5
 
 
-def test_edge_tts_is_completely_disabled_and_google_cloud_is_the_fallback():
+def test_edge_egyptian_tts_is_available_as_tertiary_fallback():
     reel_source = Path("src/reel_pipeline.py").read_text(encoding="utf-8").casefold()
     requirements = Path("requirements-reel.txt").read_text(encoding="utf-8").casefold()
 
-    assert "edge_tts" not in reel_source
-    assert "edge-tts" not in reel_source
-    assert "edge-tts" not in requirements
-    assert "generate_edge_arabic_tts_audio" not in reel_source
+    assert "generate_edge_arabic_tts_audio" in reel_source
+    assert "ar-eg-shakirneural" in reel_source
+    assert "edge-tts" in requirements
     assert "generate_reel_narration_with_fallbacks" in reel_source
     assert "generate_google_cloud_arabic_tts_audio" in reel_source
     assert "generate_google_cloud_short_arabic_tts_audio" in reel_source
+
+
+def test_narration_pause_cleanup_does_not_use_atempo():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
+    assert "def _trim_excess_narration_pauses" in source
+    assert "silenceremove=" in source
+    assert "atempo=" not in source
+    assert "speech_rate_unchanged=true" in source
 
 
 def test_reel_narration_accepts_34_9_seconds_without_speed_change(monkeypatch, tmp_path):
