@@ -1,26 +1,36 @@
 {
   "topic": "انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
-  "provider": "PIXABAY_SCENE_STOCK",
-  "model": "pixabay-scene-search",
-  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A medium‑shot, eye‑level view of a young adult sitting at a modest kitchen table. The person holds a smartphone in one hand, thumb hovering over the screen, their expression tense and concerned. In front of them the table is scattered with an open laptop displaying a generic, blurred login screen, a government‑style identity card and a passport lying side‑by‑side, and a small red sticky note placed on top of the documents. Soft natural daylight streams through a window on the left, casting gentle light and subtle shadows across the scene, while the background kitchen elements are softly out of focus. The composition centers on the phone and the personal documents, emphasizing the moment of realizing an identity\nLEGAL TOPIC: انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: وصلتك رسالة من شخص يدّعي أنه موظف في بنك أو جهة حكومية، وطلب بياناتك الشخصية أو نفذ معاملة باسمك، ثم اكتشفت لاحقًا أن شخصًا آخر استخدم هويتك في أمر لم ت\nPOST-SPECIFIC VISUAL VARIATION: camera: three-quarter desk view, layered foreground and background, asymmetric layout. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: bf482099397f",
-  "prompt_sha256": "ec8a9b72cd63f5f45c291700abc17fc791b52d006383d40387ef674cd6fe2737",
-  "image_sha256": "26ff4251a8cf916bdece34cafe60f056e55cdb309f3a06ee3ca501124a132806",
+  "provider": "WIKIMEDIA_COMMONS_SCENE",
+  "model": "wikimedia-commons-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A middle‑aged man in a hard‑hat‑cap and a business‑casual shirt sits at a wooden desk in a modest office. Spread before him is an official‑looking paper contract titled “Supply Agreement” with the printed company name “Al‑Mansour Construction” at the top. His left hand hovers over the signature line while his right hand holds a pen; his eyes are narrowed as he studies the ink signature, which mirrors his own hand‑written signature almost exactly. On the desk, an open laptop shows an email inbox with a sender address that is a near‑duplicate of his corporate email (the slight variation is visible in the address bar). Sunlight pours in from a window behind him, casting soft, natural light across the desk and high\nLEGAL TOPIC: انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: واحد صاحب شركة مقاولات فوجئ بعقد توريد باسم شركته وبتوقيع قريب من توقيعه، والعقد مش موجود في أي سجلات عندهم، والطرف التاني بيطالب بالتنفيذ ا\nPOST-SPECIFIC VISUAL VARIATION: camera: medium shot with contextual surroundings and one unmistakable topic-specific focal object. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 069cceff3aa3",
+  "prompt_sha256": "a52eb2b9712069c4c7790aed0112a28aa4aa3b410e8bb64225e3d5f65f0ab5e9",
+  "image_sha256": "75cf72b72a17546856f06a52616c2c54ef7ead92b7a0a2ddb7d84c841767b9b8",
   "image_path": "generated/20261118-1200-R018.jpg",
-  "visual_description": "A medium‑shot, eye‑level view of a young adult sitting at a modest kitchen table. The person holds a smartphone in one hand, thumb hovering over the screen, their expression tense and concerned. In front of them the table is scattered with an open laptop displaying a generic, blurred login screen, a government‑style identity card and a passport lying side‑by‑side, and a small red sticky note placed on top of the documents. Soft natural daylight streams through a window on the left, casting gentle light and subtle shadows across the scene, while the background kitchen elements are softly out of focus. The composition centers on the phone and the personal documents, emphasizing the moment of realizing an identity‑theft situation.",
+  "visual_description": "A middle‑aged man in a hard‑hat‑cap and a business‑casual shirt sits at a wooden desk in a modest office. Spread before him is an official‑looking paper contract titled “Supply Agreement” with the printed company name “Al‑Mansour Construction” at the top. His left hand hovers over the signature line while his right hand holds a pen; his eyes are narrowed as he studies the ink signature, which mirrors his own hand‑written signature almost exactly. On the desk, an open laptop shows an email inbox with a sender address that is a near‑duplicate of his corporate email (the slight variation is visible in the address bar). Sunlight pours in from a window behind him, casting soft, natural light across the desk and highlighting the contract. In the background, a rolled‑up construction blueprint leans against a filing cabinet. The camera is positioned at eye level, slightly to the right, capturing both the man’s focused expression and the contract’s signature detail in clear focus.",
   "aspect_ratio": "4:5",
   "width": 1024,
   "height": 1280,
   "qa_decision": "REGENERATE",
-  "source_metadata": {},
+  "source_metadata": {
+    "source": "Wikimedia Commons",
+    "title": "File:Frances (Appleton) Longfellow to Emmeline (Austin) Wadsworth, 22 August 1851 (c6be3012-e941-46d8-a0a5-3c1344d91e3b).jpg",
+    "source_page": "https://commons.wikimedia.org/wiki/File:Frances_(Appleton)_Longfellow_to_Emmeline_(Austin)_Wadsworth,_22_August_1851_(c6be3012-e941-46d8-a0a5-3c1344d91e3b).jpg",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/b/bb/Frances_%28Appleton%29_Longfellow_to_Emmeline_%28Austin%29_Wadsworth%2C_22_August_1851_%28c6be3012-e941-46d8-a0a5-3c1344d91e3b%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "license": "Public domain",
+    "license_url": "",
+    "artist": "Fanny (Appleton) Longfellow (1817-1861)",
+    "attribution_required": "false",
+    "search_query": "middle aged man in hard hat"
+  },
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 1,
-  "qa_relevance_score": 1,
+  "qa_overall_score": 0,
+  "qa_relevance_score": 0,
   "qa_issues": [
-    "Complete failure to follow the visual brief for the scene setup.",
-    "The subject matter is unrelated to the legal topic of identity theft.",
+    "Total mismatch between the generated image and the visual brief.",
+    "The image is a stock-like scan of historical cursive writing, not a photographic scene.",
     "Composition advisory below 55.",
     "Relevance advisory below 72.",
     "Overall advisory below 60."
   ],
-  "qa_checked_image_sha256": "26ff4251a8cf916bdece34cafe60f056e55cdb309f3a06ee3ca501124a132806"
+  "qa_checked_image_sha256": "75cf72b72a17546856f06a52616c2c54ef7ead92b7a0a2ddb7d84c841767b9b8"
 }

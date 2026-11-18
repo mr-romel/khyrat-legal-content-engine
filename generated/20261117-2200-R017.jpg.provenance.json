@@ -1,26 +1,35 @@
 {
   "topic": "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
-  "provider": "PIXABAY_SCENE_STOCK",
-  "model": "pixabay-scene-search",
-  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑day office scene: a young professional sits at a simple wooden desk, eyes fixed on a laptop. The laptop screen shows the government job‑announcements webpage, but the list area is empty, indicating no official posting. Next to the laptop lies a printed exam‑ranking sheet; the candidate’s name is highlighted in red, but the sheet is clearly out of numerical order. A coffee mug and a small potted plant sit on the desk, and soft natural light streams through a nearby window, casting gentle shadows. The camera is positioned slightly above eye level, looking straight at the desk to capture both the blank announcement screen and the disordered ranking sheet in one clear frame.\nLEGAL TOPIC: الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: التعيين في الوظيفة العامة مش مجرد إجراء إداري روتيني، ده مسار قانوني محكوم بقواعد صارمة تضمن تكافؤ الفرص وتمنع المحاباة، وأي خروج عن المسار ده بيخلي القرار عرضة للبطلان، قبل ما تاخد\nPOST-SPECIFIC VISUAL VARIATION: camera: overhead flat-lay with distinct object spacing and clear visual hierarchy. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 8057795be204",
-  "prompt_sha256": "8873394af9a71b171019699759acadecd8315b4b9ac76fbe3ae9833a655992b6",
-  "image_sha256": "e58ad748caa140a6982dd4ce16d249313805620a93c3d32d7eb1a45c3ffd5763",
+  "provider": "WIKIMEDIA_COMMONS_SCENE",
+  "model": "wikimedia-commons-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A tidy office desk is the focus of the image, shown from a slightly elevated, front‑right angle that captures the whole workspace. On the desk sits a modern flat‑screen monitor displaying a generic web page with a header bar that suggests an official government portal; the page shows a list of job titles and a highlighted “Open Position” label, but no readable text or logos are visible. To the left of the monitor lies a printed sheet of paper with a faint, blurred column of numbers and names, indicating an exam ranking list; the paper is slightly fanned, suggesting it is being examined. Behind the desk, a simple wooden door is partially open, and a rectangular “Vacant” sign hangs on the doorframe, clearly indic\nLEGAL TOPIC: الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: التعيين في الوظائف العامة في مصر مش مجرد إجراء إداري، ده مسار قانوني محكوم بقواعد صارمة تضمن تكافؤ الفرص وتمنع المحاباة، وأي خروج عن المسار \nPOST-SPECIFIC VISUAL VARIATION: camera: low oblique angle, foreground object prominent, realistic depth and perspective. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: ccc7bfe58829",
+  "prompt_sha256": "41a60c66b492a6bbf91e71c668a36094391a229d8b436113c6a6ca9675cd1ce0",
+  "image_sha256": "5f9b039519c98b81fa30f6ca7e12c3e6d89deed28b7eccd1dd6e436f8d127b6e",
   "image_path": "generated/20261117-2200-R017.jpg",
-  "visual_description": "A mid‑day office scene: a young professional sits at a simple wooden desk, eyes fixed on a laptop. The laptop screen shows the government job‑announcements webpage, but the list area is empty, indicating no official posting. Next to the laptop lies a printed exam‑ranking sheet; the candidate’s name is highlighted in red, but the sheet is clearly out of numerical order. A coffee mug and a small potted plant sit on the desk, and soft natural light streams through a nearby window, casting gentle shadows. The camera is positioned slightly above eye level, looking straight at the desk to capture both the blank announcement screen and the disordered ranking sheet in one clear frame.",
+  "visual_description": "A tidy office desk is the focus of the image, shown from a slightly elevated, front‑right angle that captures the whole workspace. On the desk sits a modern flat‑screen monitor displaying a generic web page with a header bar that suggests an official government portal; the page shows a list of job titles and a highlighted “Open Position” label, but no readable text or logos are visible. To the left of the monitor lies a printed sheet of paper with a faint, blurred column of numbers and names, indicating an exam ranking list; the paper is slightly fanned, suggesting it is being examined. Behind the desk, a simple wooden door is partially open, and a rectangular “Vacant” sign hangs on the doorframe, clearly indicating that the role is unfilled. Soft natural light streams in from a nearby window on the left, casting gentle highlights on the monitor and papers while creating subtle shadows that give depth to the scene. The composition is clean and contemporary, emphasizing the procedural elements of a public‑sector appointment without any identifiable text, logos, or specific individuals.",
   "aspect_ratio": "4:5",
   "width": 1024,
   "height": 1280,
   "qa_decision": "REGENERATE",
-  "source_metadata": {},
+  "source_metadata": {
+    "source": "Wikimedia Commons",
+    "title": "File:Focused individual working on a laptop at a desk with a planner and smartphone in a cozy indoor setting.jpg",
+    "source_page": "https://commons.wikimedia.org/wiki/File:Focused_individual_working_on_a_laptop_at_a_desk_with_a_planner_and_smartphone_in_a_cozy_indoor_setting.jpg",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Focused_individual_working_on_a_laptop_at_a_desk_with_a_planner_and_smartphone_in_a_cozy_indoor_setting.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "artist": "Shixart1985",
+    "attribution_required": "true",
+    "search_query": "tidy office desk is focus image"
+  },
   "qa_model": "gemini-3.1-flash-lite",
   "qa_overall_score": 1,
   "qa_relevance_score": 1,
   "qa_issues": [
-    "Complete failure to follow the visual brief instructions.",
-    "The image is missing all requested elements: laptop, office setting, job announcement screen, and ranking sheet.",
+    "The generated image completely ignores the visual brief provided for the legal topic.",
     "Composition advisory below 55.",
     "Relevance advisory below 72.",
     "Overall advisory below 60."
   ],
-  "qa_checked_image_sha256": "e58ad748caa140a6982dd4ce16d249313805620a93c3d32d7eb1a45c3ffd5763"
+  "qa_checked_image_sha256": "5f9b039519c98b81fa30f6ca7e12c3e6d89deed28b7eccd1dd6e436f8d127b6e"
 }
