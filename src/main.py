@@ -279,12 +279,14 @@ def _research_and_persist_legal_sources(*, topic: str, sheet_sources: str, servi
         print(f"Legal research unavailable; no current verified source is available: {research_exc}")
         return ""
 
-    if legal_sources and legal_sources != sheet_sources:
+    # Do not write empty/blocked research packets to Sheets: this created needless
+    # writes, quota pressure, and a misleading "persisted" log despite zero sources.
+    if legal_sources and legal_sources != sheet_sources and has_verified_legal_source(legal_sources):
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
                 "المصادر القانونية": legal_sources[:12000],
             })
-            print("Legal research: refreshed current legislation + verified court sources and persisted them to the queue.")
+            print("Legal research: live verified source packet persisted to the queue.")
         except Exception as persist_exc:
             # The in-memory packet still contains the live retrieved source.
             # A Sheets write outage must not erase valid research and falsely trip the source gate.
