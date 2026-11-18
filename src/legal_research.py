@@ -331,7 +331,7 @@ def research_legal_topic(topic, existing=""):
     if any(term in normalized_topic for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         queries.extend([
             'site:nosi.gov.eg "قانون الخدمة المدنية" 81 2016',
-            'site:c aoa.gov.eg "قانون الخدمة المدنية" التعيين'.replace("c aoa", "caoa"),
+            'site:caoa.gov.eg "قانون الخدمة المدنية" التعيين',
             'site:mof.gov.eg "قانون الخدمة المدنية" 81 2016',
         ])
     candidates = []
