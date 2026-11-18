@@ -20,6 +20,7 @@ HEADERS = [
     "LinkedIn Comment Queue", "LinkedIn Comments Published", "LinkedIn Reaction Status",
     "Blogger Status", "Blogger Post ID", "Blogger URL", "Blogger Search Title", "Blogger Search Query",
     "Blogger Search Candidates", "Blogger Meta Description", "Blogger SEO Status", "Blogger SEO Error", "Blogger SEO Verified At", "Blogger Last Error",
+    "Blogger Image URL", "Blogger Image QA Status", "Blogger Image QA Score", "Blogger Image SHA256",
     "Reel Status", "Reel Script", "Reel File", "Reel Run ID", "Reel Approval",
     "Reel Review", "Reel Facebook ID", "Reel LinkedIn ID", "Reel Last Error",
     "Reel Published At", "Reel QA Score", "Reel QA Issues",
