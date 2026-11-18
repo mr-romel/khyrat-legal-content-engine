@@ -162,7 +162,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend(["الخدمة المدنية", "الوظائف العامة", "شغل الوظائف", "التعيين في الوظائف", "قانون الخدمة المدنية"])
     for alias in aliases:
-        for token in re.findall(r"[\\u0621-\\u064A]{3,}", _norm_legal_text(alias)):
+        for token in re.findall(r"[\u0621-\u064A]{3,}", _norm_legal_text(alias)):
             if token not in terms:
                 terms.append(token)
     return terms[:18]
