@@ -743,6 +743,7 @@ def _is_bad_published_image(row: dict[str, str]) -> bool:
         missing_image
         or "FALLBACK" in mode or "FALLBACK" in qa
         or "DUPLICATE" in mode or "DUPLICATE" in qa
+        or "IMAGE_REPAIR_FAILED" in mode or "IMAGE_REPAIR_GENERATION_FAILED" in qa
         or mode in {"IMAGE_REQUIRED", "NONE"}
         or stale_source
     )
@@ -823,6 +824,8 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             "Image QA Status": "IMAGE_REPAIR_GENERATION_FAILED",
             "Image QA Issues": str(exc)[:1500],
             "Image Mode": "IMAGE_REPAIR_FAILED",
+            "الحالة": "PARTIAL_FAILED",
+            "آخر خطأ": f"IMAGE_REPAIR_GENERATION_FAILED: {exc}"[:1500],
             "وقت آخر تشغيل": current.isoformat(),
         })
         raise
@@ -941,7 +944,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         raise RuntimeError(f"Row {row_number} has no topic.")
     print(f"Processing row {row_number}: {topic}")
     original_status = str(row.get("الحالة", "")).strip().upper()
-    if not DRY_RUN and original_status == "PUBLISHED" and _is_bad_published_image(row):
+    if not DRY_RUN and original_status in {"PUBLISHED", "PARTIAL_FAILED"} and _is_bad_published_image(row):
         try:
             _repair_published_bad_image(
                 service=service,
