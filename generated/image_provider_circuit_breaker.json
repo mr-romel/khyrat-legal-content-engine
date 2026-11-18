@@ -1,9 +1,9 @@
 {
   "providers": {
     "cloudflare": {
-      "blocked_through": "2026-11-18",
-      "blocked_at": "2026-11-18T23:08:07+02:00",
-      "reason": "HTTP 429: {'errors': [{'message': \"aierror: aierror: you have used up your daily free allocation of 10,000 neurons, please upgrade to cloudflare's workers paid plan if you would like to continue usage. (0699f207-255f-43d9-a1e4-9ea6657941f8)\", 'code': 4006}], 'success': false, 'result': {}, 'messages': []}"
+      "blocked_through": "2026-11-19",
+      "blocked_at": "2026-11-19T00:01:41+02:00",
+      "reason": "HTTP 429: {'errors': [{'message': \"aierror: aierror: you have used up your daily free allocation of 10,000 neurons, please upgrade to cloudflare's workers paid plan if you would like to continue usage. (55e9a8fb-abbb-4a50-b03b-fb36cad48635)\", 'code': 4006}], 'success': false, 'result': {}, 'messages': []}"
     },
     "gemini": {
       "blocked_through": "2026-11-18",
