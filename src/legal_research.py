@@ -12,7 +12,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -306,9 +306,10 @@ def research_legal_topic(topic, existing=""):
             "المحكمة الإدارية العليا" if _host_matches(domain, ADMIN) else domain
         )
         case = _case(body)
-        if case and (_host_matches(domain, COURT) or _host_matches(domain, ADMIN)):
+        if _host_matches(domain, COURT) or _host_matches(domain, ADMIN):
             source_type = "judgment_or_principle"
-            quote = _quote(body, topic)
+            # Never invent a case number; a source without one may be cited without a quotation.
+            quote = _quote(body, topic) if case else ""
         elif _host_matches(domain, OFFICIAL_LAWS):
             source_type = "current_legislation_source"
             quote = ""
