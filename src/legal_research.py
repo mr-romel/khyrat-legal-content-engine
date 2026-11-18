@@ -1,5 +1,6 @@
 from __future__ import annotations
 import html as html_lib, re, io
+from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, unquote, urlparse
@@ -11,7 +12,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -109,12 +110,23 @@ def _research_topic_terms(topic: str) -> list[str]:
     }
     terms = []
     for token in re.findall(r"[\u0621-\u064A]{3,}", normalized):
-        if token in stop:
-            continue
-        stem = token[:5] if len(token) >= 6 else token
-        if stem not in terms:
-            terms.append(stem)
+        if token not in stop and token not in terms:
+            terms.append(token)
     return terms[:8]
+
+
+def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]:
+    """Match exact words and close Arabic inflections without a per-topic synonym table."""
+    words = [(match.group(0), match.start()) for match in re.finditer(r"[\u0621-\u064A]{3,}", text)]
+    matched = []
+    for term in terms:
+        candidates = [
+            (word, position) for word, position in words
+            if word == term or (min(len(word), len(term)) >= 4 and SequenceMatcher(None, term, word).ratio() >= 0.72)
+        ]
+        if candidates:
+            matched.extend(candidates[:4])
+    return matched
 
 
 def _source_evidence(text: str, topic: str) -> str:
@@ -124,20 +136,24 @@ def _source_evidence(text: str, topic: str) -> str:
     if not value or not terms:
         return ""
     windows = []
-    for term in terms:
-        for match in re.finditer(re.escape(term), value):
-            start = max(0, match.start() - 360)
-            end = min(len(value), match.end() + 900)
-            snippet = value[start:end].strip()
-            if snippet and all(abs(start - old_start) > 240 for old_start, _ in windows):
-                windows.append((start, snippet))
-            if len(windows) >= 8:
-                break
+    for matched_word, position in _matching_source_words(terms, value):
+        start = max(0, position - 900)
+        prefix = value[start:position]
+        # If an article heading is nearby, start there rather than copying a long,
+        # irrelevant introduction before the matching statutory passage.
+        article_markers = list(re.finditer(r"(?:المادة|مادة)\s*(?:\(?\s*[٠-٩0-9]+\s*\)?)?", prefix))
+        if article_markers:
+            start += article_markers[-1].start()
+        else:
+            start = max(0, position - 140)
+        end = min(len(value), position + 900)
+        snippet = value[start:end].strip()
+        if snippet and all(abs(start - old_start) > 240 for old_start, _ in windows):
+            windows.append((start, snippet))
         if len(windows) >= 8:
             break
     if not windows:
         return ""
-    # Keep legal identifiers wherever they occur, even when the matching article is deep in a PDF.
     law_refs = []
     law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
     for match in re.finditer(law_pattern, value, re.I):
@@ -276,7 +292,7 @@ def research_legal_topic(topic, existing=""):
         if len(evidence) < 30:
             continue
         searchable = _norm_legal_text(item["title"] + " " + body)
-        matched = [term for term in terms if term in searchable]
+        matched = [term for term in terms if _matching_source_words([term], searchable)]
         required_matches = 1 if len(terms) <= 2 else 2
         if len(set(matched)) < required_matches:
             continue
