@@ -218,12 +218,12 @@ def test_reel_scene_generation_uses_five_distinct_images_and_quota_safe_fallback
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
-    assert '4: "local_scene"' in source
+    assert '4: "pixabay"' in source
     assert '5: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
     assert "create_generic_legal_fallback_image" not in source
-    assert "LOCAL_SCENE_ILLUSTRATION" in image_generator
+    assert "LOCAL_SCENE_ILLUSTRATION" not in image_generator
 
 
 def test_cloudflare_flux2_dev_uses_required_multipart_request_format():
@@ -253,7 +253,7 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
-    assert '4: "local_scene"' in source
+    assert '4: "pixabay"' in source
     assert '5: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
 
