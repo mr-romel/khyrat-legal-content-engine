@@ -1140,11 +1140,23 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     except Exception as exc:
         print(f"Non-blocking pipeline error: {exc}")
         print(traceback.format_exc())
-        try:
-            update_row(service, config["sheet_id"], sheet_name, row_number, {"الحالة": "FAILED", "آخر خطأ": str(exc)[:1500], "وقت آخر تشغيل": current.isoformat()})
-        except Exception as sheet_exc:
-            print(f"Sheet failure recording error (also non-blocking): {sheet_exc}")
-        notify(f"🟠 Pipeline issue — التشغيل مستمر وسيتم إعادة المحاولة تلقائيًا.\nالموضوع: {topic}\nالسبب: {exc}")
+        previous_error = str(row.get("آخر خطأ", "") or "").strip()
+        same_failure = (
+            str(row.get("الحالة", "") or "").strip().upper() == "FAILED"
+            and previous_error == str(exc)[:1500]
+        )
+        if not same_failure:
+            try:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "الحالة": "FAILED",
+                    "آخر خطأ": str(exc)[:1500],
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+            except Exception as sheet_exc:
+                print(f"Sheet failure recording error (also non-blocking): {sheet_exc}")
+            notify(f"🟠 Pipeline issue — التشغيل مستمر وسيتم إعادة المحاولة تلقائيًا.\nالموضوع: {topic}\nالسبب: {exc}")
+        else:
+            print(f"Duplicate pipeline alert suppressed; unchanged failure remains retryable: {exc}")
         return
 
 
