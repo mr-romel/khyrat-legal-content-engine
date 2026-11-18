@@ -950,6 +950,9 @@ def create_legal_image(
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
     if provider_preference in {"cloudflare", "cloudflare_klein"} and is_image_provider_blocked("cloudflare"):
         raise ImageGenerationError("PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: Cloudflare daily image quota was already exhausted; skipping all Cloudflare models until the next Cairo day.")
+    if provider_preference == "auto" and is_image_provider_blocked("cloudflare"):
+        print("Cloudflare daily quota circuit is open; auto mode will bypass Cloudflare and start with Pollinations.")
+        provider_preference = "pollinations"
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
         if provider_preference == "cloudflare_klein"
