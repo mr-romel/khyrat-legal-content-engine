@@ -1,0 +1,42 @@
+name: Free Google Search Console Intelligence
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/search_console_intelligence.py"
+      - "scripts/run_search_console_intelligence.py"
+      - ".github/workflows/free-google-search-console.yml"
+      - "tests/test_search_console_reporting.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-google-search-console
+  cancel-in-progress: false
+
+jobs:
+  search-console:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Google API client
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-worker.txt
+      - name: Pull Search Console metrics directly from Google
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          SEARCH_CONSOLE_SITE_URL: ${{ secrets.SEARCH_CONSOLE_SITE_URL || 'https://askmahmoudkhyrat.blogspot.com/' }}
+          SEARCH_CONSOLE_DAYS: "28"
+        run: PYTHONPATH=src python scripts/run_search_console_intelligence.py
