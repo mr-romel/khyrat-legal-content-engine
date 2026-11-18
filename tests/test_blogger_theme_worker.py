@@ -1,4 +1,4 @@
-from blogger_theme_worker import apply_theme_patch, MARKER, PHONE, WHATSAPP
+from blogger_theme_worker import apply_theme_patch, MARKER, PHONE, WHATSAPP, SITE_META_DESCRIPTION
 
 
 def _minimal_theme():
