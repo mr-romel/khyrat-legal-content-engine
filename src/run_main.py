@@ -696,7 +696,7 @@ def _smart_main() -> None:
     if repair_bad_images_first:
         image_repairs = [
             (i, r) for i, r in enumerate(rows, start=2)
-            if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+            if str(r.get("الحالة", "")).strip().upper() in {"PUBLISHED", "PARTIAL_FAILED"}
             and production_main._is_bad_published_image(r)
             and (str(r.get("Facebook Post ID", "")).strip() or str(r.get("LinkedIn Post ID", "")).strip())
         ]
