@@ -101,7 +101,7 @@ def test_official_labour_and_state_information_subdomains_are_allowed():
 def test_employment_topic_injects_verified_primary_law_sources(monkeypatch):
     import legal_research
 
-    monkeypatch.setattr(legal_research, "_fetch", lambda url: "قانون رقم 14 لسنة 2025 قانون العمل")
+    monkeypatch.setattr(legal_research, "_fetch", lambda url: "قانون رقم 14 لسنة 2025 قانون العمل، نص تشريعي رسمي مستخرج من الجريدة الرسمية ويتضمن الأحكام القانونية ذات الصلة بالموضوع.")
     monkeypatch.setattr(legal_research, "_search", lambda query: [])
     packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
     assert "https://media.mof.gov.eg/mof-prd/qanwn_aleml_2025_14_f8e36d8b4f.pdf" in packet
