@@ -104,9 +104,9 @@ def _source_evidence(text: str, topic: str) -> str:
             r"مادة\s*\(?\s*(?:33|٣٣|34|٣٤|40|٤٠|41|٤١|42|٤٢|43|٤٣|291|٢٩١)\s*\)?\s*:?.{0,1600}",
         ]
     elif public_service:
-        patterns = [r"مادة\s*\(?\s*(?:4|٤|12|١٢|13|١٣|14|١٤|15|١٥|16|١٦|17|١٧)\s*\)?\s*:?.{0,1800}"]
+        patterns = [r"(?:المادة|مادة)\s*\(?\s*(?:4|٤|12|١٢|13|١٣|14|١٤|15|١٥|16|١٦|17|١٧)\s*\)?\s*:?.{0,1800}"]
     elif impersonation:
-        patterns = [r"مادة\s*\(?\s*(?:24|٢٤|155|١٥٥|156|١٥٦|157|١٥٧|336|٣٣٦)\s*\)?\s*:?.{0,1800}"]
+        patterns = [r"(?:المادة|مادة)\s*\(?\s*(?:24|٢٤|155|١٥٥|156|١٥٦|157|١٥٧|336|٣٣٦)\s*\)?\s*:?.{0,1800}"]
     if employment or public_service or impersonation:
         excerpts = []
         for pattern in patterns:
