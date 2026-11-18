@@ -115,7 +115,15 @@ def _source_evidence(text: str, topic: str) -> str:
                 if snippet and snippet not in excerpts:
                     excerpts.append(snippet)
         if excerpts:
-            return _clean(" ".join(excerpts))[:9000]
+            # Preserve the exact law/year identifier even when the useful article
+            # appears much later in a PDF and the header is outside the excerpt.
+            law_refs = []
+            law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
+            for match in re.finditer(law_pattern, value, re.I):
+                reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
+                if reference not in law_refs:
+                    law_refs.append(reference)
+            return _clean(" ".join(law_refs + excerpts))[:9000]
     return value[:5000]
 
 def _quote(t,topic,max_words=24):
@@ -186,7 +194,9 @@ def has_verified_legal_source(packet: str) -> bool:
     blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", text)
     for block in blocks[1:]:
         match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
-        if match and _allowed(match.group(1).rstrip(").,;")):
+        evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \(retrieved\):\s*(.{30,})$", block)
+        title = re.search(r"(?m)^Title:\s*\S", block)
+        if match and evidence and title and _allowed(match.group(1).rstrip(").,;")):
             return True
     return False
 
