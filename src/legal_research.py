@@ -122,7 +122,7 @@ def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]
     for term in terms:
         candidates = [
             (word, position) for word, position in words
-            if word == term or (min(len(word), len(term)) >= 4 and SequenceMatcher(None, term, word).ratio() >= 0.72)
+            if word == term or (min(len(word), len(term)) >= 5 and SequenceMatcher(None, term, word).ratio() >= 0.62)
         ]
         if candidates:
             matched.extend(candidates[:4])
