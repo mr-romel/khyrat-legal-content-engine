@@ -1153,9 +1153,11 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             except Exception as exc:
                 print(f"PostBank/Analytics logging failed: {exc}")
             notify(
-                f"✅ Khyrat Legal Content Engine\nتم نشر: {topic}\n"
-                f"Facebook: {'✅' if fb_ok else '❌'} | LinkedIn: {'✅' if li_post_ok else '❌'}\n"
-                f"التعليقات: Facebook 3-7 | LinkedIn 3-7 (تم وضعها في Queue ويشغلها Engagement Worker)"
+                f"✅ Khyrat Legal Content Engine — تم التحقق من النشر\nالموضوع: {topic}\n"
+                f"Facebook: https://www.facebook.com/{facebook_post_id}\n"
+                f"LinkedIn: https://www.linkedin.com/feed/update/{linkedin_post_id}/\n"
+                "تم تسجيل رابط كل منشور بعد استلام معرّف النشر من المنصة.\n"
+                "التعليقات: Facebook وLinkedIn في Queue للمعالجة بواسطة Engagement Worker."
             )
         else:
             detail = final_error or "Social publication did not complete."
