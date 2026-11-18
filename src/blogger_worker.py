@@ -380,14 +380,25 @@ def main() -> int:
     has_blogger_oauth = bool(os.getenv("BLOGGER_OAUTH_JSON", "").strip())
     use_ui = bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
-    if not use_ui:
-        blogger_api = blogger_service()
-        bid = blog_id(blogger_api, config["blogger_url"])
-        cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
-        deduped = dedupe_blogger_topics(blogger_api, bid, rows)
-        print(f"Blogger dedupe: removed {deduped} duplicate posts.")
+    if has_blogger_oauth:
+        try:
+            # Resolve the real blog ID whenever OAuth is usable, even if a UI
+            # session is retained as a fallback. The UI session must not disable
+            # the primary REST API or leave repair calls with an empty blog ID.
+            blogger_api = blogger_service()
+            bid = blog_id(blogger_api, config["blogger_url"])
+            if not use_ui:
+                cleanup_misdated_automation_posts(blogger_api, bid, rows, today_cairo)
+                deduped = dedupe_blogger_topics(blogger_api, bid, rows)
+                print(f"Blogger dedupe: removed {deduped} duplicate posts.")
+        except Exception as api_init_exc:
+            if not use_ui:
+                raise
+            print(f"Blogger REST initialization unavailable; saved UI session remains fallback: {api_init_exc}")
+    elif use_ui:
+        print("Blogger UI-only mode: no OAuth credentials are configured.")
     else:
-        print("Blogger UI session detected: bypassing Blogger REST OAuth initialization.")
+        print("Blogger has neither OAuth credentials nor a saved UI session; publication will fail closed.")
     # Image repair must use the Blogger API service, never the Google Sheets
     # service created above. In UI-session mode, skip API-only repair entirely.
     repair_service = None
