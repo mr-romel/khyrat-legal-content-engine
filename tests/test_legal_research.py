@@ -150,7 +150,7 @@ def test_topic_evidence_extracts_relevant_passage_from_deep_source_text():
 
     source = (
         "قانون العقوبات رقم 58 لسنة 1937 " + ("مقدمة عامة لا تتعلق بالموضوع " * 300)
-        + "المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
+        + "في جرائم انتحال الشخصية، المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
     )
     evidence = _source_evidence(source, "انتحال الشخصية")
     assert "قانون رقم 58 لسنة 1937" in evidence
@@ -158,17 +158,21 @@ def test_topic_evidence_extracts_relevant_passage_from_deep_source_text():
     assert "مقدمة عامة لا تتعلق" not in evidence
 
 
-def test_verified_source_url_precedes_long_evidence_in_packet():
+def test_verified_source_url_precedes_retrieved_evidence_in_generic_packet(monkeypatch):
     import legal_research
 
-    monkeypatch = __import__("pytest").MonkeyPatch()
-    try:
-        monkeypatch.setattr(legal_research, "_fetch", lambda url: "مادة (٢٧): ترخيص المهنة")
-        monkeypatch.setattr(legal_research, "_search", lambda query: [])
-        packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة")
-        assert packet.index("URL: https://media.mof.gov.eg/") < packet.index("VERIFIED SOURCE TEXT (retrieved):")
-    finally:
-        monkeypatch.undo()
+    monkeypatch.setattr(
+        legal_research,
+        "_search",
+        lambda query: [{"url": "https://moj.gov.eg/laws/test", "title": "قانون الملكية الفكرية"}],
+    )
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: "قانون الملكية الفكرية ينظم حقوق المؤلف والعلامات التجارية وإجراءات التسجيل.",
+    )
+    packet = legal_research.research_legal_topic("الملكية الفكرية")
+    assert packet.index("URL: https://moj.gov.eg/laws/test") < packet.index("VERIFIED SOURCE TEXT (retrieved):")
 
 
 def test_source_gate_rejects_whitelisted_url_without_retrieved_source_text():
