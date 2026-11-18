@@ -12,7 +12,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","moa.gov.eg","www.moa.gov.eg","esa.gov.eg","www.esa.gov.eg")
+OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg")
 OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
@@ -318,6 +318,22 @@ def research_legal_topic(topic, existing=""):
         f'site:moj.gov.eg "{topic}" قانون',
         f'site:manshurat.org "{topic}" قانون مصر',
     ]
+
+    # Small semantic query expansions for the two current queue subjects. These
+    # are discovery terms only; a source still must pass live retrieval and topic evidence.
+    normalized_topic = _norm_legal_text(topic)
+    if "انتحال" in normalized_topic:
+        queries.extend([
+            'site:aca.gov.eg "انتحال صفة" موظف عام',
+            'site:cc.gov.eg "انتحال صفة كاذبة"',
+            'site:sccourt.gov.eg "انتحال صفة" قانون العقوبات',
+        ])
+    if any(term in normalized_topic for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
+        queries.extend([
+            'site:nosi.gov.eg "قانون الخدمة المدنية" 81 2016',
+            'site:c aoa.gov.eg "قانون الخدمة المدنية" التعيين'.replace("c aoa", "caoa"),
+            'site:mof.gov.eg "قانون الخدمة المدنية" 81 2016',
+        ])
     candidates = []
     seen = set()
     for query in queries:
