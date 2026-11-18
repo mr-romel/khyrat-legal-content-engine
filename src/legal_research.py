@@ -13,7 +13,7 @@ MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
 OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -377,6 +377,14 @@ def research_legal_topic(topic, existing=""):
             (
                 "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/قانون%20الخدمة%20المدنية%2081%20لسنة%202016.pdf",
                 "قانون الخدمة المدنية رقم 81 لسنة 2016 — الجريدة الرسمية عبر الهيئة القومية للتأمين الاجتماعي",
+            ),
+            (
+                "https://www.cairo.gov.eg/ar/Monthly%20Publication/%D9%86%D8%B4%D8%B1%D8%A9%20%D9%81%D8%A8%D8%B1%D8%A7%D9%8A%D8%B12019.pdf",
+                "محافظة القاهرة: نشر رسمي يتضمن قانون الخدمة المدنية رقم 81 لسنة 2016",
+            ),
+            (
+                "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cbeec5",
+                "وزارة المالية: قانون الخدمة المدنية رقم 81 لسنة 2016 — الحالة المنشورة للقانون",
             ),
             (
                 "https://manshurat.org/node/14678",
