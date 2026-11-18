@@ -76,4 +76,4 @@ def test_image_provider_rotation_uses_independent_engines_across_retries():
     ]
     # FLUX and FLUX Klein share the same account quota; a daily limit on one
     # must never trigger a second request against the same Cloudflare account.
-    assert _image_provider_for_attempt(7) == "pollinations"
+    assert _image_provider_for_attempt(7) == "local_scene"
