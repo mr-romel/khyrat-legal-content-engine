@@ -31,11 +31,10 @@ GENERATED_DIR = Path("generated")
 
 MAX_IMAGE_QA_ATTEMPTS = 6
 IMAGE_QA_ATTEMPTS_PER_RUN = 3
-IMAGE_PROVIDER_ROTATION = (
-    # Cloudflare FLUX and FLUX Klein share the same account quota: never rotate
-    # back to Klein after the primary Cloudflare attempt has been exhausted.
-    "cloudflare", "gemini", "openverse", "wikimedia", "pollinations", "local_scene",
-)
+IMAGE_PROVIDER_ROTATION = ["cloudflare", "gemini", "openverse", "wikimedia"]
+if os.getenv("POLLINATIONS_API_KEY", "").strip():
+    IMAGE_PROVIDER_ROTATION.append("pollinations")
+IMAGE_PROVIDER_ROTATION.append("local_scene")
 
 
 def _image_provider_for_attempt(attempt_number: int) -> str:
