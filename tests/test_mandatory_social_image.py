@@ -98,13 +98,14 @@ def test_known_abstract_legal_angle_overrides_stale_sheet_image_brief():
     assert "generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)" in main_source
 
 
-def test_image_provider_rotation_uses_independent_engines_across_retries(monkeypatch, tmp_path):
+def test_image_provider_rotation_uses_only_configured_independent_engines(monkeypatch, tmp_path):
     monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
-    from main import _image_provider_for_attempt
+    import main
+    monkeypatch.setattr(main, "IMAGE_PROVIDER_ROTATION", ["cloudflare", "gemini", "openverse", "wikimedia", "local_scene"])
 
-    assert [_image_provider_for_attempt(i) for i in range(1, 7)] == [
-        "cloudflare", "gemini", "openverse", "wikimedia", "pollinations", "local_scene"
+    assert [main._image_provider_for_attempt(i) for i in range(1, 6)] == [
+        "cloudflare", "gemini", "openverse", "wikimedia", "local_scene"
     ]
     # FLUX and FLUX Klein share the same account quota; a daily limit on one
     # must never trigger a second request against the same Cloudflare account.
-    assert _image_provider_for_attempt(7) == "local_scene"
+    assert main._image_provider_for_attempt(6) == "local_scene"
