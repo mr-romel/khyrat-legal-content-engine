@@ -34,7 +34,8 @@ def test_image_recovery_still_requires_topic_specific_qa_and_never_uses_generic_
     source = (ROOT / "src" / "image_generator.py").read_text(encoding="utf-8")
     assert "NO_TOPIC_SPECIFIC_IMAGE" in source
     assert "all external scene-specific providers failed" in source
-    assert "create_generic_legal_fallback_image(" in source
+    assert "create_generic_legal_fallback_image(" not in source
+    assert "_generate_zero_cost_editorial_image" not in source
 
 
 def test_scene_visual_qa_rejection_falls_through_to_external_provider(tmp_path):
