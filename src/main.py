@@ -262,6 +262,27 @@ def _linkedin_native_fallback(*, topic: str, source_post: str) -> str:
         "والتقييم النهائي يظل مرتبطًا بالتفاصيل والمستندات والقواعد المنطبقة على الحالة، مش بعنوان الموضوع وحده."
     ).strip()
 
+def _research_and_persist_legal_sources(*, topic: str, sheet_sources: str, service, config: dict, sheet_name: str, row_number: int) -> str:
+    """Keep successfully researched sources even if the non-authoritative Sheet write fails."""
+    try:
+        legal_sources = research_legal_topic(topic, sheet_sources)
+    except Exception as research_exc:
+        print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
+        return sheet_sources
+
+    if legal_sources and legal_sources != sheet_sources:
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "المصادر القانونية": legal_sources[:12000],
+            })
+            print("Legal research: refreshed current legislation + verified court sources and persisted them to the queue.")
+        except Exception as persist_exc:
+            # The in-memory packet still contains the live retrieved source.
+            # A Sheets write outage must not erase valid research and falsely trip the source gate.
+            print(f"Legal research persistence unavailable; retaining verified in-memory source packet: {persist_exc}")
+    return legal_sources
+
+
 def _prepare_editorial_assets(*, config, topic: str, facebook_post: str, legal_sources: str) -> dict:
     comments = generate_comments(api_key=config["gemini_api_key"], model=config["gemini_model"], topic=topic, post=facebook_post, legal_sources=legal_sources)
     target_count = len(comments["facebook_comments"])
@@ -356,15 +377,14 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
 
     # Research current law and verified judicial principles before generating any platform copy.
     sheet_legal_sources = str(row.get("المصادر القانونية", "") or "").strip()
-    try:
-        legal_sources = research_legal_topic(topic, sheet_legal_sources)
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "المصادر القانونية": legal_sources[:12000],
-        })
-        print("Legal research: refreshed current legislation + verified court sources before content generation.")
-    except Exception as research_exc:
-        legal_sources = sheet_legal_sources
-        print(f"Legal research unavailable; preserving existing legal sources: {research_exc}")
+    legal_sources = _research_and_persist_legal_sources(
+        topic=topic,
+        sheet_sources=sheet_legal_sources,
+        service=service,
+        config=config,
+        sheet_name=sheet_name,
+        row_number=row_number,
+    )
 
     if not has_verified_legal_source(legal_sources):
         raise RuntimeError(
