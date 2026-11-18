@@ -474,36 +474,6 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     return output_path
 
 
-def generate_edge_arabic_tts_audio(script: str, output_path: Path) -> Path:
-    """Last-resort Egyptian Arabic voice; used only when primary neural providers fail."""
-    import asyncio
-    try:
-        import edge_tts
-    except ImportError as exc:
-        raise RuntimeError("edge-tts package is not installed") from exc
-    clean = prepare_tts_script(script)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    async def _run() -> None:
-        communicate = edge_tts.Communicate(
-            clean,
-            voice=os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"),
-            rate=os.getenv("REEL_EDGE_TTS_RATE", "+0%"),
-        )
-        with output_path.open("wb") as handle:
-            async for chunk in communicate.stream():
-                if chunk.get("type") == "audio":
-                    handle.write(chunk["data"])
-    asyncio.run(_run())
-    if not output_path.is_file() or output_path.stat().st_size == 0:
-        raise RuntimeError("Edge Arabic TTS returned an empty audio file")
-    _trim_excess_narration_pauses(output_path)
-    duration = _media_duration(output_path)
-    if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Edge Arabic TTS narration duration outside 22–{REEL_CONTENT_MAX_SECONDS:g}s: {duration:.1f}s")
-    print(f"REEL_STAGE tts=edge_ar_eg_ok duration={duration:.1f}s")
-    return output_path
-
-
 def generate_reel_narration_with_fallbacks(
     api_key: str,
     service_account_info: dict[str, Any],
@@ -511,12 +481,11 @@ def generate_reel_narration_with_fallbacks(
     emotion_map: list[dict[str, Any]],
     output_path: Path,
 ) -> Path:
-    """Try Gemini, Google Cloud, then Edge Egyptian Arabic; reject only unusable audio."""
+    """Use expressive neural voices only; never substitute robotic system TTS."""
     errors = []
     providers = [
-        ("Gemini", lambda: generate_gemini_tts_audio(api_key, script, emotion_map, output_path.with_name("voice-gemini.wav"))),
-        ("Google Cloud", lambda: generate_google_cloud_arabic_tts_audio(service_account_info, script, output_path.with_name("voice-google-cloud.wav"))),
-        ("Edge ar-EG", lambda: generate_edge_arabic_tts_audio(script, output_path.with_name("voice-edge-ar-eg.mp3"))),
+        ("Gemini neural TTS", lambda: generate_gemini_tts_audio(api_key, script, emotion_map, output_path.with_name("voice-gemini.wav"))),
+        ("Google Cloud neural TTS", lambda: generate_google_cloud_arabic_tts_audio(service_account_info, script, output_path.with_name("voice-google-cloud.wav"))),
     ]
     for provider_name, generate in providers:
         try:
@@ -526,7 +495,10 @@ def generate_reel_narration_with_fallbacks(
         except Exception as exc:
             errors.append(f"{provider_name}={exc}")
             print(f"REEL_STAGE tts_provider_unavailable={provider_name} reason={exc}")
-    raise RuntimeError("All Arabic narration TTS providers failed after duration cleanup. " + " | ".join(errors))
+    raise RuntimeError(
+        "EXPRESSIVE_TTS_UNAVAILABLE: all approved neural Arabic narration providers failed; "
+        "robotic/system voices are disabled. " + " | ".join(errors)
+    )
 
 
 def generate_short_signoff_with_fallbacks(
