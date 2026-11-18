@@ -7,7 +7,7 @@ Type: current_legislation_source
 Court/source: nosi.gov.eg
 Title: قانون الخدمة المدنية رقم 81 لسنة 2016
 URL: https://www.nosi.gov.eg/ar/Lists/NOSILibrary/civil-service-law.pdf
-VERIFIED SOURCE TEXT (retrieved): المادة (13) يكون التعيين بموجب قرار من السلطة المختصة.
+VERIFIED SOURCE TEXT (retrieved): المادة (12) يكون التعيين على أساس الكفاءة والجدارة.
 """
 
 
