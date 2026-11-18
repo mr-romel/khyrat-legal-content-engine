@@ -214,3 +214,39 @@ URL: https://www.nosi.gov.eg/old-law.pdf
 VERIFIED SOURCE TEXT (retrieved): Previously retrieved statutory text that is no longer verified in this run.
 """
     assert not has_verified_legal_source(packet)
+
+
+
+def test_search_result_parser_handles_reordered_html_attributes():
+    from legal_research import _SearchResults
+
+    parser = _SearchResults()
+    parser.feed(
+        '<a href="https://www.caoa.gov.eg/WebForms/laws.aspx" rel="nofollow" class="result__a">قوانين الخدمة المدنية</a>'
+        '<a class="result__a" href="https://www.cc.gov.eg/heritage/index-entries">مبادئ محكمة النقض</a>'
+    )
+    assert len(parser.items) == 2
+    assert parser.items[0]["url"].startswith("https://www.caoa.gov.eg/")
+    assert parser.items[1]["url"].startswith("https://www.cc.gov.eg/")
+
+
+def test_official_court_and_public_authority_domains_are_whitelisted():
+    from legal_research import _allowed
+
+    assert _allowed("https://www.aca.gov.eg/News/1550.aspx")
+    assert _allowed("https://www.sccourt.gov.eg/DjangoPortalResources/Rules_Html/18301_25_115_1_2.html")
+    assert not _allowed("https://fake-aca.gov.eg/News/1550.aspx")
+
+
+def test_official_government_source_can_pass_live_source_gate():
+    from legal_research import has_verified_legal_source
+
+    packet = """LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY
+SOURCE 1
+Type: official_government_source
+Court/source: aca.gov.eg
+Title: تنبيه رسمي بشأن انتحال صفة الموظفين العموميين
+URL: https://www.aca.gov.eg/News/1550.aspx
+VERIFIED SOURCE TEXT (retrieved): تحذر الهيئة من انتحال صفة بعض الموظفين العموميين وتطلب التحقق من هوية الأشخاص والجهات الرسمية.
+"""
+    assert has_verified_legal_source(packet)
