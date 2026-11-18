@@ -145,8 +145,8 @@ def test_public_service_topic_injects_civil_service_law_and_extracts_appointment
         if "nosi.gov.eg" in url:
             return (
                 "قانون رقم 81 لسنة 2016 بشأن الخدمة المدنية. "
-                "المادة (12) يشترط فيمن يعين في إحدى الوظائف أن يكون متمتعاً بالجنسية المصرية. "
-                "المادة (13) يكون التعيين بموجب قرار من السلطة المختصة."
+                "المادة (12) يكون التعيين بموجب قرار على أساس الكفاءة والجدارة من خلال إعلان مركزي وامتحان. "
+                "المادة (14) يشترط فيمن يعين استيفاء شروط شغل الوظيفة واجتياز الامتحان."
             )
         return "اللائحة التنفيذية لقانون الخدمة المدنية رقم 1216 لسنة 2017"
     monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
@@ -156,6 +156,7 @@ def test_public_service_topic_injects_civil_service_law_and_extracts_appointment
     assert "قانون الخدمة المدنية رقم 81 لسنة 2016" in packet
     assert "https://www.nosi.gov.eg/" in packet
     assert "المادة (12)" in packet
+    assert "المادة (14)" in packet
     assert legal_research.has_verified_legal_source(packet)
 
 
