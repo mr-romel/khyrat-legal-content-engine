@@ -135,3 +135,74 @@ def test_verified_source_url_precedes_long_evidence_in_packet():
         assert packet.index("URL: https://media.mof.gov.eg/") < packet.index("VERIFIED SOURCE TEXT (retrieved):")
     finally:
         monkeypatch.undo()
+
+
+def test_public_service_topic_injects_civil_service_law_and_extracts_appointment_articles(monkeypatch):
+    import legal_research
+
+    def fake_fetch(url):
+        if "nosi.gov.eg" in url:
+            return (
+                "قانون رقم 81 لسنة 2016 بشأن الخدمة المدنية. "
+                "المادة (12) يشترط فيمن يعين في إحدى الوظائف أن يكون متمتعاً بالجنسية المصرية. "
+                "المادة (13) يكون التعيين بموجب قرار من السلطة المختصة."
+            )
+        return "اللائحة التنفيذية لقانون الخدمة المدنية رقم 1216 لسنة 2017"
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+    assert "قانون الخدمة المدنية رقم 81 لسنة 2016" in packet
+    assert "https://www.nosi.gov.eg/" in packet
+    assert "المادة (12)" in packet
+    assert legal_research.has_verified_legal_source(packet)
+
+
+def test_impersonation_topic_injects_cybercrime_and_penal_code_sources(monkeypatch):
+    import legal_research
+
+    def fake_fetch(url):
+        if "fra.gov.eg" in url:
+            return (
+                "القانون رقم 175 لسنة 2018. "
+                "المادة (24) يعاقب كل من اصطنع حساباً خاصاً ونسبه زوراً إلى شخص طبيعي."
+            )
+        return (
+            "قانون العقوبات رقم 58 لسنة 1937. "
+            "المادة (155) كل من تداخل في وظيفة عمومية دون صفة رسمية يعاقب. "
+            "المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
+        )
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+
+    packet = legal_research.research_legal_topic("انتحال الشخصية")
+    assert "قانون رقم 175 لسنة 2018" in packet
+    assert "https://fra.gov.eg/" in packet
+    assert "https://manshurat.org/node/14677" in packet
+    assert "المادة (24)" in packet
+    assert "المادة (155)" in packet
+    assert legal_research.has_verified_legal_source(packet)
+
+
+def test_civil_service_authority_is_whitelisted_but_lookalike_is_not():
+    from legal_research import _allowed
+
+    assert _allowed("https://www.nosi.gov.eg/law.pdf")
+    assert _allowed("https://www.caoa.gov.eg/WebForms/laws.aspx")
+    assert _allowed("https://fra.gov.eg/law.pdf")
+    assert not _allowed("https://fake-caoa.gov.eg/law.pdf")
+
+
+def test_official_and_secondary_sources_use_topic_relevant_evidence(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: ("مقدمة طويلة لا تتعلق بالموضوع " * 500)
+        + "المادة (24) انتحال حساب ونسبته إلى شخص طبيعي.",
+    )
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    packet = legal_research.research_legal_topic("انتحال الشخصية")
+    assert "المادة (24)" in packet
+    assert "مقدمة طويلة" not in packet
