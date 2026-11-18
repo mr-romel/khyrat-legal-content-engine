@@ -24,6 +24,8 @@ SUBJECT_FAMILIES = {
     "companies": ("شركة", "شركات", "شريك", "شراكة", "تأسيس", "تجاري"),
     "contracts": ("عقد", "عقود", "تعاقد", "فسخ", "إخلال"),
     "criminal": ("جريمة", "جنائي", "سرقة", "ضرب", "قتل", "سب", "قذف"),
+    "public_service": ("الوظيفة العامة", "وظيفة عامة", "التعيين", "الخدمة المدنية", "موظف عام"),
+    "impersonation": ("انتحال", "انتحال الشخصية", "انتحال الهوية", "انتحال صفة"),
 }
 
 
@@ -31,6 +33,15 @@ def _clean(value: str, limit: int = 700) -> str:
     text = re.sub(r"https?://\S+", "", str(value or ""))
     text = re.sub(r"\s+", " ", text).strip()
     return text[:limit].rstrip(" ،؛:.")
+
+
+
+def _arabic_only(value: str) -> str:
+    """Remove accidental English model fragments while preserving Arabic punctuation and digits."""
+    text = re.sub(r"https?://\\S+", " ", str(value or ""))
+    text = re.sub(r"(?<![\\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\\w])", " ", text)
+    text = re.sub(r"[^\\u0600-\\u06FF\\u0660-\\u0669\\u06F0-\\u06F9\\s،؛؟.!:()ـ-]", " ", text)
+    return re.sub(r"\\s+", " ", text).strip()
 
 
 def clean_video_topic(value: str) -> str:
@@ -58,7 +69,7 @@ def _valid_article_url(value: str) -> bool:
 def _topic_family(topic: str) -> str:
     normalized = str(topic or "").casefold()
     # More specific families must win over broad families.
-    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "family", "companies", "rent", "contracts", "payments", "inheritance", "compensation", "criminal"):
+    for family in ("secret_threat", "unauthorized_recording", "harassment", "employment", "public_service", "impersonation", "family", "companies", "rent", "contracts", "payments", "inheritance", "compensation", "criminal"):
         if any(term in normalized for term in SUBJECT_FAMILIES[family]):
             return family
     return ""
@@ -106,9 +117,14 @@ def build_video_description(*, topic: str, post: str, script: str, article_url: 
 
     # The narration is the approved source of truth for this specific Reel.
     # Raw post text is only a fallback, and both paths pass the same topic filter.
-    body = _topic_aligned_body(script, clean_topic) or _topic_aligned_body(post, clean_topic)
-    if not body:
-        raise ValueError("Cannot publish a video description without approved topic content.")
+    body = _topic_aligned_body(script, clean_topic)
+    latin_fragments = re.findall(r"(?<![\\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\\w])", body)
+    if len(latin_fragments) >= 2:
+        # Captions are public metadata, not raw model output. Fall back to the approved post.
+        body = _topic_aligned_body(post, clean_topic)
+    body = _arabic_only(body)
+    if len(body) < 60:
+        raise ValueError("Cannot publish a video description: no clean Arabic topic-aligned source text is available.")
 
     lines = [
         f"🎬 {clean_topic}",
