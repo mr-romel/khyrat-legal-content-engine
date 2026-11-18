@@ -10,8 +10,9 @@ TIMEOUT=15
 CURRENT_YEAR=datetime.now(timezone.utc).year
 MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
-COURT=("cc.gov.eg","www.cc.gov.eg")
+COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
+OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","moa.gov.eg","www.moa.gov.eg","esa.gov.eg","www.esa.gov.eg")
 OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
@@ -303,8 +304,10 @@ def research_legal_topic(topic, existing=""):
     queries = [
         f'"{topic}" مصر قانون تشريع',
         f'"{topic}" نص قانوني مصر',
-        f'site:cc.gov.eg/principle "{topic}"',
+        f'site:cc.gov.eg "{topic}"',
+        f'site:sccourt.gov.eg "{topic}" حكم OR مبدأ',
         f'site:esc.gov.eg "{topic}" حكم المحكمة الإدارية العليا',
+        f'site:aca.gov.eg "{topic}"',
         f'site:gov.eg "{topic}" قانون OR قرار OR لائحة',
         f'site:elpai.idsc.gov.eg "{topic}" تشريع',
         f'site:moj.gov.eg "{topic}" قانون',
@@ -347,6 +350,9 @@ def research_legal_topic(topic, existing=""):
             quote = _quote(body, topic) if case else ""
         elif _host_matches(domain, OFFICIAL_LAWS):
             source_type = "current_legislation_source"
+            quote = ""
+        elif _host_matches(domain, OFFICIAL_GOVERNMENT):
+            source_type = "official_government_source"
             quote = ""
         elif _host_matches(domain, SECONDARY_LAWS):
             source_type = "secondary_legislation_reference"
