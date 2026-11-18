@@ -264,7 +264,7 @@ def research_legal_topic(topic, existing=""):
         elif _host_matches(d, OFFICIAL_LAWS):
             records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],_source_evidence(body, topic)))
         elif _host_matches(d, SECONDARY_LAWS):
-            records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
+            records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],_source_evidence(body, topic)))
     lines=[
         "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY",
         f"Research date: {datetime.now(timezone.utc).date().isoformat()}",
