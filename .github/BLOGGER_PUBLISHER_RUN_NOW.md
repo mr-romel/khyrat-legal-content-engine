@@ -1,3 +1,3 @@
-# Blogger publisher recovery
-Repair today's title-only Blogger entry in place, include the generated image URL with correct branch path, and verify the public article body.
-Trigger nonce: 1791809623017
+# Blogger publisher verified run
+Execute one real publication using the current guarded Blogger publisher. Persist row state only after API read-back verifies the article body, image, and public permalink.
+Trigger nonce: 1795034500214
