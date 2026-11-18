@@ -494,10 +494,8 @@ def main() -> int:
                 image_url = upload_blogger_image(image_path)
                 print("Blogger: generated hero image uploaded to Blogger storage.")
             except Exception as upload_exc:
-                # The workflow persists generated/blogger assets after publication. A stable
-                # branch-aware raw URL becomes available as soon as that commit lands.
-                image_url = github_raw_url(str(generated_image))
-                print(f"Blogger: upload failed ({upload_exc}); using persisted generated image URL as fallback: {image_url or 'unavailable'}")
+                image_url = ""
+                print(f"Blogger: image upload failed; refusing an unverified GitHub raw URL: {upload_exc}")
         except Exception as image_exc:
             # Never disguise provider exhaustion with a generic visual or a text-only post.
             raise BloggerPublishError(
@@ -534,8 +532,10 @@ def main() -> int:
             image_url = upload_blogger_image(image_path)
             print("Blogger: generated image upload retry succeeded.")
         except Exception as retry_exc:
-            image_url = github_raw_url(str(image_path))
-            print(f"Blogger: image upload retry failed ({retry_exc}); using persisted generated image URL fallback: {image_url or 'unavailable'}")
+            image_url = ""
+            raise BloggerPublishError(
+                f"BLOGGER_IMAGE_UPLOAD_FAILED: retry failed; unverified raw asset URLs are not accepted: {retry_exc}"
+            ) from retry_exc
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
     if not has_verified_legal_source(legal_sources):
@@ -709,6 +709,23 @@ def main() -> int:
                 legal_sources=legal_sources,
                 output_dir=f"{BLOGGER_ARTIFACT_DIR}/row_{row_number}",
             )
+        # Verify the published Blogger resource itself before recording success.
+        if has_blogger_oauth:
+            verify_service = blogger_service()
+            verified_post = verify_service.posts().get(
+                blogId=bid or blog_id(verify_service, config["blogger_url"]),
+                postId=str(result.get("post_id", "")).strip(),
+            ).execute()
+            verified_html = str(verified_post.get("content", "") or "")
+            verified_text = " ".join(re.sub(r"<[^>]+>", " ", verified_html).split())
+            if len(verified_text) < 900:
+                raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: API read-back found an incomplete article body.")
+            if image_url not in verified_html:
+                raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: API read-back did not find the required topic image.")
+            result["post_url"] = str(verified_post.get("url", "") or result.get("post_url", "")).strip()
+        if not str(result.get("post_id", "")).strip() or not str(result.get("post_url", "")).startswith("https://"):
+            raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: missing published post ID or HTTPS permalink.")
+
         update_row(service, config["sheet_id"], sheet_name, row_number, {
             "Blogger Status": "PUBLISHED",
             "Blogger Post ID": result["post_id"],
