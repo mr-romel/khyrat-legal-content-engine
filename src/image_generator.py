@@ -8,6 +8,8 @@ import hashlib
 import tempfile
 from urllib.parse import quote
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import requests
@@ -34,7 +36,56 @@ CLOUDFLARE_IMAGE_ENDPOINT = (
 
 
 class ImageGenerationError(RuntimeError):
-    """Raised when Cloudflare cannot generate an image."""
+    """Raised when an image provider cannot generate a suitable image."""
+
+
+def _image_provider_state_path() -> Path:
+    return Path(os.getenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", "generated/image_provider_circuit_breaker.json"))
+
+
+def _cairo_today() -> str:
+    return datetime.now(ZoneInfo("Africa/Cairo")).date().isoformat()
+
+
+def _read_image_provider_state() -> dict:
+    path = _image_provider_state_path()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def is_image_provider_blocked(provider: str) -> bool:
+    """Return true while a provider's daily quota circuit is open."""
+    key = str(provider or "").strip().lower()
+    if key == "cloudflare_klein":
+        key = "cloudflare"
+    state = _read_image_provider_state()
+    entry = (state.get("providers") or {}).get(key, {})
+    blocked_through = str(entry.get("blocked_through", "") or "")
+    return bool(blocked_through and _cairo_today() <= blocked_through)
+
+
+def block_image_provider_for_day(provider: str, reason: str) -> None:
+    """Persist a provider circuit breaker through the end of the current Cairo day."""
+    key = str(provider or "").strip().lower()
+    if key == "cloudflare_klein":
+        key = "cloudflare"
+    path = _image_provider_state_path()
+    state = _read_image_provider_state()
+    providers = state.setdefault("providers", {})
+    providers[key] = {
+        "blocked_through": _cairo_today(),
+        "blocked_at": datetime.now(ZoneInfo("Africa/Cairo")).isoformat(timespec="seconds"),
+        "reason": str(reason or "Daily quota exhausted")[:1200],
+    }
+    state["version"] = 1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(path)
+    print(f"IMAGE_PROVIDER_CIRCUIT_OPEN: {key} is disabled until after {_cairo_today()} Cairo time.")
 
 
 def assert_image_not_duplicate(image_path: str, reference_dir: str = "generated", threshold: float = 0.965, known_hashes: set[str] | None = None) -> str:
@@ -897,6 +948,8 @@ def create_legal_image(
     provider_preference = str(provider or "auto").strip().lower()
     if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
+    if provider_preference in {"cloudflare", "cloudflare_klein"} and is_image_provider_blocked("cloudflare"):
+        raise ImageGenerationError("PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: Cloudflare daily image quota was already exhausted; skipping all Cloudflare models until the next Cairo day.")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
         if provider_preference == "cloudflare_klein"
@@ -973,8 +1026,10 @@ def create_legal_image(
                     error_payload = response.text
                 cloudflare_error = f"HTTP {response.status_code} - {error_payload}"
                 quota_text = str(error_payload).casefold()
-                if response.status_code == 429:
-                    print("Cloudflare image provider returned HTTP 429; skipping retries and switching to the next provider.")
+                quota_markers = ("daily quota", "daily limit", "quota exceeded", "limit reached", "rate limit", "too many requests", "resource exhausted")
+                if response.status_code == 429 or any(marker in quota_text for marker in quota_markers):
+                    block_image_provider_for_day("cloudflare", f"HTTP {response.status_code}: {quota_text[:900]}")
+                    print("Cloudflare quota/rate limit detected; circuit opened for the rest of the Cairo day. No Cloudflare model will be retried.")
                     break
                 if response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
                     break
