@@ -13,7 +13,8 @@ from blogger_ui_publisher import _storage_state_path, BloggerUIPublishError, _bl
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
 PHONE = "+201022718375"
 WHATSAPP = "201022718375"
-MARKER = "KHYRAT_LEGAL_THEME_V2"
+MARKER = "KHYRAT_LEGAL_THEME_V3"
+PREVIOUS_MARKER = "KHYRAT_LEGAL_THEME_V2"
 
 
 CSS = r"""
@@ -125,12 +126,16 @@ TRACKING_SCRIPT = f"""
         }}
         container.appendChild(wrap);
       }}
-      function track(name, params) {{
+      function track(name, params, callback) {{
         params = params || {{}};
         params.page_location = window.location.href;
         params.link_url = params.link_url || '';
         window.dataLayer = window.dataLayer || [];
         window.gtag = window.gtag || function () {{ window.dataLayer.push(arguments); }};
+        if (callback) {{
+          params.event_callback = callback;
+          params.event_timeout = 1000;
+        }}
         window.gtag('event', name, params);
       }}
       function init() {{
@@ -144,12 +149,27 @@ TRACKING_SCRIPT = f"""
           var method = link.getAttribute('data-contact-method') || '';
           if (!method && /^tel:/i.test(href)) method = 'phone';
           if (!method && /(?:wa\\.me\\/|api\\.whatsapp\\.com\\/)/i.test(href)) method = 'whatsapp';
+          var isCta = link.getAttribute('data-cta-type') === 'consultation';
           var isContactPage = /\\/p\\/blog-page_07\\.html(?:[?#]|$)/i.test(href);
-          if (link.getAttribute('data-cta-type') === 'consultation') {{
-            track('consultation_click', {{ contact_method: isContactPage ? 'contact_form' : (method || 'website_cta'), link_url: href }});
-          }}
-          if (method || isContactPage) {{
-            track('contact_click', {{ contact_method: method || 'contact_form', link_url: href }});
+          if (!method && !isCta && !isContactPage) return;
+          var params = {{
+            contact_method: method || (isContactPage ? 'contact_form' : 'website_cta'),
+            link_url: href,
+            link_text: String(link.innerText || link.textContent || '').trim().slice(0, 100),
+            cta_location: link.closest('.kh-mobile-contact') ? 'mobile_sticky' : (link.closest('.kh-post-cta') ? 'article_cta' : 'header_or_home')
+          }};
+          if (isCta && isContactPage && /^https?:/i.test(href) && link.target !== '_blank') {{
+            event.preventDefault();
+            var navigated = false;
+            var continueToContact = function () {{
+              if (navigated) return;
+              navigated = true;
+              window.location.assign(href);
+            }};
+            track('consultation_click', params, continueToContact);
+            window.setTimeout(continueToContact, 1100);
+          }} else {{
+            track(method ? 'contact_click' : 'consultation_click', params);
           }}
         }}, true);
       }}
@@ -163,6 +183,24 @@ TRACKING_SCRIPT = f"""
 def apply_theme_patch(original: str) -> str:
     if MARKER in original:
         return original
+    if PREVIOUS_MARKER in original:
+        comment = "<!-- Khyrat Legal: GA4 lead-event tracking + confirmed phone/WhatsApp. -->"
+        comment_pos = original.find(comment)
+        block_start = original.rfind("<b:if cond='data:view.isSingleItem'>", 0, comment_pos)
+        script_end = original.find("</script>", comment_pos)
+        if comment_pos < 0 or block_start < 0 or script_end < 0:
+            raise BloggerUIPublishError("Legacy GA4 tracking block was not found; refusing an unsafe theme migration.")
+        script_end += len("</script>")
+        migrated = original[:block_start] + TRACKING_SCRIPT.strip() + original[script_end:]
+        migrated = migrated.replace(PREVIOUS_MARKER, MARKER)
+        try:
+            ElementTree.fromstring(migrated.encode("utf-8"))
+        except Exception as exc:
+            raise BloggerUIPublishError(f"Migrated Blogger theme is not valid XML: {exc}") from exc
+        for required in (MARKER, PHONE, WHATSAPP, "contact_click", "consultation_click", "event_callback", "event_timeout"):
+            if required not in migrated:
+                raise BloggerUIPublishError(f"Theme migration verification failed: missing {required!r}.")
+        return migrated
     if "]]></b:skin>" not in original:
         raise BloggerUIPublishError("Theme CSS anchor not found; no theme changes were applied.")
     updated = original.replace("]]></b:skin>", CSS + "\n]]></b:skin>", 1)
