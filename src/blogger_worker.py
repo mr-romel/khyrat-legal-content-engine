@@ -18,11 +18,12 @@ BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
 
 def _refresh_missing_legal_sources(topic: str, legal_sources: str) -> str:
-    """Recover an older Blogger queue row by live-researching before the publication gate."""
-    if has_verified_legal_source(legal_sources):
-        return legal_sources
-    refreshed = research_legal_topic(topic, legal_sources)
-    return refreshed if has_verified_legal_source(refreshed) else legal_sources
+    """Always require a fresh retrieval; old Sheet sources remain reference notes only."""
+    try:
+        return research_legal_topic(topic, legal_sources)
+    except Exception as research_exc:
+        print(f"Blogger live legal research unavailable; stale sources will not pass the gate: {research_exc}")
+        return ""
 
 def _internal_terms(value: str) -> set[str]:
     text = str(value or "").casefold()
