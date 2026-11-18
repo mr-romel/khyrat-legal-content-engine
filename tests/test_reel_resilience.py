@@ -48,6 +48,30 @@ def test_narration_pause_cleanup_does_not_use_atempo():
     assert "speech_rate_unchanged=true" in source
 
 
+
+def test_reel_tts_uses_edge_egyptian_voice_when_gemini_and_google_fail(monkeypatch, tmp_path):
+    calls = []
+    def fail_gemini(*args, **kwargs):
+        calls.append("gemini")
+        raise RuntimeError("duration outside allowed range")
+    def fail_google(*args, **kwargs):
+        calls.append("google")
+        raise RuntimeError("HTTP 403 Forbidden")
+    def pass_edge(*args, **kwargs):
+        calls.append("edge")
+        return tmp_path / "voice-edge-ar-eg.mp3"
+
+    monkeypatch.setattr(reel_pipeline, "generate_gemini_tts_audio", fail_gemini)
+    monkeypatch.setattr(reel_pipeline, "generate_google_cloud_arabic_tts_audio", fail_google)
+    monkeypatch.setattr(reel_pipeline, "generate_edge_arabic_tts_audio", pass_edge)
+
+    result = reel_pipeline.generate_reel_narration_with_fallbacks(
+        "key", {}, "نص مصري تجريبي", [], tmp_path / "voice.mp3"
+    )
+    assert result == tmp_path / "voice-edge-ar-eg.mp3"
+    assert calls == ["gemini", "google", "edge"]
+
+
 def test_reel_narration_accepts_34_9_seconds_without_speed_change(monkeypatch, tmp_path):
     audio = tmp_path / "gemini-voice.wav"
     audio.write_bytes(b"test-audio")
