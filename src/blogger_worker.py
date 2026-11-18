@@ -306,7 +306,7 @@ def _repair_existing_blogger_post_image(svc, bid: str, post_id: str, row_number:
     if old_url and old_url in content:
         content = content.replace(old_url, new_url, 1)
     else:
-        match = re.search(r"\\bsrc=[\"']([^\"']+)[\"']", content, flags=re.IGNORECASE)
+        match = re.search(r"\bsrc=[\"']([^\"']+)[\"']", content, flags=re.IGNORECASE)
         if match:
             content = content[:match.start(1)] + new_url + content[match.end(1):]
         else:
