@@ -11,7 +11,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -262,7 +262,7 @@ def research_legal_topic(topic, existing=""):
         if case and court:
             records.append(("judgment_or_principle",court,case,_date(body),_effective(body),x["title"],_quote(body,topic),x["url"],_source_evidence(body, topic)))
         elif _host_matches(d, OFFICIAL_LAWS):
-            records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
+            records.append(("current_legislation_source",d,"",_date(body),_effective(body),x["title"],"",x["url"],_source_evidence(body, topic)))
         elif _host_matches(d, SECONDARY_LAWS):
             records.append(("secondary_legislation_reference",d,"",_date(body),_effective(body),x["title"],"",x["url"],body[:3000]))
     lines=[
