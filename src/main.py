@@ -31,7 +31,7 @@ GENERATED_DIR = Path("generated")
 
 MAX_IMAGE_QA_ATTEMPTS = 6
 IMAGE_QA_ATTEMPTS_PER_RUN = 3
-IMAGE_PROVIDER_ROTATION = ["cloudflare", "gemini", "openverse", "wikimedia"]
+IMAGE_PROVIDER_ROTATION = ["cloudflare", "gemini", "openverse", "wikimedia", "pixabay"]
 if os.getenv("POLLINATIONS_API_KEY", "").strip():
     IMAGE_PROVIDER_ROTATION.append("pollinations")
 
