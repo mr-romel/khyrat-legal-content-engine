@@ -213,7 +213,12 @@ def _quote(t,topic,max_words=24):
 def _allowed(u):
     parsed=urlparse(str(u or ""))
     d=_domain(u)
-    return parsed.scheme == "https" and bool(parsed.hostname) and (_host_matches(d, COURT) or _host_matches(d, ADMIN) or _host_matches(d, LAWS))
+    return parsed.scheme == "https" and bool(parsed.hostname) and (
+        _host_matches(d, COURT)
+        or _host_matches(d, ADMIN)
+        or _host_matches(d, LAWS)
+        or _host_matches(d, OFFICIAL_GOVERNMENT)
+    )
 
 
 
