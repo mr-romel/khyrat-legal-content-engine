@@ -153,6 +153,26 @@ jobs:
             done
           fi
 
+      - name: Persist image-provider quota circuit breaker even after a row failure
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ ! -s generated/image_provider_circuit_breaker.json ]; then
+            echo "No provider quota circuit state was created."
+            exit 0
+          fi
+          git config user.name "Khyrat Legal Content Engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/image_provider_circuit_breaker.json
+          if git diff --cached --quiet; then
+            echo "Image-provider circuit state is already persisted."
+            exit 0
+          fi
+          git commit -m "Persist image provider quota circuit breaker"
+          git fetch origin "${GITHUB_REF_NAME}"
+          git rebase "origin/${GITHUB_REF_NAME}"
+          git push origin HEAD:${GITHUB_REF_NAME}
+
   reel:
     name: 2. Reel Generator + Telegram Review
     needs: publish
