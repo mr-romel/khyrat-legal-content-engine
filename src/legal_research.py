@@ -222,8 +222,8 @@ def research_legal_topic(topic, existing=""):
         queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
     cand=[]; seen=set()
     employment_topic = any(term in topic_norm for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service_topic = any(term in topic_norm for term in ("الوظيفه العامه", "التعيين", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكوميه"))
-    impersonation_topic = any(term in topic_norm for term in ("انتحال الشخصيه", "انتحال الهويه", "انتحال صفه", "حساب مزيف", "هويه مزيفه", "اسم كاذب"))
+    public_service_topic = any(term in topic_norm for term in ("الوظيفة العامة", "الوظيفه العامه", "التعيين", "الخدمة المدنية", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكومية", "الوظائف الحكوميه"))
+    impersonation_topic = any(term in topic_norm for term in ("انتحال الشخصية", "انتحال الشخصيه", "انتحال الهوية", "انتحال الهويه", "انتحال صفة", "انتحال صفه", "حساب مزيف", "هوية مزيفة", "هويه مزيفه", "اسم كاذب"))
     if employment_topic:
         # Primary text of Law 14/2025 as published in the Official Gazette.
         official_employment_sources = [
