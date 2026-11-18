@@ -34,7 +34,8 @@ env:
   GEMINI_PRIMARY_ATTEMPTS: "2"
   GEMINI_FALLBACK_ATTEMPTS: "1"
   CLOUDFLARE_IMAGE_STEPS: "20"
-  KHYRAT_CATCH_UP_ALL_DUE: "true"
+  # Manual SAFE_RUN_NOW is deliberately one-row only; scheduled runs retain catch-up behavior.
+  KHYRAT_CATCH_UP_ALL_DUE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'SAFE_RUN_NOW' && 'false' || 'true' }}
 
 jobs:
   publish:
