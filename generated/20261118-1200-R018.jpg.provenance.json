@@ -1,0 +1,26 @@
+{
+  "topic": "انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A modest government office reception area bathed in soft natural light from a window. At a wooden desk, a man in a generic navy‑blue blazer with an obvious replica gold‑embroidered badge leans forward, extending a single sheet of paper toward the desk. His hand holds a red wax seal that has just been pressed onto the document. Directly opposite him, a plain‑clothed clerk in a light shirt watches the seal with a skeptical expression, one hand resting on a stack of official paperwork. On the desk’s edge sits a glass‑covered case displaying a genuine official stamp, its polished surface contrasting with the counterfeit seal. The composition is a medium, eye‑level shot that centers the interaction, with the window’\nLEGAL TOPIC: انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تداخل شخص في وظيفة عمومية أو انتحال صفة رسمية مش مجرد تصرف عابر، ده فعل بيضع صاحبه تحت طائلة القانون مباشرة، والقانون المصري حسم الموقف ده في نصوص واضحة بتج\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: a33e87301d33",
+  "prompt_sha256": "7188a461a08fff181f60ffb665bb2757f27f3d3ed3066f38d27a149a9323a015",
+  "image_sha256": "31a906840851e5e12d85f02a8cf8e3bf7ae6b7d9608d574fa3ee132ef73d89d4",
+  "image_path": "generated/20261118-1200-R018.jpg",
+  "visual_description": "A modest government office reception area bathed in soft natural light from a window. At a wooden desk, a man in a generic navy‑blue blazer with an obvious replica gold‑embroidered badge leans forward, extending a single sheet of paper toward the desk. His hand holds a red wax seal that has just been pressed onto the document. Directly opposite him, a plain‑clothed clerk in a light shirt watches the seal with a skeptical expression, one hand resting on a stack of official paperwork. On the desk’s edge sits a glass‑covered case displaying a genuine official stamp, its polished surface contrasting with the counterfeit seal. The composition is a medium, eye‑level shot that centers the interaction, with the window’s daylight casting gentle shadows that highlight the seal and the badge, emphasizing the tension between authentic authority and the impostor’s false trappings. QA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: A medium, eye-level shot in a modest government office. A man in a navy-blue blazer with a fake gold-embroidered badge on his chest leans over a wooden desk, pressing a red wax seal onto a document. A skeptical clerk in a plain shirt sits opposite him, watching the document. On the edge of the desk sits a genuine official stamp in a glass case. Professional lighting, 4:5 aspect ratio, high-quality, realistic style. PRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, setting, interaction, and legal prop stated above. Do not remove requested people or hands, do not replace the scene with a still life, and do not add new exclusions. Change only what is necessary to correct the QA findings.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 0,
+  "qa_relevance_score": 0,
+  "qa_issues": [
+    "Total failure to follow the visual brief content.",
+    "Wrong subject matter entirely.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "31a906840851e5e12d85f02a8cf8e3bf7ae6b7d9608d574fa3ee132ef73d89d4"
+}

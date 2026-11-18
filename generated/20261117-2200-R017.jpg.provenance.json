@@ -1,0 +1,25 @@
+{
+  "topic": "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A bright, modern government office cubicle. In the foreground, a neutral‑clothed office worker sits at a tidy desk, leaning slightly forward. Their hands rest on an open folder that displays a large red “APPROVED” stamp across the top; the folder also holds a stack of printed résumé sheets and a small, sealed envelope. To the right, a laptop screen shows a generic web page layout with a header bar, a list of bullet‑point icons, and a highlighted “Job Posting” button—no readable text is visible. A coffee mug and a potted plant sit on the desk’s edge, and a window behind lets in soft natural light that casts gentle shadows across the scene. The camera angle is an over‑the‑shoulder perspective, focusing on the fol\nLEGAL TOPIC: الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تعيين موظف جديد في جهة حكومية أو مرفق عام مش مجرد إجراء إداري روتيني، ده قرار بيترتب عليه مراكز قانونية والتزامات مالية وإدارية مستمرة، وأي خطأ في\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 00ffe6f08a0d",
+  "prompt_sha256": "81eecdbae66dc28954286b57f65fb9bcad91e12c1e7222ef4fd62f558f808a79",
+  "image_sha256": "49dd322dd6bb855d1af1901cab9b41f2d2452772832d478152eb759b307772d4",
+  "image_path": "generated/20261117-2200-R017.jpg",
+  "visual_description": "A bright, modern government office cubicle. In the foreground, a neutral‑clothed office worker sits at a tidy desk, leaning slightly forward. Their hands rest on an open folder that displays a large red “APPROVED” stamp across the top; the folder also holds a stack of printed résumé sheets and a small, sealed envelope. To the right, a laptop screen shows a generic web page layout with a header bar, a list of bullet‑point icons, and a highlighted “Job Posting” button—no readable text is visible. A coffee mug and a potted plant sit on the desk’s edge, and a window behind lets in soft natural light that casts gentle shadows across the scene. The camera angle is an over‑the‑shoulder perspective, focusing on the folder and laptop, emphasizing the careful review of hiring documents. QA CORRECTION — FIX ONLY THE IDENTIFIED DEFECT: A professional, over-the-shoulder shot in a modern government office. An office worker sits at a clean desk, hands resting on an open folder. The folder clearly displays a bold red 'APPROVED' stamp, alongside a stack of organized résumé papers and a sealed envelope. To the right, a laptop screen shows a web page with a 'Job Posting' section, no readable text. Warm, soft natural light from a window creates a professional atmosphere. Focus on the document review process. 4:5 aspect ratio. PRESERVE THE ORIGINAL VISUAL BRIEF: Keep every required subject, person, action, setting, interaction, and legal prop stated above. Do not remove requested people or hands, do not replace the scene with a still life, and do not add new exclusions. Change only what is necessary to correct the QA findings.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "The image is entirely unresponsive to the provided visual brief.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "49dd322dd6bb855d1af1901cab9b41f2d2452772832d478152eb759b307772d4"
+}
