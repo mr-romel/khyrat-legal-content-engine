@@ -98,25 +98,16 @@ def test_known_abstract_legal_angle_overrides_stale_sheet_image_brief():
     assert "generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)" in main_source
 
 
-def test_image_provider_rotation_uses_only_configured_independent_engines(monkeypatch, tmp_path):
+def test_image_provider_rotation_uses_only_external_independent_engines(monkeypatch, tmp_path):
     monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     import main
-    monkeypatch.setattr(main, "IMAGE_PROVIDER_ROTATION", ["cloudflare", "gemini", "openverse", "wikimedia", "local_scene"])
-
-    assert [main._image_provider_for_attempt(i) for i in range(1, 6)] == [
-        "cloudflare", "gemini", "openverse", "wikimedia", "local_scene"
+    monkeypatch.setattr(main, "IMAGE_PROVIDER_ROTATION", ["cloudflare", "gemini", "openverse", "wikimedia", "pixabay"])
+    assert [main._image_provider_for_attempt(i) for i in range(1, 7)] == [
+        "cloudflare", "gemini", "openverse", "wikimedia", "pixabay", "pixabay"
     ]
+    assert "local_scene" not in main.IMAGE_PROVIDER_ROTATION
     # FLUX and FLUX Klein share the same account quota; a daily limit on one
     # must never trigger a second request against the same Cloudflare account.
     assert main._image_provider_for_attempt(6) == "local_scene"
 
 
-def test_topic_specific_local_scene_is_promoted_before_stock_search(monkeypatch, tmp_path):
-    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
-    import main
-    monkeypatch.setattr(main, "IMAGE_PROVIDER_ROTATION", ["cloudflare", "gemini", "openverse", "wikimedia", "local_scene"])
-    topic = "الوظيفة العامة والتعيين"
-    brief = "A public employee file and an official disciplinary transfer decision on an office desk."
-    assert [main._image_provider_for_attempt(i, topic, brief) for i in range(1, 5)] == [
-        "cloudflare", "gemini", "local_scene", "openverse"
-    ]
