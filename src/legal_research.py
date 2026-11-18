@@ -95,8 +95,8 @@ def _source_evidence(text: str, topic: str) -> str:
     value = _clean(text)
     normalized_topic = _norm_legal_text(topic)
     employment = any(term in normalized_topic for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service = any(term in normalized_topic for term in ("الوظيفه العامه", "التعيين", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكوميه"))
-    impersonation = any(term in normalized_topic for term in ("انتحال الشخصيه", "انتحال الهويه", "انتحال صفه", "حساب مزيف", "هويه مزيفه", "اسم كاذب"))
+    public_service = any(term in normalized_topic for term in ("الوظيفة العامة", "الوظيفه العامه", "التعيين", "الخدمة المدنية", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكومية", "الوظائف الحكوميه"))
+    impersonation = any(term in normalized_topic for term in ("انتحال الشخصية", "انتحال الشخصيه", "انتحال الهوية", "انتحال الهويه", "انتحال صفة", "انتحال صفه", "حساب مزيف", "هوية مزيفة", "هويه مزيفه", "اسم كاذب"))
     if employment:
         patterns = [
             r"(?:المادة\s+السادسة|مادة\s*\(?\s*(?:السادسة|6|٦)\s*\)?)[^:]{0,20}:?.{0,1400}",
