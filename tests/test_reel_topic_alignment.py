@@ -61,3 +61,32 @@ def test_reel_recovery_accepts_matching_legal_topic_rows():
         "التعويض عن الأضرار المدنية",
         "يجوز طلب التعويض عن الضرر متى توافرت أركان المسؤولية المدنية.",
     )
+
+
+def test_video_description_removes_mixed_english_gibberish_and_uses_approved_arabic_post():
+    from video_metadata import build_video_description
+
+    description = build_video_description(
+        topic="ضوابط ترخيص العمالة",
+        post=(
+            "يجب على صاحب العمل مراجعة تراخيص مزاولة المهن والاحتفاظ بالمستندات "
+            "ومراجعة تاريخ التعيين قبل اتخاذ قرار التشغيل."
+        ),
+        script=(
+            "كتير من OWNER OF BUSINESSES يconsider ترريب العمال كإجراء روتيني "
+            "لكن التشغيل بدون ترريب يعرض المنشأة لمخاطر قانونية."
+        ),
+        platform="youtube",
+    )
+    assert "OWNER" not in description
+    assert "BUSINESSES" not in description
+    assert "يجب على صاحب العمل" in description
+    assert "واتساب" not in description  # The fixed WhatsApp CTA is a URL, not generated prose.
+    assert "https://wa.me/201022718375" in description
+
+
+def test_video_metadata_recognizes_public_service_and_impersonation_subjects():
+    from video_metadata import _topic_family
+
+    assert _topic_family("الوظيفة العامة والتعيين") == "public_service"
+    assert _topic_family("انتحال الشخصية") == "impersonation"
