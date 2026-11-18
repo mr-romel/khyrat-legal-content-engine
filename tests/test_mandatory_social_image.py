@@ -98,7 +98,8 @@ def test_known_abstract_legal_angle_overrides_stale_sheet_image_brief():
     assert "generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)" in main_source
 
 
-def test_image_provider_rotation_uses_independent_engines_across_retries():
+def test_image_provider_rotation_uses_independent_engines_across_retries(monkeypatch, tmp_path):
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     from main import _image_provider_for_attempt
 
     assert [_image_provider_for_attempt(i) for i in range(1, 7)] == [
