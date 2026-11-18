@@ -98,30 +98,63 @@ def test_official_labour_and_state_information_subdomains_are_allowed():
     assert not _allowed("https://fake-labour.gov.eg/law.pdf")
 
 
-def test_employment_topic_injects_verified_primary_law_sources(monkeypatch):
+def test_any_legal_topic_uses_generic_egyptian_source_discovery(monkeypatch):
     import legal_research
 
-    monkeypatch.setattr(legal_research, "_fetch", lambda url: "قانون رقم 14 لسنة 2025 قانون العمل، نص تشريعي رسمي مستخرج من الجريدة الرسمية ويتضمن الأحكام القانونية ذات الصلة بالموضوع.")
-    monkeypatch.setattr(legal_research, "_search", lambda query: [])
-    packet = legal_research.research_legal_topic("ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
-    assert "https://media.mof.gov.eg/mof-prd/qanwn_aleml_2025_14_f8e36d8b4f.pdf" in packet
-    assert "https://sis.gov.eg/media/760267/" in packet
-    assert "قانون العمل رقم 14 لسنة 2025" in packet
-    assert legal_research.has_verified_legal_source(packet)
+    calls = []
+    def fake_search(query):
+        calls.append(query)
+        return [{"url": "https://moj.gov.eg/laws/intellectual-property", "title": "قانون حماية حقوق الملكية الفكرية"}]
 
-def test_employment_source_evidence_extracts_relevant_late_articles():
+    monkeypatch.setattr(legal_research, "_search", fake_search)
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: (
+            "قانون حماية حقوق الملكية الفكرية. "
+            "تنظم أحكام العلامات التجارية وحقوق المؤلف وبراءات الاختراع. "
+            "تسجل العلامات التجارية وفق الإجراءات القانونية المقررة."
+        ),
+    )
+    packet = legal_research.research_legal_topic("الملكية الفكرية والعلامات التجارية — زاوية جديدة: علامات تحذيرية")
+    assert legal_research.has_verified_legal_source(packet)
+    assert "https://moj.gov.eg/laws/intellectual-property" in packet
+    assert "قانون حماية حقوق الملكية الفكرية" in packet
+    assert any('"الملكية الفكرية والعلامات التجارية"' in query for query in calls)
+    assert not any("قانون العمل 14 لسنة 2025" in query for query in calls)
+
+
+def test_generic_source_research_does_not_reuse_topic_specific_hardcoded_laws(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(
+        legal_research,
+        "_search",
+        lambda query: [{"url": "https://moi.gov.eg/laws/inheritance", "title": "قانون المواريث والوصية"}],
+    )
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: "قانون المواريث ينظم انتقال التركة إلى الورثة وأحكام الوصية والأنصبة الشرعية.",
+    )
+    packet = legal_research.research_legal_topic("الميراث والوصية")
+    assert legal_research.has_verified_legal_source(packet)
+    assert "https://moi.gov.eg/laws/inheritance" in packet
+    assert "175 لسنة 2018" not in packet
+    assert "81 لسنة 2016" not in packet
+    assert "14 لسنة 2025" not in packet
+
+
+def test_topic_evidence_extracts_relevant_passage_from_deep_source_text():
     from legal_research import _source_evidence
 
     source = (
-        ("مقدمة عامة لا تتعلق بالترخيص " * 1800)
-        + "المادة السادسة يجوز لأصحاب الأعمال تشغيل العمال دون التقيد بشرط الترخيص وتوفيق الأوضاع خلال ثلاث سنوات. "
-        + "مادة (٢٧): يلتزم من يرغب في مزاولة مهنة أو حرفة بالحصول على ترخيص. "
-        + "مادة (٢٩١): يعاقب من يزاول عمليات إلحاق العمالة دون ترخيص."
+        "قانون العقوبات رقم 58 لسنة 1937 " + ("مقدمة عامة لا تتعلق بالموضوع " * 300)
+        + "المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
     )
-    evidence = _source_evidence(source, "ضوابط ترخيص العمالة ومخاطر التشغيل دون ترخيص قانوني")
-    assert "المادة السادسة" in evidence
-    assert "مادة (٢٧)" in evidence
-    assert "مادة (٢٩١)" in evidence
+    evidence = _source_evidence(source, "انتحال الشخصية")
+    assert "قانون رقم 58 لسنة 1937" in evidence
+    assert "المادة (336)" in evidence
     assert "مقدمة عامة لا تتعلق" not in evidence
 
 
@@ -136,78 +169,6 @@ def test_verified_source_url_precedes_long_evidence_in_packet():
         assert packet.index("URL: https://media.mof.gov.eg/") < packet.index("VERIFIED SOURCE TEXT (retrieved):")
     finally:
         monkeypatch.undo()
-
-
-def test_public_service_topic_injects_civil_service_law_and_extracts_appointment_articles(monkeypatch):
-    import legal_research
-
-    def fake_fetch(url):
-        if "nosi.gov.eg" in url:
-            return (
-                "قانون رقم 81 لسنة 2016 بشأن الخدمة المدنية. "
-                "المادة (12) يكون التعيين بموجب قرار على أساس الكفاءة والجدارة من خلال إعلان مركزي وامتحان. "
-                "المادة (14) يشترط فيمن يعين استيفاء شروط شغل الوظيفة واجتياز الامتحان."
-            )
-        return "اللائحة التنفيذية لقانون الخدمة المدنية رقم 1216 لسنة 2017"
-    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
-    monkeypatch.setattr(legal_research, "_search", lambda query: [])
-
-    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
-    assert "قانون الخدمة المدنية رقم 81 لسنة 2016" in packet
-    assert "https://www.nosi.gov.eg/" in packet
-    assert "المادة (12)" in packet
-    assert "المادة (14)" in packet
-    assert legal_research.has_verified_legal_source(packet)
-
-
-def test_impersonation_topic_injects_cybercrime_and_penal_code_sources(monkeypatch):
-    import legal_research
-
-    def fake_fetch(url):
-        if "fra.gov.eg" in url:
-            return (
-                "القانون رقم 175 لسنة 2018. "
-                "المادة (24) يعاقب كل من اصطنع حساباً خاصاً ونسبه زوراً إلى شخص طبيعي."
-            )
-        return (
-            "قانون العقوبات رقم 58 لسنة 1937. "
-            "المادة (155) كل من تداخل في وظيفة عمومية دون صفة رسمية يعاقب. "
-            "المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
-        )
-    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
-    monkeypatch.setattr(legal_research, "_search", lambda query: [])
-
-    packet = legal_research.research_legal_topic("انتحال الشخصية")
-    assert "قانون رقم 175 لسنة 2018" in packet
-    assert "https://fra.gov.eg/" in packet
-    assert "https://manshurat.org/node/14677" in packet
-    assert "المادة (24)" in packet
-    assert "المادة (155)" in packet
-    assert legal_research.has_verified_legal_source(packet)
-
-
-def test_civil_service_authority_is_whitelisted_but_lookalike_is_not():
-    from legal_research import _allowed
-
-    assert _allowed("https://www.nosi.gov.eg/law.pdf")
-    assert _allowed("https://www.caoa.gov.eg/WebForms/laws.aspx")
-    assert _allowed("https://fra.gov.eg/law.pdf")
-    assert not _allowed("https://fake-caoa.gov.eg/law.pdf")
-
-
-def test_official_and_secondary_sources_use_topic_relevant_evidence(monkeypatch):
-    import legal_research
-
-    monkeypatch.setattr(
-        legal_research,
-        "_fetch",
-        lambda url: ("مقدمة طويلة لا تتعلق بالموضوع " * 500)
-        + "المادة (24) انتحال حساب ونسبته إلى شخص طبيعي.",
-    )
-    monkeypatch.setattr(legal_research, "_search", lambda query: [])
-    packet = legal_research.research_legal_topic("انتحال الشخصية")
-    assert "المادة (24)" in packet
-    assert "مقدمة طويلة" not in packet
 
 
 def test_source_gate_rejects_whitelisted_url_without_retrieved_source_text():
