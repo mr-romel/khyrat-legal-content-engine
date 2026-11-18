@@ -69,4 +69,4 @@ def test_researched_packet_is_persisted_when_sheet_is_available(monkeypatch):
     )
     assert result == VERIFIED_PACKET
     assert len(calls) == 1
-    assert calls[0][0][3]["المصادر القانونية"] == VERIFIED_PACKET
+    assert calls[0][0][4]["المصادر القانونية"] == VERIFIED_PACKET
