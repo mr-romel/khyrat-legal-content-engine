@@ -17,7 +17,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image, build_image_regeneration_brief, assert_image_not_duplicate, is_image_provider_blocked, _supports_topic_specific_local_scene
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, build_image_regeneration_brief, assert_image_not_duplicate, is_image_provider_blocked
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import has_verified_legal_source, research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -34,28 +34,15 @@ IMAGE_QA_ATTEMPTS_PER_RUN = 3
 IMAGE_PROVIDER_ROTATION = ["cloudflare", "gemini", "openverse", "wikimedia"]
 if os.getenv("POLLINATIONS_API_KEY", "").strip():
     IMAGE_PROVIDER_ROTATION.append("pollinations")
-IMAGE_PROVIDER_ROTATION.append("local_scene")
 
 
 def _image_provider_for_attempt(
     attempt_number: int,
-    topic: str = "",
-    visual_description: str = "",
 ) -> str:
-    """Rotate across healthy providers; promote specialist local art when it fits the topic."""
+    """Rotate only across configured external image providers with healthy quota circuits."""
     available = [provider for provider in IMAGE_PROVIDER_ROTATION if not is_image_provider_blocked(provider)]
     if not available:
         raise ImageGenerationError("IMAGE_PROVIDER_CIRCUIT_OPEN: no image provider is currently available.")
-    if (
-        topic and visual_description
-        and "local_scene" in available
-        and _supports_topic_specific_local_scene(topic, visual_description)
-    ):
-        # Keep the strongest paid engines first, then use original topic-specific
-        # artwork before spending the remaining attempts on stock-search services.
-        available.remove("local_scene")
-        insert_at = min(2, len(available))
-        available.insert(insert_at, "local_scene")
     index = max(0, min(int(attempt_number) - 1, len(available) - 1))
     return available[index]
 
@@ -539,7 +526,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 if regeneration_notes else visual_description
             )
             try:
-                image_provider = _image_provider_for_attempt(image_qa_attempt, topic, attempt_brief)
+                image_provider = _image_provider_for_attempt(image_qa_attempt)
                 print(f"IMAGE PROVIDER ROTATION: attempt={image_qa_attempt} provider={image_provider}")
                 create_legal_image(
                     topic=topic,
@@ -797,7 +784,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             model=config["gemini_model"],
         )
         print(f"POST-DERIVED IMAGE REPAIR SCENE: {visual_description}")
-        repair_provider = "local_scene" if _supports_topic_specific_local_scene(topic, visual_description) else "auto"
+        repair_provider = "auto"
         create_legal_image(
             topic=topic,
             image_brief=visual_description,
