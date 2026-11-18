@@ -291,10 +291,11 @@ def test_urlopen_does_not_retry_nontransient_http_429(monkeypatch):
     assert len(calls) == 1
 
 
-def test_cloudflare_image_http_429_skips_provider_retries():
+def test_cloudflare_image_http_429_opens_daily_provider_circuit():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert 'if response.status_code == 429:' in source
-    assert "skipping retries and switching to the next provider" in source
+    assert "response.status_code == 429 or any(marker in quota_text for marker in quota_markers)" in source
+    assert 'block_image_provider_for_day("cloudflare"' in source
+    assert "No Cloudflare model will be retried" in source
 
 
 def test_reel_pipeline_uses_actual_provider_returned_audio_paths():
