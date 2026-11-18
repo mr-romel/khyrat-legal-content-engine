@@ -95,8 +95,8 @@ def _source_evidence(text: str, topic: str) -> str:
     value = _clean(text)
     normalized_topic = _norm_legal_text(topic)
     employment = any(term in normalized_topic for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service = any(term in normalized_topic for term in ("الوظيفة العامة", "الوظيفه العامه", "التعيين", "الخدمة المدنية", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكومية", "الوظائف الحكوميه"))
-    impersonation = any(term in normalized_topic for term in ("انتحال الشخصية", "انتحال الشخصيه", "انتحال الهوية", "انتحال الهويه", "انتحال صفة", "انتحال صفه", "حساب مزيف", "هوية مزيفة", "هويه مزيفه", "اسم كاذب"))
+    public_service = any(term in normalized_topic for term in ("وظيف", "تعيين", "الخدمه المدنيه", "الخدمة المدنية", "موظف"))
+    impersonation = any(term in normalized_topic for term in ("انتحال", "حساب مزيف", "هويه مزيفه", "هوية مزيفة", "اسم كاذب"))
     if employment:
         patterns = [
             r"(?:المادة\s+السادسة|مادة\s*\(?\s*(?:السادسة|6|٦)\s*\)?)[^:]{0,20}:?.{0,1400}",
@@ -232,8 +232,8 @@ def research_legal_topic(topic, existing=""):
         queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
     cand=[]; seen=set()
     employment_topic = any(term in topic_norm for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
-    public_service_topic = any(term in topic_norm for term in ("الوظيفة العامة", "الوظيفه العامه", "التعيين", "الخدمة المدنية", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكومية", "الوظائف الحكوميه"))
-    impersonation_topic = any(term in topic_norm for term in ("انتحال الشخصية", "انتحال الشخصيه", "انتحال الهوية", "انتحال الهويه", "انتحال صفة", "انتحال صفه", "حساب مزيف", "هوية مزيفة", "هويه مزيفه", "اسم كاذب"))
+    public_service_topic = any(term in topic_norm for term in ("وظيف", "تعيين", "الخدمه المدنيه", "الخدمة المدنية", "موظف"))
+    impersonation_topic = any(term in topic_norm for term in ("انتحال", "حساب مزيف", "هويه مزيفه", "هوية مزيفة", "اسم كاذب"))
     if employment_topic:
         # Primary text of Law 14/2025 as published in the Official Gazette.
         official_employment_sources = [
