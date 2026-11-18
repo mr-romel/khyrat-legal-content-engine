@@ -17,6 +17,17 @@ from legal_research import has_verified_legal_source, research_legal_topic
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
 
+def _mark_blogger_failed(service, config: dict, sheet_name: str, row_number: int, reason: str) -> None:
+    """Persist a truthful retryable failure state without hiding the original exception."""
+    try:
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Blogger Status": "FAILED",
+            "Blogger Last Error": str(reason or "Unknown Blogger failure")[:1500],
+        })
+    except Exception as state_exc:
+        print(f"Blogger failure state could not be persisted for row {row_number}: {state_exc}")
+
+
 def _refresh_missing_legal_sources(topic: str, legal_sources: str) -> str:
     """Always require a fresh retrieval; old Sheet sources remain reference notes only."""
     try:
@@ -498,23 +509,25 @@ def main() -> int:
                 print(f"Blogger: image upload failed; refusing an unverified GitHub raw URL: {upload_exc}")
         except Exception as image_exc:
             # Never disguise provider exhaustion with a generic visual or a text-only post.
-            raise BloggerPublishError(
-                f"TOPIC_IMAGE_REQUIRED: no suitable topic-specific image could be generated: {image_exc}"
-            ) from image_exc
+            failure = f"TOPIC_IMAGE_REQUIRED: no suitable topic-specific image could be generated: {image_exc}"
+            _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+            raise BloggerPublishError(failure) from image_exc
 
     if not image_path or not Path(image_path).is_file() or Path(image_path).stat().st_size < 10000:
-        raise BloggerPublishError(
-            "TOPIC_IMAGE_REQUIRED: publication blocked because no valid row-owned image artifact exists."
-        )
+        failure = "TOPIC_IMAGE_REQUIRED: publication blocked because no valid row-owned image artifact exists."
+        _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+        raise BloggerPublishError(failure)
     if not image_url:
         try:
             image_url = upload_blogger_image(image_path)
         except Exception as upload_exc:
-            raise BloggerPublishError(
-                f"BLOGGER_IMAGE_UPLOAD_FAILED: generated topic image could not be uploaded; refusing text-only publication: {upload_exc}"
-            ) from upload_exc
+            failure = f"BLOGGER_IMAGE_UPLOAD_FAILED: generated topic image could not be uploaded; refusing text-only publication: {upload_exc}"
+            _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+            raise BloggerPublishError(failure) from upload_exc
     if not image_url.startswith("https://"):
-        raise BloggerPublishError("BLOGGER_IMAGE_URL_INVALID: published image must have a verified HTTPS URL.")
+        failure = "BLOGGER_IMAGE_URL_INVALID: published image must have a verified HTTPS URL."
+        _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+        raise BloggerPublishError(failure)
 
     if image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0 and image_url:
         import hashlib
@@ -533,9 +546,9 @@ def main() -> int:
             print("Blogger: generated image upload retry succeeded.")
         except Exception as retry_exc:
             image_url = ""
-            raise BloggerPublishError(
-                f"BLOGGER_IMAGE_UPLOAD_FAILED: retry failed; unverified raw asset URLs are not accepted: {retry_exc}"
-            ) from retry_exc
+            failure = f"BLOGGER_IMAGE_UPLOAD_FAILED: retry failed; unverified raw asset URLs are not accepted: {retry_exc}"
+            _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+            raise BloggerPublishError(failure) from retry_exc
 
     legal_sources = str(row.get("المصادر القانونية", "")).strip()
     if not has_verified_legal_source(legal_sources):
@@ -550,10 +563,12 @@ def main() -> int:
         except Exception as research_exc:
             print(f"Blogger legal source recovery unavailable: {research_exc}")
     if not has_verified_legal_source(legal_sources):
-        raise BloggerPublishError(
+        failure = (
             "LEGAL_SOURCE_GATE_BLOCKED: no verified Egyptian HTTPS legal source is attached; "
             "the Blogger article was withheld."
         )
+        _mark_blogger_failed(service, config, sheet_name, row_number, failure)
+        raise BloggerPublishError(failure)
 
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "Blogger Status": "PROCESSING",
