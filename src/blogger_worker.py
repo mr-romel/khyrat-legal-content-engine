@@ -363,7 +363,10 @@ def main() -> int:
     # intermittently saved only the title; use UI only as a fallback when API OAuth is absent.
     # OAuth refresh tokens can be revoked independently of the authenticated browser session.
     # Prefer the saved UI session when present so a stale OAuth token does not block publishing.
-    use_ui = bool(config.get("blogger_ui_storage_state_b64"))
+    # Blogger REST API is primary whenever OAuth credentials exist.
+    # A saved browser session is only a fallback; never bypass a healthy API path.
+    has_blogger_oauth = bool(os.getenv("BLOGGER_OAUTH_JSON", "").strip())
+    use_ui = (not has_blogger_oauth) and bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
         blogger_api = blogger_service()
@@ -496,8 +499,24 @@ def main() -> int:
                 image_url = github_raw_url(str(generated_image))
                 print(f"Blogger: upload failed ({upload_exc}); using persisted generated image URL as fallback: {image_url or 'unavailable'}")
         except Exception as image_exc:
-            # Preserve the established no-cancel publishing policy if every image provider is unavailable.
-            print(f"Blogger: hero image generation unavailable; continuing article publication: {image_exc}")
+            # Never disguise provider exhaustion with a generic visual or a text-only post.
+            raise BloggerPublishError(
+                f"TOPIC_IMAGE_REQUIRED: no suitable topic-specific image could be generated: {image_exc}"
+            ) from image_exc
+
+    if not image_path or not Path(image_path).is_file() or Path(image_path).stat().st_size < 10000:
+        raise BloggerPublishError(
+            "TOPIC_IMAGE_REQUIRED: publication blocked because no valid row-owned image artifact exists."
+        )
+    if not image_url:
+        try:
+            image_url = upload_blogger_image(image_path)
+        except Exception as upload_exc:
+            raise BloggerPublishError(
+                f"BLOGGER_IMAGE_UPLOAD_FAILED: generated topic image could not be uploaded; refusing text-only publication: {upload_exc}"
+            ) from upload_exc
+    if not image_url.startswith("https://"):
+        raise BloggerPublishError("BLOGGER_IMAGE_URL_INVALID: published image must have a verified HTTPS URL.")
 
     if image_path and Path(image_path).is_file() and Path(image_path).stat().st_size > 0 and image_url:
         import hashlib
@@ -551,12 +570,11 @@ def main() -> int:
 
     try:
         if use_ui:
-            # Upload to Blogger storage; Rich Editor should not embed the raw GitHub asset URL.
+            # Every Blogger post must carry its own topic-specific image.
             blogger_image_url = image_url
-            if blogger_image_url:
-                print(f"Blogger UI: embedding row-owned generated image URL: {blogger_image_url}")
-            else:
-                print("Blogger UI: publishing a text-first article because no image is available.")
+            if not blogger_image_url or not blogger_image_url.startswith("https://"):
+                raise BloggerPublishError("TOPIC_IMAGE_REQUIRED: Blogger publication requires a valid HTTPS image URL.")
+            print(f"Blogger: embedding verified row-owned topic image URL: {blogger_image_url}")
             article = None
             editorial_errors = []
             api_key = os.getenv("GEMINI_API_KEY", "").strip()
