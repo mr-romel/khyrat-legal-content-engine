@@ -18,7 +18,7 @@ PREVIOUS_MARKER = "KHYRAT_LEGAL_THEME_V2"
 
 
 CSS = r"""
-/* KHYRAT_LEGAL_THEME_V2: conversion + readability layer */
+/* KHYRAT_LEGAL_THEME_V3: conversion + readability layer */
 :root{--khyrat-ink:#142b3b;--khyrat-teal:#087f8c;--khyrat-teal-dark:#06636d;--khyrat-gold:#c79a43;--khyrat-paper:#ffffff;--khyrat-muted:#5b6872}
 body{color:var(--khyrat-ink);line-height:1.85}
 a{transition:color .18s ease,background-color .18s ease,border-color .18s ease}
