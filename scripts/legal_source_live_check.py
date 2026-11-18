@@ -26,11 +26,11 @@ def main() -> int:
             print(f"RESULT: BLOCKED — no live source passed retrieval and topic evidence for: {topic}", flush=True)
             continue
 
-        blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", packet)
+        blocks = re.split(r"(?m)^SOURCE\s+\\d+\s*$", packet)
         urls = []
         for block in blocks[1:]:
-            match = re.search(r"(?m)^URL:\\s*(https://\\S+)", block)
-            evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \\(retrieved\\):\\s*(.{30,})$", block)
+            match = re.search(r"(?m)^URL:\s*(https://\\S+)", block)
+            evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \(retrieved\):\s*(.{30,})$", block)
             if match and evidence:
                 urls.append(match.group(1).rstrip(").,;"))
         if not urls:
