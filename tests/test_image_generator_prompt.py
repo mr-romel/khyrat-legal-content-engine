@@ -292,6 +292,33 @@ def test_each_post_gets_a_distinct_row_specific_composition_prompt(monkeypatch, 
 
 
 
+def test_identity_impersonation_uses_specialized_local_scene_and_deterministic_qa(monkeypatch, tmp_path):
+    from gemini import _deterministic_legal_scene
+    from image_qa import qa_image
+
+    topic = "انتحال الشخصية"
+    brief = _deterministic_legal_scene(topic, "Checklist عملية قبل بدء أي إجراء")
+    assert brief and "identity verification" in brief
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+    output = tmp_path / "identity-impersonation.jpg"
+    image_generator.create_legal_image(
+        topic=topic,
+        image_brief=brief,
+        visual_description=brief,
+        post_context="انتحال الشخصية وإجراءات التحقق من الهوية",
+        output_path=str(output),
+        provider="local_scene",
+    )
+    result = qa_image(
+        api_key="",
+        image_path=str(output),
+        topic=topic,
+        image_brief=brief,
+    )
+    assert result["decision"] == "PASS"
+    assert result["qa_method"] == "local-renderer-provenance-and-integrity"
+
+
 def test_duplicate_post_image_guard_rejects_same_visual(tmp_path):
     import pytest
 
