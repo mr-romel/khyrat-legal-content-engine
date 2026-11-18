@@ -692,7 +692,21 @@ def _smart_main() -> None:
     if recovered:
         values = get_values(service, config["sheet_id"], config["sheet_range"])
         rows = [row_to_dict(row) for row in values[1:]]
-    candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+    repair_bad_images_first = os.getenv("KHYRAT_REPAIR_BAD_PUBLISHED_IMAGES_FIRST", "").strip().lower() in {"1", "true", "yes", "on"}
+    if repair_bad_images_first:
+        image_repairs = [
+            (i, r) for i, r in enumerate(rows, start=2)
+            if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+            and production_main._is_bad_published_image(r)
+            and (str(r.get("Facebook Post ID", "")).strip() or str(r.get("LinkedIn Post ID", "")).strip())
+        ]
+        candidates = [image_repairs[0]] if image_repairs else []
+        print(
+            f"REPAIR_BAD_PUBLISHED_IMAGES_FIRST: selected row={candidates[0][0]}."
+            if candidates else "REPAIR_BAD_PUBLISHED_IMAGES_FIRST: no published invalid-image row found; no new post will be forced."
+        )
+    else:
+        candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
     if force_republish_row:
         candidates = [force_republish_row]
         print(f"FORCE_REPUBLISH: bypassing schedule gate for row {force_republish_row[0]}.")
