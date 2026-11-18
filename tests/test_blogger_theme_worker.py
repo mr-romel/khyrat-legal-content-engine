@@ -25,7 +25,7 @@ def test_theme_patch_adds_confirmed_contact_links_and_ga4_events():
     assert "event_callback" in updated
     assert "event_timeout" in updated
     assert SITE_META_DESCRIPTION in updated
-    assert updated.count("name='description'") == 2
+    assert updated.count("name='description'") == 3
     assert "window.setTimeout(continueToContact, 1100)" in updated
     assert "wa.target = '_blank'" in updated
     assert "AdSense1" not in updated
