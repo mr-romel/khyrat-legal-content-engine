@@ -37,11 +37,25 @@ if os.getenv("POLLINATIONS_API_KEY", "").strip():
 IMAGE_PROVIDER_ROTATION.append("local_scene")
 
 
-def _image_provider_for_attempt(attempt_number: int) -> str:
-    """Rotate only across providers whose daily quota circuit is currently closed."""
+def _image_provider_for_attempt(
+    attempt_number: int,
+    topic: str = "",
+    visual_description: str = "",
+) -> str:
+    """Rotate across healthy providers; promote specialist local art when it fits the topic."""
     available = [provider for provider in IMAGE_PROVIDER_ROTATION if not is_image_provider_blocked(provider)]
     if not available:
         raise ImageGenerationError("IMAGE_PROVIDER_CIRCUIT_OPEN: no image provider is currently available.")
+    if (
+        topic and visual_description
+        and "local_scene" in available
+        and _supports_topic_specific_local_scene(topic, visual_description)
+    ):
+        # Keep the strongest paid engines first, then use original topic-specific
+        # artwork before spending the remaining attempts on stock-search services.
+        available.remove("local_scene")
+        insert_at = min(2, len(available))
+        available.insert(insert_at, "local_scene")
     index = max(0, min(int(attempt_number) - 1, len(available) - 1))
     return available[index]
 
@@ -525,7 +539,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 if regeneration_notes else visual_description
             )
             try:
-                image_provider = _image_provider_for_attempt(image_qa_attempt)
+                image_provider = _image_provider_for_attempt(image_qa_attempt, topic, attempt_brief)
                 print(f"IMAGE PROVIDER ROTATION: attempt={image_qa_attempt} provider={image_provider}")
                 create_legal_image(
                     topic=topic,
