@@ -1,3 +1,3 @@
-# Blogger publisher verified production run
-Run one guarded Blogger publication on the current main revision. The worker must persist PROCESSING/FAILED states and only record PUBLISHED after the article body, required topic image, and public permalink are verified.
-Trigger nonce: 1795034638574
+# Blogger post reconciliation and topic-image repair
+Run the current Blogger worker once. Reconcile any post already inserted but not written back to Sheets; repair its image only with a topic-specific, QA-approved scene; never create a duplicate or reuse a generic fallback.
+Trigger nonce: 1795035973923
