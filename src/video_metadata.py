@@ -38,10 +38,10 @@ def _clean(value: str, limit: int = 700) -> str:
 
 def _arabic_only(value: str) -> str:
     """Remove accidental English model fragments while preserving Arabic punctuation and digits."""
-    text = re.sub(r"https?://\\S+", " ", str(value or ""))
-    text = re.sub(r"(?<![\\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\\w])", " ", text)
-    text = re.sub(r"[^\\u0600-\\u06FF\\u0660-\\u0669\\u06F0-\\u06F9\\s،؛؟.!:()ـ-]", " ", text)
-    return re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"https?://\S+", " ", str(value or ""))
+    text = re.sub(r"(?<![\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\w])", " ", text)
+    text = re.sub(r"[^\u0600-\u06FF\u0660-\u0669\u06F0-\u06F9\s،؛؟.!:()ـ-]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def clean_video_topic(value: str) -> str:
@@ -118,7 +118,7 @@ def build_video_description(*, topic: str, post: str, script: str, article_url: 
     # The narration is the approved source of truth for this specific Reel.
     # Raw post text is only a fallback, and both paths pass the same topic filter.
     body = _topic_aligned_body(script, clean_topic)
-    latin_fragments = re.findall(r"(?<![\\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\\w])", body)
+    latin_fragments = re.findall(r"(?<![\w])[A-Za-z][A-Za-z0-9_'’-]*(?![\w])", body)
     if len(latin_fragments) >= 2:
         # Captions are public metadata, not raw model output. Fall back to the approved post.
         body = _topic_aligned_body(post, clean_topic)
