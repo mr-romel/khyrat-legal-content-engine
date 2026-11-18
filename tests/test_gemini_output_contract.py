@@ -37,3 +37,32 @@ def test_deterministic_visual_scene_does_not_override_unrelated_legal_topics():
         "القضايا العمالية",
         "قائمة مراجعة لمستحقات العامل.",
     ) is None
+
+
+def test_image_scene_regeneration_uses_qa_feedback_and_changes_previous_scene(monkeypatch):
+    import gemini
+
+    captured = {}
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            captured["prompt"] = kwargs["contents"]
+            return type("Response", (), {
+                "text": "A contemporary public-service applicant checking a posted recruitment notice at a government service counter, with a queue ticket and application folder visible."
+            })()
+    class FakeClient:
+        models = FakeModels()
+
+    monkeypatch.setattr(gemini, "create_client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr(gemini, "_deterministic_legal_scene", lambda topic, post: "A repeated generic scene.")
+    result = gemini.generate_image_scene_from_post(
+        api_key="test-key",
+        model="test-model",
+        topic="الوظيفة العامة والتعيين",
+        post="يتعلق الموضوع بشروط التعيين وإجراءات التقديم للوظائف العامة.",
+        previous_scene="A generic legal desk with scales and a law book.",
+        qa_feedback="The image is unrelated. Show a public-service applicant reviewing a recruitment notice.",
+    )
+    assert "public-service applicant" in result
+    assert "A generic legal desk with scales and a law book." in captured["prompt"]
+    assert "The image is unrelated." in captured["prompt"]
+    assert "materially different alternative scene" in captured["prompt"]
