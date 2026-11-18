@@ -326,7 +326,29 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
     d = ImageDraw.Draw(image, "RGBA")
     d.rounded_rectangle((width*.07, height*.07, width*.93, height*.88), radius=int(width*.05), fill=(250,251,253,255))
     key = (topic + " " + visual_description).lower()
-    if any(w in key for w in ("تهديد", "قتل", "رسالة", "مكالمة", "ابتزاز", "phone", "threat", "call")):
+    if any(w in key for w in ("انتحال الشخصية", "انتحال", "تزوير الهوية", "بطاقة هوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud", "forged identity")):
+        # Identity-impersonation scene: identity card, fingerprint evidence and
+        # verification shield. No readable lettering or generic courtroom props.
+        navy=(25,48,70,255); blue=(74,133,164,255); pale=(248,250,251,255)
+        gold=(190,151,76,255); slate=(130,148,162,255)
+        d.rectangle((0,0,width,height),fill=(218,229,235,255))
+        d.rounded_rectangle((int(width*.12),int(height*.23),int(width*.78),int(height*.72)),radius=26,fill=pale,outline=navy,width=7)
+        d.rounded_rectangle((int(width*.17),int(height*.30),int(width*.39),int(height*.65)),radius=18,fill=(210,224,231,255),outline=blue,width=5)
+        d.ellipse((int(width*.235),int(height*.36),int(width*.325),int(height*.46)),fill=slate)
+        d.arc((int(width*.205),int(height*.44),int(width*.355),int(height*.62)),180,360,fill=slate,width=9)
+        for j in range(3):
+            yy=int(height*(.39+j*.085))
+            d.rounded_rectangle((int(width*.45),yy,int(width*(.68-(j%2)*.05)),yy+9),radius=4,fill=(160,174,186,255))
+        # Fingerprint evidence is the dominant cue, not the ID card alone.
+        cx,cy=int(width*.72),int(height*.72)
+        for radius in (int(width*.055),int(width*.075),int(width*.095)):
+            d.arc((cx-radius,cy-radius,cx+radius,cy+radius),25,330,fill=gold,width=6)
+        d.line((cx,cy-int(height*.095),cx,cy+int(height*.07)),fill=gold,width=5)
+        # Verification shield
+        sx,sy=int(width*.76),int(height*.16)
+        d.polygon([(sx,sy),(sx+int(width*.13),sy+int(height*.05)),(sx+int(width*.11),sy+int(height*.19)),(sx+int(width*.065),sy+int(height*.25)),(sx+int(width*.02),sy+int(height*.19)),(sx-int(width*.005),sy+int(height*.05))],fill=(66,125,100,255),outline=navy)
+        d.line((sx+int(width*.03),sy+int(height*.12),sx+int(width*.06),sy+int(height*.15),sx+int(width*.10),sy+int(height*.08)),fill=pale,width=8)
+    elif any(w in key for w in ("تهديد", "قتل", "رسالة", "مكالمة", "ابتزاز", "phone", "threat", "call")):
         x0,y0,x1,y1=int(width*.29),int(height*.20),int(width*.71),int(height*.72)
         d.rounded_rectangle((x0,y0,x1,y1),radius=int(width*.06),fill=(35,45,60,255))
         d.rounded_rectangle((x0+14,y0+24,x1-14,y1-24),radius=18,fill=(235,241,247,255))
@@ -525,6 +547,7 @@ def _supports_topic_specific_local_scene(topic: str, visual_description: str) ->
     """Only allow the local renderer when the subject maps to a concrete scene family."""
     value = (str(topic or "") + " " + str(visual_description or "")).casefold()
     scene_terms = (
+        "انتحال الشخصية", "انتحال", "تزوير الهوية", "بطاقة هوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud", "forged identity",
         "تهديد", "قتل", "رسالة", "مكالمة", "ابتزاز", "threat", "call",
         "تصالح", "تنازل", "تسوية", "إقرار", "settlement", "waiver",
         "تحقيق", "استجواب", "محضر", "موظف عام", "مساءلة", "investigation",
