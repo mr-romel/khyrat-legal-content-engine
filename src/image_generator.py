@@ -1187,8 +1187,6 @@ def create_legal_image(
         else "pixabay-editorial-stock" if provider == "PIXABAY_LEGAL_STOCK"
         else os.getenv("POLLINATIONS_IMAGE_MODEL", "black-forest-labs/flux.1-schnell")
         if provider == "POLLINATIONS_IMAGE_GENERATION"
-        else "local-topic-scene-renderer-v2" if provider == "LOCAL_SCENE_ILLUSTRATION"
-        else "local-pillow-editorial-v1" if provider == "LOCAL_ZERO_COST_EDITORIAL"
         else CLOUDFLARE_IMAGE_MODEL_KLEIN if provider == "DIRECT_CLOUDFLARE_KLEIN"
         else CLOUDFLARE_IMAGE_MODEL
     )
