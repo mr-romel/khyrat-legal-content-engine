@@ -243,9 +243,10 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
          "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
         capture_output=True, text=True, check=True, timeout=30,
     )
-    duration = float(probe.stdout.strip() or "0")
+    _trim_excess_narration_pauses(output_path)
+    duration = _media_duration(output_path)
     if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Google Cloud TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s before the branded ending; got {duration:.1f}s")
+        raise RuntimeError(f"Google Cloud TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s after pause cleanup; got {duration:.1f}s")
     print(f"Google Cloud Arabic TTS succeeded: duration={duration:.1f}s")
     return output_path
 
@@ -253,6 +254,33 @@ def generate_google_cloud_arabic_tts_audio(service_account_info: dict[str, Any],
 def _media_duration(path: Path) -> float:
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)], capture_output=True, text=True, check=True, timeout=30)
     return float(probe.stdout.strip() or "0")
+
+def _trim_excess_narration_pauses(path: Path, max_seconds: float | None = None) -> Path:
+    """Trim only long inter-sentence silences when needed; never time-stretch speech."""
+    maximum = float(max_seconds or REEL_CONTENT_MAX_SECONDS)
+    original_duration = _media_duration(path)
+    if original_duration <= maximum:
+        return path
+    trimmed = path.with_name(path.stem + "-pause-trimmed" + path.suffix)
+    command = [
+        "ffmpeg", "-y", "-i", str(path),
+        "-af", "silenceremove=start_periods=1:start_duration=0.10:start_threshold=-50dB:"
+              "stop_periods=-1:stop_duration=0.55:stop_threshold=-50dB:stop_silence=0.18",
+        "-c:a", "pcm_s16le" if path.suffix.lower() == ".wav" else "libmp3lame",
+        str(trimmed),
+    ]
+    try:
+        subprocess.run(command, capture_output=True, text=True, check=True, timeout=90)
+        trimmed_duration = _media_duration(trimmed)
+        if 22.0 <= trimmed_duration <= maximum:
+            trimmed.replace(path)
+            print(f"REEL_STAGE tts_pause_trimmed original={original_duration:.1f}s final={trimmed_duration:.1f}s speech_rate_unchanged=true")
+            return path
+        print(f"REEL_STAGE tts_pause_trim_insufficient original={original_duration:.1f}s result={trimmed_duration:.1f}s; retaining original")
+    except Exception as exc:
+        print(f"REEL_STAGE tts_pause_trim_unavailable reason={exc}")
+    trimmed.unlink(missing_ok=True)
+    return path
 
 def fit_reel_narration_duration(path: Path, target_seconds: float | None = None) -> Path:
     """QA only. Never speed up natural Egyptian narration."""
@@ -439,9 +467,40 @@ def generate_gemini_tts_audio(api_key: str, script: str, emotion_map: list[dict[
     except Exception as exc:
         raise RuntimeError(f"Invalid Gemini TTS audio payload: {exc}") from exc
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)], capture_output=True, text=True, check=True, timeout=30)
-    duration = float(probe.stdout.strip() or "0")
+    _trim_excess_narration_pauses(output_path)
+    duration = _media_duration(output_path)
     if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
-        raise RuntimeError(f"Gemini TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s before the branded ending; got {duration:.1f}s")
+        raise RuntimeError(f"Gemini TTS narration must be 22–{REEL_CONTENT_MAX_SECONDS:g}s after pause cleanup; got {duration:.1f}s")
+    return output_path
+
+
+def generate_edge_arabic_tts_audio(script: str, output_path: Path) -> Path:
+    """Last-resort Egyptian Arabic voice; used only when primary neural providers fail."""
+    import asyncio
+    try:
+        import edge_tts
+    except ImportError as exc:
+        raise RuntimeError("edge-tts package is not installed") from exc
+    clean = prepare_tts_script(script)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    async def _run() -> None:
+        communicate = edge_tts.Communicate(
+            clean,
+            voice=os.getenv("REEL_EDGE_TTS_VOICE", "ar-EG-ShakirNeural"),
+            rate=os.getenv("REEL_EDGE_TTS_RATE", "+0%"),
+        )
+        with output_path.open("wb") as handle:
+            async for chunk in communicate.stream():
+                if chunk.get("type") == "audio":
+                    handle.write(chunk["data"])
+    asyncio.run(_run())
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        raise RuntimeError("Edge Arabic TTS returned an empty audio file")
+    _trim_excess_narration_pauses(output_path)
+    duration = _media_duration(output_path)
+    if duration < 22 or duration > REEL_CONTENT_MAX_SECONDS:
+        raise RuntimeError(f"Edge Arabic TTS narration duration outside 22–{REEL_CONTENT_MAX_SECONDS:g}s: {duration:.1f}s")
+    print(f"REEL_STAGE tts=edge_ar_eg_ok duration={duration:.1f}s")
     return output_path
 
 
@@ -452,26 +511,22 @@ def generate_reel_narration_with_fallbacks(
     emotion_map: list[dict[str, Any]],
     output_path: Path,
 ) -> Path:
-    """Use Gemini TTS first, then Google Cloud neural Arabic; Edge TTS is prohibited."""
+    """Try Gemini, Google Cloud, then Edge Egyptian Arabic; reject only unusable audio."""
     errors = []
-    gemini_path = output_path.with_name("voice-gemini.wav")
-    cloud_path = output_path.with_name("voice-google-cloud.wav")
-    try:
-        result = generate_gemini_tts_audio(api_key, script, emotion_map, gemini_path)
-        print("REEL_STAGE tts=gemini_ok")
-        return result
-    except Exception as exc:
-        errors.append(f"Gemini={exc}")
-        print(f"REEL_STAGE tts=gemini_unavailable reason={exc}")
-    try:
-        result = generate_google_cloud_arabic_tts_audio(service_account_info, script, cloud_path)
-        print("REEL_STAGE tts=google_cloud_ok")
-        return result
-    except Exception as exc:
-        errors.append(f"Google Cloud={exc}")
-    raise RuntimeError(
-        "All Arabic narration TTS providers failed; refusing Telegram delivery. " + " | ".join(errors)
-    )
+    providers = [
+        ("Gemini", lambda: generate_gemini_tts_audio(api_key, script, emotion_map, output_path.with_name("voice-gemini.wav"))),
+        ("Google Cloud", lambda: generate_google_cloud_arabic_tts_audio(service_account_info, script, output_path.with_name("voice-google-cloud.wav"))),
+        ("Edge ar-EG", lambda: generate_edge_arabic_tts_audio(script, output_path.with_name("voice-edge-ar-eg.mp3"))),
+    ]
+    for provider_name, generate in providers:
+        try:
+            result = generate()
+            print(f"REEL_STAGE tts_provider_accepted={provider_name}")
+            return result
+        except Exception as exc:
+            errors.append(f"{provider_name}={exc}")
+            print(f"REEL_STAGE tts_provider_unavailable={provider_name} reason={exc}")
+    raise RuntimeError("All Arabic narration TTS providers failed after duration cleanup. " + " | ".join(errors))
 
 
 def generate_short_signoff_with_fallbacks(
