@@ -17,7 +17,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief, assert_image_not_duplicate
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, create_generic_legal_fallback_image, build_image_regeneration_brief, assert_image_not_duplicate, is_image_provider_blocked
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import has_verified_legal_source, research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -39,9 +39,12 @@ IMAGE_PROVIDER_ROTATION = (
 
 
 def _image_provider_for_attempt(attempt_number: int) -> str:
-    """Rotate independent image engines across persistent QA retries instead of repeating one provider."""
-    index = max(0, min(int(attempt_number) - 1, len(IMAGE_PROVIDER_ROTATION) - 1))
-    return IMAGE_PROVIDER_ROTATION[index]
+    """Rotate only across providers whose daily quota circuit is currently closed."""
+    available = [provider for provider in IMAGE_PROVIDER_ROTATION if not is_image_provider_blocked(provider)]
+    if not available:
+        raise ImageGenerationError("IMAGE_PROVIDER_CIRCUIT_OPEN: no image provider is currently available.")
+    index = max(0, min(int(attempt_number) - 1, len(available) - 1))
+    return available[index]
 
 FACEBOOK_COMMENT_LIMIT = 7
 LINKEDIN_COMMENT_LIMIT = 7
