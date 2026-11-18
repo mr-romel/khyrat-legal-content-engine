@@ -123,8 +123,8 @@ def build_video_description(*, topic: str, post: str, script: str, article_url: 
         # Captions are public metadata, not raw model output. Fall back to the approved post.
         body = _topic_aligned_body(post, clean_topic)
     body = _arabic_only(body)
-    if len(body) < 60:
-        raise ValueError("Cannot publish a video description: no clean Arabic topic-aligned source text is available.")
+    if len(body) < 20:
+        raise ValueError("Cannot publish a video description without approved topic content: no clean Arabic topic-aligned source text is available.")
 
     lines = [
         f"🎬 {clean_topic}",
