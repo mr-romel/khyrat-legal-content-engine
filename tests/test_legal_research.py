@@ -93,6 +93,7 @@ def test_official_labour_and_state_information_subdomains_are_allowed():
     from legal_research import _allowed
 
     assert _allowed("https://www.labour.gov.eg/laws-and-legislations/")
+    assert _allowed("https://www.cairo.gov.eg/ar/Monthly%20Publication/law.pdf")
     assert _allowed("https://sis.gov.eg/media/760267/law-14-2025.pdf")
     assert _allowed("https://media.mof.gov.eg/mof-prd/law.pdf")
     assert not _allowed("https://fake-labour.gov.eg/law.pdf")
