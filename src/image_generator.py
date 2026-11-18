@@ -366,7 +366,7 @@ def _generate_zero_cost_editorial_image(*, topic: str, visual_description: str, 
         d.arc((int(width*.43),int(height*.48),int(width*.66),int(height*.62)),190,345,fill=(43,84,123,255),width=8)
         d.ellipse((int(width*.68),int(height*.58),int(width*.82),int(height*.72)),fill=(54,113,91,255))
         d.line((int(width*.71),int(height*.65),int(width*.75),int(height*.68),int(width*.79),int(height*.61)),fill=(255,255,255,255),width=7)
-    elif any(w in key for w in ("تحقيق", "استجواب", "محضر", "موظف عام", "مساءلة", "investigation", "interrogation", "interview")):
+    elif any(w in key for w in ("تحقيق", "استجواب", "محضر", "موظف عام", "مساءلة", "الوظيفة العامة", "وظيفة عامة", "التعيين", "الخدمة المدنية", "النقل كجزاء", "النقل التأديبي", "نقل تأديبي", "نقل الموظف", "investigation", "interrogation", "interview", "disciplinary transfer")):
         # Topic-specific public-official investigation scene: office desk, case file,
         # interview chair and evidence folder, with five composition variants.
         navy=(25,48,70,255); gold=(190,151,76,255)
@@ -556,7 +556,7 @@ def _supports_topic_specific_local_scene(topic: str, visual_description: str) ->
         "عقد", "التزام", "شركات", "contract", "business", "company",
         "ميعاد", "دعوى", "قرار اداري", "calendar", "deadline",
         "اراضي", "تخطيط", "حزام اخضر", "land", "urban planning",
-        "موظف", "workplace", "employee", "transfer", "personnel",
+        "موظف", "الوظيفة العامة", "وظيفة عامة", "التعيين", "الخدمة المدنية", "النقل كجزاء", "النقل التأديبي", "نقل تأديبي", "نقل الموظف", "workplace", "employee", "transfer", "personnel",
         "المرفق", "مرافق", "خدمة عامة", "مياه", "كهرباء", "نقل عام",
         "public utility", "economic facility", "water utility", "power plant",
         "electricity", "public transport", "infrastructure", "municipal",
