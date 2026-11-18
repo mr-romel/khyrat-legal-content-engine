@@ -1,0 +1,27 @@
+{
+  "topic": "التظلم من قرار الحفظ — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: كتير من أصحاب الشركات بيتعاملوا مع قرار النيابة العامة بحفظ المحضر وكأنه نهاية المطاف، وبيقفلوا صفحة الموضوع تماماً، لكن الاعتقاد ده بيضيع حقوق قانونية جوهرية كان ممكن استردادها لو تم التعامل مع القرار بآلية تانية خالص قانون الإجراءات الجنائية المصري حدد مواعيد دقيقة للتظلم من قرارات الحفظ، والخطأ الشائع هنا هو الانتظار أو تضييع وقت في مراسلات غير ذات جدوى، فالتظلم من أمر الحفظ مش مجرد ورقة بتتقدم، ده إجراء بيفحص فيه المحامي العام أو رئيس النيابة المختص سلامة قرار الحفظ من الناحية القانونية والواقعية قبل ما تاخد قرار بالتظلم أو تقرر الاكتفاء بنتيجة المحضر، اسأل نفسك: هل قرار الحفظ استند لعدم كفاية الأدلة ولا لانتفاء الجريمة من الأساس؟ الفرق هنا بيحدد مسار تحركك القادم؛ لأن لو الحفظ لعدم كفاية الأدلة، فالموقف بي\nLEGAL TOPIC: التظلم من قرار الحفظ — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: كتير من أصحاب الشركات بيتعاملوا مع قرار النيابة العامة بحفظ المحضر وكأنه نهاية المطاف، وبيقفلوا صفحة الموضوع تماماً، لكن الاعتقاد ده بيضيع حقوق \nPOST-SPECIFIC VISUAL VARIATION: camera: low oblique angle, foreground object prominent, realistic depth and perspective. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 0984340d4d3a",
+  "prompt_sha256": "fb8437b885b08688a9449e994cb001359ab2446261f24d2523c9f0befcb36642",
+  "image_sha256": "0338924f6fdf8ac8e918de057379cdc27826c9a34d7f865067d73565dc91ca18",
+  "image_path": "generated/blogger/row_35/topic-repair-20261028-2000-R028.jpg",
+  "visual_description": "كتير من أصحاب الشركات بيتعاملوا مع قرار النيابة العامة بحفظ المحضر وكأنه نهاية المطاف، وبيقفلوا صفحة الموضوع تماماً، لكن الاعتقاد ده بيضيع حقوق قانونية جوهرية كان ممكن استردادها لو تم التعامل مع القرار بآلية تانية خالص قانون الإجراءات الجنائية المصري حدد مواعيد دقيقة للتظلم من قرارات الحفظ، والخطأ الشائع هنا هو الانتظار أو تضييع وقت في مراسلات غير ذات جدوى، فالتظلم من أمر الحفظ مش مجرد ورقة بتتقدم، ده إجراء بيفحص فيه المحامي العام أو رئيس النيابة المختص سلامة قرار الحفظ من الناحية القانونية والواقعية قبل ما تاخد قرار بالتظلم أو تقرر الاكتفاء بنتيجة المحضر، اسأل نفسك: هل قرار الحفظ استند لعدم كفاية الأدلة ولا لانتفاء الجريمة من الأساس؟ الفرق هنا بيحدد مسار تحركك القادم؛ لأن لو الحفظ لعدم كفاية الأدلة، فالموقف بيحتاج تدعيم بالأوراق والمستندات اللي ربما فات تقديمها في مرحلة التحقيق الأولى الأثر العملي هنا إنك لو تظلمت في الميعاد القانوني وبقبول التظلم، ممكن القضية تترفع تاني أو يتم استكمال التحقيقات، وده بيغير ميزان القوى في نزاعك، بس الموضوع مش عشوائي، كل قضية ليها تفاصيلها، والأوراق اللي قدمتها في المحضر هي اللي بترسم طريق التظلم، فمراجعة ملف التحقيق بدقة قبل اتخاذ أي خطوة جديدة هي اللي بتفرق بين محاولة تانية ناجحة وبين استهلاك وقت ومجهود بدون فايدة ملموسة",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "كتير من أصحاب الشركات بيتعاملوا مع قرار النيابة العامة بحفظ المحضر وكأنه نهاية المطاف، وبيقفلوا صفحة الموضوع تماماً، لكن الاعتقاد ده بيضيع حقوق قانونية جوهرية كان ممكن استردادها لو تم التعامل مع القرار بآلية تانية خالص قانون الإجراءات الجنائية المصري حدد مواعيد دقيقة للتظلم من قرارات الحفظ، والخطأ الشائع هنا هو الانتظار أو تضييع وقت في مراسلات غير ذات جدوى، فالتظلم من أمر الحفظ مش مجرد ورقة بتتقدم، ده إجراء بيفحص فيه المحامي العام أو رئيس النيابة المختص سلامة قرار الحفظ من الناحية القانونية والواقعية قبل ما تاخد قرار بالتظلم أو تقرر الاكتفاء بنتيجة المحضر، اسأل نفسك: هل قرار الحفظ استند لعدم كفاية الأدلة ولا لانتفاء الجريمة من الأساس؟ الفرق هنا بيحدد مسار تحركك القادم؛ لأن لو الحفظ لعدم كفاية الأدلة، فالموقف بيحتاج تدعيم بالأوراق والمستندات اللي ربما فات تقديمها في مرحلة التحقيق الأولى الأثر العملي هنا إنك لو تظلمت في الميعاد القانوني وبقبول التظلم، ممكن القضية تترفع تاني أو يتم استكمال التحقيقات، وده بيغير ميزان القوى في نزاعك، بس الموضوع مش عشوائي، كل قضية ليها تفاصيلها، والأوراق اللي قدمتها في المحضر هي اللي بترسم طريق التظلم، فمراجعة ملف التحقيق بدقة قبل اتخاذ أي خطوة جديدة هي اللي بتفرق بين محاولة تانية ناجحة وبين استهلاك وقت ومجهود بدون فايدة ملموسة",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "0338924f6fdf8ac8e918de057379cdc27826c9a34d7f865067d73565dc91ca18"
+}

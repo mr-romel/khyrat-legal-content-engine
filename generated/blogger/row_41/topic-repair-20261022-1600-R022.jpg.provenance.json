@@ -1,0 +1,27 @@
+{
+  "topic": "التحريض على الجريمة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: كلام عابر على السوشيال ميديا أو مجرد تعليق بحماس زيادة ممكن يقلب بجريمة جنائية، والناس كتير بتفتكر إن الحرية في التعبير مطلقة، لكن القانون بيقف عند حد التحريض على ارتكاب الجريمة، وهو فعل بيعاقب عليه قانون العقوبات المصري حتى لو الجريمة نفسها ما تمتش في الواقع، مجرد التحريض أو الحث على ارتكابها كفيل بوضع الشخص في دائرة المسؤولية الجنائية إذا كانت هناك نتيجة ملموسة، المسألة هنا مش بس كلام بنقوله، دي أفعال بتترتب عليها آثار قانونية جسيمة، وقبل ما أي شخص يندفع في كتابة أو نشر محتوى أو حتى توجيه كلام بيفهم منه الحث على أفعال مجرمة، لازم يراجع كذا نقطة محورية: أولاً، طبيعة الكلام نفسه هل هو مجرد رأي أم دعوة مباشرة أو ضمنية لارتكاب فعل يعاقب عليه القانون، ثانياً، هل فيه رابط بين الكلام ده وبين أي نشاط أو فعل وقع فعلاً\nLEGAL TOPIC: التحريض على الجريمة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: كلام عابر على السوشيال ميديا أو مجرد تعليق بحماس زيادة ممكن يقلب بجريمة جنائية، والناس كتير بتفتكر إن الحرية في التعبير مطلقة، لكن القانون بيقف ع\nPOST-SPECIFIC VISUAL VARIATION: camera: low oblique angle, foreground object prominent, realistic depth and perspective. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 3796cddd01e9",
+  "prompt_sha256": "eced28d33f533842d406345c47c88c63fae93a435937608c4cea887bdfd79b29",
+  "image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148",
+  "image_path": "generated/blogger/row_41/topic-repair-20261022-1600-R022.jpg",
+  "visual_description": "كلام عابر على السوشيال ميديا أو مجرد تعليق بحماس زيادة ممكن يقلب بجريمة جنائية، والناس كتير بتفتكر إن الحرية في التعبير مطلقة، لكن القانون بيقف عند حد التحريض على ارتكاب الجريمة، وهو فعل بيعاقب عليه قانون العقوبات المصري حتى لو الجريمة نفسها ما تمتش في الواقع، مجرد التحريض أو الحث على ارتكابها كفيل بوضع الشخص في دائرة المسؤولية الجنائية إذا كانت هناك نتيجة ملموسة، المسألة هنا مش بس كلام بنقوله، دي أفعال بتترتب عليها آثار قانونية جسيمة، وقبل ما أي شخص يندفع في كتابة أو نشر محتوى أو حتى توجيه كلام بيفهم منه الحث على أفعال مجرمة، لازم يراجع كذا نقطة محورية: أولاً، طبيعة الكلام نفسه هل هو مجرد رأي أم دعوة مباشرة أو ضمنية لارتكاب فعل يعاقب عليه القانون، ثانياً، هل فيه رابط بين الكلام ده وبين أي نشاط أو فعل وقع فعلاً أو كان وشيك الوقوع، تالت ركن هو القصد الجنائي، يعني هل كان في نية حقيقية للتحريض أم أن السياق خرج عن سياقه الأصلي، القانون بيفرق بين النقد المباح وبين التحريض الذي يهدد استقرار المجتمع، والخط الفاصل ده دقيق جداً بيحكمه سياق العبارات وتوقيتها والهدف منها، والتعامل مع الوقائع دي بيحتاج فحص دقيق لكل حالة على حدة، لأن المستندات المتاحة وطريقة صياغة البلاغات بتغير مسار التحقيق بالكامل، ومراجعة الموقف القانوني بدقة قبل اتخاذ أي إجراء أو الرد على اتهام مماثل بتفرق في النتائج النهائية",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "كلام عابر على السوشيال ميديا أو مجرد تعليق بحماس زيادة ممكن يقلب بجريمة جنائية، والناس كتير بتفتكر إن الحرية في التعبير مطلقة، لكن القانون بيقف عند حد التحريض على ارتكاب الجريمة، وهو فعل بيعاقب عليه قانون العقوبات المصري حتى لو الجريمة نفسها ما تمتش في الواقع، مجرد التحريض أو الحث على ارتكابها كفيل بوضع الشخص في دائرة المسؤولية الجنائية إذا كانت هناك نتيجة ملموسة، المسألة هنا مش بس كلام بنقوله، دي أفعال بتترتب عليها آثار قانونية جسيمة، وقبل ما أي شخص يندفع في كتابة أو نشر محتوى أو حتى توجيه كلام بيفهم منه الحث على أفعال مجرمة، لازم يراجع كذا نقطة محورية: أولاً، طبيعة الكلام نفسه هل هو مجرد رأي أم دعوة مباشرة أو ضمنية لارتكاب فعل يعاقب عليه القانون، ثانياً، هل فيه رابط بين الكلام ده وبين أي نشاط أو فعل وقع فعلاً أو كان وشيك الوقوع، تالت ركن هو القصد الجنائي، يعني هل كان في نية حقيقية للتحريض أم أن السياق خرج عن سياقه الأصلي، القانون بيفرق بين النقد المباح وبين التحريض الذي يهدد استقرار المجتمع، والخط الفاصل ده دقيق جداً بيحكمه سياق العبارات وتوقيتها والهدف منها، والتعامل مع الوقائع دي بيحتاج فحص دقيق لكل حالة على حدة، لأن المستندات المتاحة وطريقة صياغة البلاغات بتغير مسار التحقيق بالكامل، ومراجعة الموقف القانوني بدقة قبل اتخاذ أي إجراء أو الرد على اتهام مماثل بتفرق في النتائج النهائية",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148"
+}

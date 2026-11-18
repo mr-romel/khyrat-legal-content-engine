@@ -1,0 +1,27 @@
+{
+  "topic": "الجدية والاستعجال — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: في اللحظة اللي بتبدأ فيها إجراءات استعجالية أو بتتحرك فيها تحت ضغط ظروف سوقية، عقلك تلقائياً بيتحيز للسرعة، لكن في القانون، السرعة دي غالباً بتدفع تمنها من جودة مركزك القانوني. فيه 3 علامات تحذيرية لازم تقف قدامهم قبل ما تاخد قرارك أولاً، غياب المستندات التأسيسية للمركز القانوني؛ لو بتتحرك بناءً على مراسلات إيميل أو وعود شفهية وتفتقد لعقد أو قرار رسمي سليم، أنت بتبني على أرض رخوة، والمحاكم بتتعامل مع المستندات المكتوبة كحائط صد أول ثانياً، تجاهل المواعيد الإجرائية الحتمية؛ قانون الإجراءات وقوانين المرافعات مليانة مواعيد سقوط لو فاتتك بتفقد حقك في الطعن أو المطالبة للأبد، والتعامل مع الإجراء بجدية يعني دراسة الميعاد قبل المضمون ثالثاً، خلط المصلحة الشخصية بالصفة القانونية؛ أحياناً بيكون عندك حق، لكن في نظر القان\nLEGAL TOPIC: الجدية والاستعجال — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: في اللحظة اللي بتبدأ فيها إجراءات استعجالية أو بتتحرك فيها تحت ضغط ظروف سوقية، عقلك تلقائياً بيتحيز للسرعة، لكن في القانون، السرعة دي غالباً بتدفع تمنها\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 291ab2103d34",
+  "prompt_sha256": "786f2ea46164e1800cc93291deae699597ae66c5b70ac17404d5604316462be2",
+  "image_sha256": "d92e2158a2e53f14bbf15d0079e6b1cfe677fcf7a33821b199ac77e86ec1f426",
+  "image_path": "generated/blogger/row_34/topic-repair-20261029-1300-R029.jpg",
+  "visual_description": "في اللحظة اللي بتبدأ فيها إجراءات استعجالية أو بتتحرك فيها تحت ضغط ظروف سوقية، عقلك تلقائياً بيتحيز للسرعة، لكن في القانون، السرعة دي غالباً بتدفع تمنها من جودة مركزك القانوني. فيه 3 علامات تحذيرية لازم تقف قدامهم قبل ما تاخد قرارك أولاً، غياب المستندات التأسيسية للمركز القانوني؛ لو بتتحرك بناءً على مراسلات إيميل أو وعود شفهية وتفتقد لعقد أو قرار رسمي سليم، أنت بتبني على أرض رخوة، والمحاكم بتتعامل مع المستندات المكتوبة كحائط صد أول ثانياً، تجاهل المواعيد الإجرائية الحتمية؛ قانون الإجراءات وقوانين المرافعات مليانة مواعيد سقوط لو فاتتك بتفقد حقك في الطعن أو المطالبة للأبد، والتعامل مع الإجراء بجدية يعني دراسة الميعاد قبل المضمون ثالثاً، خلط المصلحة الشخصية بالصفة القانونية؛ أحياناً بيكون عندك حق، لكن في نظر القانون أنت غير ذي صفة، والقرار اللي بتتحرك بيه بيطلع مرفوض شكلاً لمجرد إن الشخص اللي قدم الإجراء مش هو صاحب الحق المباشر أو الممثل القانوني المخول له ده القانون المصري بيحترم السرعة، لكنه بيقدس الإجراءات اللي بتضمن الحق، والتعجل في اتخاذ أي خطوة قبل ما توزن التلات جوانب دول غالباً بيحطك في موقف دفاعي مكلف. مراجعة المستندات والأدلة القانونية قبل التحرك الفعلي مش تضييع وقت، دي الطريقة الوحيدة لضمان إن خطواتك بتخدم هدفك النهائي بدل ما تضرك قانوناً",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "في اللحظة اللي بتبدأ فيها إجراءات استعجالية أو بتتحرك فيها تحت ضغط ظروف سوقية، عقلك تلقائياً بيتحيز للسرعة، لكن في القانون، السرعة دي غالباً بتدفع تمنها من جودة مركزك القانوني. فيه 3 علامات تحذيرية لازم تقف قدامهم قبل ما تاخد قرارك أولاً، غياب المستندات التأسيسية للمركز القانوني؛ لو بتتحرك بناءً على مراسلات إيميل أو وعود شفهية وتفتقد لعقد أو قرار رسمي سليم، أنت بتبني على أرض رخوة، والمحاكم بتتعامل مع المستندات المكتوبة كحائط صد أول ثانياً، تجاهل المواعيد الإجرائية الحتمية؛ قانون الإجراءات وقوانين المرافعات مليانة مواعيد سقوط لو فاتتك بتفقد حقك في الطعن أو المطالبة للأبد، والتعامل مع الإجراء بجدية يعني دراسة الميعاد قبل المضمون ثالثاً، خلط المصلحة الشخصية بالصفة القانونية؛ أحياناً بيكون عندك حق، لكن في نظر القانون أنت غير ذي صفة، والقرار اللي بتتحرك بيه بيطلع مرفوض شكلاً لمجرد إن الشخص اللي قدم الإجراء مش هو صاحب الحق المباشر أو الممثل القانوني المخول له ده القانون المصري بيحترم السرعة، لكنه بيقدس الإجراءات اللي بتضمن الحق، والتعجل في اتخاذ أي خطوة قبل ما توزن التلات جوانب دول غالباً بيحطك في موقف دفاعي مكلف. مراجعة المستندات والأدلة القانونية قبل التحرك الفعلي مش تضييع وقت، دي الطريقة الوحيدة لضمان إن خطواتك بتخدم هدفك النهائي بدل ما تضرك قانوناً",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "d92e2158a2e53f14bbf15d0079e6b1cfe677fcf7a33821b199ac77e86ec1f426"
+}

@@ -1,0 +1,27 @@
+{
+  "topic": "الجرائم الإلكترونية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: تخيل إنك اكتشفت اختراق لحسابات الشركة أو تسريب لبيانات العملاء، أول رد فعل طبيعي هو محاولة استعادة السيطرة فوراً أو مسح البيانات اللي اتسربت عشان تمنع الضرر، لكن في عالم الجرائم الإلكترونية، التسرع في الخطوة دي ممكن ينهي فرصتك في إثبات الجريمة تماماً، لأن القانون بيتعامل مع الدليل الرقمي ككيان هش جداً، وأي تعديل عليه بيخرجه من كونه دليل قاطع لكونه مجرد كلام مرسل، قبل ما تاخد أي إجراء تقني، لازم تمر على قائمة فحص سريعة عشان تحمي موقفك القانوني، أولاً، هل قمت بتوثيق الواقعة قبل أي تغيير؟ التوثيق لازم يكون من خلال محاضر رسمية أو جهات متخصصة عشان نضمن سلامة سلسلة الإثبات، ثانياً، هل تم الحفاظ على الأجهزة أو الحسابات في حالتها الأصلية؟ أي محاولة للدخول أو تغيير كلمات السر أو حذف رسائل ممكن تتفسر قانوناً على إنها إتل\nLEGAL TOPIC: الجرائم الإلكترونية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك اكتشفت اختراق لحسابات الشركة أو تسريب لبيانات العملاء، أول رد فعل طبيعي هو محاولة استعادة السيطرة فوراً أو مسح البيانات اللي اتسربت عشان ت\nPOST-SPECIFIC VISUAL VARIATION: camera: three-quarter desk view, layered foreground and background, asymmetric layout. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 833a587904a6",
+  "prompt_sha256": "04c4e93020331ada3fbe900c3af00237d3ab3f36574b5ba4e539f046c2d11c96",
+  "image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148",
+  "image_path": "generated/blogger/row_22/topic-repair-20261110-1700-R010.jpg",
+  "visual_description": "تخيل إنك اكتشفت اختراق لحسابات الشركة أو تسريب لبيانات العملاء، أول رد فعل طبيعي هو محاولة استعادة السيطرة فوراً أو مسح البيانات اللي اتسربت عشان تمنع الضرر، لكن في عالم الجرائم الإلكترونية، التسرع في الخطوة دي ممكن ينهي فرصتك في إثبات الجريمة تماماً، لأن القانون بيتعامل مع الدليل الرقمي ككيان هش جداً، وأي تعديل عليه بيخرجه من كونه دليل قاطع لكونه مجرد كلام مرسل، قبل ما تاخد أي إجراء تقني، لازم تمر على قائمة فحص سريعة عشان تحمي موقفك القانوني، أولاً، هل قمت بتوثيق الواقعة قبل أي تغيير؟ التوثيق لازم يكون من خلال محاضر رسمية أو جهات متخصصة عشان نضمن سلامة سلسلة الإثبات، ثانياً، هل تم الحفاظ على الأجهزة أو الحسابات في حالتها الأصلية؟ أي محاولة للدخول أو تغيير كلمات السر أو حذف رسائل ممكن تتفسر قانوناً على إنها إتلاف للأدلة، ثالثاً، هل حددت بدقة نطاق الضرر؟ الجرائم الإلكترونية مش مجرد اختراق، دي سلسلة من الأفعال اللي بيجرمها القانون، وتحديد الأفعال دي بدقة هو اللي بيفرق بين بلاغ قوي وبين محضر بيتحفظ لعدم كفاية الأدلة، التعامل مع الموقف ده بيحتاج توازن دقيق بين حماية أصول الشركة وبين الحفاظ على الحق في المقاضاة، واختلاف تفاصيل الاختراق من حالة للتانية بيخلي إجراءات التحرك تختلف، فمن الضروري مراجعة الموقف القانوني للشركة وتجهيز المستندات اللازمة قبل اتخاذ أي قرار قد يؤثر على مسار التحقيق لاحقاً",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "تخيل إنك اكتشفت اختراق لحسابات الشركة أو تسريب لبيانات العملاء، أول رد فعل طبيعي هو محاولة استعادة السيطرة فوراً أو مسح البيانات اللي اتسربت عشان تمنع الضرر، لكن في عالم الجرائم الإلكترونية، التسرع في الخطوة دي ممكن ينهي فرصتك في إثبات الجريمة تماماً، لأن القانون بيتعامل مع الدليل الرقمي ككيان هش جداً، وأي تعديل عليه بيخرجه من كونه دليل قاطع لكونه مجرد كلام مرسل، قبل ما تاخد أي إجراء تقني، لازم تمر على قائمة فحص سريعة عشان تحمي موقفك القانوني، أولاً، هل قمت بتوثيق الواقعة قبل أي تغيير؟ التوثيق لازم يكون من خلال محاضر رسمية أو جهات متخصصة عشان نضمن سلامة سلسلة الإثبات، ثانياً، هل تم الحفاظ على الأجهزة أو الحسابات في حالتها الأصلية؟ أي محاولة للدخول أو تغيير كلمات السر أو حذف رسائل ممكن تتفسر قانوناً على إنها إتلاف للأدلة، ثالثاً، هل حددت بدقة نطاق الضرر؟ الجرائم الإلكترونية مش مجرد اختراق، دي سلسلة من الأفعال اللي بيجرمها القانون، وتحديد الأفعال دي بدقة هو اللي بيفرق بين بلاغ قوي وبين محضر بيتحفظ لعدم كفاية الأدلة، التعامل مع الموقف ده بيحتاج توازن دقيق بين حماية أصول الشركة وبين الحفاظ على الحق في المقاضاة، واختلاف تفاصيل الاختراق من حالة للتانية بيخلي إجراءات التحرك تختلف، فمن الضروري مراجعة الموقف القانوني للشركة وتجهيز المستندات اللازمة قبل اتخاذ أي قرار قد يؤثر على مسار التحقيق لاحقاً",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148"
+}

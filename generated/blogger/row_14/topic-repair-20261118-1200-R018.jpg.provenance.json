@@ -1,0 +1,27 @@
+{
+  "topic": "انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: Photorealistic contemporary editorial close-up of an identity verification scene: a neutral unbranded identity card with all lettering deliberately blurred, a clear fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The dominant action is checking whether an identity document belongs to the person presenting it. No readable text, no police uniform, no handcuffs, no courthouse, no scales of justice, no logos.\nLEGAL TOPIC: انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: واحد صاحب شركة مقاولات فوجئ بعقد توريد باسم شركته وبتوقيع قريب من توقيعه، والعقد مش موجود في أي سجلات عندهم، والطرف التاني بيطالب بالتنفيذ الموقف ده بيتكرر بأشكال أقل وضوحًا: صفحة بتقدم خدمات باسم الشركة، إيميل قريب من إيميل المدير، أو حد بيستخدم رقم السجل التجاري والبطاقة الضريبية في تعاملات مش بتاعتكم قبل أي بلاغ أو شكوى،\nPOST-SPECIFIC VISUAL VARIATION: camera: wide environmental view with the relevant action or place as the focal point. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 004c43a42720",
+  "prompt_sha256": "7fbf502a5fe34448b0a1e9d6c18698e46d953c0cf389b53ad7bb415fe8c28ba6",
+  "image_sha256": "415faea1c3227ca1f98c78691541cf0531b96bdee71a2db065c7d96abec3989c",
+  "image_path": "generated/blogger/row_14/topic-repair-20261118-1200-R018.jpg",
+  "visual_description": "Photorealistic contemporary editorial close-up of an identity verification scene: a neutral unbranded identity card with all lettering deliberately blurred, a clear fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The dominant action is checking whether an identity document belongs to the person presenting it. No readable text, no police uniform, no handcuffs, no courthouse, no scales of justice, no logos.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "Photorealistic contemporary editorial close-up of an identity verification scene: a neutral unbranded identity card with all lettering deliberately blurred, a clear fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The dominant action is checking whether an identity document belongs to the person presenting it. No readable text, no police uniform, no handcuffs, no courthouse, no scales of justice, no logos.",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "415faea1c3227ca1f98c78691541cf0531b96bdee71a2db065c7d96abec3989c"
+}

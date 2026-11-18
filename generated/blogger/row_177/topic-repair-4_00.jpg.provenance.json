@@ -1,0 +1,27 @@
+{
+  "topic": "جريمة التحرش",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أو الفعل، أو الإشارة، أو باستخدام الوسائل الإلكترونية. والمهم تكوني عارفة إن التصرف السريع والخطوات القانونية السليمة هي اللي بتضمن حقك وبتحميكي. عشان تأخدي موقف قانوني قوي، فيه خطوات عملية مهمة لازم تتبعيها: أولاً: توثيق الدليل؛ لو التحرش إلكتروني احتفظي بـ \"سكرين شوت\" للرسائل والحسابات وبأرقام التليفونات بدون تعديل. ولو في الشارع أو مكان العمل، حاولي تحددي وجود شهود أو كاميرات مراقبة قريبة. ثانياً: التوجه لأقرب قسم شرطة لتحرير محضر بالواقعة، أو التوجه لمباحث تكنولوجيا المعلومات في حالة التحرش الإلكتروني. ثالثا\nLEGAL TOPIC: جريمة التحرش\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أ\nPOST-SPECIFIC VISUAL VARIATION: camera: eye-level documentary view, strong leading lines, subject placed off-center. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: feb1f17271ea",
+  "prompt_sha256": "4b77b272b80c27a1c24a25cfec64319f84dce2803b838007c025f89c6ac3d025",
+  "image_sha256": "582524923bf15f08b2968740c8307c8605354f26c6685f2f5928ba33cceea790",
+  "image_path": "generated/blogger/row_177/topic-repair-4_00.jpg",
+  "visual_description": "لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أو الفعل، أو الإشارة، أو باستخدام الوسائل الإلكترونية. والمهم تكوني عارفة إن التصرف السريع والخطوات القانونية السليمة هي اللي بتضمن حقك وبتحميكي. عشان تأخدي موقف قانوني قوي، فيه خطوات عملية مهمة لازم تتبعيها: أولاً: توثيق الدليل؛ لو التحرش إلكتروني احتفظي بـ \"سكرين شوت\" للرسائل والحسابات وبأرقام التليفونات بدون تعديل. ولو في الشارع أو مكان العمل، حاولي تحددي وجود شهود أو كاميرات مراقبة قريبة. ثانياً: التوجه لأقرب قسم شرطة لتحرير محضر بالواقعة، أو التوجه لمباحث تكنولوجيا المعلومات في حالة التحرش الإلكتروني. ثالثاً: المتابعة القانونية وعدم السكوت، لأن اتخاذ الإجراء الرسمي هو الخطوة الوحيدة اللي بتمنع التكرار وبتحاسب المتجاوز. حقك مكفول بالقانون، والسكوت بيشجع المتجاوز. لو بتواجهي موقف مشابه ومش عارفة تبدأي الإجراءات إزاي، اسألينا وهنوضحلك الخطوات القانونية السليمة. #اسأل_محمود #حقوقك_القانونية #التحرش_جريمة #القانون_المصري",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أو الفعل، أو الإشارة، أو باستخدام الوسائل الإلكترونية. والمهم تكوني عارفة إن التصرف السريع والخطوات القانونية السليمة هي اللي بتضمن حقك وبتحميكي. عشان تأخدي موقف قانوني قوي، فيه خطوات عملية مهمة لازم تتبعيها: أولاً: توثيق الدليل؛ لو التحرش إلكتروني احتفظي بـ \"سكرين شوت\" للرسائل والحسابات وبأرقام التليفونات بدون تعديل. ولو في الشارع أو مكان العمل، حاولي تحددي وجود شهود أو كاميرات مراقبة قريبة. ثانياً: التوجه لأقرب قسم شرطة لتحرير محضر بالواقعة، أو التوجه لمباحث تكنولوجيا المعلومات في حالة التحرش الإلكتروني. ثالثاً: المتابعة القانونية وعدم السكوت، لأن اتخاذ الإجراء الرسمي هو الخطوة الوحيدة اللي بتمنع التكرار وبتحاسب المتجاوز. حقك مكفول بالقانون، والسكوت بيشجع المتجاوز. لو بتواجهي موقف مشابه ومش عارفة تبدأي الإجراءات إزاي، اسألينا وهنوضحلك الخطوات القانونية السليمة. #اسأل_محمود #حقوقك_القانونية #التحرش_جريمة #القانون_المصري",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "582524923bf15f08b2968740c8307c8605354f26c6685f2f5928ba33cceea790"
+}

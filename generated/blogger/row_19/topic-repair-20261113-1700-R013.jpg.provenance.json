@@ -1,0 +1,27 @@
+{
+  "topic": "الميعاد في دعوى الإلغاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "LOCAL_SCENE_ILLUSTRATION",
+  "model": "local-topic-scene-renderer-v2",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: متى آخر ميعاد ممكن تقدم فيه دعوى إلغاء ضد قرار إداري؟ السؤال ده بيظهر لكل صاحب شركة أو مدير بيستلم إشعار بقرار بيأثر على شغله، ولازم يعرف إذا كان الوقت لسه متاح ولا فات، القانون الإداري بيحدد إن الميعاد لتقديم الطعن يبدأ من تاريخ الإخطار بالقرار، ولو ما تم تقديم الدعوى خلال المدة المحددة يبقى الطلب مرفوض تلقائيًا، وده بيخلي أي محاولة لاحقة غير مجدية، قبل ما تقرر إنك هتقدم الدعوى، ابص على ثلاث علامات تحذيرية: أولًا، تأكد إن تاريخ الإخطار واضح ومكتوب في الإشعار أو في محضر الجلسة، لأن أي غموض ممكن يخلّي المحكمة تشكك في حساب الميعاد وتقيد طلبك؛ ثانيًا، راجع نص القرار نفسه إذا كان فيه إشارة إلى مهلة أقصر للطعن، بعض القرارات بتحدد مهلة 15 يوم بدل المدة العامة، وده يعني إنك لازم تكون أسرع؛ ثالثًا، افحص إذا كان فيه أي \nLEGAL TOPIC: الميعاد في دعوى الإلغاء — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: متى آخر ميعاد ممكن تقدم فيه دعوى إلغاء ضد قرار إداري؟ السؤال ده بيظهر لكل صاحب شركة أو مدير بيستلم إشعار بقرار بيأثر على شغله، ولازم يعرف إذ\nPOST-SPECIFIC VISUAL VARIATION: camera: low oblique angle, foreground object prominent, realistic depth and perspective. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: a2d8121d2815",
+  "prompt_sha256": "b5ab30cf37a1b0b50186c83d7f7baf25a84d54d38d17fab515a737c1e4e443e4",
+  "image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148",
+  "image_path": "generated/blogger/row_19/topic-repair-20261113-1700-R013.jpg",
+  "visual_description": "متى آخر ميعاد ممكن تقدم فيه دعوى إلغاء ضد قرار إداري؟ السؤال ده بيظهر لكل صاحب شركة أو مدير بيستلم إشعار بقرار بيأثر على شغله، ولازم يعرف إذا كان الوقت لسه متاح ولا فات، القانون الإداري بيحدد إن الميعاد لتقديم الطعن يبدأ من تاريخ الإخطار بالقرار، ولو ما تم تقديم الدعوى خلال المدة المحددة يبقى الطلب مرفوض تلقائيًا، وده بيخلي أي محاولة لاحقة غير مجدية، قبل ما تقرر إنك هتقدم الدعوى، ابص على ثلاث علامات تحذيرية: أولًا، تأكد إن تاريخ الإخطار واضح ومكتوب في الإشعار أو في محضر الجلسة، لأن أي غموض ممكن يخلّي المحكمة تشكك في حساب الميعاد وتقيد طلبك؛ ثانيًا، راجع نص القرار نفسه إذا كان فيه إشارة إلى مهلة أقصر للطعن، بعض القرارات بتحدد مهلة 15 يوم بدل المدة العامة، وده يعني إنك لازم تكون أسرع؛ ثالثًا، افحص إذا كان فيه أي إجراء إداري آخر معلق على القرار، زي طلب إيقاف التنفيذ أو مراجعة إدارية، لأن الميعاد ممكن يتجدد أو يتوقف لحد ما يخلص الإجراء، لو لقيت أي من العلامات دي، الأفضل تستشير محامٍ متخصص قبل ما تقدم أي طلب، عشان تتأكد إنك ما تفوتش الميعاد وتضمن حقوقك!",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "PASS",
+  "source_metadata": {
+    "source": "Original local renderer",
+    "scene_brief": "متى آخر ميعاد ممكن تقدم فيه دعوى إلغاء ضد قرار إداري؟ السؤال ده بيظهر لكل صاحب شركة أو مدير بيستلم إشعار بقرار بيأثر على شغله، ولازم يعرف إذا كان الوقت لسه متاح ولا فات، القانون الإداري بيحدد إن الميعاد لتقديم الطعن يبدأ من تاريخ الإخطار بالقرار، ولو ما تم تقديم الدعوى خلال المدة المحددة يبقى الطلب مرفوض تلقائيًا، وده بيخلي أي محاولة لاحقة غير مجدية، قبل ما تقرر إنك هتقدم الدعوى، ابص على ثلاث علامات تحذيرية: أولًا، تأكد إن تاريخ الإخطار واضح ومكتوب في الإشعار أو في محضر الجلسة، لأن أي غموض ممكن يخلّي المحكمة تشكك في حساب الميعاد وتقيد طلبك؛ ثانيًا، راجع نص القرار نفسه إذا كان فيه إشارة إلى مهلة أقصر للطعن، بعض القرارات بتحدد مهلة 15 يوم بدل المدة العامة، وده يعني إنك لازم تكون أسرع؛ ثالثًا، افحص إذا كان فيه أي إجراء إداري آخر معلق على القرار، زي طلب إيقاف التنفيذ أو مراجعة إدارية، لأن الميعاد ممكن يتجدد أو يتوقف لحد ما يخلص الإجراء، لو لقيت أي من العلامات دي، الأفضل تستشير محامٍ متخصص قبل ما تقدم أي طلب، عشان تتأكد إنك ما تفوتش الميعاد وتضمن حقوقك!",
+    "text_free": "true",
+    "external_provider": "false"
+  },
+  "qa_model": "local-renderer-integrity-v1",
+  "qa_overall_score": 72,
+  "qa_relevance_score": 72,
+  "qa_issues": [
+    "Deterministic local-scene QA used; external visual model quota was unavailable."
+  ],
+  "qa_checked_image_sha256": "3aa4532d26b5b31480b6f219c3ea2b43bf86ec7e17bb3c7968152ad3ea942148"
+}
