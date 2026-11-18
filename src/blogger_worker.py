@@ -230,6 +230,93 @@ def _norm_text(value: str) -> str:
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
     return " ".join(text.split()).casefold()
 
+def _find_existing_blogger_post_for_row(svc, bid: str, row: dict[str, str]) -> dict | None:
+    """Find an already-inserted Blogger article after a publish response was lost."""
+    topic = str(row.get("الموضوع", "") or "").strip()
+    post = _norm_text(str(row.get("المحتوى", "") or ""))
+    if not topic or not post:
+        return None
+    stop = {"قانون", "المصري", "مصر", "في", "من", "على", "عن", "قبل", "بعد", "جديد", "جديدة", "عملية", "أي", "إجراء", "زاوية", "checklist"}
+    terms = [term for term in _norm_text(topic).split() if len(term) >= 3 and term not in stop]
+    if not terms:
+        return None
+    matches = []
+    token = None
+    while True:
+        kwargs = {"blogId": bid, "maxResults": 500, "fetchBodies": True}
+        if token:
+            kwargs["pageToken"] = token
+        data = svc.posts().list(**kwargs).execute()
+        for item in data.get("items", []) or []:
+            title = _norm_text(item.get("title", ""))
+            body = _norm_text(item.get("content", ""))
+            title_score = sum(1 for term in terms if term in title)
+            body_score = sum(1 for term in terms if term in body)
+            excerpt_match = len(post) >= 120 and post[:120] in body
+            if title_score >= min(2, len(terms)) or excerpt_match or body_score >= max(3, min(4, len(terms))):
+                matches.append((title_score, body_score, str(item.get("published", "") or item.get("updated", "")), item))
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    return matches[0][3]
+
+
+def _repair_existing_blogger_post_image(svc, bid: str, post_id: str, row_number: int, row: dict[str, str]) -> tuple[str, int]:
+    """Replace a generic/failed Blogger hero with one topic-specific, locally QA-approved scene."""
+    from gemini import _deterministic_legal_scene
+    from image_generator import create_legal_image, _supports_topic_specific_local_scene
+    from image_qa import qa_image
+
+    topic = str(row.get("الموضوع", "") or "").strip()
+    post = str(row.get("المحتوى", "") or "").strip()
+    brief = _deterministic_legal_scene(topic, post) or post[:1400]
+    provider = "local_scene" if _supports_topic_specific_local_scene(topic, brief) else "auto"
+    source_id = str(row.get("ID", "") or f"row-{row_number}")
+    safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in source_id)
+    image_path = Path(BLOGGER_ARTIFACT_DIR) / f"row_{row_number}" / f"topic-repair-{safe_id}.jpg"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    create_legal_image(
+        topic=topic,
+        image_brief=brief,
+        visual_description=brief,
+        post_context=post,
+        output_path=str(image_path),
+        api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
+        cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+        provider=provider,
+    )
+    qa = qa_image(
+        api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        image_path=str(image_path),
+        topic=topic,
+        image_brief=brief,
+    )
+    if str(qa.get("decision", "")).upper() != "PASS":
+        raise RuntimeError(f"BLOGGER_EXISTING_POST_IMAGE_QA_BLOCKED: {qa.get('issues', [])}")
+    new_url = upload_blogger_image(str(image_path))
+    current = svc.posts().get(blogId=bid, postId=post_id).execute()
+    content = str(current.get("content", "") or "")
+    old_url = str(row.get("رابط الصورة", "") or "").strip()
+    if old_url and old_url in content:
+        content = content.replace(old_url, new_url, 1)
+    else:
+        match = re.search(r"\\bsrc=[\"']([^\"']+)[\"']", content, flags=re.IGNORECASE)
+        if match:
+            content = content[:match.start(1)] + new_url + content[match.end(1):]
+        else:
+            content = f'<figure><img src="{new_url}" alt="{topic}" loading="eager" style="width:100%;height:auto;border-radius:12px"></figure>' + content
+    svc.posts().patch(blogId=bid, postId=post_id, body={"content": content}).execute()
+    verified = svc.posts().get(blogId=bid, postId=post_id).execute()
+    verified_html = str(verified.get("content", "") or "")
+    if new_url not in verified_html or len(_norm_text(verified_html)) < 900:
+        raise RuntimeError("BLOGGER_EXISTING_POST_IMAGE_VERIFICATION_FAILED: API read-back did not confirm the new image and article body.")
+    return new_url, int(qa.get("overall_score", 0) or 0)
+
+
 def dedupe_blogger_topics(svc, bid: str, rows: list[dict[str, str]]) -> int:
     """Delete duplicate Blogger posts for the same generated article, keeping the oldest copy."""
     import re
