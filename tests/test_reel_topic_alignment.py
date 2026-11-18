@@ -45,6 +45,16 @@ def test_nursery_cctv_topic_gets_its_own_visual_scene_family():
     assert any("CCTV" in scene for scene in scenes)
 
 
+def test_identity_impersonation_uses_its_own_reel_visual_family():
+    from reel_pipeline import _visual_topic_family, post_visual_terms
+
+    topic = "انتحال الشخصية"
+    assert _visual_topic_family(topic) == "identity_impersonation"
+    scenes = post_visual_terms("إجراءات التحقق من الهوية ومواجهة انتحال الشخصية", topic)
+    assert len(scenes) == 8
+    assert all("identity" in scene.lower() or "fingerprint" in scene.lower() for scene in scenes)
+
+
 def test_reel_recovery_skips_mismatched_legal_topic_rows():
     from reel_pipeline import _visual_topic_content_aligned
 
