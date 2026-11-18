@@ -93,9 +93,9 @@ def _effective(t):
 def _research_topic_terms(topic: str) -> list[str]:
     """Extract topic terms generically; editorial angle suffixes are not legal subjects."""
     value = re.sub(
-        r"(?i)(?:\\s*[—–|:;,-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
-        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle|"
-        r"hook\\s*pattern|خطة\\s*المحتوى).*$",
+        r"(?i)(?:\s*[—–|:;,-]\s*)?(?:زاوية\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\s*[-_ ]?\s*list|checklist|content\s*angle|editorial\s*angle|"
+        r"hook\s*pattern|خطة\s*المحتوى).*$",
         "",
         str(topic or ""),
     )
@@ -108,7 +108,7 @@ def _research_topic_terms(topic: str) -> list[str]:
         "الى", "إلى", "و", "او", "أو", "مع", "هل", "كيف", "متى",
     }
     terms = []
-    for token in re.findall(r"[\\u0621-\\u064A]{3,}", normalized):
+    for token in re.findall(r"[\u0621-\u064A]{3,}", normalized):
         if token in stop:
             continue
         stem = token[:5] if len(token) >= 6 else token
@@ -139,7 +139,7 @@ def _source_evidence(text: str, topic: str) -> str:
         return ""
     # Keep legal identifiers wherever they occur, even when the matching article is deep in a PDF.
     law_refs = []
-    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\\s*)?([٠-٩0-9]+)\\s+لسنة\\s+([٠-٩0-9]+)"
+    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
     for match in re.finditer(law_pattern, value, re.I):
         reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
         if reference not in law_refs:
@@ -228,18 +228,18 @@ def research_legal_topic(topic, existing=""):
     if not raw_topic:
         return _clean(existing)
     topic = re.sub(
-        r"(?i)(?:\\s*[—–|:;,-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
-        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle|"
-        r"hook\\s*pattern|خطة\\s*المحتوى).*$",
+        r"(?i)(?:\s*[—–|:;,-]\s*)?(?:زاوية\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\s*[-_ ]?\s*list|checklist|content\s*angle|editorial\s*angle|"
+        r"hook\s*pattern|خطة\s*المحتوى).*$",
         "",
         raw_topic,
     ).strip()
     terms = _research_topic_terms(topic)
     if not terms:
         return (
-            "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\\n"
-            f"Research date: {datetime.now(timezone.utc).date().isoformat()}\\n"
-            f"Topic: {topic}\\n"
+            "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\n"
+            f"Research date: {datetime.now(timezone.utc).date().isoformat()}\n"
+            f"Topic: {topic}\n"
             "No sufficiently specific legal search terms could be extracted automatically."
         )
 
