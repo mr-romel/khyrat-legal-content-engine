@@ -465,6 +465,10 @@ def main() -> int:
     print(f"Blogger: publishing only today's scheduled row(s) ({today}).")
     candidates.sort(key=_recent_key, reverse=True)
     row_number, row = candidates[0]
+    update_row(service, config["sheet_id"], sheet_name, row_number, {
+        "Blogger Status": "PROCESSING",
+        "Blogger Last Error": "",
+    })
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
     image_url = str(row.get("رابط الصورة", "")).strip()
