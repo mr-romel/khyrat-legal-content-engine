@@ -561,6 +561,10 @@ def main() -> int:
                     reconcile_row["Blogger URL"] = verified_permalink
                     reconcile_row["Blogger Status"] = "PUBLISHED"
                     reconcile_row["Blogger Last Error"] = ""
+                    reconcile_row["Blogger Image URL"] = repaired_url
+                    reconcile_row["Blogger Image QA Status"] = "PASS"
+                    reconcile_row["Blogger Image QA Score"] = str(repaired_score)
+                    reconcile_row["Blogger Image SHA256"] = repaired_sha
                     print(f"BLOGGER_EXISTING_POST_RECONCILED: row={reconcile_row_number}; image_score={repaired_score}; url={verified_permalink}")
                     if telegram_configured():
                         try:
@@ -579,39 +583,71 @@ def main() -> int:
         for existing_row_number, existing in enumerate(rows, start=2):
             if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
                 continue
-            image_url_key = str(existing.get("رابط الصورة", "")).strip().split("?", 1)[0].rstrip("/")
-            image_hash_key = str(existing.get("Image SHA256", "")).strip().lower()
+            blogger_image_qa = str(existing.get("Blogger Image QA Status", "") or "").strip().upper()
+            blogger_image_url = str(existing.get("Blogger Image URL", "") or "").strip()
+            image_url_key = str(blogger_image_url or existing.get("رابط الصورة", "")).strip().split("?", 1)[0].rstrip("/")
+            image_hash_key = str(existing.get("Blogger Image SHA256", "") or existing.get("Image SHA256", "")).strip().lower()
             duplicate_image = bool((image_url_key and image_url_key in seen_image_urls) or (image_hash_key and image_hash_key in seen_image_hashes))
             if image_url_key:
                 seen_image_urls.add(image_url_key)
             if image_hash_key:
                 seen_image_hashes.add(image_hash_key)
             if duplicate_image:
-                reason = (
-                    "BLOGGER_DUPLICATE_IMAGE_BLOCKED: this row's image matches another published Blogger image. "
-                    "The shared social/Blogger source image must be repaired by the core publisher before Blogger can proceed."
-                )
-                update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
-                    "Image Mode": "IMAGE_DUPLICATE_BLOCKED",
-                    "Image QA Status": "IMAGE_DUPLICATE_BLOCKED",
-                    "Image QA Issues": reason[:1500],
-                    "Blogger Status": "FAILED",
-                    "Blogger Last Error": reason[:1500],
-                })
-                print(f"BLOGGER_DUPLICATE_IMAGE_BLOCKED: row={existing_row_number}; repair delegated to core image pipeline.")
-                continue
+                try:
+                    existing_post_id = str(existing.get("Blogger Post ID", "") or "").strip()
+                    if not existing_post_id:
+                        raise RuntimeError("Blogger post ID is missing; cannot repair the existing article safely.")
+                    repaired_url, repaired_score, repaired_sha = _repair_existing_blogger_post_image(
+                        repair_service, bid, existing_post_id, existing_row_number, existing
+                    )
+                    update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
+                        "Blogger Image URL": repaired_url,
+                        "Blogger Image QA Status": "PASS",
+                        "Blogger Image QA Score": str(repaired_score),
+                        "Blogger Image SHA256": repaired_sha,
+                        "Blogger Last Error": "",
+                    })
+                    existing["Blogger Image URL"] = repaired_url
+                    existing["Blogger Image QA Status"] = "PASS"
+                    existing["Blogger Image QA Score"] = str(repaired_score)
+                    existing["Blogger Image SHA256"] = repaired_sha
+                    blogger_image_qa = "PASS"
+                    blogger_image_url = repaired_url
+                    print(f"BLOGGER_DUPLICATE_IMAGE_REPAIRED: row={existing_row_number}; score={repaired_score}")
+                except Exception as exc:
+                    reason = f"BLOGGER_DUPLICATE_IMAGE_BLOCKED: {exc}"[:1500]
+                    _mark_blogger_failed(service, config, sheet_name, existing_row_number, reason)
+                    print(reason)
+                    continue
             mode = str(existing.get("Image Mode", "") or "").strip().upper()
             qa = str(existing.get("Image QA Status", "")).strip().upper()
-            if "FALLBACK" in mode or "FALLBACK" in qa:
-                reason = (
-                    "BLOGGER_SOURCE_IMAGE_BLOCKED: the existing social image is a generic fallback. "
-                    "The core publisher must replace it with a topic-specific QA-approved image first."
-                )
-                update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
-                    "Blogger Status": "FAILED",
-                    "Blogger Last Error": reason[:1500],
-                })
-                print(f"BLOGGER_TOPIC_IMAGE_BLOCKED: row={existing_row_number}; no generic image will be reused.")
+            if ("FALLBACK" in mode or "FALLBACK" in qa) and not (blogger_image_qa == "PASS" and blogger_image_url):
+                try:
+                    existing_post_id = str(existing.get("Blogger Post ID", "") or "").strip()
+                    if not existing_post_id:
+                        raise RuntimeError("Blogger post ID is missing; cannot repair the existing article safely.")
+                    repaired_url, repaired_score, repaired_sha = _repair_existing_blogger_post_image(
+                        repair_service, bid, existing_post_id, existing_row_number, existing
+                    )
+                    update_row(service, config["sheet_id"], sheet_name, existing_row_number, {
+                        "Blogger Image URL": repaired_url,
+                        "Blogger Image QA Status": "PASS",
+                        "Blogger Image QA Score": str(repaired_score),
+                        "Blogger Image SHA256": repaired_sha,
+                        "Blogger Last Error": "",
+                    })
+                    existing["Blogger Image URL"] = repaired_url
+                    existing["Blogger Image QA Status"] = "PASS"
+                    existing["Blogger Image QA Score"] = str(repaired_score)
+                    existing["Blogger Image SHA256"] = repaired_sha
+                    blogger_image_qa = "PASS"
+                    blogger_image_url = repaired_url
+                    print(f"BLOGGER_TOPIC_IMAGE_REPAIRED: row={existing_row_number}; score={repaired_score}")
+                except Exception as exc:
+                    reason = f"BLOGGER_SOURCE_IMAGE_BLOCKED: {exc}"[:1500]
+                    _mark_blogger_failed(service, config, sheet_name, existing_row_number, reason)
+                    print(reason)
+                    continue
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
@@ -625,8 +661,12 @@ def main() -> int:
             continue
         image_mode = str(row.get("Image Mode", "") or "").strip().upper()
         image_qa = str(row.get("Image QA Status", "") or "").strip().upper()
+        blogger_image_url = str(row.get("Blogger Image URL", "") or "").strip()
+        blogger_image_qa = str(row.get("Blogger Image QA Status", "") or "").strip().upper()
         approved_image_states = {"PASS", "REPAIRED_SINGLE_GENERATION", "IMAGE_REPAIR_COMPLETE"}
-        if "FALLBACK" in image_mode or "FALLBACK" in image_qa or image_qa not in approved_image_states:
+        shared_image_approved = image_qa in approved_image_states and "FALLBACK" not in image_mode
+        blogger_image_approved = blogger_image_qa == "PASS" and blogger_image_url.startswith("https://")
+        if not shared_image_approved and not blogger_image_approved:
             reason = (
                 f"BLOGGER_SOURCE_IMAGE_BLOCKED: Image Mode={image_mode or 'MISSING'}; "
                 f"Image QA Status={image_qa or 'MISSING'}. A topic-specific QA-approved image is required."
@@ -674,7 +714,7 @@ def main() -> int:
     })
     topic = str(row.get("الموضوع", "")).strip()
     post = str(row.get("المحتوى", "")).strip()
-    image_url = str(row.get("رابط الصورة", "")).strip()
+    image_url = str(row.get("Blogger Image URL", "") or row.get("رابط الصورة", "")).strip()
     source_id = str(row.get("ID", "")).strip()
     # Never let two Blogger rows inherit the same source image URL.
     normalized_image_url = image_url.split("?", 1)[0].rstrip("/")
