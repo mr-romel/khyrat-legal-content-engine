@@ -176,7 +176,9 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
 def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str, sheet_name: str, bid: str, row_number: int, row: dict[str, str]) -> bool:
     """Generate and attach a new topic-specific image when a published row reuses another row's image."""
     import hashlib
-    from image_generator import create_legal_image
+    from image_generator import create_legal_image, _supports_topic_specific_local_scene
+    from image_qa import qa_image
+    from gemini import _deterministic_legal_scene
     post_id = str(row.get("Blogger Post ID", "")).strip()
     source_id = str(row.get("ID", "row-" + str(row_number))).strip()
     topic = str(row.get("الموضوع", "")).strip()
@@ -187,13 +189,22 @@ def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str
     safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in source_id)
     image_path = Path(BLOGGER_ARTIFACT_DIR) / ("row_" + str(row_number)) / ("dedup-" + safe_id + ".jpg")
     image_path.parent.mkdir(parents=True, exist_ok=True)
+    brief = _deterministic_legal_scene(topic, post) or post[:1400]
+    provider = "local_scene" if _supports_topic_specific_local_scene(topic, brief) else "auto"
     create_legal_image(
-        topic=topic, image_brief=post[:1400], visual_description=post[:1400],
+        topic=topic, image_brief=brief, visual_description=brief,
         post_context=post, output_path=str(image_path),
         api_key=os.getenv("GEMINI_API_KEY", "").strip(),
         cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(),
         cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", "").strip(),
+        provider=provider,
     )
+    qa = qa_image(
+        api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        image_path=str(image_path), topic=topic, image_brief=brief,
+    )
+    if str(qa.get("decision", "")).upper() != "PASS":
+        raise RuntimeError(f"BLOGGER_IMAGE_REPAIR_QA_BLOCKED: {qa.get('issues', [])}")
     new_url = upload_blogger_image(str(image_path))
     current = svc.posts().get(blogId=bid, postId=post_id).execute()
     content = str(current.get("content", "") or "")
@@ -206,6 +217,10 @@ def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str
     update_row(sheet_service, spreadsheet_id, sheet_name, row_number, {
         "رابط الصورة": new_url,
         "Image SHA256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
+        "Image Mode": "POST_DERIVED_AI_GENERATION",
+        "Image QA Status": "REPAIRED_SINGLE_GENERATION",
+        "Image QA Issues": "",
+        "Image QA Score": str(qa.get("overall_score", "")),
     })
     print(f"BLOGGER_DUPLICATE_IMAGE_REPAIRED: row={row_number}; post_id={post_id}; source_id={source_id}")
     return True
@@ -431,16 +446,33 @@ def main() -> int:
             mode = str(existing.get("Image Mode", "") or "").strip().upper()
             qa = str(existing.get("Image QA Status", "")).strip().upper()
             if "FALLBACK" in mode or "FALLBACK" in qa:
-                repair_published_image(repair_service, bid, existing)
+                try:
+                    regenerate_duplicate_published_image(
+                        repair_service, service, config["sheet_id"], sheet_name, bid, existing_row_number, existing
+                    )
+                except Exception as exc:
+                    print(f"BLOGGER_TOPIC_IMAGE_REPAIR_FAILED: row={existing_row_number}: {exc}")
     candidates = []
     for row_number, row in enumerate(rows, start=2):
         if str(row.get("الحالة", "")).strip().upper() != "PUBLISHED":
             continue
         if str(row.get("Blogger Status", "")).strip().upper() == "PUBLISHED":
             continue
-        # Blogger is independent from social publication. A valid published
-        # content row is enough; Facebook/LinkedIn IDs are not required.
+        # Blogger may only use a topic-specific image that passed semantic or
+        # deterministic local QA. Generic, stale, missing, or unreviewed visuals
+        # must never be copied into a Blogger article.
         if not str(row.get("المحتوى", "")).strip():
+            continue
+        image_mode = str(row.get("Image Mode", "") or "").strip().upper()
+        image_qa = str(row.get("Image QA Status", "") or "").strip().upper()
+        approved_image_states = {"PASS", "REPAIRED_SINGLE_GENERATION", "IMAGE_REPAIR_COMPLETE"}
+        if "FALLBACK" in image_mode or "FALLBACK" in image_qa or image_qa not in approved_image_states:
+            reason = (
+                f"BLOGGER_SOURCE_IMAGE_BLOCKED: Image Mode={image_mode or 'MISSING'}; "
+                f"Image QA Status={image_qa or 'MISSING'}. A topic-specific QA-approved image is required."
+            )
+            _mark_blogger_failed(service, config, sheet_name, row_number, reason)
+            print(reason)
             continue
         candidates.append((row_number, row))
 
