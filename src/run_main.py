@@ -571,6 +571,10 @@ def _write_reel_source_context(*, service, config, sheet_name: str, row_number: 
             REEL_SOURCE_PATH.unlink(missing_ok=True)
             print(f"Reel source not created: row {row_number} has no successful social publication.")
             return
+        if production_main._is_bad_published_image(row):
+            REEL_SOURCE_PATH.unlink(missing_ok=True)
+            print(f"Reel source blocked: row {row_number} has no verified topic-specific image.")
+            return
         payload = {
             "row_number": row_number,
             "source_id": str(row.get("ID", "") or ""),
@@ -846,8 +850,9 @@ def _smart_main() -> None:
             if 2 <= row_number <= len(refreshed_rows) + 1:
                 refreshed_row = refreshed_rows[row_number - 2]
                 if (
-                    str(refreshed_row.get("Facebook Post ID", "")).strip()
-                    or str(refreshed_row.get("LinkedIn Post ID", "")).strip()
+                    (str(refreshed_row.get("Facebook Post ID", "")).strip()
+                    or str(refreshed_row.get("LinkedIn Post ID", "")).strip())
+                    and not production_main._is_bad_published_image(refreshed_row)
                 ):
                     last_successful_row = row_number
         except Exception as row_exc:
