@@ -82,6 +82,7 @@ Type: current_legislation_source
 Court/source: elpai.idsc.gov.eg
 Title: بوابة التشريعات المصرية
 URL: https://elpai.idsc.gov.eg/GeneralSearch/LegalDatabases?tab=legislation
+VERIFIED SOURCE TEXT (retrieved): نص تشريعي رسمي تم جلبه والتحقق من محتواه الفعلي.
 """
     assert has_verified_legal_source(packet)
     assert not has_verified_legal_source("LEGAL RESEARCH PACKET: no sufficiently verified sources")
@@ -206,3 +207,27 @@ def test_official_and_secondary_sources_use_topic_relevant_evidence(monkeypatch)
     packet = legal_research.research_legal_topic("انتحال الشخصية")
     assert "المادة (24)" in packet
     assert "مقدمة طويلة" not in packet
+
+
+def test_source_gate_rejects_whitelisted_url_without_retrieved_source_text():
+    from legal_research import has_verified_legal_source
+
+    packet = """SOURCE 1
+Type: current_legislation_source
+Court/source: nosi.gov.eg
+Title: قانون الخدمة المدنية
+URL: https://www.nosi.gov.eg/law.pdf
+"""
+    assert not has_verified_legal_source(packet)
+
+
+def test_topic_evidence_keeps_law_number_when_article_is_deep_in_document():
+    from legal_research import _source_evidence
+
+    source = (
+        "قانون العقوبات رقم 58 لسنة 1937 " + ("مقدمة عامة لا تتعلق بالموضوع " * 300)
+        + "المادة (336) يعاقب من استعمل اسماً كاذباً أو صفة غير صحيحة."
+    )
+    evidence = _source_evidence(source, "انتحال الشخصية")
+    assert "قانون رقم 58 لسنة 1937" in evidence
+    assert "المادة (336)" in evidence
