@@ -58,6 +58,17 @@ def test_social_image_qa_unavailable_or_rejected_blocks_publication():
     assert "raise ImageQAError(image_qa_summary) from qa_exc" in source
     assert "raise ImageQAError(" in source
     assert "Replacement image failed visual relevance/text QA" in source
+    assert "create_generic_legal_fallback_image" not in source
+    assert "GENERIC_LEGAL_FALLBACK_ACCEPTED" not in source
+    assert "IMAGE_REQUIRED_BLOCKED: no topic-specific" in source
+
+
+def test_duplicate_and_fallback_published_images_are_repair_required():
+    source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
+    assert '"DUPLICATE" in mode' in source
+    assert '"DUPLICATE" in qa' in source
+    run_source = (Path(__file__).resolve().parents[1] / "src" / "run_main.py").read_text(encoding="utf-8")
+    assert "Reel source blocked: row" in run_source
 
 
 def test_image_qa_retry_budget_is_persistent_and_bounded():
