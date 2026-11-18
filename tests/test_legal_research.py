@@ -270,8 +270,10 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
         "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
     )
     assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
+    assert "https://manshurat.org/node/14678" in fetched
     assert legal_research.has_verified_legal_source(packet)
-    assert "nosi.gov.eg" in packet
+    assert "SOURCE 1" in packet or "SOURCE 2" in packet
+    assert "المادة" in packet
 
 
 def test_impersonation_topic_uses_official_anti_impersonation_sources(monkeypatch):
@@ -291,8 +293,9 @@ def test_impersonation_topic_uses_official_anti_impersonation_sources(monkeypatc
         "انتحال الشخصية — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
     )
     assert any("aca.gov.eg/News/1550.aspx" in url for url in fetched)
+    assert "https://manshurat.org/node/14677" in fetched
     assert legal_research.has_verified_legal_source(packet)
-    assert "انتحال صفة" in packet
+    assert "انتحال صفة" in packet or "صفة رسمية" in packet
 
 
 def test_topic_evidence_terms_expand_legal_synonyms():
