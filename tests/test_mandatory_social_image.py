@@ -36,6 +36,9 @@ def test_cloudflare_daily_quota_circuit_skips_all_cloudflare_models_until_next_c
     assert image_generator.is_image_provider_blocked("cloudflare")
     assert image_generator.is_image_provider_blocked("cloudflare_klein")
     assert _image_provider_for_attempt(1) == "gemini"
+    image_generator.block_image_provider_for_day("gemini", "resource_exhausted")
+    image_generator.block_image_provider_for_day("pollinations", "HTTP 429")
+    assert _image_provider_for_attempt(1) == "openverse"
 
     monkeypatch.setattr(image_generator, "_cairo_today", lambda: "2026-11-19")
     assert not image_generator.is_image_provider_blocked("cloudflare")
