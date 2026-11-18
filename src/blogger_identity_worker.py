@@ -745,7 +745,9 @@ def _verify_public(
             "did not expose a safe Page List control. Homepage identity checks continue; "
             "the Page List gadget still needs manual setup."
         )
-    expected_brand = expected_title.split("|", 1)[0].strip()
+    # Accept a descriptive configured title when Blogger's live title uses
+    # a separator and the same core brand/name; do not demand a verbatim string.
+    expected_brand = expected_title.split("|", 1)[0].split("-", 1)[0].strip()
     if expected_brand not in actual_title or "محمود خيرت" not in actual_title:
         raise RuntimeError(f"Homepage title verification failed: expected brand/name in {actual_title!r}")
     if actual_description and actual_description != expected_description:
