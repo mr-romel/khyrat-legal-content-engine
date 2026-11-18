@@ -210,13 +210,15 @@ def _deterministic_legal_scene(topic: str, post: str) -> str | None:
         "the checklist or role markers. Illustrative still life only, not real evidence."
     )
 
-def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: str = "") -> str:
+def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: str = "", *, previous_scene: str = "", qa_feedback: str = "") -> str:
     """Derive one concrete visual scene from the final post, using stable briefs for abstract legal angles."""
     post = " ".join(str(post or "").split()).strip()
     if not post:
         raise RuntimeError("Final post content is required.")
+    previous_scene = " ".join(str(previous_scene or "").split()).strip()
+    qa_feedback = " ".join(str(qa_feedback or "").split()).strip()
     deterministic_scene = _deterministic_legal_scene(topic, post)
-    if deterministic_scene:
+    if deterministic_scene and not previous_scene and not qa_feedback:
         return deterministic_scene
     if not api_key and not has_any_provider_key():
         raise RuntimeError("No text AI provider is configured. Set GEMINI_API_KEY or a fallback provider key.")
@@ -224,6 +226,7 @@ def generate_image_scene_from_post(api_key: str, model: str, post: str, topic: s
     client = create_client(api_key=api_key, task="image_description")
     prompt = f"""
 Transform the FINAL POST below into one concrete, image-ready scene description.
+If PREVIOUS REJECTED SCENE or QA FEEDBACK is supplied, create a materially different alternative scene. Do not repeat the rejected central subject, action, camera setup, or composition. Correct the identified mismatch by choosing another concrete visual fact explicitly supported by the final post.
 
 STRICT RULES:
 - The final post is the ONLY semantic source.
@@ -239,10 +242,16 @@ STRICT RULES:
 - English only.
 - No readable text, letters, numbers, logos, captions, watermarks, UI, or infographic elements in the image.
 
+PREVIOUS REJECTED SCENE:
+{previous_scene or "None"}
+
+VISUAL QA FEEDBACK:
+{qa_feedback or "None"}
+
 FINAL POST:
 {post}
 
-Return only the English visual scene description.
+Return only the English visual scene description. The main subject and action must be unmistakably grounded in the final post.
 """
     import time
     last_error = None
@@ -267,7 +276,8 @@ Return only the English visual scene description.
     if len(scene) < 80:
         raise RuntimeError("Visual scene description is too short.")
     generic = ("generic legal", "professional legal image", "legal concept",
-               "lawyer at desk", "justice scales", "law books", "legal background")
+               "lawyer at desk", "justice scales", "law books", "legal background",
+               "a legal document on a desk", "a person reviewing paperwork")
     if any(term in scene.lower() for term in generic):
         raise RuntimeError("Visual scene description is generic.")
     return scene
