@@ -549,6 +549,22 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 f"IMAGE SEMANTIC QA: rejected attempt {image_qa_attempt}/3; "
                 f"regenerating. Issues: {image_qa_summary}"
             )
+            if attempt_number < attempt_limit:
+                try:
+                    revised_visual_description = generate_image_scene_from_post(
+                        api_key=config.get("gemini_api_key", ""),
+                        model=config.get("gemini_model", ""),
+                        post=post,
+                        topic=topic,
+                        previous_scene=visual_description,
+                        qa_feedback=regeneration_notes,
+                    )
+                    if revised_visual_description and revised_visual_description != visual_description:
+                        visual_description = revised_visual_description
+                        regeneration_notes = ""
+                        print("IMAGE SCENE REBRIEF: replaced rejected scene with a new post-grounded visual concept.")
+                except Exception as rebrief_exc:
+                    print(f"IMAGE SCENE REBRIEF unavailable; preserving original brief and QA correction: {rebrief_exc}")
 
         if image_qa_status != "PASS":
             image_path.unlink(missing_ok=True)
