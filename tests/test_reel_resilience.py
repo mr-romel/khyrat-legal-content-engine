@@ -102,16 +102,13 @@ def test_image_qa_rejection_regenerates_and_blocks_unverified_images():
     assert "IMAGE_QA_BLOCKED" in main_source
 
 
-def test_image_generation_failure_uses_generic_legal_image_and_keeps_publication_image_required():
+def test_image_generation_failure_blocks_publication_without_generic_fallback():
     main_source = Path("src/main.py").read_text(encoding="utf-8")
-    generator_source = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert "create_generic_legal_fallback_image(" in main_source
-    assert '"Image QA Status": image_qa_status' in main_source
-    assert '"Image Mode": "GENERIC_LEGAL_FALLBACK"' in main_source
-    assert "def create_generic_legal_fallback_image(" in generator_source
-    assert "brand_published_image(output_path)" in generator_source
-    assert "publish_text(" not in main_source
-    assert "publish_text_to_linkedin" not in main_source
+    assert "create_generic_legal_fallback_image(" not in main_source
+    assert "GENERIC_LEGAL_FALLBACK_ACCEPTED" not in main_source
+    assert '"Image Mode": "IMAGE_REQUIRED_BLOCKED"' in main_source
+    assert '"الحالة": "FAILED"' in main_source
+    assert "IMAGE_REQUIRED_BLOCKED: no topic-specific" in main_source
 
 
 
@@ -214,10 +211,11 @@ def test_cloudflare_flux2_dev_uses_required_multipart_request_format():
     assert '"height": str(height)' in source
 
 
-def test_gemini_image_quota_exhaustion_skips_retries():
+def test_gemini_image_quota_exhaustion_opens_daily_circuit():
     source = Path("src/image_generator.py").read_text(encoding="utf-8")
-    assert "Gemini image quota is exhausted; skipping retries" in source
     assert "resource_exhausted" in source
+    assert 'block_image_provider_for_day("gemini"' in source
+    assert "circuit opened for the rest of the Cairo day" in source
 
 
 def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
