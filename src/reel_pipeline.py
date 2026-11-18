@@ -1356,14 +1356,12 @@ def main() -> int:
             from image_qa import qa_image
             cloudflare_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
             cloudflare_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
-            # Metered providers are followed by Gemini before local original art.
-            # Every generated model image must pass semantic QA; local artwork is
-            # the final no-quota fallback and is checked against topic-specific provenance.
+            # External topic-matched providers only. No synthetic local placeholder.
             visual_providers = {
                 1: "pollinations",
                 2: "cloudflare",
                 3: "gemini",
-                4: "local_scene",
+                4: "pixabay",
             }
             for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
