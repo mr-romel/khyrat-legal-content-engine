@@ -987,7 +987,12 @@ def create_legal_image(
         )
     if provider_preference == "auto" and is_image_provider_blocked("cloudflare"):
         # The auto path must not retry Cloudflare or its shared FLUX/Klein quota.
-        provider_preference = "gemini" if not is_image_provider_blocked("gemini") else "openverse"
+        if not is_image_provider_blocked("gemini"):
+            provider_preference = "gemini"
+        elif _supports_topic_specific_local_scene(topic, visual_description or image_brief):
+            provider_preference = "local_scene"
+        else:
+            provider_preference = "openverse"
         print(f"Cloudflare daily quota circuit is open; auto mode bypasses Cloudflare and starts with {provider_preference}.")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
