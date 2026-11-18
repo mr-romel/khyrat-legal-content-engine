@@ -13,6 +13,7 @@ from config import load_blogger_config
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row, HEADERS
 from utils import parse_date
 from legal_research import has_verified_legal_source, research_legal_topic
+from telegram_bot import configured as telegram_configured, send_message as telegram_send_message
 
 BLOGGER_ARTIFACT_DIR = "generated/blogger"
 
@@ -753,7 +754,18 @@ def main() -> int:
             "Blogger SEO Error": "",
             "Blogger Last Error": "",
         })
-        print(f"Blogger published: {result['title']} -> {result['post_url']}")
+        print(f"Blogger published and read-back verified: {result['title']} -> {result['post_url']}")
+        # A Telegram success notice is permitted only after Blogger read-back and
+        # the Sheet PUBLISHED state have both been persisted successfully.
+        if telegram_configured():
+            try:
+                telegram_send_message(
+                    "✅ تم نشر مقال Blogger والتحقق منه فعليًا\n"
+                    f"العنوان: {result['title']}\n"
+                    f"الرابط: {result['post_url']}"
+                )
+            except Exception as telegram_exc:
+                print(f"Blogger success was verified, but Telegram delivery failed: {telegram_exc}")
         return 0
     except BloggerUIPublishError as ui_exc:
         error = f"UI: {ui_exc}"[:1500]
