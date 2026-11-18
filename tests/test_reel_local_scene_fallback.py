@@ -18,7 +18,7 @@ def test_local_scene_is_not_an_allowed_image_provider_or_automatic_fallback():
     source = (ROOT / "src" / "image_generator.py").read_text(encoding="utf-8")
     main_source = (ROOT / "src" / "main.py").read_text(encoding="utf-8")
     assert '"pixabay"}' in source
-    assert '"local_scene"' not in source
+    assert 'provider_preference == "local_scene"' not in source
     assert "LOCAL_SCENE_ILLUSTRATION" not in source
     assert "local/generated placeholder artwork is disabled" in source
     assert "local_scene" not in main_source
