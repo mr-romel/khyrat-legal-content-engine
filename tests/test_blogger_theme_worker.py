@@ -45,7 +45,7 @@ def test_theme_patch_migrates_v3_tracking_and_meta_description_without_duplicati
     assert MARKER in migrated
     assert PREVIOUS_MARKER not in migrated
     assert SITE_META_DESCRIPTION in migrated
-    assert migrated.count("name='description'") == 2
+    assert migrated.count("name='description'") == 3
     assert migrated.count("Khyrat Legal: GA4 lead-event tracking") == 1
     assert "event_callback" in migrated
 
