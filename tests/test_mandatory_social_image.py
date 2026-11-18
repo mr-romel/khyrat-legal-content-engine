@@ -66,3 +66,12 @@ def test_known_abstract_legal_angle_overrides_stale_sheet_image_brief():
     assert "if deterministic_scene:" in main_source
     assert "return deterministic_scene" in main_source
     assert "generate_image_scene_from_post(api_key=api_key, model=model, post=post, topic=topic)" in main_source
+
+
+def test_image_provider_rotation_uses_independent_engines_across_retries():
+    from main import _image_provider_for_attempt
+
+    assert [_image_provider_for_attempt(i) for i in range(1, 7)] == [
+        "cloudflare", "gemini", "openverse", "wikimedia", "cloudflare_klein", "pollinations"
+    ]
+    assert _image_provider_for_attempt(7) == "pollinations"
