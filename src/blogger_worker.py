@@ -375,10 +375,10 @@ def main() -> int:
     # intermittently saved only the title; use UI only as a fallback when API OAuth is absent.
     # OAuth refresh tokens can be revoked independently of the authenticated browser session.
     # Prefer the saved UI session when present so a stale OAuth token does not block publishing.
-    # Blogger REST API is primary whenever OAuth credentials exist.
-    # A saved browser session is only a fallback; never bypass a healthy API path.
+    # The shared publishing branch tries Blogger REST API first when OAuth exists,
+    # then uses the saved browser session only if REST publication fails.
     has_blogger_oauth = bool(os.getenv("BLOGGER_OAUTH_JSON", "").strip())
-    use_ui = (not has_blogger_oauth) and bool(config.get("blogger_ui_storage_state_b64"))
+    use_ui = bool(config.get("blogger_ui_storage_state_b64"))
     bid = str(config.get("blogger_blog_id", "") or "").strip()
     if not use_ui:
         blogger_api = blogger_service()
