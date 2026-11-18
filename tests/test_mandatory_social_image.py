@@ -72,6 +72,8 @@ def test_image_provider_rotation_uses_independent_engines_across_retries():
     from main import _image_provider_for_attempt
 
     assert [_image_provider_for_attempt(i) for i in range(1, 7)] == [
-        "cloudflare", "gemini", "openverse", "wikimedia", "cloudflare_klein", "pollinations"
+        "cloudflare", "gemini", "openverse", "wikimedia", "pollinations", "local_scene"
     ]
+    # FLUX and FLUX Klein share the same account quota; a daily limit on one
+    # must never trigger a second request against the same Cloudflare account.
     assert _image_provider_for_attempt(7) == "pollinations"
