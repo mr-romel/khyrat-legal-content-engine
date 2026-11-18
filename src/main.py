@@ -17,7 +17,7 @@ from content_system import choose_visual_concept, infer_audience_persona, record
 from editorial_review import review_and_prepare
 from facebook_publisher import FacebookPublishError, delete_post as delete_facebook_post, publish_photo
 from gemini import generate_post, generate_image_scene_from_post, _deterministic_legal_scene, build_editorial_brief
-from image_generator import ImageGenerationError, brand_published_image, create_legal_image, build_image_regeneration_brief, assert_image_not_duplicate, is_image_provider_blocked
+from image_generator import ImageGenerationError, brand_published_image, create_legal_image, build_image_regeneration_brief, assert_image_not_duplicate, is_image_provider_blocked, _supports_topic_specific_local_scene
 from image_qa import ImageQAError, qa_image, summarize_qa
 from legal_research import has_verified_legal_source, research_legal_topic, validate_legal_citations
 from social_content import append_hashtags, sanitize_social_copy, sanitize_topic, split_hashtags
@@ -777,6 +777,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             model=config["gemini_model"],
         )
         print(f"POST-DERIVED IMAGE REPAIR SCENE: {visual_description}")
+        repair_provider = "local_scene" if _supports_topic_specific_local_scene(topic, visual_description) else "auto"
         create_legal_image(
             topic=topic,
             image_brief=visual_description,
@@ -786,6 +787,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             cloudflare_account_id=config["cloudflare_account_id"],
             cloudflare_api_token=config["cloudflare_api_token"],
             api_key=config.get("gemini_api_key", ""),
+            provider=repair_provider,
         )
         if not image_path.is_file() or image_path.stat().st_size == 0:
             raise ImageGenerationError("Replacement image file was empty.")
