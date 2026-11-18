@@ -787,18 +787,23 @@ def main() -> int:
         if not str(result.get("post_id", "")).strip() or not str(result.get("post_url", "")).startswith("https://"):
             raise BloggerPublishError("BLOGGER_POST_VERIFICATION_FAILED: missing published post ID or HTTPS permalink.")
 
-        # Prefer authenticated API read-back after REST publication. If REST failed
-        # and the saved browser session published the article, verify the public URL
-        # directly so a revoked OAuth token cannot invalidate a real UI publication.
-        if has_blogger_oauth and str(result.get("publisher", "")).upper() in {"BLOGGER_REST_API", "BLOGGER_REST_REPAIR"}:
-            verify_service = blogger_service()
-            verified_post = verify_service.posts().get(
-                blogId=bid or blog_id(verify_service, config["blogger_url"]),
-                postId=str(result.get("post_id", "")).strip(),
-            ).execute()
-            verified_html = str(verified_post.get("content", "") or "")
-            result["post_url"] = str(verified_post.get("url", "") or result.get("post_url", "")).strip()
-        else:
+        # Prefer authenticated API read-back whenever OAuth is available. If the
+        # token is revoked and the saved UI session published the post, fall back
+        # to the public permalink; public 429s must not block a valid API read-back.
+        verified_html = ""
+        if has_blogger_oauth:
+            try:
+                verify_service = blogger_service()
+                verify_blog_id = bid or blog_id(verify_service, config["blogger_url"])
+                verified_post = verify_service.posts().get(
+                    blogId=verify_blog_id,
+                    postId=str(result.get("post_id", "")).strip(),
+                ).execute()
+                verified_html = str(verified_post.get("content", "") or "")
+                result["post_url"] = str(verified_post.get("url", "") or result.get("post_url", "")).strip()
+            except Exception as api_verify_exc:
+                print(f"Blogger API read-back unavailable; attempting public permalink verification: {api_verify_exc}")
+        if not verified_html:
             public_response = requests.get(
                 str(result["post_url"]).strip(),
                 headers={"User-Agent": "Mozilla/5.0 KhyratLegalContentEngine/1.0"},
@@ -846,7 +851,6 @@ def main() -> int:
         try:
             if not os.getenv("BLOGGER_OAUTH_JSON", "").strip() or "content" not in locals():
                 raise BloggerPublishError("Blogger REST fallback requires a valid BLOGGER_OAUTH_JSON token and prepared article HTML.")
-            import re
             blogger_api = blogger_service()
             target_blog_id = bid or blog_id(blogger_api, config["blogger_url"])
             page_token = None
