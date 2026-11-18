@@ -142,11 +142,15 @@ def _source_evidence(text: str, topic: str) -> str:
         # If an article heading is nearby, start there rather than copying a long,
         # irrelevant introduction before the matching statutory passage.
         article_markers = list(re.finditer(r"(?:المادة|مادة)\s*(?:\(?\s*[٠-٩0-9]+\s*\)?)?", prefix))
-        if article_markers:
+        following = value[position:min(len(value), position + 320)]
+        article_after = re.search(r"(?:المادة|مادة)\s*(?:\(?\s*[٠-٩0-9]+\s*\)?)?", following)
+        if article_after:
+            start = position + article_after.start()
+        elif article_markers:
             start += article_markers[-1].start()
         else:
-            start = max(0, position - 140)
-        end = min(len(value), position + 900)
+            start = max(0, position - 80)
+        end = min(len(value), max(position + 900, start + 900))
         snippet = value[start:end].strip()
         if snippet and all(abs(start - old_start) > 240 for old_start, _ in windows):
             windows.append((start, snippet))
