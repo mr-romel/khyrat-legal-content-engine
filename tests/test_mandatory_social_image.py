@@ -26,6 +26,22 @@ def test_pollinations_secret_is_wired_to_core_publisher():
 
 
 
+def test_cloudflare_daily_quota_circuit_skips_all_cloudflare_models_until_next_cairo_day(tmp_path, monkeypatch):
+    import image_generator
+    from main import _image_provider_for_attempt
+
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
+    monkeypatch.setattr(image_generator, "_cairo_today", lambda: "2026-11-18")
+    image_generator.block_image_provider_for_day("cloudflare", "HTTP 429 daily quota")
+    assert image_generator.is_image_provider_blocked("cloudflare")
+    assert image_generator.is_image_provider_blocked("cloudflare_klein")
+    assert _image_provider_for_attempt(1) == "gemini"
+
+    monkeypatch.setattr(image_generator, "_cairo_today", lambda: "2026-11-19")
+    assert not image_generator.is_image_provider_blocked("cloudflare")
+    assert _image_provider_for_attempt(1) == "cloudflare"
+
+
 def test_social_image_qa_unavailable_or_rejected_blocks_publication():
     source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text(encoding="utf-8")
     assert "IMAGE_QA_UNAVAILABLE_BLOCKED" in source
