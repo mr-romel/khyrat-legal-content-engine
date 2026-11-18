@@ -274,7 +274,7 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
     assert "https://manshurat.org/node/14678" in fetched
     assert legal_research.has_verified_legal_source(packet)
     assert "SOURCE 1" in packet or "SOURCE 2" in packet
-    assert "المادة" in packet
+    assert "التعيين" in packet
 
 
 def test_impersonation_topic_uses_official_anti_impersonation_sources(monkeypatch):
