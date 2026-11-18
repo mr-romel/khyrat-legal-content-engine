@@ -25,6 +25,34 @@ class _P(HTMLParser):
     def handle_data(self,data):
         if not self.skip and data.strip(): self.parts.append(data.strip())
 
+class _SearchResults(HTMLParser):
+    """Parse DuckDuckGo result anchors independent of HTML attribute order."""
+    def __init__(self):
+        super().__init__()
+        self.items = []
+        self._active = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "a":
+            return
+        attrs = dict(attrs)
+        classes = str(attrs.get("class", "")).split()
+        href = attrs.get("href", "")
+        if "result__a" in classes and href:
+            self._active = {"url": _unwrap(html_lib.unescape(href)), "title_parts": []}
+
+    def handle_data(self, data):
+        if self._active is not None and data.strip():
+            self._active["title_parts"].append(data.strip())
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._active is not None:
+            url = str(self._active.get("url", "")).strip()
+            title = _clean(" ".join(self._active["title_parts"]))
+            if url.startswith("http") and title:
+                self.items.append({"url": url, "title": title})
+            self._active = None
+
 def _clean(x): return re.sub(r"\s+"," ",str(x or "")).strip()
 def _domain(u):
     return (urlparse(str(u or "")).hostname or "").lower().rstrip(".").removeprefix("www.")
@@ -43,13 +71,20 @@ def _search(q):
         r.raise_for_status()
     except Exception as e:
         print(f"Legal research search unavailable: {q!r} :: {e}"); return []
+    parser = _SearchResults()
+    try:
+        parser.feed(r.text)
+    except Exception as parse_exc:
+        print(f"Legal research result parsing failed: {parse_exc}")
+        return []
     out=[]; seen=set()
-    pat=re.compile(r"<a[^>]+class=['\"]result__a['\"][^>]+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",re.I|re.S)
-    for m in pat.finditer(r.text):
-        u=_unwrap(html_lib.unescape(m.group(1))); t=_clean(re.sub(r"<[^>]+>"," ",html_lib.unescape(m.group(2))))
+    for item in parser.items:
+        u=item["url"]; t=item["title"]
         if not u.startswith("http") or not t or u in seen: continue
         seen.add(u); out.append({"url":u,"title":t})
         if len(out)>=MAX_RESULTS: break
+    if not out:
+        print("Legal research search returned HTML but no result anchors matched; parser diagnostics required.")
     return out
 
 def _fetch(u):
