@@ -95,12 +95,19 @@ def _source_evidence(text: str, topic: str) -> str:
     value = _clean(text)
     normalized_topic = _norm_legal_text(topic)
     employment = any(term in normalized_topic for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
+    public_service = any(term in normalized_topic for term in ("الوظيفه العامه", "التعيين", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكوميه"))
+    impersonation = any(term in normalized_topic for term in ("انتحال الشخصيه", "انتحال الهويه", "انتحال صفه", "حساب مزيف", "هويه مزيفه", "اسم كاذب"))
     if employment:
         patterns = [
             r"(?:المادة\s+السادسة|مادة\s*\(?\s*(?:السادسة|6|٦)\s*\)?)[^:]{0,20}:?.{0,1400}",
             r"مادة\s*\(?\s*(?:27|٢٧)\s*\)?\s*:?.{0,1600}",
             r"مادة\s*\(?\s*(?:33|٣٣|34|٣٤|40|٤٠|41|٤١|42|٤٢|43|٤٣|291|٢٩١)\s*\)?\s*:?.{0,1600}",
         ]
+    elif public_service:
+        patterns = [r"مادة\s*\(?\s*(?:4|٤|12|١٢|13|١٣|14|١٤|15|١٥|16|١٦|17|١٧)\s*\)?\s*:?.{0,1800}"]
+    elif impersonation:
+        patterns = [r"مادة\s*\(?\s*(?:24|٢٤|155|١٥٥|156|١٥٦|157|١٥٧|336|٣٣٦)\s*\)?\s*:?.{0,1800}"]
+    if employment or public_service or impersonation:
         excerpts = []
         for pattern in patterns:
             for match in re.finditer(pattern, value, re.I):
@@ -196,6 +203,10 @@ def research_legal_topic(topic, existing=""):
         f'site:cc.gov.eg "أحدث التشريعات" {topic} {CURRENT_YEAR}',
         f'site:labour.gov.eg {topic} قانون العمل',
         f'site:sis.gov.eg قانون العمل 14 لسنة 2025',
+        f'site:nosi.gov.eg {topic} قانون الخدمة المدنية 81 لسنة 2016',
+        f'site:caoa.gov.eg {topic} قانون الخدمة المدنية اللائحة التنفيذية',
+        f'site:fra.gov.eg {topic} قانون 175 لسنة 2018 انتحال الشخصية',
+        f'site:manshurat.org {topic} قانون العقوبات انتحال الشخصية',
         f'site:elpai.idsc.gov.eg {topic} قانون {CURRENT_YEAR}',
         f'site:mof.gov.eg {topic} تشريع {CURRENT_YEAR}',
         f'site:gafi.gov.eg {topic} قانون قرار {CURRENT_YEAR}',
@@ -211,6 +222,8 @@ def research_legal_topic(topic, existing=""):
         queries.append('site:fra.gov.eg "قانون رقم 175 لسنة 2018"')
     cand=[]; seen=set()
     employment_topic = any(term in topic_norm for term in ("عمال", "عامل", "العمل", "العماله", "التشغيل", "ترخيص المهنه", "ترخيص العماله"))
+    public_service_topic = any(term in topic_norm for term in ("الوظيفه العامه", "التعيين", "الخدمه المدنيه", "الموظف العام", "الوظائف الحكوميه"))
+    impersonation_topic = any(term in topic_norm for term in ("انتحال الشخصيه", "انتحال الهويه", "انتحال صفه", "حساب مزيف", "هويه مزيفه", "اسم كاذب"))
     if employment_topic:
         # Primary text of Law 14/2025 as published in the Official Gazette.
         official_employment_sources = [
@@ -221,10 +234,21 @@ def research_legal_topic(topic, existing=""):
         for url, title in official_employment_sources:
             cand.append({"url": url, "title": title})
             seen.add(url)
-    if cybercrime_topic:
+    if cybercrime_topic or impersonation_topic:
         official_law_pdf = "https://fra.gov.eg/wp-content/uploads/2025/01/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018-%D8%A8%D8%AA%D8%A7%D8%B1%D9%8A%D8%AE-2018-08-14.pdf"
-        cand.append({"url": official_law_pdf, "title": "القانون رقم 175 لسنة 2018 — النسخة المنشورة على موقع الهيئة العامة للرقابة المالية"})
+        cand.append({"url": official_law_pdf, "title": "القانون رقم 175 لسنة 2018 — مكافحة جرائم تقنية المعلومات — الهيئة العامة للرقابة المالية"})
         seen.add(official_law_pdf)
+    if public_service_topic:
+        civil_service_pdf = "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/%D9%82%D8%A7%D9%86%D9%88%D9%86%20%D8%A7%D9%84%D8%AE%D8%AF%D9%85%D8%A9%20%D8%A7%D9%84%D9%85%D8%AF%D9%86%D9%8A%D8%A9%2081%20%D9%84%D8%B3%D9%86%D8%A9%202016.pdf"
+        cand.append({"url": civil_service_pdf, "title": "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016 — الهيئة القومية للتأمين الاجتماعي"})
+        seen.add(civil_service_pdf)
+        civil_service_rules = "https://www.caoa.gov.eg/WebForms/laws.aspx"
+        cand.append({"url": civil_service_rules, "title": "الجهاز المركزي للتنظيم والإدارة — قوانين ومبادئ مستقرة واللائحة التنفيذية"})
+        seen.add(civil_service_rules)
+    if impersonation_topic:
+        penal_code_url = "https://manshurat.org/node/14677"
+        cand.append({"url": penal_code_url, "title": "قانون العقوبات رقم 58 لسنة 1937 — المواد 155 و156 و157 و336"})
+        seen.add(penal_code_url)
     for q in queries:
         for x in _search(q):
             if x["url"] in seen or not _allowed(x["url"]): continue
