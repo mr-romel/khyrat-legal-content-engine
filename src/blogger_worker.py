@@ -4,6 +4,8 @@ import json
 import os
 import re
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -514,6 +516,60 @@ def main() -> int:
     if repair_service is not None:
         seen_image_urls = set()
         seen_image_hashes = set()
+        # Reconcile a Blogger API insert that succeeded even though the worker
+        # crashed before it could write the post ID/permalink back to Sheets.
+        if repair_service is not None and bid:
+            for reconcile_row_number, reconcile_row in enumerate(rows, start=2):
+                if str(reconcile_row.get("الحالة", "")).strip().upper() != "PUBLISHED":
+                    continue
+                blogger_state = str(reconcile_row.get("Blogger Status", "")).strip().upper()
+                image_mode = str(reconcile_row.get("Image Mode", "") or "").strip().upper()
+                image_qa_state = str(reconcile_row.get("Image QA Status", "") or "").strip().upper()
+                if blogger_state == "PUBLISHED" or not ("FALLBACK" in image_mode or "FALLBACK" in image_qa_state):
+                    continue
+                try:
+                    existing_post = _find_existing_blogger_post_for_row(repair_service, bid, reconcile_row)
+                    if not existing_post:
+                        continue
+                    existing_post_id = str(existing_post.get("id", "") or "").strip()
+                    if not existing_post_id:
+                        continue
+                    # Repair the existing article in place; never insert a duplicate.
+                    repaired_url, repaired_score = _repair_existing_blogger_post_image(
+                        repair_service, bid, existing_post_id, reconcile_row_number, reconcile_row
+                    )
+                    verified_post = repair_service.posts().get(
+                        blogId=bid, postId=existing_post_id
+                    ).execute()
+                    verified_permalink = str(verified_post.get("url", "") or existing_post.get("url", "")).strip()
+                    if not verified_permalink.startswith("https://") or repaired_url not in str(verified_post.get("content", "") or ""):
+                        raise RuntimeError("BLOGGER_RECONCILIATION_READBACK_FAILED: repaired image or public permalink not confirmed.")
+                    update_row(service, config["sheet_id"], sheet_name, reconcile_row_number, {
+                        "Blogger Post ID": existing_post_id,
+                        "Blogger URL": verified_permalink,
+                        "Blogger Search Title": str(verified_post.get("title", "") or ""),
+                        "Blogger Status": "PUBLISHED",
+                        "Blogger Last Error": "",
+                    })
+                    reconcile_row["Blogger Post ID"] = existing_post_id
+                    reconcile_row["Blogger URL"] = verified_permalink
+                    reconcile_row["Blogger Status"] = "PUBLISHED"
+                    reconcile_row["Blogger Last Error"] = ""
+                    print(f"BLOGGER_EXISTING_POST_RECONCILED: row={reconcile_row_number}; image_score={repaired_score}; url={verified_permalink}")
+                    if telegram_configured():
+                        try:
+                            telegram_send_message(
+                                "✅ تم إصلاح صورة مقال Blogger المنشور والتحقق من الرابط\n"
+                                f"العنوان: {verified_post.get('title', '')}\n"
+                                f"الرابط: {verified_permalink}"
+                            )
+                        except Exception as telegram_exc:
+                            print(f"Blogger reconciliation verified, but Telegram delivery failed: {telegram_exc}")
+                except Exception as reconcile_exc:
+                    reason = f"BLOGGER_EXISTING_POST_REPAIR_FAILED: {reconcile_exc}"[:1500]
+                    _mark_blogger_failed(service, config, sheet_name, reconcile_row_number, reason)
+                    print(reason)
+
         for existing_row_number, existing in enumerate(rows, start=2):
             if str(existing.get("Blogger Status", "")).strip().upper() != "PUBLISHED":
                 continue
