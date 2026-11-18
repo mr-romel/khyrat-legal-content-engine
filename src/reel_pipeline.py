@@ -614,6 +614,7 @@ def _visual_topic_family(topic: str) -> str:
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
+        ("identity_impersonation", ("انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud")),
         ("employment", ("عمل", "عامل", "عمال", "موظف", "فصل", "مرتب", "راتب", "أجر", "استقالة")),
         ("family", ("طلاق", "خلع", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة")),
         ("public_utility", ("المرفق العام", "المرافق العامة", "مرفق عام", "المرفق الاقتصادي", "مرفق اقتصادي", "المرافق الاقتصادية", "خدمة عامة", "الخدمات العامة")),
@@ -640,6 +641,9 @@ def _visual_topic_content_aligned(topic: str, post: str) -> bool:
 
 
 _VISUAL_SCENES = {
+    "identity_impersonation": [
+        "A contemporary identity verification scene: a neutral unbranded identity card with all lettering blurred, a fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The visual must communicate impersonation and identity verification, not generic employment or courtroom imagery. No readable text, no police uniform, no handcuffs, no logos."
+    ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
         "A person carefully preserving the original threatening message and its timestamp on a smartphone.",
