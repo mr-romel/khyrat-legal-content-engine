@@ -13,12 +13,14 @@ from blogger_ui_publisher import _storage_state_path, BloggerUIPublishError, _bl
 BLOG_URL = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip().rstrip("/")
 PHONE = "+201022718375"
 WHATSAPP = "201022718375"
-MARKER = "KHYRAT_LEGAL_THEME_V3"
-PREVIOUS_MARKER = "KHYRAT_LEGAL_THEME_V2"
+MARKER = "KHYRAT_LEGAL_THEME_V4"
+PREVIOUS_MARKER = "KHYRAT_LEGAL_THEME_V3"
+OLDER_MARKER = "KHYRAT_LEGAL_THEME_V2"
+SITE_META_DESCRIPTION = "محتوى قانوني عملي للشركات وأصحاب الأعمال والإدارة والموارد البشرية حول العقود والعمل والشركات والمنازعات والإجراءات القانونية في مصر."
 
 
 CSS = r"""
-/* KHYRAT_LEGAL_THEME_V3: conversion + readability layer */
+/* KHYRAT_LEGAL_THEME_V4: conversion + readability layer */
 :root{--khyrat-ink:#142b3b;--khyrat-teal:#087f8c;--khyrat-teal-dark:#06636d;--khyrat-gold:#c79a43;--khyrat-paper:#ffffff;--khyrat-muted:#5b6872}
 body{color:var(--khyrat-ink);line-height:1.85}
 a{transition:color .18s ease,background-color .18s ease,border-color .18s ease}
@@ -180,10 +182,35 @@ TRACKING_SCRIPT = f"""
 """
 
 
+def _inject_site_meta_description(theme: str) -> str:
+    """Ensure one canonical description tag with a homepage description and post-specific fallbacks."""
+    theme = re.sub(
+        r"<meta\b(?=[^>]*\bname=['\"]description['\"])[^>]*?/?>",
+        "",
+        theme,
+        flags=re.IGNORECASE,
+    )
+    block = f"""
+    <b:if cond='data:view.isHomepage'>
+      <meta content='{SITE_META_DESCRIPTION}' name='description'/>
+    <b:else/>
+      <b:if cond='data:blog.metaDescription'>
+        <meta expr:content='data:blog.metaDescription' name='description'/>
+      <b:else/>
+        <meta content='{SITE_META_DESCRIPTION}' name='description'/>
+      </b:if>
+    </b:if>
+    """
+    head = re.search(r"<head[^>]*>", theme, flags=re.IGNORECASE)
+    if not head:
+        raise BloggerUIPublishError("Blogger theme head element was not found; cannot add the canonical meta description.")
+    return theme[:head.end()] + block + theme[head.end():]
+
+
 def apply_theme_patch(original: str) -> str:
     if MARKER in original:
         return original
-    if PREVIOUS_MARKER in original:
+    if PREVIOUS_MARKER in original or OLDER_MARKER in original:
         comment = "<!-- Khyrat Legal: GA4 lead-event tracking + confirmed phone/WhatsApp. -->"
         comment_pos = original.find(comment)
         block_start = original.rfind("<b:if cond='data:view.isSingleItem'>", 0, comment_pos)
@@ -192,12 +219,13 @@ def apply_theme_patch(original: str) -> str:
             raise BloggerUIPublishError("Legacy GA4 tracking block was not found; refusing an unsafe theme migration.")
         script_end += len("</script>")
         migrated = original[:block_start] + TRACKING_SCRIPT.strip() + original[script_end:]
-        migrated = migrated.replace(PREVIOUS_MARKER, MARKER)
+        migrated = migrated.replace(PREVIOUS_MARKER, MARKER).replace(OLDER_MARKER, MARKER)
+        migrated = _inject_site_meta_description(migrated)
         try:
             ElementTree.fromstring(migrated.encode("utf-8"))
         except Exception as exc:
             raise BloggerUIPublishError(f"Migrated Blogger theme is not valid XML: {exc}") from exc
-        for required in (MARKER, PHONE, WHATSAPP, "contact_click", "consultation_click", "event_callback", "event_timeout"):
+        for required in (MARKER, PHONE, WHATSAPP, "contact_click", "consultation_click", "event_callback", "event_timeout", SITE_META_DESCRIPTION):
             if required not in migrated:
                 raise BloggerUIPublishError(f"Theme migration verification failed: missing {required!r}.")
         return migrated
@@ -231,6 +259,7 @@ def apply_theme_patch(original: str) -> str:
     if updated.count(script_anchor) != 1:
         raise BloggerUIPublishError("Template script insertion point is missing or ambiguous.")
     updated = updated.replace(script_anchor, TRACKING_SCRIPT + "\n    " + script_anchor, 1)
+    updated = _inject_site_meta_description(updated)
     try:
         ElementTree.fromstring(updated.encode("utf-8"))
     except Exception as exc:
