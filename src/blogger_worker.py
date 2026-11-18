@@ -266,7 +266,7 @@ def _find_existing_blogger_post_for_row(svc, bid: str, row: dict[str, str]) -> d
     return matches[0][3]
 
 
-def _repair_existing_blogger_post_image(svc, bid: str, post_id: str, row_number: int, row: dict[str, str]) -> tuple[str, int]:
+def _repair_existing_blogger_post_image(svc, bid: str, post_id: str, row_number: int, row: dict[str, str]) -> tuple[str, int, str]:
     """Replace a generic/failed Blogger hero with one topic-specific, locally QA-approved scene."""
     from gemini import _deterministic_legal_scene
     from image_generator import create_legal_image, _supports_topic_specific_local_scene
@@ -316,7 +316,9 @@ def _repair_existing_blogger_post_image(svc, bid: str, post_id: str, row_number:
     verified_html = str(verified.get("content", "") or "")
     if new_url not in verified_html or len(_norm_text(verified_html)) < 900:
         raise RuntimeError("BLOGGER_EXISTING_POST_IMAGE_VERIFICATION_FAILED: API read-back did not confirm the new image and article body.")
-    return new_url, int(qa.get("overall_score", 0) or 0)
+    import hashlib
+    image_sha = hashlib.sha256(image_path.read_bytes()).hexdigest()
+    return new_url, int(qa.get("overall_score", 0) or 0), image_sha
 
 
 def dedupe_blogger_topics(svc, bid: str, rows: list[dict[str, str]]) -> int:
@@ -535,7 +537,7 @@ def main() -> int:
                     if not existing_post_id:
                         continue
                     # Repair the existing article in place; never insert a duplicate.
-                    repaired_url, repaired_score = _repair_existing_blogger_post_image(
+                    repaired_url, repaired_score, repaired_sha = _repair_existing_blogger_post_image(
                         repair_service, bid, existing_post_id, reconcile_row_number, reconcile_row
                     )
                     verified_post = repair_service.posts().get(
@@ -550,6 +552,10 @@ def main() -> int:
                         "Blogger Search Title": str(verified_post.get("title", "") or ""),
                         "Blogger Status": "PUBLISHED",
                         "Blogger Last Error": "",
+                        "Blogger Image URL": repaired_url,
+                        "Blogger Image QA Status": "PASS",
+                        "Blogger Image QA Score": str(repaired_score),
+                        "Blogger Image SHA256": repaired_sha,
                     })
                     reconcile_row["Blogger Post ID"] = existing_post_id
                     reconcile_row["Blogger URL"] = verified_permalink
