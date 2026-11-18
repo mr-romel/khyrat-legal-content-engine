@@ -24,6 +24,7 @@ class FakeResponse:
 
 
 def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch, tmp_path):
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     captured = {}
 
     def fake_post(url, *, headers, files, timeout):
@@ -71,6 +72,7 @@ def test_legal_image_generation_prompt_is_positive_and_post_specific(monkeypatch
 
 
 def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_path):
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     captured = {}
 
     def fake_post(url, *, headers, files, timeout):
@@ -101,6 +103,7 @@ def test_reel_image_generation_uses_native_vertical_dimensions(monkeypatch, tmp_
 
 
 def test_flux2_klein_provider_uses_fixed_step_multipart_contract(monkeypatch, tmp_path):
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     captured = {}
 
     def fake_post(url, *, headers, files, timeout):
@@ -262,6 +265,7 @@ def test_image_regeneration_brief_requires_the_original_scene():
 
 
 def test_each_post_gets_a_distinct_row_specific_composition_prompt(monkeypatch, tmp_path):
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
     prompts = []
 
     def fake_post(url, *, headers, files, timeout):
