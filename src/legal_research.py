@@ -373,13 +373,27 @@ def research_legal_topic(topic, existing=""):
             seen.add(url)
             candidates.append({"url": url, "title": title})
 
+    search_result_count = 0
+    rejected_domain_count = 0
     for query in queries:
-        for item in _search(query):
+        found = _search(query)
+        search_result_count += len(found)
+        for item in found:
             url = str(item.get("url", "")).strip()
-            if not url or url in seen or not _allowed(url):
+            if not url or url in seen:
+                continue
+            if not _allowed(url):
+                rejected_domain_count += 1
                 continue
             seen.add(url)
             candidates.append({"url": url, "title": str(item.get("title", "")).strip()})
+
+    print(
+        "Legal research diagnostics: "
+        f"topic={topic!r}; queries={len(queries)}; search_results={search_result_count}; "
+        f"whitelisted_candidates={len(candidates)}; rejected_domains={rejected_domain_count}; "
+        f"seed_candidates={len(seed_urls)}"
+    )
 
     records = []
     fetch_limit = max(MAX_RESULTS, 12)
@@ -387,14 +401,17 @@ def research_legal_topic(topic, existing=""):
         url = item["url"]
         body = _fetch(url)
         if not body:
+            print(f"Legal research candidate rejected: empty/unreadable source body :: {url}")
             continue
         evidence = _source_evidence(body, topic)
         if len(evidence) < 30:
+            print(f"Legal research candidate rejected: no topic-matched passage :: {url}")
             continue
         searchable = _norm_legal_text(item["title"] + " " + body)
         matched = [term for term in terms if _matching_source_words([term], searchable)]
         required_matches = 1
         if len(set(matched)) < required_matches:
+            print(f"Legal research candidate rejected: insufficient topic-term matches ({len(set(matched))}/{required_matches}) :: {url}")
             continue
 
         domain = _domain(url)
@@ -421,6 +438,7 @@ def research_legal_topic(topic, existing=""):
             source_type, court, case, _date(body), _effective(body),
             item["title"] or f"مصدر قانوني — {domain}", quote, url, evidence,
         ))
+        print(f"Legal research candidate accepted: {domain} :: {url}")
         if len(records) >= 6:
             break
 
@@ -441,7 +459,13 @@ def research_legal_topic(topic, existing=""):
         "",
     ]
     if not records:
+        print(
+            "Legal research final result: BLOCKED; "
+            f"topic={topic!r}; candidates={len(candidates)}; no live source passed retrieval and topic-evidence validation."
+        )
         lines.append("No sufficiently verified topic-matched Egyptian court/legislation source was retrieved automatically.")
+    else:
+        print(f"Legal research final result: VERIFIED; topic={topic!r}; sources={len(records)}")
     for index, (kind, source, case, date, effective, title, quote, url, evidence) in enumerate(records, 1):
         lines += [
             f"SOURCE {index}", f"Type: {kind}", f"Court/source: {source}",
