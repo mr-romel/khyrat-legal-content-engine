@@ -11,7 +11,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -103,7 +103,7 @@ def _research_topic_terms(topic: str) -> list[str]:
     stop = {
         "قانون", "القانون", "مصر", "المصري", "المصرية", "بشأن", "بخصوص",
         "موضوع", "حالة", "حالات", "شرح", "معلومة", "علامات", "تحذيرية",
-        "قبل", "بعد", "اتخاذ", "قرار", "عملي", "عملية", "قائمة", "فحص",
+        "قبل", "بعد", "اتخاذ", "عملي", "عملية", "قائمة", "فحص",
         "checklist", "جديدة", "زاوية", "مختلفة", "عن", "في", "من", "على",
         "الى", "إلى", "و", "او", "أو", "مع", "هل", "كيف", "متى",
     }
