@@ -1,1 +1,2 @@
-Retry theme deployment with the disabled legacy AdSense placeholder section removed only; preserve all visible ads, save, and verify editor readback plus public homepage. Trigger: 2026-11-17T18:28:00+02:00
+Upgrade the live Blogger theme's existing V2 contact tracking to V3. Preserve layout, CSS, navigation and existing content. Verify XML, save, then confirm editor read-back and public homepage.
+Trigger nonce: 1795035142285
