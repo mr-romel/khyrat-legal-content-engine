@@ -185,6 +185,20 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
 def _deterministic_legal_scene(topic: str, post: str) -> str | None:
     """Return a stable, non-fictional visual brief for abstract legal checklist topics."""
     source = " ".join(f"{topic or ''} {post or ''}".casefold().split())
+    identity_impersonation = any(term in source for term in (
+        "انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة",
+        "identity theft", "impersonation", "identity fraud",
+    ))
+    if identity_impersonation:
+        return (
+            "Photorealistic contemporary editorial close-up of an identity verification scene: "
+            "a neutral unbranded identity card with all lettering deliberately blurred, a clear fingerprint "
+            "evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the "
+            "identity photo area. A secure document sleeve and evidence tags sit on a clean desk. "
+            "The dominant action is checking whether an identity document belongs to the person presenting it. "
+            "No readable text, no police uniform, no handcuffs, no courthouse, no scales of justice, no logos."
+        )
+
     criminal_contribution = "المساهمة الجنائية" in source or "criminal contribution" in source
     checklist_angle = any(term in source for term in (
         "checklist", "check list", "قائمة مراجعة", "قبل بدء أي إجراء",
