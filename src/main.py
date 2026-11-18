@@ -271,6 +271,20 @@ def _linkedin_native_fallback(*, topic: str, source_post: str) -> str:
         "والتقييم النهائي يظل مرتبطًا بالتفاصيل والمستندات والقواعد المنطبقة على الحالة، مش بعنوان الموضوع وحده."
     ).strip()
 
+def _has_topic_matched_original_legal_text(topic: str, source_text: str) -> bool:
+    """Accept substantive supplied legal text as a writing input when live research is down."""
+    text = re.sub(r"https?://\S+", " ", str(source_text or ""))
+    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>|<[^>]+>", " ", text)
+    text = " ".join(text.split())
+    if len(text) < 500:
+        return False
+    normalize = lambda value: re.sub(r"[إأآٱ]", "ا", str(value or "").casefold()).replace("ى", "ي").replace("ة", "ه")
+    stop = {"القانون", "قانون", "المصري", "المصرية", "مصر", "بشأن", "بخصوص", "موضوع", "حالة", "شرح", "قبل", "بعد", "كيف", "متى", "في", "من", "على", "عن"}
+    topic_terms = {word for word in re.findall(r"[\u0621-\u064a]{3,}", normalize(topic)) if word not in stop}
+    source_terms = {word for word in re.findall(r"[\u0621-\u064a]{3,}", normalize(text))}
+    return len(topic_terms & source_terms) >= 2
+
+
 def _research_and_persist_legal_sources(*, topic: str, sheet_sources: str, service, config: dict, sheet_name: str, row_number: int) -> str:
     """Keep successfully researched sources even if the non-authoritative Sheet write fails."""
     try:
@@ -398,10 +412,22 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     )
 
     if not has_verified_legal_source(legal_sources):
-        raise RuntimeError(
-            "LEGAL_SOURCE_GATE_BLOCKED: no live, whitelisted Egyptian legal source URL was verified; "
-            "the article will not proceed to publication without a source link."
-        )
+        # Research is an enrichment path, not a hard dependency for drafting.
+        # A substantive original legal text already stored in the row can be used
+        # as the sole factual basis; the citation validator still blocks every
+        # precise statute/article/case reference absent from that supplied text.
+        if _has_topic_matched_original_legal_text(topic, sheet_legal_sources):
+            legal_sources = (
+                "ORIGINAL LEGAL TEXT — supplied in the content queue; live web research unavailable. "
+                "Use only the following text as the factual basis. Do not add statute numbers, "
+                "article numbers, judgments, dates, penalties, deadlines, or exceptions not stated here.\n\n"
+                + sheet_legal_sources
+            )
+            print("LEGAL RESEARCH DEGRADED MODE: using topic-matched original legal text; precise unsupported citations remain blocked.")
+        else:
+            raise RuntimeError(
+                "LEGAL_SOURCE_GATE_BLOCKED: live research is unavailable and no substantive topic-matched original legal text exists."
+            )
 
     # Never reuse a prior row's image brief for a new legal post: it can produce a visually unrelated image.
     image_brief = ""
@@ -440,8 +466,9 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
     except Exception as exc:
         if "TOPIC_CONTENT_MISMATCH" in str(exc):
             raise
-        # Never carry a stale, potentially unrelated post into a newly scheduled topic.
-        post = _fallback_post(topic, legal_sources)
+        # If the queue already contains the original legal text, preserve it rather
+        # than replacing it with generic filler when the writing model is unavailable.
+        post = existing_post if existing_post and _has_topic_matched_original_legal_text(topic, sheet_legal_sources) else _fallback_post(topic, legal_sources)
         review_level = "ADVISORY"
         review_text = f"Content generation unavailable; fallback text used: {exc}"
         print(f"Content generation unavailable — continuing with fallback content: {exc}")
