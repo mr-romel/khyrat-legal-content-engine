@@ -1,3 +1,4 @@
+# Operational refresh: run a fresh 28-day Search Console snapshot when this workflow is triggered.
 from __future__ import annotations
 
 import json
