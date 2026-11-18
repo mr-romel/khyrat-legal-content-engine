@@ -1,1 +1,2 @@
-Run GA4/Lead CRM report. Always initialize the Lead CRM tab and report real inquiry counts even if Google Analytics Data API remains disabled; preserve unavailable GA4 metrics as null. Trigger: 2026-11-17T18:31:00+02:00
+Run a fresh read-only GA4 website performance snapshot and preserve the dated report.
+Trigger nonce: 1795034682597
