@@ -858,11 +858,13 @@ def main() -> int:
             return 1
     except BloggerPublishError as exc:
         error = str(exc)[:1500]
-        update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "Blogger Status": "FAILED",
-            "Blogger Last Error": error,
-        })
+        _mark_blogger_failed(service, config, sheet_name, row_number, error)
         print(f"Blogger publication failed (retryable): {error}")
+        return 1
+    except Exception as exc:
+        error = f"UNEXPECTED_BLOGGER_FAILURE: {exc}"[:1500]
+        _mark_blogger_failed(service, config, sheet_name, row_number, error)
+        print(f"Blogger publication failed unexpectedly (retryable): {error}")
         return 1
 
 if __name__ == "__main__":
