@@ -62,6 +62,40 @@ def test_local_scene_provider_creates_valid_public_utility_image_without_api_key
     assert result["qa_method"] == "local-renderer-provenance-and-integrity"
 
 
+
+def test_local_scene_renderer_supports_public_employment_and_disciplinary_transfer():
+    source = (ROOT / "src" / "image_generator.py").read_text(encoding="utf-8")
+    assert "الوظيفة العامة" in source
+    assert "التعيين" in source
+    assert "النقل كجزاء" in source
+    assert "نقل تأديبي" in source
+
+
+def test_public_employment_local_scene_passes_provenance_qa_without_external_api(tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from image_generator import create_legal_image
+    from image_qa import qa_image
+    from PIL import Image
+
+    output = tmp_path / "public-employment.jpg"
+    brief = "A public employee disciplinary investigation file, official service record and transfer decision on an office desk."
+    create_legal_image(
+        topic="الوظيفة العامة والتعيين",
+        image_brief=brief,
+        visual_description=brief,
+        post_context="الوظيفة العامة والتعيين وإجراءات شغل الوظيفة.",
+        output_path=str(output),
+        aspect_ratio="9:16",
+        provider="local_scene",
+    )
+    with Image.open(output) as image:
+        assert image.size == (576, 1024)
+    result = qa_image(api_key="", image_path=str(output), topic="الوظيفة العامة والتعيين", image_brief=brief)
+    assert result["decision"] == "PASS"
+    assert result["qa_method"] == "local-renderer-provenance-and-integrity"
+
+
 def test_recovery_queue_never_retries_topic_source_mismatch_as_an_image_failure():
     workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
     assert "retryable_legacy_mapping_failure" not in workflow
