@@ -28,17 +28,15 @@ def test_urlopen_retries_transient_tls_eof(monkeypatch):
     assert calls[0][1] == 5
 
 
-def test_edge_egyptian_tts_is_available_as_tertiary_fallback():
-    reel_source = Path("src/reel_pipeline.py").read_text(encoding="utf-8").casefold()
-    requirements = Path("requirements-reel.txt").read_text(encoding="utf-8").casefold()
-
-    assert "generate_edge_arabic_tts_audio" in reel_source
-    assert "ar-eg-shakirneural" in reel_source
-    assert "edge-tts" in requirements
-    assert "generate_reel_narration_with_fallbacks" in reel_source
-    assert "generate_google_cloud_arabic_tts_audio" in reel_source
-    assert "generate_google_cloud_short_arabic_tts_audio" in reel_source
-
+def test_edge_tts_is_absent_from_source_and_production_dependencies():
+    source = Path("src/reel_pipeline.py").read_text(encoding="utf-8").casefold()
+    for requirements_file in ("requirements-reel.txt", "requirements-worker.txt"):
+        requirements = Path(requirements_file).read_text(encoding="utf-8").casefold()
+        assert "edge-tts" not in requirements
+    assert "edge_tts" not in source
+    assert "generate_edge_arabic_tts_audio" not in source
+    assert "ar-eg-shakirneural" not in source
+    assert "generate_google_cloud_arabic_tts_audio" in source
 
 def test_narration_pause_cleanup_does_not_use_atempo():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
@@ -49,7 +47,7 @@ def test_narration_pause_cleanup_does_not_use_atempo():
 
 
 
-def test_reel_tts_uses_edge_egyptian_voice_when_gemini_and_google_fail(monkeypatch, tmp_path):
+def test_reel_tts_fails_closed_when_both_approved_neural_providers_fail(monkeypatch, tmp_path):
     calls = []
     def fail_gemini(*args, **kwargs):
         calls.append("gemini")
@@ -57,20 +55,18 @@ def test_reel_tts_uses_edge_egyptian_voice_when_gemini_and_google_fail(monkeypat
     def fail_google(*args, **kwargs):
         calls.append("google")
         raise RuntimeError("HTTP 403 Forbidden")
-    def pass_edge(*args, **kwargs):
-        calls.append("edge")
-        return tmp_path / "voice-edge-ar-eg.mp3"
-
     monkeypatch.setattr(reel_pipeline, "generate_gemini_tts_audio", fail_gemini)
     monkeypatch.setattr(reel_pipeline, "generate_google_cloud_arabic_tts_audio", fail_google)
-    monkeypatch.setattr(reel_pipeline, "generate_edge_arabic_tts_audio", pass_edge)
-
-    result = reel_pipeline.generate_reel_narration_with_fallbacks(
-        "key", {}, "نص مصري تجريبي", [], tmp_path / "voice.mp3"
-    )
-    assert result == tmp_path / "voice-edge-ar-eg.mp3"
-    assert calls == ["gemini", "google", "edge"]
-
+    try:
+        reel_pipeline.generate_reel_narration_with_fallbacks(
+            "key", {}, "نص مصري تجريبي", [], tmp_path / "voice.mp3"
+        )
+    except RuntimeError as exc:
+        assert "EXPRESSIVE_TTS_UNAVAILABLE" in str(exc)
+        assert "robotic/system voices are disabled" in str(exc)
+    else:
+        raise AssertionError("TTS must fail closed rather than substitute a robotic voice")
+    assert calls == ["gemini", "google"]
 
 def test_reel_narration_accepts_34_9_seconds_without_speed_change(monkeypatch, tmp_path):
     audio = tmp_path / "gemini-voice.wav"
