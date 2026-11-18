@@ -660,6 +660,8 @@ def create_legal_image(
 
     def _generate_with_pollinations() -> bytes:
         """Generate a topic-specific image through Pollinations using a server-side key."""
+        if is_image_provider_blocked("pollinations"):
+            raise ImageGenerationError("PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: Pollinations is blocked for the rest of the Cairo day.")
         pollinations_key = os.getenv("POLLINATIONS_API_KEY", "").strip()
         if not pollinations_key:
             raise ImageGenerationError("POLLINATIONS_API_KEY is missing; add it as a GitHub Actions secret.")
@@ -670,6 +672,10 @@ def create_legal_image(
         try:
             response = requests.get(url, params=params, headers={"Authorization": f"Bearer {pollinations_key}", "Accept": "image/*"}, timeout=(10, _image_provider_timeout_seconds()))
             if not response.ok:
+                error_text = str(response.text or "").casefold()
+                quota_markers = ("daily quota", "daily limit", "quota exceeded", "limit reached", "rate limit", "too many requests", "resource exhausted")
+                if response.status_code == 429 or any(marker in error_text for marker in quota_markers):
+                    block_image_provider_for_day("pollinations", f"HTTP {response.status_code}: {error_text[:900]}")
                 raise ImageGenerationError(f"Pollinations image request failed: HTTP {response.status_code} - {response.text[:1200]}")
             content_type = response.headers.get("content-type", "").lower()
             if not content_type.startswith("image/") or not response.content:
@@ -679,6 +685,8 @@ def create_legal_image(
             raise ImageGenerationError(f"Pollinations image request error: {exc}") from exc
 
     def _generate_with_gemini() -> bytes:
+        if is_image_provider_blocked("gemini"):
+            raise ImageGenerationError("PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: Gemini is blocked for the rest of the Cairo day.")
         if not gemini_key:
             raise ImageGenerationError("GEMINI_API_KEY is missing for image fallback.")
         try:
@@ -708,8 +716,9 @@ def create_legal_image(
                 except Exception as exc:
                     last_error = exc
                     error_text = str(exc).casefold()
-                    if any(marker in error_text for marker in ("429", "resource_exhausted", "quota exceeded", "limit: 0")):
-                        print("Gemini image quota is exhausted; skipping retries and switching to the next image provider.")
+                    if any(marker in error_text for marker in ("429", "resource_exhausted", "quota exceeded", "limit: 0", "daily limit", "rate limit")):
+                        block_image_provider_for_day("gemini", error_text[:1200])
+                        print("Gemini image quota is exhausted; circuit opened for the rest of the Cairo day and retries are skipped.")
                         break
                     if attempt < 5:
                         delay = min(5 * (2 ** (attempt - 1)), 40)
@@ -948,11 +957,15 @@ def create_legal_image(
     provider_preference = str(provider or "auto").strip().lower()
     if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay", "local_scene"}:
         raise ImageGenerationError(f"Unsupported image provider preference: {provider_preference}")
-    if provider_preference in {"cloudflare", "cloudflare_klein"} and is_image_provider_blocked("cloudflare"):
-        raise ImageGenerationError("PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: Cloudflare daily image quota was already exhausted; skipping all Cloudflare models until the next Cairo day.")
+    quota_provider = "cloudflare" if provider_preference == "cloudflare_klein" else provider_preference
+    if quota_provider in {"cloudflare", "gemini", "pollinations"} and is_image_provider_blocked(quota_provider):
+        raise ImageGenerationError(
+            f"PROVIDER_DAILY_QUOTA_CIRCUIT_OPEN: {quota_provider} is blocked for the rest of the Cairo day; skipping the request."
+        )
     if provider_preference == "auto" and is_image_provider_blocked("cloudflare"):
-        print("Cloudflare daily quota circuit is open; auto mode will bypass Cloudflare and start with Pollinations.")
-        provider_preference = "pollinations"
+        # The auto path must not retry Cloudflare or its shared FLUX/Klein quota.
+        provider_preference = "gemini" if not is_image_provider_blocked("gemini") else "openverse"
+        print(f"Cloudflare daily quota circuit is open; auto mode bypasses Cloudflare and starts with {provider_preference}.")
     cloudflare_model = (
         CLOUDFLARE_IMAGE_MODEL_KLEIN
         if provider_preference == "cloudflare_klein"
