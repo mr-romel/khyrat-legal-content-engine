@@ -1,37 +1,24 @@
 {
   "topic": "امتناع الإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
-  "provider": "PIXABAY_SCENE_STOCK",
-  "model": "pixabay-scene-search",
-  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑30s individual sits at a modest wooden desk in a quiet government office. The person is holding a neatly filled‑out application form that rests on top of a stamped envelope, the stamp’s red ink clearly visible on the flap. In front of them, a wall‑mounted analog clock shows the minute hand moving past several hours, emphasizing the passage of time. The desk is otherwise empty—no reply letters, no phone ringing—conveying the administrative silence. The camera is positioned at eye level, slightly angled to capture both the applicant’s thoughtful expression and the clock in the background. Soft natural light streams through a nearby window, casting gentle illumination on the paperwork while the office’s mute\nLEGAL TOPIC: امتناع الإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك قدمت طلب لجهة إدارية، واستوفيت كل الأوراق، وفجأة تلاقي صمت تام من الإدارة، لا رد بالموافقة ولا بالرفض، والوقت بيعدي ومصالحك واقفة، ده اللي بنس\nPOST-SPECIFIC VISUAL VARIATION: camera: three-quarter desk view, layered foreground and background, asymmetric layout. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 217517e1cf90",
-  "prompt_sha256": "7854bab66067a7839aae1104dc02c47c262b6b29a84553ffb30bc48f0c63e0b6",
-  "image_sha256": "743ba1cc19444867a31c75a0c98fa28ddd9a335da3ac3dc80dadf2bc476f25be",
+  "provider": "DIRECT_CLOUDFLARE",
+  "model": "@cf/black-forest-labs/flux-2-dev",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A close‑up, eye‑level view of a tidy home office desk bathed in soft natural light from a nearby window. Centered on the desk is a crisp, white printed form lying flat; a bold red ink stamp rests on the top corner, its circular shape clearly visible but without any legible words. Beside the form, a sleek black ballpoint pen hovers, as if the owner has just set it down after submitting the request. In the background, a wall‑mounted monthly calendar is partially visible, its pages turned to the current month with several dates marked by small, empty circles, indicating many days have passed without a response. The composition is clean, with the form and stamp as the focal point, conveying the waiting period after\nLEGAL TOPIC: امتناع الإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معامل\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 3f0ef6083640",
+  "prompt_sha256": "e4f0ffc10b0e51a3243311ac36fc90b734c06132d343a2d6269187ada032a755",
+  "image_sha256": "27636dd104925c9fb111c53528b8b4cd433c6d253caa0f40d68c0cbea30e74f4",
   "image_path": "generated/20261119-1800-R019.jpg",
-  "visual_description": "A mid‑30s individual sits at a modest wooden desk in a quiet government office. The person is holding a neatly filled‑out application form that rests on top of a stamped envelope, the stamp’s red ink clearly visible on the flap. In front of them, a wall‑mounted analog clock shows the minute hand moving past several hours, emphasizing the passage of time. The desk is otherwise empty—no reply letters, no phone ringing—conveying the administrative silence. The camera is positioned at eye level, slightly angled to capture both the applicant’s thoughtful expression and the clock in the background. Soft natural light streams through a nearby window, casting gentle illumination on the paperwork while the office’s muted tones keep the focus on the waiting applicant and the ticking clock.",
+  "visual_description": "A close‑up, eye‑level view of a tidy home office desk bathed in soft natural light from a nearby window. Centered on the desk is a crisp, white printed form lying flat; a bold red ink stamp rests on the top corner, its circular shape clearly visible but without any legible words. Beside the form, a sleek black ballpoint pen hovers, as if the owner has just set it down after submitting the request. In the background, a wall‑mounted monthly calendar is partially visible, its pages turned to the current month with several dates marked by small, empty circles, indicating many days have passed without a response. The composition is clean, with the form and stamp as the focal point, conveying the waiting period after an officially filed request.",
   "aspect_ratio": "4:5",
   "width": 1024,
   "height": 1280,
   "qa_decision": "PASS",
-  "source_metadata": {
-    "source": "Pixabay",
-    "title": "smart phone, documents, paperwork, office desk, workspace, work setup, desk setup, paperwork, paperwork, paperwork, paperwork, paperwork",
-    "source_page": "https://pixabay.com/photos/smart-phone-documents-paperwork-7091494/",
-    "source_url": "https://pixabay.com/get/g74e21e8e28d18f60f26c195fb742ad5229f7d37637308f34ae4db92d291d00bb74fdd2be4356be14c299fff9ba04d64df1e4ee12d2e29c12c87610073329517f_1280.jpg",
-    "license": "Pixabay Content License",
-    "artist": "LUNEMax",
-    "attribution_required": "false",
-    "search_query": "government office paperwork documents desk phone",
-    "image_id": "7091494"
-  },
+  "source_metadata": {},
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 2,
-  "qa_relevance_score": 2,
+  "qa_overall_score": 10,
+  "qa_relevance_score": 10,
   "qa_issues": [
-    "The image is a complete mismatch with the specific visual brief provided.",
-    "Prominent generated English text is present and does not align with the Arabic legal context.",
     "Composition advisory below 55.",
     "Relevance advisory below 72.",
-    "Overall advisory below 60.",
-    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    "Overall advisory below 60."
   ],
-  "qa_checked_image_sha256": "743ba1cc19444867a31c75a0c98fa28ddd9a335da3ac3dc80dadf2bc476f25be"
+  "qa_checked_image_sha256": "27636dd104925c9fb111c53528b8b4cd433c6d253caa0f40d68c0cbea30e74f4"
 }
