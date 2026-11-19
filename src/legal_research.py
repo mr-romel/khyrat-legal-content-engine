@@ -163,7 +163,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
             "اسم كاذب", "تداخل في وظيفة عمومية", "صفة رسمية من الحكومة",
             "اختلاس الألقاب والوظائف", "الاتصاف بها بدون حق",
         ])
-    if "امتناع" in normalized and "الاداره" in normalized:
+    if "امتناع" in normalized and "الادارة" in normalized:
         aliases.extend([
             "امتناع الإدارة", "رفض السلطات الإدارية", "القرارات الإدارية",
             "قرار إداري سلبي", "اتخاذ قرار", "مجلس الدولة", "قانون مجلس الدولة",
@@ -412,7 +412,7 @@ def research_legal_topic(topic, existing=""):
             ("https://aca.gov.eg/Media/News/2021/12/11/2021-637748484788261346-826.pdf", "هيئة الرقابة الإدارية: استغلال صفة الموظف العام"),
             ("https://manshurat.org/node/14677", "قانون العقوبات رقم 58 لسنة 1937 — الباب العاشر، المواد 155 إلى 157"),
         ])
-    if "امتناع" in normalized_for_seeds and "الاداره" in normalized_for_seeds:
+    if "امتناع" in normalized_for_seeds and "الادارة" in normalized_for_seeds:
         seed_urls.extend([
             (
                 "https://esc.gov.eg/service/%D8%A7%D9%84%D9%82%D8%B3%D9%85-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A6%D9%8A/",
