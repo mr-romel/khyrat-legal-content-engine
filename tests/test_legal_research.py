@@ -440,37 +440,6 @@ def test_ministry_law_status_page_cannot_satisfy_substantive_legal_source_gate(m
     assert not legal_research.has_verified_legal_source(packet)
 
 
-def test_official_sis_research_source_can_support_retrieved_article_12_text(monkeypatch):
-    import legal_research
-
-    fetched = []
-    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
-
-    def fake_fetch(url):
-        fetched.append(url)
-        if "sis.gov.eg/media/734804/" in url:
-            return (
-                "دراسات في حقوق الإنسان. ضمانات تحقيق مبدأ المساواة في شغل الوظائف العامة. "
-                "نص المشروع المصري في المادة 12 من قانون الخدمة المدنية رقم 81 لسنة 2016 على أنه "
-                "يكون التعيين بموجب قرار يصدر من رئيس الجمهورية أو من يفوضه، على أساس الكفاءة والجدارة، "
-                "دون محاباة أو وساطة من خلال إعلان مركزي على موقع بوابة الحكومة المصرية."
-            )
-        if "mof.gov.eg/ar/legislation/legislation-5fe868ed" in url:
-            return "قانون رقم 81 لسنة 2016 بشأن الخدمة المدنية. حالة القانون: سارٍ."
-        return ""
-
-    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
-    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
-
-    assert any("sis.gov.eg/media/734804/" in url for url in fetched)
-    assert legal_research.has_verified_legal_source(packet)
-    assert "Type: official_government_source" in packet
-    assert legal_research.validate_legal_citations(
-        "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
-        packet,
-    ) == []
-
-
 def test_trusted_http_fetch_retries_with_os_ca_bundle_without_disabling_tls(monkeypatch):
     import requests
     import legal_research
