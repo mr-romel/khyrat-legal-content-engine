@@ -33,6 +33,7 @@ jobs:
       GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE || 'Content!A:BZ' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.6-flash' }}
@@ -190,10 +191,15 @@ jobs:
         run: |
           python - <<'PY'
           import os, sys
-          available = bool(os.getenv("POLLINATIONS_API_KEY", "").strip())
-          print(f"POLLINATIONS_API_KEY_AVAILABLE={str(available).lower()}")
-          if not available:
-              raise SystemExit("POLLINATIONS_SECRET_NOT_EXPOSED_TO_REGENERATION_JOB")
+          required = {
+              "POLLINATIONS_API_KEY": os.getenv("POLLINATIONS_API_KEY", "").strip(),
+              "PIXABAY_API_KEY": os.getenv("PIXABAY_API_KEY", "").strip(),
+          }
+          for name, value in required.items():
+              print(f"{name}_AVAILABLE={str(bool(value)).lower()}")
+          missing = [name for name, value in required.items() if not value]
+          if missing:
+              raise SystemExit("IMAGE_PROVIDER_SECRETS_NOT_EXPOSED_TO_REGENERATION_JOB: " + ", ".join(missing))
           PY
       - name: Generate and send replacement for review
         if: steps.target.outputs.found == 'true'
