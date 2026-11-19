@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: assertive
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "^main$"
+  path_filters:
+    - "!generated/**"
+    - "!backups/**"
+    - "!video_backups/**"
+    - "!reports/**"
+    - "!**/node_modules/**"
+    - "!**/__pycache__/**"
+    - "!**/*.pyc"
+    - "!**/*.lock"
+  path_instructions:
+    - path: "src/legal_research.py"
+      instructions: |
+        Treat this as a high-stakes Egyptian-law source-verification module.
+        Never accept a citation, article number, case number, session date, legal status, or quoted statutory text unless the exact claim is supported by retrieved primary/official source text. Any exceptional pre-reviewed offline source must be separately approved, provenance-labeled as curated (never as retrieved in the current run), and must not bypass the publication gate.
+        Flag stale, secondary-only, unrelated, fabricated, or merely allowlisted URLs. Do not recommend weakening legal citation gates to make publication pass.
+        Check Arabic normalization, topic relevance, source provenance, effective dates, and fail-closed behavior.
+    - path: "src/reel_pipeline.py"
+      instructions: |
+        Review source-row identity, duplicate prevention, idempotency, retry bounds, quota circuit breakers, topic-to-scene alignment, image provenance, visual QA, audio generation, Remotion rendering, SHA-256 identity, Telegram callback safety, and state transitions.
+        Never allow reuse of an old video under a new title, generic/off-topic image fallback, or publication after failed QA.
+        Do not introduce Edge TTS, robotic system voices, or Python/Pillow video compositing. Remotion is the required compositor; approved neural narration providers only.
+    - path: "src/image_generator.py"
+      instructions: |
+        Verify provider-specific authentication, secret injection assumptions, timeouts, rate limits, retries, quota exhaustion handling, image dimensions, MIME validation, provenance, licensing, and semantic relevance. Never log secret values.
+    - path: ".github/workflows/**"
+      instructions: |
+        Audit least-privilege GITHUB_TOKEN permissions, explicit secret-to-job environment mapping, trigger scope, concurrency groups, timeouts, dependency pinning, artifact retention, stale-output hazards, and whether success can be reported when work was skipped or no artifact was produced.
+        Never print secret values. Presence checks must report booleans only. Flag workflows that can publish or mutate production data without explicit intended triggers and safeguards.
+    - path: "tests/**"
+      instructions: |
+        Verify that tests assert intended behavior rather than implementation trivia. Flag contradictory assertions, stale fixtures, tests that can pass without exercising the behavior, missing negative cases, and tests that weaken safety or legal verification gates.
+    - path: "remotion/**"
+      instructions: |
+        Review actual rendered composition, timing, audio synchronization, transitions, subtitle readability, brand consistency, responsive framing, and deterministic render inputs. Do not accept a passing TypeScript check as proof of visual quality.
+chat:
+  auto_reply: false
