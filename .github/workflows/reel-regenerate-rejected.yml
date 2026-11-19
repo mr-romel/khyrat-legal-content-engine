@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      recovery_source_id:
+        description: "Optional immutable Sheet row ID for one explicitly requested recovery"
+        required: false
+        type: string
+      recovery_attempt_id:
+        description: "Unique attempt token for this one-time recovery"
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -44,11 +53,10 @@ jobs:
       REEL_RECOVERY: "true"
       REEL_FORCE_REGENERATE: "true"
       REEL_FORCE_TELEGRAM_REVIEW: "true"
-      # One-time recovery pin to the immutable ID of the user's requested row.
-      # Remove after this source reaches REVIEW or exhausts the bounded retry budget.
-      REEL_RECOVERY_SOURCE_ID: "20261117-2200-R017"
-      # A new token re-arms exactly one attempt after the audio-path code fix.
-      REEL_RECOVERY_ATTEMPT_ID: "row15-public-appointment-textfree-20261119-01"
+      # Explicit pins are supplied only for manual workflow_dispatch runs.
+      # Scheduled and push-triggered runs must never inherit a stale one-time pin.
+      REEL_RECOVERY_SOURCE_ID: ${{ inputs.recovery_source_id || '' }}
+      REEL_RECOVERY_ATTEMPT_ID: ${{ inputs.recovery_attempt_id || '' }}
       REEL_FORBIDDEN_VIDEO_SHA256: "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd"
       REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
