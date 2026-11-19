@@ -592,6 +592,31 @@ def _write_reel_source_context(*, service, config, sheet_name: str, row_number: 
         print(f"Reel source context unavailable; downstream Reel will not guess another row: {exc}")
 
 
+def _new_social_post_ids(before_row: dict, after_row: dict) -> set[str]:
+    """Return only platform post IDs created by this processing attempt."""
+    before = {
+        str(before_row.get("Facebook Post ID", "") or "").strip(),
+        str(before_row.get("LinkedIn Post ID", "") or "").strip(),
+    } - {""}
+    after = {
+        str(after_row.get("Facebook Post ID", "") or "").strip(),
+        str(after_row.get("LinkedIn Post ID", "") or "").strip(),
+    } - {""}
+    return after - before
+
+
+def _catch_up_row_failure(before_row: dict, after_row: dict) -> str:
+    """Detect failures swallowed by process_row's notification-and-return handler."""
+    status = str(after_row.get("الحالة", "") or "").strip().upper()
+    new_ids = _new_social_post_ids(before_row, after_row)
+    last_error = str(after_row.get("آخر خطأ", "") or "").strip()
+    if status in {"FAILED", "PARTIAL_FAILED"}:
+        return last_error or f"Row finished in {status} without a clean publication."
+    if not new_ids:
+        return last_error or "process_row returned without a newly confirmed Facebook/LinkedIn post ID."
+    return ""
+
+
 def _smart_main() -> None:
     print("=" * 70)
     print("KHYRAT LEGAL CONTENT ENGINE - V2 SMART SOCIAL PIPELINE")
@@ -849,6 +874,7 @@ def _smart_main() -> None:
         selected_rows = [selected or candidates[0]]
 
     last_successful_row = None
+    successful_social_rows = []
     failures = []
     for row_number, row in selected_rows:
         print(
@@ -870,12 +896,22 @@ def _smart_main() -> None:
             refreshed_rows = [row_to_dict(values) for values in refreshed[1:]]
             if 2 <= row_number <= len(refreshed_rows) + 1:
                 refreshed_row = refreshed_rows[row_number - 2]
-                if (
-                    (str(refreshed_row.get("Facebook Post ID", "")).strip()
-                    or str(refreshed_row.get("LinkedIn Post ID", "")).strip())
-                    and not production_main._is_bad_published_image(refreshed_row)
-                ):
+                new_post_ids = _new_social_post_ids(row, refreshed_row)
+                if new_post_ids and not production_main._is_bad_published_image(refreshed_row):
                     last_successful_row = row_number
+                    successful_social_rows.append(row_number)
+                failure_reason = _catch_up_row_failure(row, refreshed_row)
+                if failure_reason:
+                    failures.append((row_number, failure_reason))
+                    print(
+                        f"CATCH_UP_ROW_FAILED: row={row_number}; "
+                        f"status={str(refreshed_row.get('الحالة', '')).strip().upper()}; "
+                        f"new_post_ids={len(new_post_ids)}; reason={failure_reason}"
+                    )
+            else:
+                failure_reason = f"Processed row {row_number} was not present in the refreshed sheet response."
+                failures.append((row_number, failure_reason))
+                print(f"CATCH_UP_ROW_FAILED: row={row_number}; reason={failure_reason}")
         except Exception as row_exc:
             failures.append((row_number, str(row_exc)))
             print(f"CATCH_UP_ROW_FAILED: row={row_number}; continuing with remaining due rows: {row_exc}")
@@ -887,14 +923,23 @@ def _smart_main() -> None:
             sheet_name=sheet_name,
             row_number=last_successful_row,
         )
-    if failures:
-        print(
-            f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} "
-            f"row_failures={len(failures)} successful_social_sources="
-            f"{1 if last_successful_row is not None else 0}."
-        )
-    else:
-        print(f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} row_failures=0.")
+    summary_line = (
+        f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} "
+        f"row_failures={len(failures)} successful_social_sources={len(successful_social_rows)}."
+    )
+    print(summary_line)
+    github_summary = os.getenv("GITHUB_STEP_SUMMARY", "").strip()
+    if github_summary:
+        try:
+            with Path(github_summary).open("a", encoding="utf-8") as summary_file:
+                summary_file.write("## Khyrat publishing engine result\n\n")
+                summary_file.write(f"- Attempted rows: {len(selected_rows)}\n")
+                summary_file.write(f"- Row failures: {len(failures)}\n")
+                summary_file.write(f"- Newly confirmed social sources: {len(successful_social_rows)}\n")
+                for row_number, detail in failures:
+                    summary_file.write(f"- Row {row_number} failed: {detail[:500]}\n")
+        except OSError as summary_exc:
+            print(f"GitHub step summary write failed (non-blocking): {summary_exc}")
 
 
 production_main._prepare_editorial_assets = _capture_editorial_assets
