@@ -1,0 +1,25 @@
+{
+  "topic": "امتناع الإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار",
+  "provider": "PIXABAY_SCENE_STOCK",
+  "model": "pixabay-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A mid‑shot of a neutral‑looking adult seated at a modern office desk, hands resting on an open folder that contains a single request form. In front of the folder lies an open thick law‑book, its pages fanned to suggest a statutory duty to act. Beside the book is a clipboard with a short checklist: a few boxes are checked, a couple remain empty, indicating missing documents. On the wall behind the desk hangs a simple wall clock with its hands past the hour, and a small calendar with several torn‑off daily pages stacked in a corner, visually conveying that a reasonable amount of time has elapsed. Soft natural daylight streams through a nearby window, casting gentle light across the desk and highlighting the folde\nLEGAL TOPIC: امتناع الإدارة — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير أي رد، لا بالموافقة ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيعتبر بمثابة قرا\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 8bb82b50ad17",
+  "prompt_sha256": "84e28e058dcaf84a9da4c68bf4a21debac705f601d6b38fc77206370a25dfd2a",
+  "image_sha256": "26ff4251a8cf916bdece34cafe60f056e55cdb309f3a06ee3ca501124a132806",
+  "image_path": "generated/20261119-1800-R019.jpg",
+  "visual_description": "A mid‑shot of a neutral‑looking adult seated at a modern office desk, hands resting on an open folder that contains a single request form. In front of the folder lies an open thick law‑book, its pages fanned to suggest a statutory duty to act. Beside the book is a clipboard with a short checklist: a few boxes are checked, a couple remain empty, indicating missing documents. On the wall behind the desk hangs a simple wall clock with its hands past the hour, and a small calendar with several torn‑off daily pages stacked in a corner, visually conveying that a reasonable amount of time has elapsed. Soft natural daylight streams through a nearby window, casting gentle light across the desk and highlighting the folder, book, and checklist. The composition is clean, with the desk surface filling the foreground and the clock and calendar providing contextual cues about duty, completeness, and elapsed time.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "Complete mismatch between visual brief and generated output.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "26ff4251a8cf916bdece34cafe60f056e55cdb309f3a06ee3ca501124a132806"
+}
