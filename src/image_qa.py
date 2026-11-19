@@ -218,6 +218,9 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
         "completely unrelated", "no connection to the topic", "no reasonable connection",
         "no identifiable connection", "unrelated to the topic", "irrelevant to the topic",
         "entirely unrelated", "does not relate to the topic",
+        "image content mismatch", "missing primary subject", "missing primary action",
+        "no visible primary subject", "no identifiable subject", "empty workspace",
+        "did not include any of the specified subjects",
     ))
     defect_terms = (
         "visibly fused limb", "impossible hand", "severe distortion",
