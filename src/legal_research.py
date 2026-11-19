@@ -222,14 +222,14 @@ def _source_evidence(text: str, topic: str) -> str:
     # Topic excerpts are intentionally short, but citation validation must also see
     # article/law references elsewhere in that same retrieved document.
     law_refs = []
-    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,80}?(?:رقم\\s*)?([٠-٩0-9]+)\\s+لسنة\\s+([٠-٩0-9]+)"
+    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,80}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
     for match in re.finditer(law_pattern, value, re.I):
         reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
         if reference not in law_refs:
             law_refs.append(reference)
 
     article_refs = []
-    article_pattern = r"(?:المادة|مادة)\\s*[（(]?\\s*([٠-٩0-9]+)\\s*[）)]?"
+    article_pattern = r"(?:المادة|مادة)\s*[（(]?\s*([٠-٩0-9]+)\s*[）)]?"
     for match in re.finditer(article_pattern, value, re.I):
         reference = f"المادة {match.group(1)}"
         if reference not in article_refs:
