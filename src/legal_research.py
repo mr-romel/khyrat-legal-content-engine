@@ -519,7 +519,14 @@ def research_legal_topic(topic, existing=""):
             source_type = "official_government_source"
             quote = ""
         elif _host_matches(domain, OFFICIAL_LAWS):
-            source_type = "current_legislation_source"
+            # A government index page that only reports a law's current status
+            # is not the law text and cannot verify its substantive provisions.
+            status_only_mof_page = (
+                _host_matches(domain, ("mof.gov.eg",))
+                and "حالة القانون" in body
+                and not re.search(r"(?:المادة|مادة)\\s*[（(]?\\s*[٠-٩0-9]+", body)
+            )
+            source_type = "legislation_status_source" if status_only_mof_page else "current_legislation_source"
             quote = ""
         elif _host_matches(domain, OFFICIAL_GOVERNMENT):
             source_type = "official_government_source"
