@@ -1,5 +1,8 @@
 name: Facebook Tag Diagnostic
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 
