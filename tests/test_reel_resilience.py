@@ -219,8 +219,8 @@ def test_reel_scene_generation_uses_five_distinct_images_and_quota_safe_fallback
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
     assert '4: "openverse"' in source
-    assert '5: "wikimedia"' in source
-    assert '5: "pixabay"' not in source
+    assert '5: "pixabay"' in source
+    assert '5: "wikimedia"' not in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert "LOCAL_SCENE_ILLUSTRATION" not in image_generator
@@ -254,9 +254,8 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
     assert '4: "openverse"' in source
-    assert '5: "wikimedia"' in source
+    assert '5: "pixabay"' in source
     assert '5: "wikimedia"' not in source
-    assert '5: "pixabay"' not in source
 
 
 def test_wikimedia_fallback_is_license_checked_and_attributed():
@@ -330,3 +329,10 @@ def test_reel_pipeline_uses_actual_provider_returned_audio_paths():
     assert "fit_reel_narration_duration(tts_audio" in source
     assert "slogan_audio = generate_short_signoff_with_fallbacks(" in source
     assert "slogan_audio=slogan_audio" in source
+
+
+def test_pinned_reel_recovery_does_not_report_success_when_source_is_ineligible():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE" in workflow
+    assert "if recovery_source_id:" in workflow
+    assert "raise SystemExit(" in workflow
