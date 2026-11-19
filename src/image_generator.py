@@ -318,6 +318,62 @@ def _image_provider_timeout_seconds() -> int:
         return 60
 
 
+def _pixabay_scene_queries(topic: str, visual_description: str) -> list[str]:
+    """Build concise, subject-led stock-search queries rather than camera-direction queries."""
+    stopwords = {
+        "a", "an", "the", "of", "with", "and", "or", "beside", "showing", "modern",
+        "realistic", "documentary", "photograph", "photo", "view", "close", "wide",
+        "clean", "mid", "shot", "neutral", "looking", "adult", "seated", "hands",
+        "resting", "open", "single", "contains", "front", "lies", "thick", "pages",
+        "fanned", "suggest", "statutory", "duty", "act", "short", "few", "boxes",
+        "checked", "couple", "remain", "empty", "indicating", "missing", "wall",
+        "behind", "hangs", "simple", "past", "hour", "small", "several", "daily",
+        "stacked", "corner", "visually", "conveying", "reasonable", "amount", "time",
+        "elapsed", "soft", "natural", "daylight", "streams", "nearby", "window",
+        "casting", "gentle", "light", "across", "highlighting", "composition",
+        "surface", "filling", "foreground", "providing", "contextual", "cues",
+        "completeness", "request", "form", "paper", "pages", "focal", "object",
+    }
+    noun_terms = {
+        "office", "desk", "folder", "paperwork", "document", "documents", "book",
+        "law", "clipboard", "checklist", "calendar", "file", "contract", "employee",
+        "workplace", "courtroom", "court", "water", "treatment", "plant", "tanks",
+        "pipes", "facility", "equipment", "phone", "computer", "hiring", "interview",
+        "government", "business", "factory", "vehicle", "hospital", "school",
+    }
+    raw_tokens = []
+    for token in re.findall(r"[A-Za-z][A-Za-z-]+", str(visual_description or "")):
+        raw_tokens.extend(token.casefold().replace("-", " ").split())
+    scene_nouns = []
+    for token in raw_tokens:
+        if token not in stopwords and token in noun_terms and token not in scene_nouns:
+            scene_nouns.append(token)
+
+    topic_text = str(topic or "").casefold()
+    if any(term in topic_text for term in ("امتناع", "الإدارة", "القرار الإداري", "قرار إداري")):
+        topic_terms = ["government", "office", "paperwork", "documents"]
+        fallback = "office paperwork documents folder"
+    elif any(term in topic_text for term in ("تعيين", "الوظيفة", "وظيفة")):
+        topic_terms = ["office", "hiring", "employment", "documents"]
+        fallback = "office hiring employment documents"
+    elif any(term in topic_text for term in ("عقد", "اتفاق")):
+        topic_terms = ["business", "contract", "signing", "documents"]
+        fallback = "business contract documents signing"
+    elif any(term in topic_text for term in ("مرفق", "محطة", "مياه")):
+        topic_terms = ["public", "utility", "infrastructure", "facility"]
+        fallback = "water treatment plant facility"
+    else:
+        topic_terms = []
+        fallback = "office paperwork documents"
+
+    ordered = []
+    for token in topic_terms + scene_nouns:
+        if token not in ordered:
+            ordered.append(token)
+    primary = " ".join(ordered[:6]).strip() or fallback
+    return list(dict.fromkeys([primary, fallback]))
+
+
 def create_legal_image(
     *,
     topic: str,
@@ -624,22 +680,18 @@ def create_legal_image(
             raise ImageGenerationError(f"Wikimedia Commons request error: {exc}") from exc
 
     def _generate_with_pixabay() -> bytes:
-        """Fetch a safe, vertical legal stock photo as the final external fallback."""
+        """Fetch a scene-matched vertical stock photo; never accept unrelated catalog hits."""
+        nonlocal source_metadata
         pixabay_key = os.getenv("PIXABAY_API_KEY", "").strip()
         if not pixabay_key:
             raise ImageGenerationError("PIXABAY_API_KEY is missing; add it as a GitHub Actions secret.")
-        # Search using the scene's concrete English nouns, not a broad Arabic title.
-        # This makes stock fallback useful for specific infrastructure, contracts,
-        # workplace evidence, and other non-courthouse legal scenes.
-        stopwords = {"a", "an", "the", "of", "with", "and", "or", "beside", "showing", "modern", "realistic", "documentary", "photograph", "photo", "view", "close", "wide", "clean"}
-        scene_tokens = [
-            token.lower() for token in re.findall(r"[A-Za-z][A-Za-z-]+", str(visual_description or ""))
-            if token.lower() not in stopwords
-        ]
-        query = " ".join(scene_tokens[:9]).strip()
-        if len(query) < 8:
-            query = " ".join(str(topic or "").split()[:6]).strip() or "public utility infrastructure"
-        try:
+
+        from free_media import _meaningful_scene_tokens, _scene_metadata_matches_query
+
+        queries = _pixabay_scene_queries(topic, visual_description)
+        selected_hit = None
+        selected_query = ""
+        for query in queries:
             response = requests.get(
                 "https://pixabay.com/api/",
                 params={
@@ -648,53 +700,70 @@ def create_legal_image(
                     "image_type": "photo",
                     "orientation": "vertical",
                     "safesearch": "true",
-                    "per_page": 10,
+                    "per_page": 20,
                     "order": "popular",
                 },
                 headers={"Accept": "application/json"},
                 timeout=(10, 30),
             )
             if not response.ok:
-                raise ImageGenerationError(f"Pixabay search failed: HTTP {response.status_code} - {response.text[:500]}")
+                raise ImageGenerationError(
+                    f"Pixabay search failed: HTTP {response.status_code} - {response.text[:500]}"
+                )
             payload = response.json()
             hits = payload.get("hits", []) if isinstance(payload, dict) else []
-            if not hits:
-                # A broad legal query is safer than returning an unrelated topic image.
-                response = requests.get(
-                    "https://pixabay.com/api/",
-                    params={
-                        "key": pixabay_key,
-                        "q": "law legal documents courthouse",
-                        "image_type": "photo",
-                        "orientation": "vertical",
-                        "safesearch": "true",
-                        "per_page": 10,
-                        "order": "popular",
-                    },
-                    headers={"Accept": "application/json"},
-                    timeout=(10, 30),
-                )
-                if not response.ok:
-                    raise ImageGenerationError(f"Pixabay legal fallback search failed: HTTP {response.status_code}")
-                payload = response.json()
-                hits = payload.get("hits", []) if isinstance(payload, dict) else []
-            if not hits:
-                raise ImageGenerationError("Pixabay returned no suitable legal stock images.")
-            # Pixabay's largeImageURL is suitable for editorial use and avoids tiny previews.
-            image_url = next((hit.get("largeImageURL") or hit.get("webformatURL") for hit in hits
-                              if hit.get("largeImageURL") or hit.get("webformatURL")), None)
-            if not image_url:
-                raise ImageGenerationError("Pixabay results contained no downloadable image URL.")
-            image_response = requests.get(image_url, headers={"Accept": "image/*"}, timeout=(10, 45))
-            if not image_response.ok or not image_response.content:
-                raise ImageGenerationError(f"Pixabay image download failed: HTTP {image_response.status_code}")
-            content_type = image_response.headers.get("content-type", "").lower()
-            if not content_type.startswith("image/"):
-                raise ImageGenerationError(f"Pixabay returned non-image content: {content_type or 'missing'}")
-            print("Pixabay legal stock image selected as the final external fallback.")
-            return image_response.content
-        except requests.RequestException as exc:
-            raise ImageGenerationError(f"Pixabay request error: {exc}") from exc
+            relevant = []
+            requested_tokens = _meaningful_scene_tokens(query)
+            for hit in hits:
+                tags = str(hit.get("tags", "") or "")
+                if not (hit.get("largeImageURL") or hit.get("webformatURL")):
+                    continue
+                if not _scene_metadata_matches_query(query, tags):
+                    print(f"Pixabay candidate rejected before download: tag mismatch ({tags[:140]}).")
+                    continue
+                observed_tokens = _meaningful_scene_tokens(tags)
+                score = len(requested_tokens & observed_tokens)
+                relevant.append((score, hit))
+            if relevant:
+                relevant.sort(key=lambda item: item[0], reverse=True)
+                selected_hit = relevant[0][1]
+                selected_query = query
+                break
+
+        if not selected_hit:
+            raise ImageGenerationError(
+                "Pixabay returned no metadata-matched scene image for the post-derived subject; "
+                "refusing generic legal/courthouse fallback."
+            )
+
+        image_url = selected_hit.get("largeImageURL") or selected_hit.get("webformatURL")
+        image_response = requests.get(
+            image_url,
+            headers={"Accept": "image/*"},
+            timeout=(10, 45),
+        )
+        if not image_response.ok or not image_response.content:
+            raise ImageGenerationError(f"Pixabay image download failed: HTTP {image_response.status_code}")
+        content_type = image_response.headers.get("content-type", "").lower()
+        if not content_type.startswith("image/"):
+            raise ImageGenerationError(f"Pixabay returned non-image content: {content_type or 'missing'}")
+
+        source_metadata = {
+            "source": "Pixabay",
+            "title": str(selected_hit.get("tags", "") or ""),
+            "source_page": str(selected_hit.get("pageURL", "") or ""),
+            "source_url": str(image_url),
+            "license": "Pixabay Content License",
+            "artist": str(selected_hit.get("user", "") or ""),
+            "attribution_required": "false",
+            "search_query": selected_query,
+            "image_id": str(selected_hit.get("id", "") or ""),
+        }
+        print(
+            "Pixabay scene image selected after metadata relevance check: "
+            f"image_id={source_metadata['image_id']} query={selected_query!r} tags={source_metadata['title'][:160]!r}"
+        )
+        return image_response.content
 
     provider_preference = str(provider or "auto").strip().lower()
     if provider_preference not in {"auto", "cloudflare", "cloudflare_klein", "gemini", "pollinations", "openverse", "wikimedia", "pixabay"}:
