@@ -873,18 +873,19 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
             "A smartphone beside a sealed evidence envelope and plain case folder, no visible screen text or people.",
             "A calm home-office tabletop with a secured phone and closed complaint papers, no violence, no people, no readable writing.",
         ]
-    # Public-service appointment is a distinct legal scenario: show an actual vacancy notice,
-    # application submission, and selection procedure—not generic HR desks or payroll props.
+    # Public-service appointment is a distinct legal scenario. Avoid posters,
+    # forms, paperwork, signage, or screens because image models hallucinate text.
+    # Show the actual recruitment process through people, spaces, and actions.
     if family == "employment" and any(word in (topic_text + " " + post_text) for word in ("التعيين", "وظيفة عامة", "الوظيفة العامة", "مسابقة التعيين", "شغل وظيفة")):
         scenes = [
-            "Photorealistic documentary close-up of a large official public-sector job vacancy announcement pinned prominently to a government office notice board; the notice is the unmistakable central subject, with blank unreadable lines, a red circular approval stamp, and a simple office chair visible nearby; no legible text, no logos.",
-            "A job applicant's hand placing a completed but unreadable application form into a clearly visible government recruitment submission tray; a public vacancy announcement board is prominent in the background; contemporary government service office, no readable writing.",
-            "A government recruitment committee reviewing a stack of anonymized job applications across a meeting table; one prominent public vacancy announcement sheet and a red stamp are visible; faces secondary, no readable text.",
-            "A close-up of an official public employment vacancy notice beside an application folder, red stamp and capped pen on a government office counter; the vacancy notice dominates the frame, all writing blurred.",
-            "A modern public-sector recruitment office with a clearly visible vacancy announcement board in the foreground, an empty applicant chair and an application desk behind it; documentary realism, no readable text or logos.",
-            "A close-up of an applicant's hand holding an application folder directly in front of a large public job vacancy notice board; the notice is the main focal point, all writing blurred.",
-            "A government office waiting area with a prominent public employment vacancy poster, a single empty applicant chair and a numbered-paper ticket dispenser with no legible numbers.",
-            "A public recruitment desk with an official vacancy announcement sheet displayed upright beside a red approval stamp and a neatly arranged application folder; no readable text.",
+            "Photorealistic documentary photograph of a contemporary Egyptian government employment office entrance, adult applicants arriving for recruitment, clean public architecture, no signs, no logos, no posters, no writing.",
+            "A modern government recruitment waiting area with several adult applicants seated at a respectful distance, one reception counter in the background, no paperwork, no signage, no readable text.",
+            "A public-sector recruitment interview in a modern office: three anonymous HR committee members seated across from one adult applicant, natural body language, documentary photography, no papers or screens.",
+            "An adult job applicant completing a skills assessment at a desktop computer in a quiet government testing room, monitor showing only abstract blurred shapes, no interface text, no documents.",
+            "A recruitment committee discussing candidates around a clean meeting table, adult officials in a contemporary government office, no papers, no nameplates, no screens, no readable text.",
+            "A candidate entering a formal interview room while an HR panel waits at the far end of the table, balanced wide composition, modern public office, no signage or documents.",
+            "A corridor outside a government recruitment interview room with adult applicants waiting calmly, a staff member guiding the next applicant, no posters, no signs, no writing.",
+            "A wide editorial photograph of a modern public administration building lobby with a small group of adult applicants approaching the reception desk, no visible logos, signs, notices, or text.",
         ]
     # For employment leave/rest topics, use concrete leave and attendance evidence rather than generic workplace portraits.
     elif family == "employment" and any(word in (topic_text + " " + post_text) for word in ("إجاز", "راحة", "عطلة", "راحة أسبوعية")):
