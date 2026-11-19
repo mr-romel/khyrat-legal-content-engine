@@ -680,7 +680,14 @@ _VISUAL_SCENES = {
         "A close view of an empty public-service counter and a citizen waiting nearby, visual metaphor for administrative inaction, clean modern public office, no paperwork, no signage, no readable text.",
     ],
     "identity_impersonation": [
-        "A contemporary identity verification scene: a neutral unbranded identity card with all lettering blurred, a fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The visual must communicate impersonation and identity verification, not generic employment or courtroom imagery. No readable text, no police uniform, no handcuffs, no logos."
+        "A contemporary identity verification scene in a neutral service office: an adult clerk compares a person's face with a completely blank, unmarked identity card, both faces shown naturally, no readable text, no logos, no courtroom objects.",
+        "A close documentary photograph of two anonymous adults checking that an identity belongs to the person presenting it, neutral modern office, no papers, no visible writing, no legal symbols.",
+        "A secure identity-verification desk with a blank unmarked card, a fingerprint scanner, and a person's hand placing a finger on the scanner, no letters, numbers, logos, or readable text.",
+        "A modern reception employee carefully comparing a visitor's face with a blurred identity photo on a plain unmarked card, screen turned away, no readable text, no gavel or courtroom imagery.",
+        "A neutral close-up of a fingerprint scanner beside a plain identity card with no visible writing, a person's fingertip in focus, contemporary documentary photography.",
+        "An adult discovering that a second unmarked identity card carries a different portrait, both cards blank except for indistinct portrait shapes, no names, numbers, letters, or logos.",
+        "A modern identity-check interaction at a public-service reception counter, staff member verifying a visitor's identity discreetly, no paperwork, signage, screens, or readable text.",
+        "A forensic-style but realistic close-up of two anonymous portrait areas on separate blank identity cards with a fingerprint scanner nearby, no magnifying glass, no gavel, no courtroom, no readable text."
     ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
