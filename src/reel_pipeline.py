@@ -669,7 +669,14 @@ def _visual_topic_content_aligned(topic: str, post: str) -> bool:
 
 _VISUAL_SCENES = {
     "identity_impersonation": [
-        "A contemporary identity verification scene: a neutral unbranded identity card with all lettering blurred, a fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The visual must communicate impersonation and identity verification, not generic employment or courtroom imagery. No readable text, no police uniform, no handcuffs, no logos."
+        "A contemporary identity verification scene: a neutral unbranded identity card with all lettering blurred, a fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. No readable text, no police uniform, no handcuffs, no logos.",
+        "A close-up documentary photograph of two visually distinct identity cards on a verification desk, both fully fictional and unbranded, with a magnifying glass comparing the portrait areas; all names and numbers completely blurred.",
+        "A person at a modern service counter presenting an identity card while a staff member carefully checks the portrait against the person, faces shown naturally, no readable text, logos, uniforms, or official insignia.",
+        "A forensic-style close-up of a fingerprint being compared with a fingerprint record beside a fictional identity card, clean evidence photography, no readable writing or real personal data.",
+        "A modern laptop displaying an abstract account-security alert with all interface text blurred, beside a fictional identity card and a phone, illustrating misuse of another person's identity online.",
+        "A person reviewing an unfamiliar account profile on a smartphone while holding a fictional identity card for comparison, screen fully unreadable, contemporary realistic setting.",
+        "A secure desk scene with a sealed digital evidence envelope, a fictional identity card, and a smartphone showing a blurred login notification, focused on tracing an impersonating account.",
+        "A neutral identity-verification workstation with document scanner, camera, fictional ID card and fingerprint reader arranged clearly, contemporary documentary realism, no logos or legible text."
     ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
@@ -1357,7 +1364,15 @@ def main() -> int:
         # Exactly five distinct scene images per Reel. Keep the asset budget explicit
         # so one run cannot silently expand into six or more paid/quota-consuming requests.
         reel_scene_count = 5
-        scene_prompts = brief["video_terms"][:reel_scene_count]
+        # The LLM's video_terms can be incomplete (including a single item).
+        # Build the five-scene pack from the deterministic topic-specific scene
+        # bank so a short model response cannot collapse the Reel to one image.
+        scene_prompts = post_visual_terms(post, visual_topic)[:reel_scene_count]
+        if len(scene_prompts) < reel_scene_count:
+            raise RuntimeError(
+                f"REEL_SCENE_PLAN_INCOMPLETE: topic family {_visual_topic_family(visual_topic)} "
+                f"provides only {len(scene_prompts)} distinct scene prompts; refusing a partial pack."
+            )
         brief["video_terms"] = scene_prompts
         reel_plan["video_terms"] = scene_prompts
         (output_dir / "reel_plan.json").write_text(
