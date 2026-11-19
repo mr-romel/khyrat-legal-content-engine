@@ -126,6 +126,15 @@ jobs:
           print('REEL_BACKLOG_AUDIT=' + json.dumps(report['counts'], ensure_ascii=False, sort_keys=True))
           print('REEL_BACKLOG_MISMATCH_ROWS=' + json.dumps([x for x in records if 'topic_content_mismatch' in x['reasons']], ensure_ascii=False))
           PY
+      - name: Preflight image-provider credentials (presence only)
+        run: |
+          python - <<'PY'
+          import os, sys
+          available = bool(os.getenv("POLLINATIONS_API_KEY", "").strip())
+          print(f"POLLINATIONS_API_KEY_AVAILABLE={str(available).lower()}")
+          if not available:
+              raise SystemExit("POLLINATIONS_SECRET_NOT_EXPOSED_TO_DAILY_REEL_JOB")
+          PY
       - name: Generate daily reel
         run: |
           # Remove any checkout-restored video so this run cannot pass on stale output.
