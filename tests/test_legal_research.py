@@ -271,9 +271,11 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
         "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
     )
     assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
-    assert "https://manshurat.org/node/14678" in fetched
+    assert "https://www.customs.gov.eg" in fetched or "https://customs.gov.eg" in fetched
+    assert not any("manshurat.org/node/14678" in url for url in fetched)
+    assert "https://lawhub.info/eg/?p=11478" not in packet
     assert legal_research.has_verified_legal_source(packet)
-    assert "SOURCE 1" in packet or "SOURCE 2" in packet
+    assert "SOURCE 1" in packet
     assert "التعيين" in packet
 
 
@@ -342,3 +344,28 @@ def test_civil_service_appointment_uses_curated_article_text_when_live_sources_f
         "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
         packet,
     ) == []
+
+
+def test_secondary_legal_reference_cannot_satisfy_primary_source_gate():
+    from legal_research import has_verified_legal_source
+
+    packet = """SOURCE 1
+Type: secondary_legislation_reference
+Court/source: legal database
+Title: Civil Service Law No. 81 of 2016
+URL: https://lawhub.info/eg/?p=11478
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين بموجب الكفاءة والجدارة.
+"""
+    assert not has_verified_legal_source(packet)
+
+
+def test_secondary_legal_reference_cannot_verify_precise_statutory_citation():
+    post = "المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين"
+    packet = """SOURCE 1
+Type: secondary_legislation_reference
+Court/source: legal database
+Title: Civil Service Law No. 81 of 2016
+URL: https://lawhub.info/eg/?p=11478
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين بموجب الكفاءة والجدارة.
+"""
+    assert validate_legal_citations(post, packet)
