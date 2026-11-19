@@ -539,13 +539,13 @@ def _generate_scene_with_provider_fallbacks(
     qa_image,
     disabled_providers: set[str] | None = None,
 ) -> dict[str, Any]:
-    """QA each provider result before accepting it; a rejected model image falls through to local original art."""
+    """QA each provider result before accepting it; rejected images fall through only to the next external provider."""
     errors = []
     provenance_path = output_path.with_suffix(output_path.suffix + ".provenance.json")
     disabled_providers = disabled_providers if disabled_providers is not None else set()
     # Persist QA-approved images across retries/runs using the exact post and scene brief.
     cache_key = hashlib.sha256(json.dumps(
-        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16", "scene_pipeline_revision": "topic-scenes-v3-text-free-public-appointment"},
+        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16", "scene_pipeline_revision": "topic-scenes-v4-pixabay-final-provider"},
         ensure_ascii=False, sort_keys=True,
     ).encode("utf-8")).hexdigest()
     cache_dir = Path(os.getenv("REEL_IMAGE_CACHE_DIR", "generated/reel_image_cache"))
