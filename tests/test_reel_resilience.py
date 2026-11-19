@@ -254,7 +254,8 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
-    assert '4: "pixabay"' in source
+    assert '4: "openverse"' in source
+    assert '5: "wikimedia"' in source
     assert '5: "wikimedia"' not in source
     assert '5: "pixabay"' not in source
 
