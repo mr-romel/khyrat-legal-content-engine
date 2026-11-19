@@ -545,7 +545,7 @@ def _generate_scene_with_provider_fallbacks(
     disabled_providers = disabled_providers if disabled_providers is not None else set()
     # Persist QA-approved images across retries/runs using the exact post and scene brief.
     cache_key = hashlib.sha256(json.dumps(
-        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16", "scene_pipeline_revision": "gemini-first-2026-11-13-v1"},
+        {"topic": topic, "post": post, "image_brief": image_brief, "aspect_ratio": "9:16", "scene_pipeline_revision": "topic-scenes-v2-public-appointment"},
         ensure_ascii=False, sort_keys=True,
     ).encode("utf-8")).hexdigest()
     cache_dir = Path(os.getenv("REEL_IMAGE_CACHE_DIR", "generated/reel_image_cache"))
