@@ -12,8 +12,8 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
+OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -166,7 +166,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
     if "امتناع" in normalized and "الادارة" in normalized:
         aliases.extend([
             "امتناع الإدارة", "رفض السلطات الإدارية", "القرارات الإدارية",
-            "قرار إداري سلبي", "اتخاذ قرار", "مجلس الدولة", "قانون مجلس الدولة",
+            "قرار إداري سلبي", "اتخاذ قرار",
         ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend([
@@ -419,12 +419,20 @@ def research_legal_topic(topic, existing=""):
                 "مجلس الدولة المصري — اختصاص القضاء الإداري وحكم الامتناع عن اتخاذ القرار",
             ),
             (
+                "https://stg.esc.gov.eg/%D8%A7%D9%84%D9%82%D8%B3%D9%85-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A6%D9%8A/",
+                "مجلس الدولة المصري — القسم القضائي (نطاق فرعي رسمي stg)",
+            ),
+            (
                 "https://mof.gov.eg/ar/legislation/legislation-5fe86ada7bfc600007cc01b8",
                 "وزارة المالية — قانون مجلس الدولة رقم 47 لسنة 1972 وحالته التشريعية",
             ),
         ])
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         seed_urls.extend([
+            (
+                "https://sis.gov.eg/media/734804/1-%D8%AF%D9%88%D8%B1%D9%8A%D8%A911.pdf",
+                "الهيئة العامة للاستعلامات — دراسات في حقوق الإنسان: ضمانات المساواة في شغل الوظائف العامة ونص المادة 12 من قانون الخدمة المدنية",
+            ),
             (
                 "https://customs.gov.eg/Upload/ECAAdminace/54f10188-271f-4255-93f2-2f722a46f244.pdf",
                 "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، نسخة منشورة على موقع مصلحة الجمارك",
@@ -515,7 +523,14 @@ def research_legal_topic(topic, existing=""):
             source_type = "official_government_source"
             quote = ""
         elif _host_matches(domain, OFFICIAL_LAWS):
-            source_type = "current_legislation_source"
+            # A government index page that only reports a law's current status
+            # is not the law text and cannot verify its substantive provisions.
+            status_only_mof_page = (
+                _host_matches(domain, ("mof.gov.eg",))
+                and "حالة القانون" in body
+                and not re.search(r"(?:المادة|مادة)\s*[（(]?\s*[٠-٩0-9]+", body)
+            )
+            source_type = "legislation_status_source" if status_only_mof_page else "current_legislation_source"
             quote = ""
         elif _host_matches(domain, OFFICIAL_GOVERNMENT):
             source_type = "official_government_source"

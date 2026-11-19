@@ -404,4 +404,68 @@ def test_negative_administrative_decision_discovers_official_state_council_sourc
     assert legal_research.has_verified_legal_source(packet)
     assert "امتناعها عن اتخاذ قرار" in packet
     assert "Type: official_government_source" in packet
-    assert legal_research.validate_legal_citations("قانون رقم 47 لسنة 1972", packet) == []
+    assert legal_research.validate_legal_citations("قانون رقم 47 لسنة 1972", packet)
+
+
+def test_state_council_law_status_page_alone_does_not_verify_negative_decision(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda _url: "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ.",
+    )
+    packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
+    assert not legal_research.has_verified_legal_source(packet)
+    assert "رفض السلطات الإدارية" not in packet
+
+
+def test_ministry_law_status_page_cannot_satisfy_substantive_legal_source_gate(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+    def fake_fetch(url):
+        if "esc.gov.eg" in url:
+            return ""
+        return (
+            "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ. "
+            "ويعتبر في حكم القرارات الإدارية رفض السلطات الإدارية أو امتناعها "
+            "عن اتخاذ قرار كان من الواجب عليها اتخاذه وفقا للقوانين واللوائح."
+        )
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
+    assert "Type: legislation_status_source" in packet
+    assert not legal_research.has_verified_legal_source(packet)
+
+
+def test_official_sis_research_source_can_support_retrieved_article_12_text(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if "sis.gov.eg/media/734804/" in url:
+            return (
+                "دراسات في حقوق الإنسان. ضمانات تحقيق مبدأ المساواة في شغل الوظائف العامة. "
+                "نص المشروع المصري في المادة 12 من قانون الخدمة المدنية رقم 81 لسنة 2016 على أنه "
+                "يكون التعيين بموجب قرار يصدر من رئيس الجمهورية أو من يفوضه، على أساس الكفاءة والجدارة، "
+                "دون محاباة أو وساطة من خلال إعلان مركزي على موقع بوابة الحكومة المصرية."
+            )
+        if "mof.gov.eg/ar/legislation/legislation-5fe868ed" in url:
+            return "قانون رقم 81 لسنة 2016 بشأن الخدمة المدنية. حالة القانون: سارٍ."
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+
+    assert any("sis.gov.eg/media/734804/" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "Type: official_government_source" in packet
+    assert legal_research.validate_legal_citations(
+        "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
+        packet,
+    ) == []
