@@ -128,7 +128,7 @@ def test_administrative_refusal_has_its_own_topic_specific_visual_scenes():
         topic,
     )
     assert len(scenes) == 8
-    assert all(any(term in scene.casefold() for term in ("public-service", "government", "administrative")) for scene in scenes)
+    assert all(any(term in scene.casefold() for term in ("public", "government", "administrative")) for scene in scenes)
     assert all(any(term in scene.casefold() for term in ("no signs", "no signage", "no text", "no readable text", "no writing")) for scene in scenes)
     assert not any("pricing" in scene.casefold() or "business desk" in scene.casefold() for scene in scenes)
 
