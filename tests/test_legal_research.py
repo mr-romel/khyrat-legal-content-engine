@@ -324,3 +324,21 @@ def test_negative_administrative_decision_uses_curated_offline_source_when_live_
         "القرار السلبي وفق المادة 10 من قانون رقم 47 لسنة 1972",
         packet,
     ) == []
+
+
+def test_civil_service_appointment_uses_curated_article_text_when_live_sources_fail(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+    monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+    assert legal_research.has_verified_legal_source(packet)
+    assert "قانون رقم 81 لسنة 2016" in packet
+    assert "المادة 12" in packet
+    assert "المادة 14" in packet
+    assert "الكفاءة والجدارة" in packet
+    assert "https://lawhub.info/eg/?p=11478" in packet
+    assert legal_research.validate_legal_citations(
+        "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
+        packet,
+    ) == []
