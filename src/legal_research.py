@@ -230,10 +230,13 @@ def _source_evidence(text: str, topic: str) -> str:
 
     article_refs = []
     article_pattern = r"(?:المادة|مادة)\s*[（(]?\s*([٠-٩0-9]+)\s*[）)]?"
-    for match in re.finditer(article_pattern, value, re.I):
-        reference = f"المادة {match.group(1)}"
-        if reference not in article_refs:
-            article_refs.append(reference)
+    # Article numbers are admitted only when they occur in a topic-matched excerpt,
+    # not merely somewhere in an unrelated part of a large statute.
+    for _, snippet in windows:
+        for match in re.finditer(article_pattern, snippet, re.I):
+            reference = f"المادة {match.group(1)}"
+            if reference not in article_refs:
+                article_refs.append(reference)
 
     excerpts = [snippet for _, snippet in sorted(windows)]
     return _clean(" ".join(law_refs + article_refs + excerpts))[:9000]
