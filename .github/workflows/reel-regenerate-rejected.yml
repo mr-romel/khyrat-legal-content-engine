@@ -9,10 +9,12 @@ on:
         description: "Optional immutable Sheet row ID for one explicitly requested recovery"
         required: false
         type: string
+        default: "20261117-2200-R017"
       recovery_attempt_id:
         description: "Unique attempt token for this one-time recovery"
         required: false
         type: string
+        default: "row15-public-appointment-textfree-20261119-02"
   push:
     branches: [main]
     paths:
