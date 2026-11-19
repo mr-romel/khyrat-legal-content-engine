@@ -186,6 +186,15 @@ jobs:
               out.write(f"found=true\nrow_number={number}\n")
           print(f"REEL_REGENERATION_SELECTED row={number} source_id={source_id} topic={topic!r}")
           PY
+      - name: Preflight image-provider credentials (presence only)
+        run: |
+          python - <<'PY'
+          import os, sys
+          available = bool(os.getenv("POLLINATIONS_API_KEY", "").strip())
+          print(f"POLLINATIONS_API_KEY_AVAILABLE={str(available).lower()}")
+          if not available:
+              raise SystemExit("POLLINATIONS_SECRET_NOT_EXPOSED_TO_REGENERATION_JOB")
+          PY
       - name: Generate and send replacement for review
         if: steps.target.outputs.found == 'true'
         run: |
