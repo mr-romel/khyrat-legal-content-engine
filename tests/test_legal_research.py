@@ -42,6 +42,7 @@ def test_accepts_precise_citation_present_in_retrieved_evidence():
     post = "المادة 6 من قانون رقم 42 لسنة 1967 تنظم التفويض"
     packet = (
         "SOURCE 1\n"
+        "Type: current_legislation_source\n"
         "VERIFIED SOURCE TEXT (retrieved): المادة 6 من قانون رقم 42 لسنة 1967 بشأن التفويض في الاختصاصات"
     )
     assert validate_legal_citations(post, packet) == []
@@ -57,6 +58,7 @@ def test_accepts_law_number_when_official_source_uses_definite_article():
     post = "الجرائم الإلكترونية وفق قانون رقم 175 لسنة 2018"
     packet = (
         "SOURCE 1\n"
+        "Type: current_legislation_source\n"
         "VERIFIED SOURCE TEXT (retrieved): القانون رقم ١٧٥ لسنة ٢٠١٨ في شأن مكافحة جرائم تقنية المعلومات"
     )
     assert validate_legal_citations(post, packet) == []
@@ -367,5 +369,15 @@ Court/source: legal database
 Title: Civil Service Law No. 81 of 2016
 URL: https://lawhub.info/eg/?p=11478
 VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين بموجب الكفاءة والجدارة.
+"""
+    assert validate_legal_citations(post, packet)
+
+
+def test_untyped_source_block_cannot_verify_precise_legal_citation():
+    post = "المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين"
+    packet = """SOURCE 1
+Title: Unclassified source
+URL: https://moj.gov.eg/laws/example
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين.
 """
     assert validate_legal_citations(post, packet)
