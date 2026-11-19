@@ -185,6 +185,28 @@ def _generate_once(client: Any, selected_model: str, prompt: str) -> dict[str, A
 def _deterministic_legal_scene(topic: str, post: str) -> str | None:
     """Return a stable, non-fictional visual brief for abstract legal checklist topics."""
     source = " ".join(f"{topic or ''} {post or ''}".casefold().split())
+    public_appointment = any(term in source for term in (
+        "الوظيفة العامة", "وظيفة عامة", "التعيين", "مسابقة التعيين",
+        "شغل وظيفة", "public service appointment", "public sector recruitment",
+    ))
+    if public_appointment:
+        return (
+            "Photorealistic contemporary documentary photograph inside a modern Egyptian-style public "
+            "administration service office. The unmistakable dominant subject is ONE large official "
+            "public-sector job vacancy announcement sheet pinned to a simple notice board, occupying "
+            "at least half of the frame. The notice has a clean blank layout with completely blurred, "
+            "unreadable lines and no invented letters or logos. A clearly visible red circular rubber "
+            "approval stamp rests on the counter directly below the notice. In the lower foreground, "
+            "one applicant's hand submits a plain application folder into a government recruitment "
+            "in-tray; a single empty visitor chair is visible in side profile. A small desk calendar "
+            "sits at the far edge as a secondary prop. Eye-level three-quarter camera view, strong "
+            "visual hierarchy, crisp focus on the vacancy announcement, natural office lighting, "
+            "realistic proportions, restrained neutral government-office colors. The vacancy notice "
+            "must be unmistakably visible and remain the primary subject; stamp, hand, folder, chair "
+            "and calendar are supporting details only. One coherent real-world scene, not a collage. "
+            "No readable text, no logos, no extra documents, no courtroom, no scales, no gavel."
+        )
+
     identity_impersonation = any(term in source for term in (
         "انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة",
         "identity theft", "impersonation", "identity fraud",
