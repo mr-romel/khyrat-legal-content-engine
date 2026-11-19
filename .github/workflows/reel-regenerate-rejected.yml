@@ -100,6 +100,9 @@ jobs:
               raise SystemExit("Google Sheet header row is empty; refusing positional row selection.")
           target = None
           requested_rows = []
+          recovery_source_id = os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
+          recovery_attempt_id = os.getenv("REEL_RECOVERY_ATTEMPT_ID", "").strip()
+          pinned_source_diagnostics = []
           for number, raw_row in enumerate(values[1:], start=2):
               row = row_to_dict(raw_row, headers)
               status = str(row.get("Reel Status", "")).strip().upper()
@@ -109,13 +112,25 @@ jobs:
               retry_count = int(retry_match.group(1)) if retry_match else 0
               source_id = str(row.get("ID", "") or "").strip()
               topic = str(row.get("الموضوع", "") or "").strip()
+              if recovery_source_id and source_id == recovery_source_id:
+                  pinned_source_diagnostics.append({
+                      "row": number,
+                      "status": status,
+                      "retry_count": retry_count,
+                      "attempt_marker_seen": f"source-id-recovery-used:{recovery_attempt_id}".casefold() in review.casefold(),
+                      "has_topic": bool(topic),
+                      "has_content": bool(str(row.get("المحتوى", "") or "").strip()),
+                      "facebook_published": str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED",
+                      "linkedin_published": str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED",
+                      "has_external_reel_id": bool(str(row.get("Reel Facebook ID", "") or "").strip() or str(row.get("Reel YouTube ID", "") or "").strip()),
+                      "last_error": last_error[:240],
+                  })
               requested = status == "REGENERATE_REQUESTED"
               retryable_image_failure = (
                   status == "FAILED"
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
                   and retry_count < 3
               )
-              recovery_attempt_id = os.getenv("REEL_RECOVERY_ATTEMPT_ID", "").strip()
               pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
               pinned_source_retry = (
                   bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
@@ -174,6 +189,7 @@ jobs:
                   out.write("found=false\n")
               recovery_source_id = os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
               if recovery_source_id:
+                  print("PINNED_RECOVERY_SOURCE_DIAGNOSTICS=" + json.dumps(pinned_source_diagnostics, ensure_ascii=False))
                   raise SystemExit(
                       "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE: the explicitly requested immutable source ID "
                       f"{recovery_source_id!r} is not in FAILED/REGENERATE_REQUESTED state, has already used "
