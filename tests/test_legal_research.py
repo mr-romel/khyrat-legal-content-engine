@@ -271,7 +271,7 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
         "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
     )
     assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
-    assert "https://www.customs.gov.eg" in fetched or "https://customs.gov.eg" in fetched
+    assert any(url.startswith("https://customs.gov.eg/") for url in fetched)
     assert not any("manshurat.org/node/14678" in url for url in fetched)
     assert "https://lawhub.info/eg/?p=11478" not in packet
     assert legal_research.has_verified_legal_source(packet)
