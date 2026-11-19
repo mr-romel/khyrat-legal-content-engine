@@ -14,7 +14,7 @@ COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
 OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg")
 OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
-SECONDARY_LAWS=("manshurat.org","www.manshurat.org")
+SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
 class _P(HTMLParser):
@@ -540,7 +540,34 @@ def research_legal_topic(topic, existing=""):
                 "بوابة وزارة المالية المصرية تعرض قانون رقم 47 لسنة 1972 بشأن مجلس الدولة وتذكر أن حالة القانون: سارٍ. وتوضح البوابة أن النصوص المنشورة إرشادية وأن المرجع القانوني هو الجريدة الرسمية."
             ))
             print("Legal research: using curated offline source packet for negative administrative decision; live discovery unavailable.")
-    if any(record[7] == "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" for record in records):
+    # The Civil Service Law text is available in a reviewed secondary legal
+    # database while official repositories expose only a landing page or an
+    # image-only PDF to this runner. Pair the text with the official MOF status page.
+    if any(term in normalized_for_seeds for term in ("تعيين", "وظيفه", "الوظيفه", "الخدمه المدنيه")):
+        if not any("المادة 12" in record[8] and "قانون رقم 81 لسنة 2016" in record[8] for record in records):
+            civil_service_text = (
+                "قانون رقم 81 لسنة 2016 بإصدار قانون الخدمة المدنية. "
+                "المادة 12: يكون التعيين بموجب قرار يصدر من رئيس الجمهورية أو من يفوضه، "
+                "على أساس الكفاءة والجدارة، دون محاباة أو وساطة، من خلال إعلان مركزي متضمنًا "
+                "البيانات المتعلقة بالوظيفة وشروط شغلها على نحو يكفل تكافؤ الفرص والمساواة بين المواطنين. "
+                "وفي جميع الأحوال يشترط لشغل الوظائف أن تكون شاغرة وممولة. ويكون التعيين في تلك الوظائف "
+                "بامتحان تنفذه الجهة المختصة من خلال لجنة للاختيار، ويكون التعيين بحسب الأسبقية الواردة "
+                "في الترتيب النهائي لنتيجة الامتحان. "
+                "المادة 14: يشترط فيمن يعين استيفاء شروط الجنسية وحسن السمعة واللياقة الصحية واشتراطات "
+                "شغل الوظيفة واجتياز الامتحان المقرر، وألا تقل سنه عن ثمانية عشر عامًا."
+            )
+            records.append((
+                "secondary_legislation_reference", "مرجع تشريعي ثانوي — قانون الخدمة المدنية",
+                "", "نص القانون رقم 81 لسنة 2016",
+                "المواد 12 و14 من قانون الخدمة المدنية — راجع آخر التعديلات قبل التطبيق على الواقعة",
+                "قانون الخدمة المدنية رقم 81 لسنة 2016 — شروط التعيين والكفاءة والجدارة",
+                "", "https://lawhub.info/eg/?p=11478", civil_service_text,
+            ))
+            print("Legal research: appended curated Civil Service Law text alongside official status source.")
+    if any(record[7] in {
+        "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf",
+        "https://lawhub.info/eg/?p=11478",
+    } for record in records):
         lines.append("Research method: curated offline source packet; live discovery unavailable.")
     if not records:
         print(
