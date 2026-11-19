@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      recovery_source_id:
+        description: "Optional immutable Sheet row ID for one explicitly requested recovery"
+        required: false
+        type: string
+      recovery_attempt_id:
+        description: "Unique attempt token for this one-time recovery"
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -44,11 +53,10 @@ jobs:
       REEL_RECOVERY: "true"
       REEL_FORCE_REGENERATE: "true"
       REEL_FORCE_TELEGRAM_REVIEW: "true"
-      # One-time recovery pin to the immutable ID of the user's requested row.
-      # Remove after this source reaches REVIEW or exhausts the bounded retry budget.
-      REEL_RECOVERY_SOURCE_ID: "20261117-2200-R017"
-      # A new token re-arms exactly one attempt after the audio-path code fix.
-      REEL_RECOVERY_ATTEMPT_ID: "row15-public-appointment-textfree-20261119-01"
+      # Explicit pins are supplied only for manual workflow_dispatch runs.
+      # Scheduled and push-triggered runs must never inherit a stale one-time pin.
+      REEL_RECOVERY_SOURCE_ID: ${{ inputs.recovery_source_id || '' }}
+      REEL_RECOVERY_ATTEMPT_ID: ${{ inputs.recovery_attempt_id || '' }}
       REEL_FORBIDDEN_VIDEO_SHA256: "5512ebc1239786037f4cd73cc4cd52e7108c60dc6174f06c41a8c7b967e109cd"
       REEL_MAX_DURATION_SECONDS: "40"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -100,6 +108,9 @@ jobs:
               raise SystemExit("Google Sheet header row is empty; refusing positional row selection.")
           target = None
           requested_rows = []
+          recovery_source_id = os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
+          recovery_attempt_id = os.getenv("REEL_RECOVERY_ATTEMPT_ID", "").strip()
+          pinned_source_diagnostics = []
           for number, raw_row in enumerate(values[1:], start=2):
               row = row_to_dict(raw_row, headers)
               status = str(row.get("Reel Status", "")).strip().upper()
@@ -109,13 +120,25 @@ jobs:
               retry_count = int(retry_match.group(1)) if retry_match else 0
               source_id = str(row.get("ID", "") or "").strip()
               topic = str(row.get("الموضوع", "") or "").strip()
+              if recovery_source_id and source_id == recovery_source_id:
+                  pinned_source_diagnostics.append({
+                      "row": number,
+                      "status": status,
+                      "retry_count": retry_count,
+                      "attempt_marker_seen": f"source-id-recovery-used:{recovery_attempt_id}".casefold() in review.casefold(),
+                      "has_topic": bool(topic),
+                      "has_content": bool(str(row.get("المحتوى", "") or "").strip()),
+                      "facebook_published": str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED",
+                      "linkedin_published": str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED",
+                      "has_external_reel_id": bool(str(row.get("Reel Facebook ID", "") or "").strip() or str(row.get("Reel YouTube ID", "") or "").strip()),
+                      "last_error": last_error[:240],
+                  })
               requested = status == "REGENERATE_REQUESTED"
               retryable_image_failure = (
                   status == "FAILED"
                   and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
                   and retry_count < 3
               )
-              recovery_attempt_id = os.getenv("REEL_RECOVERY_ATTEMPT_ID", "").strip()
               pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
               pinned_source_retry = (
                   bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
@@ -172,6 +195,15 @@ jobs:
               print("No REGENERATE_REQUESTED row passed source-data validation; inspect request list and row diagnostics.")
               with open(os.environ["GITHUB_OUTPUT"], "a") as out:
                   out.write("found=false\n")
+              recovery_source_id = os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
+              if recovery_source_id:
+                  print("PINNED_RECOVERY_SOURCE_DIAGNOSTICS=" + json.dumps(pinned_source_diagnostics, ensure_ascii=False))
+                  raise SystemExit(
+                      "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE: the explicitly requested immutable source ID "
+                      f"{recovery_source_id!r} is not in FAILED/REGENERATE_REQUESTED state, has already used "
+                      "this attempt marker, or failed source-data validation. No Reel was generated or delivered."
+                  )
+              print("REEL_REGENERATION_NO_WORK: no eligible rejected Reel was requested.")
               raise SystemExit(0)
           number, row, source_id, topic = target
           update_row(service, sheet_id, sheet_name, number, {

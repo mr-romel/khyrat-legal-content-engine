@@ -42,6 +42,7 @@ def test_accepts_precise_citation_present_in_retrieved_evidence():
     post = "المادة 6 من قانون رقم 42 لسنة 1967 تنظم التفويض"
     packet = (
         "SOURCE 1\n"
+        "Type: current_legislation_source\n"
         "VERIFIED SOURCE TEXT (retrieved): المادة 6 من قانون رقم 42 لسنة 1967 بشأن التفويض في الاختصاصات"
     )
     assert validate_legal_citations(post, packet) == []
@@ -57,6 +58,7 @@ def test_accepts_law_number_when_official_source_uses_definite_article():
     post = "الجرائم الإلكترونية وفق قانون رقم 175 لسنة 2018"
     packet = (
         "SOURCE 1\n"
+        "Type: current_legislation_source\n"
         "VERIFIED SOURCE TEXT (retrieved): القانون رقم ١٧٥ لسنة ٢٠١٨ في شأن مكافحة جرائم تقنية المعلومات"
     )
     assert validate_legal_citations(post, packet) == []
@@ -271,9 +273,11 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
         "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
     )
     assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
-    assert "https://manshurat.org/node/14678" in fetched
+    assert any(url.startswith("https://customs.gov.eg/") for url in fetched)
+    assert not any("manshurat.org/node/14678" in url for url in fetched)
+    assert "https://lawhub.info/eg/?p=11478" not in packet
     assert legal_research.has_verified_legal_source(packet)
-    assert "SOURCE 1" in packet or "SOURCE 2" in packet
+    assert "SOURCE 1" in packet
     assert "التعيين" in packet
 
 
@@ -309,36 +313,67 @@ def test_topic_evidence_terms_expand_legal_synonyms():
     assert "المدنية" in employment
 
 
-def test_negative_administrative_decision_uses_curated_offline_source_when_live_research_fails(monkeypatch):
+def test_negative_administrative_decision_fails_closed_when_live_research_fails(monkeypatch):
     import legal_research
 
     monkeypatch.setattr(legal_research, "_search", lambda _query: [])
     monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
     packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
-    assert legal_research.has_verified_legal_source(packet)
-    assert "قانون مجلس الدولة رقم 47 لسنة 1972" in packet
-    assert "21855 لسنة 65 قضائية" in packet
-    assert "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" in packet
-    assert "EXISTING SHEET LEGAL SOURCES:" not in packet
+    assert not legal_research.has_verified_legal_source(packet)
+    assert "VERIFIED SOURCE TEXT (retrieved):" not in packet
+    assert "21855 لسنة 65 قضائية" not in packet
+    assert "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" not in packet
     assert legal_research.validate_legal_citations(
         "القرار السلبي وفق المادة 10 من قانون رقم 47 لسنة 1972",
         packet,
-    ) == []
+    )
 
 
-def test_civil_service_appointment_uses_curated_article_text_when_live_sources_fail(monkeypatch):
+def test_civil_service_appointment_fails_closed_when_live_primary_sources_fail(monkeypatch):
     import legal_research
 
     monkeypatch.setattr(legal_research, "_search", lambda _query: [])
     monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
     packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
-    assert legal_research.has_verified_legal_source(packet)
-    assert "قانون رقم 81 لسنة 2016" in packet
-    assert "المادة 12" in packet
-    assert "المادة 14" in packet
-    assert "الكفاءة والجدارة" in packet
-    assert "https://lawhub.info/eg/?p=11478" in packet
+    assert not legal_research.has_verified_legal_source(packet)
+    assert "VERIFIED SOURCE TEXT (retrieved):" not in packet
+    assert "https://lawhub.info/eg/?p=11478" not in packet
     assert legal_research.validate_legal_citations(
         "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
         packet,
-    ) == []
+    )
+
+
+def test_secondary_legal_reference_cannot_satisfy_primary_source_gate():
+    from legal_research import has_verified_legal_source
+
+    packet = """SOURCE 1
+Type: secondary_legislation_reference
+Court/source: legal database
+Title: Civil Service Law No. 81 of 2016
+URL: https://lawhub.info/eg/?p=11478
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين بموجب الكفاءة والجدارة.
+"""
+    assert not has_verified_legal_source(packet)
+
+
+def test_secondary_legal_reference_cannot_verify_precise_statutory_citation():
+    post = "المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين"
+    packet = """SOURCE 1
+Type: secondary_legislation_reference
+Court/source: legal database
+Title: Civil Service Law No. 81 of 2016
+URL: https://lawhub.info/eg/?p=11478
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين بموجب الكفاءة والجدارة.
+"""
+    assert validate_legal_citations(post, packet)
+
+
+def test_untyped_source_block_cannot_verify_precise_legal_citation():
+    post = "المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين"
+    packet = """SOURCE 1
+Title: Unclassified source
+URL: https://moj.gov.eg/laws/example
+VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين.
+"""
+    assert validate_legal_citations(post, packet)

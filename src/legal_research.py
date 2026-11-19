@@ -295,7 +295,19 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
     normalized_post = _norm_legal_text(value)
     # Spreadsheet/user-supplied notes are leads, not verification evidence.
     verified_packet = str(research_packet or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
-    normalized_evidence = _norm_legal_text(verified_packet)
+    source_blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", verified_packet)
+    eligible_evidence = [source_blocks[0]]
+    for block in source_blocks[1:]:
+        source_type = re.search(r"(?m)^Type:\s*(\S+)", block)
+        # Only explicitly typed primary/official source blocks can verify
+        # precise legal citations. Secondary, missing-type, and unknown blocks
+        # remain context only and cannot satisfy this evidentiary requirement.
+        if not source_type or source_type.group(1) not in {
+            "current_legislation_source", "judgment_or_principle", "official_government_source"
+        }:
+            continue
+        eligible_evidence.append(block)
+    normalized_evidence = _norm_legal_text("\n".join(eligible_evidence))
 
     issues: list[str] = []
     if "قانون الادارة العامة" in normalized_post:
@@ -309,14 +321,23 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
 
 
 def has_verified_legal_source(packet: str) -> bool:
-    """True only when the research packet contains at least one whitelisted HTTPS source."""
+    """Require a retrieved, whitelisted primary/official source block.
+
+    Secondary legal databases remain useful research leads, but they cannot
+    independently satisfy the publication source gate.
+    """
     text = str(packet or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
     blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", text)
+    allowed_types = {"current_legislation_source", "judgment_or_principle", "official_government_source"}
     for block in blocks[1:]:
         match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
+        source_type = re.search(r"(?m)^Type:\s*(\S+)", block)
         evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \(retrieved\):\s*(.{30,})$", block)
         title = re.search(r"(?m)^Title:\s*\S", block)
-        if match and evidence and title and _allowed(match.group(1).rstrip(").,;")):
+        if (
+            match and source_type and source_type.group(1) in allowed_types
+            and evidence and title and _allowed(match.group(1).rstrip(").,;"))
+        ):
             return True
     return False
 
@@ -507,82 +528,6 @@ def research_legal_topic(topic, existing=""):
         "- If no verified topic-matched source exists, do not invent a citation; keep the item blocked for legal review.",
         "",
     ]
-    if not records:
-        # Offline, curated legal source fallback. This is intentionally narrow:
-        # only use a source packet whose exact text and URL were previously reviewed.
-        # Never treat a topic keyword match alone as proof of a legal rule.
-        if "امتناع" in normalized_for_seeds and "الادارة" in normalized_for_seeds:
-            local_judgment_text = (
-                "الحكم الصادر من محكمة القضاء الإداري في الدعوى رقم 21855 لسنة 65 قضائية "
-                "بجلسة 28/5/2011 قرر أن القرار الإداري السلبي لا يقوم لمجرد سكوت الإدارة؛ "
-                "بل يلزم وجود قاعدة قانونية عامة تقرر حقًا أو مركزًا قانونيًا، وأن يكون تدخل "
-                "الإدارة لتقريره واجبًا، وأن يثبت أن صاحب الشأن طلب اتخاذ القرار وتوافرت فيه "
-                "الشروط والضوابط التي استلزمها القانون، ثم امتنعت الإدارة أو قعدت عن اتخاذه. "
-                "وأورد الحكم نص الفقرة الأخيرة من المادة العاشرة (المادة 10) من قانون مجلس الدولة رقم 47 لسنة 1972، قانون رقم 47 لسنة 1972: "
-                "ويعتبر في حكم القرارات الإدارية رفض السلطات الإدارية أو امتناعها عن اتخاذ قرار "
-                "كان من الواجب عليها اتخاذه وفقًا للقوانين واللوائح. "
-                "المصدر: نسخة الحكم المنشورة على منشورات قانونية، الصفحات المطبوعة 16-17."
-            )
-            records.append((
-                "judgment_or_principle", "محكمة القضاء الإداري",
-                "21855 لسنة 65 قضائية", "28/5/2011",
-                "الحكم يستشهد بالفقرة الأخيرة من المادة العاشرة من قانون مجلس الدولة رقم 47 لسنة 1972",
-                "الحكم في الدعوى رقم 21855 لسنة 65 قضائية — ضوابط القرار الإداري السلبي",
-                "لا يقوم القرار السلبي إلا مع وجود واجب قانوني محدد وطلب مستوفٍ وامتناع الإدارة عن أدائه",
-                "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf",
-                local_judgment_text,
-            ))
-            records.append((
-                "official_government_source", "وزارة المالية — بوابة التشريعات",
-                "", "", "صفحة التشريع تعرض قانون مجلس الدولة رقم 47 لسنة 1972 بحالة «سارٍ»",
-                "قانون مجلس الدولة رقم 47 لسنة 1972 — الحالة المنشورة: سارٍ",
-                "", "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cc01b8",
-                "بوابة وزارة المالية المصرية تعرض قانون رقم 47 لسنة 1972 بشأن مجلس الدولة وتذكر أن حالة القانون: سارٍ. وتوضح البوابة أن النصوص المنشورة إرشادية وأن المرجع القانوني هو الجريدة الرسمية."
-            ))
-            print("Legal research: using curated offline source packet for negative administrative decision; live discovery unavailable.")
-    # The Civil Service Law text is available in a reviewed secondary legal
-    # database while official repositories expose only a landing page or an
-    # image-only PDF to this runner. Pair the text with the official MOF status page.
-    if any(term in normalized_for_seeds for term in ("تعيين", "وظيفه", "الوظيفه", "الخدمه المدنيه")):
-        if not any("المادة 12" in record[8] and "قانون رقم 81 لسنة 2016" in record[8] for record in records):
-            civil_service_text = (
-                "قانون رقم 81 لسنة 2016 بإصدار قانون الخدمة المدنية. "
-                "المادة 12: يكون التعيين بموجب قرار يصدر من رئيس الجمهورية أو من يفوضه، "
-                "على أساس الكفاءة والجدارة، دون محاباة أو وساطة من خلال إعلان مركزي على موقع بوابة "
-                "الحكومة المصرية متضمنًا البيانات المتعلقة بالوظيفة وشروط شغلها على نحو يكفل تكافؤ "
-                "الفرص والمساواة بين المواطنين. وفي جميع الأحوال يشترط لشغل الوظائف أن تكون شاغرة "
-                "وممولة. ويكون التعيين في تلك الوظائف بامتحان ينفذه الجهاز من خلال لجنة للاختيار، "
-                "ويشرف عليه الوزير المختص، على أن يكون التعيين بحسب الأسبقية الواردة في الترتيب النهائي "
-                "لنتيجة الامتحان. "
-                "المادة 14: يشترط فيمن يعين في إحدى الوظائف ما يأتي: أن يكون متمتعًا بالجنسية المصرية "
-                "أو جنسية إحدى الدول العربية التي تعامل المصريين بالمثل في تولي الوظائف المدنية؛ وأن "
-                "يكون محمود السيرة، حسن السمعة؛ وألا يكون قد سبق الحكم عليه بعقوبة جناية أو بعقوبة "
-                "مقيدة للحرية في جريمة مخلة بالشرف أو الأمانة ما لم يكن قد رد إليه اعتباره؛ وألا يكون "
-                "قد سبق فصله من الخدمة بحكم أو قرار تأديبي نهائي ما لم تمض على صدوره أربع سنوات على الأقل؛ "
-                "وأن تثبت لياقته الصحية؛ وأن يكون مستوفيًا لاشتراطات شغل الوظيفة؛ وأن يجتاز الامتحان "
-                "المقرر؛ وألا تقل سنه عن ثمانية عشر عامًا ميلاديًا."
-            )
-            records.append((
-                "secondary_legislation_reference", "مرجع تشريعي ثانوي — قانون الخدمة المدنية",
-                "", "نص القانون رقم 81 لسنة 2016",
-                "المواد 12 و14 من قانون الخدمة المدنية — راجع آخر التعديلات قبل التطبيق على الواقعة",
-                "قانون الخدمة المدنية رقم 81 لسنة 2016 — شروط التعيين والكفاءة والجدارة",
-                "", "https://lawhub.info/eg/?p=11478", civil_service_text,
-            ))
-            if not any(record[7] == "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cbeec5" for record in records):
-                records.append((
-                    "official_government_source", "وزارة المالية — بوابة التشريعات",
-                    "", "", "صفحة التشريع تعرض قانون رقم 81 لسنة 2016 بحالة «سارٍ»",
-                    "قانون الخدمة المدنية رقم 81 لسنة 2016 — الحالة المنشورة: سارٍ",
-                    "", "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cbeec5",
-                    "بوابة وزارة المالية المصرية تعرض قانون رقم 81 لسنة 2016 بإصدار قانون الخدمة المدنية وتذكر أن حالة القانون: سارٍ. وتوضح البوابة أن النصوص المنشورة إرشادية وأن المرجع القانوني هو الجريدة الرسمية."
-                ))
-            print("Legal research: appended curated Civil Service Law text alongside official status source.")
-    if any(record[7] in {
-        "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf",
-        "https://lawhub.info/eg/?p=11478",
-    } for record in records):
-        lines.append("Research method: curated offline source packet; live discovery unavailable.")
     if not records:
         print(
             "Legal research final result: BLOCKED; "

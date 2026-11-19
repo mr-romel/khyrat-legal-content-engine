@@ -9,7 +9,7 @@ def test_reel_scene_providers_prioritize_public_open_license_fallbacks():
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
     assert '4: "openverse"' in source
-    assert '5: "wikimedia"' in source
+    assert '5: "pixabay"' in source
     assert '4: "local_scene"' not in source
     assert "_generate_scene_with_provider_fallbacks" in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
@@ -49,18 +49,18 @@ def test_scene_visual_qa_rejection_falls_through_to_external_provider(tmp_path):
         used.append(provider)
         Path(kwargs["output_path"]).write_bytes((provider.encode("ascii") * 6000)[:12000])
     def fake_qa(**kwargs):
-        return {"decision": "PASS" if Path(kwargs["image_path"]).read_bytes().startswith(b"wikimedia") else "REGENERATE",
+        return {"decision": "PASS" if Path(kwargs["image_path"]).read_bytes().startswith(b"pixabay") else "REGENERATE",
                 "issues": ["off-topic generated scene"]}
     result = _generate_scene_with_provider_fallbacks(
         topic="المرفق العام الاقتصادي", post="خدمات المرافق العامة الاقتصادية",
         image_brief="Municipal water treatment plant with tanks and pipes",
         output_path=tmp_path / "scene.jpg", api_key="",
         cloudflare_account_id="", cloudflare_api_token="",
-        providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"openverse",5:"wikimedia"},
+        providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"openverse",5:"pixabay"},
         create_image=fake_create, qa_image=fake_qa,
     )
-    assert used == ["pollinations", "cloudflare", "gemini", "openverse", "wikimedia"]
-    assert result["provider"] == "wikimedia"
+    assert used == ["pollinations", "cloudflare", "gemini", "openverse", "pixabay"]
+    assert result["provider"] == "pixabay"
     assert result["qa"]["decision"] == "PASS"
 
 

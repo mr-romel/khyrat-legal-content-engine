@@ -219,8 +219,8 @@ def test_reel_scene_generation_uses_five_distinct_images_and_quota_safe_fallback
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
     assert '4: "openverse"' in source
-    assert '5: "wikimedia"' in source
-    assert '5: "pixabay"' not in source
+    assert '5: "pixabay"' in source
+    assert '5: "wikimedia"' not in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
     assert "create_generic_legal_fallback_image" not in source
     assert "LOCAL_SCENE_ILLUSTRATION" not in image_generator
@@ -254,9 +254,8 @@ def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
     assert '4: "openverse"' in source
-    assert '5: "wikimedia"' in source
+    assert '5: "pixabay"' in source
     assert '5: "wikimedia"' not in source
-    assert '5: "pixabay"' not in source
 
 
 def test_wikimedia_fallback_is_license_checked_and_attributed():
@@ -330,3 +329,25 @@ def test_reel_pipeline_uses_actual_provider_returned_audio_paths():
     assert "fit_reel_narration_duration(tts_audio" in source
     assert "slogan_audio = generate_short_signoff_with_fallbacks(" in source
     assert "slogan_audio=slogan_audio" in source
+
+
+def test_pinned_reel_recovery_does_not_report_success_when_source_is_ineligible():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE" in workflow
+    assert "if recovery_source_id:" in workflow
+    assert "raise SystemExit(" in workflow
+
+
+def test_pinned_reel_recovery_logs_safe_eligibility_diagnostics():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "PINNED_RECOVERY_SOURCE_DIAGNOSTICS=" in workflow
+    assert '"attempt_marker_seen"' in workflow
+    assert '"has_external_reel_id"' in workflow
+
+
+def test_reel_recovery_pin_is_manual_only_not_inherited_by_schedule():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "recovery_source_id:" in workflow
+    assert "recovery_attempt_id:" in workflow
+    assert "REEL_RECOVERY_SOURCE_ID: ${{ inputs.recovery_source_id || '' }}" in workflow
+    assert 'REEL_RECOVERY_SOURCE_ID: "20261117-2200-R017"' not in workflow
