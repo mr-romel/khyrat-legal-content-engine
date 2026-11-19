@@ -469,3 +469,26 @@ def test_official_sis_research_source_can_support_retrieved_article_12_text(monk
         "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
         packet,
     ) == []
+
+
+def test_trusted_http_fetch_retries_with_os_ca_bundle_without_disabling_tls(monkeypatch):
+    import requests
+    import legal_research
+
+    calls = []
+    response = type("Response", (), {"status_code": 200})()
+
+    def fake_get(url, **kwargs):
+        calls.append(kwargs.copy())
+        if len(calls) == 1:
+            raise requests.exceptions.SSLError("certifi CA failure")
+        return response
+
+    monkeypatch.setattr(legal_research.requests, "get", fake_get)
+    monkeypatch.setattr(legal_research.os.path, "isfile", lambda _path: True)
+    result = legal_research._trusted_get("https://official.gov.eg/source", timeout=3)
+
+    assert result is response
+    assert len(calls) == 2
+    assert calls[1]["verify"] == "/etc/ssl/certs/ca-certificates.crt"
+    assert calls[1]["verify"] is not False
