@@ -44,7 +44,7 @@ def main() -> int:
     if failures:
         print("\nLIVE LEGAL SOURCE CHECK FAILED: " + " | ".join(failures), flush=True)
         return 1
-    print("\nLIVE LEGAL SOURCE CHECK PASSED: both current queue topics have verified source records.", flush=True)
+    print("\nLEGAL SOURCE RECOVERY CHECK PASSED: both current queue topics have verified source records; provenance labels distinguish live retrieval from curated offline evidence.", flush=True)
     return 0
 
 
