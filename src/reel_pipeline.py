@@ -882,6 +882,9 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
             "A government recruitment committee reviewing a stack of anonymized job applications across a meeting table; one prominent public vacancy announcement sheet and a red stamp are visible; faces secondary, no readable text.",
             "A close-up of an official public employment vacancy notice beside an application folder, red stamp and capped pen on a government office counter; the vacancy notice dominates the frame, all writing blurred.",
             "A modern public-sector recruitment office with a clearly visible vacancy announcement board in the foreground, an empty applicant chair and an application desk behind it; documentary realism, no readable text or logos.",
+            "A close-up of an applicant's hand holding an application folder directly in front of a large public job vacancy notice board; the notice is the main focal point, all writing blurred.",
+            "A government office waiting area with a prominent public employment vacancy poster, a single empty applicant chair and a numbered-paper ticket dispenser with no legible numbers.",
+            "A public recruitment desk with an official vacancy announcement sheet displayed upright beside a red approval stamp and a neatly arranged application folder; no readable text.",
         ]
     # For employment leave/rest topics, use concrete leave and attendance evidence rather than generic workplace portraits.
     elif family == "employment" and any(word in (topic_text + " " + post_text) for word in ("إجاز", "راحة", "عطلة", "راحة أسبوعية")):
