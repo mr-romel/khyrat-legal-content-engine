@@ -172,6 +172,14 @@ jobs:
               print("No REGENERATE_REQUESTED row passed source-data validation; inspect request list and row diagnostics.")
               with open(os.environ["GITHUB_OUTPUT"], "a") as out:
                   out.write("found=false\n")
+              recovery_source_id = os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip()
+              if recovery_source_id:
+                  raise SystemExit(
+                      "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE: the explicitly requested immutable source ID "
+                      f"{recovery_source_id!r} is not in FAILED/REGENERATE_REQUESTED state, has already used "
+                      "this attempt marker, or failed source-data validation. No Reel was generated or delivered."
+                  )
+              print("REEL_REGENERATION_NO_WORK: no eligible rejected Reel was requested.")
               raise SystemExit(0)
           number, row, source_id, topic = target
           update_row(service, sheet_id, sheet_name, number, {
