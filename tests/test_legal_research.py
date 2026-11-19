@@ -425,11 +425,16 @@ def test_ministry_law_status_page_cannot_satisfy_substantive_legal_source_gate(m
     import legal_research
 
     monkeypatch.setattr(legal_research, "_search", lambda _query: [])
-    monkeypatch.setattr(
-        legal_research,
-        "_fetch",
-        lambda _url: "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ. المرجع القانوني هو الوقائع المصرية.",
-    )
+    def fake_fetch(url):
+        if "esc.gov.eg" in url:
+            return ""
+        return (
+            "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ. "
+            "ويعتبر في حكم القرارات الإدارية رفض السلطات الإدارية أو امتناعها "
+            "عن اتخاذ قرار كان من الواجب عليها اتخاذه وفقا للقوانين واللوائح."
+        )
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
     packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
     assert "Type: legislation_status_source" in packet
     assert not legal_research.has_verified_legal_source(packet)
