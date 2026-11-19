@@ -59,8 +59,8 @@ def test_scene_visual_qa_rejection_falls_through_to_external_provider(tmp_path):
         providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"openverse",5:"wikimedia"},
         create_image=fake_create, qa_image=fake_qa,
     )
-    assert used == ["pollinations", "cloudflare", "gemini", "pixabay"]
-    assert result["provider"] == "pixabay"
+    assert used == ["pollinations", "cloudflare", "gemini", "openverse", "wikimedia"]
+    assert result["provider"] == "wikimedia"
     assert result["qa"]["decision"] == "PASS"
 
 
