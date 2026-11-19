@@ -360,3 +360,81 @@ def test_duplicate_guard_rejects_hash_from_persistent_registry(tmp_path):
         image_generator.assert_image_not_duplicate(
             str(image_path), reference_dir=str(tmp_path / "empty"), known_hashes={digest}
         )
+
+
+
+def test_pixabay_query_uses_scene_nouns_not_camera_direction():
+    query, fallback = image_generator._pixabay_scene_queries(
+        "امتناع الإدارة عن اتخاذ القرار",
+        (
+            "A mid-shot of a neutral-looking adult seated at a modern office desk, "
+            "hands resting on an open folder, request form, law-book, clipboard, checklist, "
+            "wall clock and calendar."
+        ),
+    )
+    assert "government" in query
+    assert "office" in query
+    assert "paperwork" in query
+    assert "documents" in query
+    assert "mid" not in query and "shot" not in query and "neutral" not in query
+    assert fallback == "office paperwork documents folder"
+
+
+def test_pixabay_selects_only_metadata_matched_image_and_records_provenance(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.setenv("PIXABAY_API_KEY", "test-pixabay-key")
+    monkeypatch.setenv("KHYRAT_IMAGE_PROVIDER_STATE_PATH", str(tmp_path / "provider-state.json"))
+    calls = []
+
+    class SearchResponse(FakeResponse):
+        def json(self):
+            return {
+                "hits": [
+                    {
+                        "id": 11,
+                        "tags": "beach, sea, summer, travel",
+                        "largeImageURL": "https://images.example/irrelevant.jpg",
+                        "pageURL": "https://pixabay.com/photos/irrelevant-11/",
+                        "user": "irrelevant-user",
+                    },
+                    {
+                        "id": 22,
+                        "tags": "office, paperwork, documents, folder, desk",
+                        "largeImageURL": "https://images.example/office-documents.jpg",
+                        "pageURL": "https://pixabay.com/photos/office-documents-22/",
+                        "user": "editorial-user",
+                    },
+                ]
+            }
+
+    class ImageResponse(FakeResponse):
+        content = _valid_image_bytes()
+        headers = {"content-type": "image/jpeg"}
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return SearchResponse() if url == "https://pixabay.com/api/" else ImageResponse()
+
+    monkeypatch.setattr(image_generator.requests, "get", fake_get)
+    monkeypatch.setattr(image_generator, "brand_published_image", lambda path: path)
+
+    output = tmp_path / "pixabay-scene.jpg"
+    image_generator.create_legal_image(
+        topic="امتناع الإدارة عن اتخاذ القرار",
+        image_brief="An administrative office desk with paperwork and a file.",
+        visual_description="An adult seated at an office desk with an open folder, paperwork and documents.",
+        post_context="The post explains an administration's refusal to take a legally required decision.",
+        output_path=str(output),
+        aspect_ratio="9:16",
+        provider="pixabay",
+    )
+
+    provenance = json.loads((tmp_path / "pixabay-scene.jpg.provenance.json").read_text(encoding="utf-8"))
+    assert provenance["provider"] == "PIXABAY_SCENE_STOCK"
+    assert provenance["source_metadata"]["image_id"] == "22"
+    assert provenance["source_metadata"]["source_page"] == "https://pixabay.com/photos/office-documents-22/"
+    assert provenance["source_metadata"]["search_query"] == "government office paperwork documents desk folder"
+    assert len(calls) == 2
+    assert calls[0][1]["params"]["q"] == provenance["source_metadata"]["search_query"]
+    assert calls[1][0] == "https://images.example/office-documents.jpg"
