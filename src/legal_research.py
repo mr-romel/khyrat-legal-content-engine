@@ -295,16 +295,16 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
     normalized_post = _norm_legal_text(value)
     # Spreadsheet/user-supplied notes are leads, not verification evidence.
     verified_packet = str(research_packet or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
-    source_blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", verified_packet)
+    source_blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", verified_packet)
     eligible_evidence = [source_blocks[0]]
     for block in source_blocks[1:]:
-        source_type = re.search(r"(?m)^Type:\\s*(\\S+)", block)
+        source_type = re.search(r"(?m)^Type:\s*(\S+)", block)
         # Secondary legal databases can be useful research leads, but they are
         # not primary evidence for exact statutory or judicial citations.
         if source_type and source_type.group(1) == "secondary_legislation_reference":
             continue
         eligible_evidence.append(block)
-    normalized_evidence = _norm_legal_text("\\n".join(eligible_evidence))
+    normalized_evidence = _norm_legal_text("\n".join(eligible_evidence))
 
     issues: list[str] = []
     if "قانون الادارة العامة" in normalized_post:
@@ -324,13 +324,13 @@ def has_verified_legal_source(packet: str) -> bool:
     independently satisfy the publication source gate.
     """
     text = str(packet or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
-    blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", text)
+    blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", text)
     allowed_types = {"current_legislation_source", "judgment_or_principle", "official_government_source"}
     for block in blocks[1:]:
-        match = re.search(r"(?m)^URL:\\s*(https://\\S+)", block)
-        source_type = re.search(r"(?m)^Type:\\s*(\\S+)", block)
-        evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \\(retrieved\\):\\s*(.{30,})$", block)
-        title = re.search(r"(?m)^Title:\\s*\\S", block)
+        match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
+        source_type = re.search(r"(?m)^Type:\s*(\S+)", block)
+        evidence = re.search(r"(?m)^VERIFIED SOURCE TEXT \(retrieved\):\s*(.{30,})$", block)
+        title = re.search(r"(?m)^Title:\s*\S", block)
         if (
             match and source_type and source_type.group(1) in allowed_types
             and evidence and title and _allowed(match.group(1).rstrip(").,;"))
