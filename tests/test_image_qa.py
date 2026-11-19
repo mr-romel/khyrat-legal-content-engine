@@ -181,7 +181,7 @@ def test_low_scores_and_missing_secondary_props_are_advisory():
         "advisories": [],
     }, {"aspect_ratio_ok": True})
     assert result["decision"] == "PASS"
-    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V3"
+    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V4_MOBILE_TEXT_THRESHOLD"
     assert "no concrete publication-blocking defect" in result["qa_policy_override"]
 
 
