@@ -469,3 +469,53 @@ def test_official_sis_research_source_can_support_retrieved_article_12_text(monk
         "التعيين وفق المادة 12 من قانون رقم 81 لسنة 2016",
         packet,
     ) == []
+
+
+def test_trusted_http_fetch_retries_with_os_ca_bundle_without_disabling_tls(monkeypatch):
+    import requests
+    import legal_research
+
+    calls = []
+    response = type("Response", (), {"status_code": 200})()
+
+    def fake_get(url, **kwargs):
+        calls.append(kwargs.copy())
+        if len(calls) == 1:
+            raise requests.exceptions.SSLError("certifi CA failure")
+        return response
+
+    monkeypatch.setattr(legal_research.requests, "get", fake_get)
+    monkeypatch.setenv("SSL_CERT_FILE", "")
+    monkeypatch.setattr(legal_research.os.path, "isfile", lambda _path: True)
+    result = legal_research._trusted_get("https://official.gov.eg/source", timeout=3)
+
+    assert result is response
+    assert len(calls) == 2
+    assert calls[1]["verify"] == "/etc/ssl/certs/ca-certificates.crt"
+    assert calls[1]["verify"] is not False
+
+
+def test_official_constitutional_court_source_supports_merit_in_public_appointment(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if "sccourt.gov.eg/DjangoPortalResources/Rules_Html/10425_" in url:
+            return (
+                "حكم المحكمة الدستورية العليا. وكان المشرع قد ألغى قانون نظام العاملين المدنيين بالدولة "
+                "بموجب قانون الخدمة المدنية رقم 81 لسنة 2016. ولا يجوز أن يكون التعيين في وظيفة بذاتها "
+                "عملا آليا يفتقر إلى الأسس الموضوعية أو منفصلا عن عوامل الخبرة والجدارة التي يتم على "
+                "ضوئها اختيار من يتولاها."
+            )
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+
+    assert any("sccourt.gov.eg/DjangoPortalResources/Rules_Html/10425_" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "Type: judgment_or_principle" in packet
+    assert "الخبرة والجدارة" in packet
