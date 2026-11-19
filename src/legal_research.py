@@ -455,12 +455,12 @@ def research_legal_topic(topic, existing=""):
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         seed_urls.extend([
             (
-                "https://www.sccourt.gov.eg/DjangoPortalResources/Rules_Html/10425_35_105_1_2.html",
-                "المحكمة الدستورية العليا — حكم بشأن موضوعية شروط شغل الوظائف العامة ومبدأ الجدارة",
+                "https://aca.gov.eg/News/1625.aspx",
+                "هيئة الرقابة الإدارية — الإطار التشريعي لقانون الخدمة المدنية رقم 81 لسنة 2016 وطرق التعيين",
             ),
             (
-                "https://sis.gov.eg/media/734804/1-%D8%AF%D9%88%D8%B1%D9%8A%D8%A911.pdf",
-                "الهيئة العامة للاستعلامات — دراسات في حقوق الإنسان: ضمانات المساواة في شغل الوظائف العامة ونص المادة 12 من قانون الخدمة المدنية",
+                "https://sccourt.gov.eg/DjangoPortalResources/Rules_Html/10425_35_105_1_2.html",
+                "المحكمة الدستورية العليا — حكم بشأن موضوعية شروط شغل الوظائف العامة ومبدأ الجدارة",
             ),
             (
                 "https://customs.gov.eg/Upload/ECAAdminace/54f10188-271f-4255-93f2-2f722a46f244.pdf",
