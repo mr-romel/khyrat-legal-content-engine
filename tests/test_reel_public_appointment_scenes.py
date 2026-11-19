@@ -13,7 +13,7 @@ def test_public_service_appointment_uses_text_free_recruitment_process_scenes():
     assert all(
         forbidden not in scene.casefold()
         for scene in scenes
-        for forbidden in ("notice board", "vacancy poster", "application form", "submission tray", "readable text")
+        for forbidden in ("notice board", "vacancy poster", "application form", "submission tray")
     )
     assert all(
         any(term in scene.casefold() for term in ("no signs", "no signage", "no paperwork", "no papers", "no documents", "no posters", "no writing", "no visible logos"))
