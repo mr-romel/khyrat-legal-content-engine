@@ -351,3 +351,9 @@ def test_reel_recovery_pin_is_manual_only_not_inherited_by_schedule():
     assert "recovery_attempt_id:" in workflow
     assert "REEL_RECOVERY_SOURCE_ID: ${{ inputs.recovery_source_id || '' }}" in workflow
     assert 'REEL_RECOVERY_SOURCE_ID: "20261117-2200-R017"' not in workflow
+
+
+def test_manual_reel_recovery_prefills_the_known_row15_request():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'default: "20261117-2200-R017"' in workflow
+    assert 'default: "row15-public-appointment-textfree-20261119-02"' in workflow
