@@ -320,3 +320,7 @@ def test_negative_administrative_decision_uses_curated_offline_source_when_live_
     assert "21855 لسنة 65 قضائية" in packet
     assert "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" in packet
     assert "EXISTING SHEET LEGAL SOURCES:" not in packet
+    assert legal_research.validate_legal_citations(
+        "القرار السلبي وفق المادة 10 من قانون رقم 47 لسنة 1972",
+        packet,
+    ) == []
