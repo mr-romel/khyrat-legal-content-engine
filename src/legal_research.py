@@ -218,14 +218,25 @@ def _source_evidence(text: str, topic: str) -> str:
             break
     if not windows:
         return ""
+    # Preserve exact statutory identifiers from the successfully fetched source body.
+    # Topic excerpts are intentionally short, but citation validation must also see
+    # article/law references elsewhere in that same retrieved document.
     law_refs = []
-    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,45}?(?:رقم\s*)?([٠-٩0-9]+)\s+لسنة\s+([٠-٩0-9]+)"
+    law_pattern = r"(?:قانون|القانون)[^،؛.]{0,80}?(?:رقم\\s*)?([٠-٩0-9]+)\\s+لسنة\\s+([٠-٩0-9]+)"
     for match in re.finditer(law_pattern, value, re.I):
         reference = f"قانون رقم {match.group(1)} لسنة {match.group(2)}"
         if reference not in law_refs:
             law_refs.append(reference)
+
+    article_refs = []
+    article_pattern = r"(?:المادة|مادة)\\s*[（(]?\\s*([٠-٩0-9]+)\\s*[）)]?"
+    for match in re.finditer(article_pattern, value, re.I):
+        reference = f"المادة {match.group(1)}"
+        if reference not in article_refs:
+            article_refs.append(reference)
+
     excerpts = [snippet for _, snippet in sorted(windows)]
-    return _clean(" ".join(law_refs + excerpts))[:9000]
+    return _clean(" ".join(law_refs + article_refs + excerpts))[:9000]
 
 def _quote(t,topic,max_words=24):
     terms=[x for x in re.findall(r"[\u0600-\u06ff]{4,}",topic) if x not in {"قانون","مصر","الموضوع"}]
