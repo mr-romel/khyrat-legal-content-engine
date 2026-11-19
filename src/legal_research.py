@@ -166,7 +166,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
     if "امتناع" in normalized and "الادارة" in normalized:
         aliases.extend([
             "امتناع الإدارة", "رفض السلطات الإدارية", "القرارات الإدارية",
-            "قرار إداري سلبي", "اتخاذ قرار", "مجلس الدولة", "قانون مجلس الدولة",
+            "قرار إداري سلبي", "اتخاذ قرار",
         ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend([
@@ -417,6 +417,10 @@ def research_legal_topic(topic, existing=""):
             (
                 "https://esc.gov.eg/service/%D8%A7%D9%84%D9%82%D8%B3%D9%85-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A6%D9%8A/",
                 "مجلس الدولة المصري — اختصاص القضاء الإداري وحكم الامتناع عن اتخاذ القرار",
+            ),
+            (
+                "https://stg.esc.gov.eg/%D8%A7%D9%84%D9%82%D8%B3%D9%85-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A6%D9%8A/",
+                "مجلس الدولة المصري — القسم القضائي (نطاق فرعي رسمي stg)",
             ),
             (
                 "https://mof.gov.eg/ar/legislation/legislation-5fe86ada7bfc600007cc01b8",
