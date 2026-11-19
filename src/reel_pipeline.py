@@ -873,6 +873,16 @@ def post_visual_terms(post: str, topic: str) -> list[str]:
             "A smartphone beside a sealed evidence envelope and plain case folder, no visible screen text or people.",
             "A calm home-office tabletop with a secured phone and closed complaint papers, no violence, no people, no readable writing.",
         ]
+    # Public-service appointment is a distinct legal scenario: show an actual vacancy notice,
+    # application submission, and selection procedure—not generic HR desks or payroll props.
+    if family == "employment" and any(word in (topic_text + " " + post_text) for word in ("التعيين", "وظيفة عامة", "الوظيفة العامة", "مسابقة التعيين", "شغل وظيفة")):
+        scenes = [
+            "Photorealistic documentary close-up of a large official public-sector job vacancy announcement pinned prominently to a government office notice board; the notice is the unmistakable central subject, with blank unreadable lines, a red circular approval stamp, and a simple office chair visible nearby; no legible text, no logos.",
+            "A job applicant's hand placing a completed but unreadable application form into a clearly visible government recruitment submission tray; a public vacancy announcement board is prominent in the background; contemporary government service office, no readable writing.",
+            "A government recruitment committee reviewing a stack of anonymized job applications across a meeting table; one prominent public vacancy announcement sheet and a red stamp are visible; faces secondary, no readable text.",
+            "A close-up of an official public employment vacancy notice beside an application folder, red stamp and capped pen on a government office counter; the vacancy notice dominates the frame, all writing blurred.",
+            "A modern public-sector recruitment office with a clearly visible vacancy announcement board in the foreground, an empty applicant chair and an application desk behind it; documentary realism, no readable text or logos.",
+        ]
     # For employment leave/rest topics, use concrete leave and attendance evidence rather than generic workplace portraits.
     elif family == "employment" and any(word in (topic_text + " " + post_text) for word in ("إجاز", "راحة", "عطلة", "راحة أسبوعية")):
         scenes = [
