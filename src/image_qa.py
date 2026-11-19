@@ -204,7 +204,7 @@ def _metadata_relevance_fallback(path: Path, topic: str, image_brief: str, hard:
 
 
 def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) -> dict[str, Any]:
-    """Keep aesthetics advisory, but enforce a strict minimum for topic relevance."""
+    """Keep scores and supporting-prop omissions advisory; block only concrete defects."""
     findings = []
     for field in ("issues", "relevance_findings", "composition_findings"):
         value = data.get(field, [])
@@ -231,7 +231,6 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
             if not re.search(r"\b(no|not|none|without|absent|absence|neither|does not|isn\'t|aren\'t)\b", finding):
                 material_defect = True
                 break
-    relevance_score = _normalize_score(data.get("relevance_score"))
     hard_failure = (
         not bool(hard.get("aspect_ratio_ok"))
         or bool(data.get("text_detected"))
