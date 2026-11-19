@@ -105,7 +105,7 @@ No character-reference images are supplied or required. Evaluate the generated s
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 LEGAL RELEVANCE RULE:
-Apply a STRICT TOPIC-FIRST relevance standard. The PRIMARY SUBJECT and MAIN ACTION of the image must depict the concrete legal situation, object, evidence, procedure, place, or consequence stated in the ORIGINAL VISUAL BRIEF. A generic legal office, lawyer portrait, courthouse, scales, gavel, paperwork, handshake, phone, money, family, workplace, or document is NOT relevant merely because it can appear in legal content. Such an element counts only when it is the actual subject or action required by this specific brief. The topic-specific subject must be visually dominant and recognizable at normal feed size; incidental background props do not qualify. If the brief names a distinctive object/action/place, verify that it is actually visible. Reject images whose main scene could illustrate dozens of unrelated legal topics equally well. Do not require every detail, but require the central subject/action to match. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
+Judge the image as a complete visual story, not as a checklist of props. The main scene should reasonably communicate the legal topic or the practical situation described in the ORIGINAL VISUAL BRIEF. Accept a clear contextual, documentary, or symbolic depiction when the relationship is understandable from the dominant scene. Do NOT require every named supporting object, color, stamp, silhouette, hand, calendar, or background detail to appear. Missing one specified prop is not a topic mismatch when the overall scene still communicates the same situation. Do not invent mandatory props from examples or explanatory wording. Reject only when the dominant scene is clearly about a different subject, is genuinely generic with no recognizable connection to the brief, or would materially mislead viewers. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
 
 BRAND OVERLAY RULE:
 A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_OVERLAY_SUBTEXT}" is intentionally
@@ -128,11 +128,10 @@ CHECK THESE FIVE THINGS:
    reflections, shadows, or ambiguous artifacts. If the scene is a still life with no people, do not invent
    anatomy findings.
 DECISION:
-PASS only when the dominant subject/action directly matches the specific topic and original visual brief, is recognizable at normal feed size, and the image is otherwise usable. A loosely related prop or generic legal scene is not enough.
-REGENERATE when the central subject/action does not directly match the visual brief, the scene is materially misleading, visibly distorted, unusable, or contains prominent generated text. Composition scores and minor aesthetic issues remain advisory; topic relevance is a publication gate.
+PASS when a reasonable viewer can understand the connection between the dominant scene and the topic/brief, even if some supporting details are absent. REGENERATE only for a clearly unrelated or materially misleading main scene, a clearly unusable image, a material visual-integrity defect, or prominent generated text. Composition, styling, imperfect framing, low numeric scores, and missing secondary props are advisory—not publication blockers.
 Do not reject a valid 9:16 Reel image for not being 4:5; use the measured target format above.
 Do not invent negative constraints or missing mandatory props. The absence of a person, lawyer, courtroom, justice scales, or any illustrative prop is NOT a defect unless the supplied visual brief explicitly makes that exact element essential. Do not demand generic legal symbols. Judge whether the actual scene communicates the stated legal issue, not whether it matches an imagined stock-photo template.
-A low relevance score is a substantive warning, not a cosmetic advisory. If relevance is below the configured threshold, or the main scene is generic/ambiguous, REGENERATE. If uncertain whether the central subject matches, do not infer relevance from generic props.
+Numeric scores are advisory signals, not standalone rejection criteria. A low relevance score must be supported by a concrete explanation that the dominant scene is clearly unrelated or materially misleading. If uncertain, assess the full visual story and do not reject solely because one expected prop is absent.
 A clearly visible, material anatomy or geometry defect is a valid rejection reason; ambiguous reflections, tiny artifacts, and speculative defects are not.
 Do not reject a clean, coherent image merely because composition or styling is not perfect.
 The image is a first-class publishing asset; do not publish a visibly malformed image just to avoid another generation attempt.
@@ -238,11 +237,10 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
         or bool(data.get("text_detected"))
         or explicit_unrelated
         or material_defect
-        or relevance_score < QA_MIN_RELEVANCE
     )
 
     data["advisories"] = list(data.get("advisories") or [])
-    data["qa_policy"] = "STRICT_CENTRAL_SUBJECT_RELEVANCE_V2"
+    data["qa_policy"] = "CONCRETE_DEFECTS_ONLY_V3"
     if data.get("decision") == "REGENERATE" and not hard_failure:
         data["decision"] = "PASS"
         data["qa_policy_override"] = (
@@ -252,7 +250,7 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
         data["advisories"].append(data["qa_policy_override"])
     elif hard_failure:
         data["decision"] = "REGENERATE"
-        data["qa_policy_override"] = "A concrete visual defect or insufficient central-subject relevance was identified."
+        data["qa_policy_override"] = "A concrete format, text, unrelated-scene, or material visual-integrity defect was identified."
     return data
 
 
