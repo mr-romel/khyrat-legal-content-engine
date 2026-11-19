@@ -56,7 +56,7 @@ def test_scene_visual_qa_rejection_falls_through_to_external_provider(tmp_path):
         image_brief="Municipal water treatment plant with tanks and pipes",
         output_path=tmp_path / "scene.jpg", api_key="",
         cloudflare_account_id="", cloudflare_api_token="",
-        providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"pixabay"},
+        providers={1:"pollinations",2:"cloudflare",3:"gemini",4:"openverse",5:"wikimedia"},
         create_image=fake_create, qa_image=fake_qa,
     )
     assert used == ["pollinations", "cloudflare", "gemini", "pixabay"]
