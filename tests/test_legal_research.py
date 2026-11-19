@@ -272,8 +272,7 @@ def test_employment_topic_uses_official_civil_service_law_seed(monkeypatch):
     packet = legal_research.research_legal_topic(
         "الوظيفة العامة والتعيين — زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ القرار"
     )
-    assert any("قانون%20الخدمة%20المدنية" in url for url in fetched)
-    assert any(url.startswith("https://customs.gov.eg/") for url in fetched)
+    assert any("jobs.caoa.gov.eg" in url for url in fetched)
     assert not any("manshurat.org/node/14678" in url for url in fetched)
     assert "https://lawhub.info/eg/?p=11478" not in packet
     assert legal_research.has_verified_legal_source(packet)
@@ -510,6 +509,40 @@ def test_accessible_aca_source_supports_civil_service_and_appointment_context(mo
     packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
 
     assert any("aca.gov.eg/News/1625.aspx" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "Type: official_government_source" in packet
+    assert legal_research.validate_legal_citations(
+        "قانون رقم 81 لسنة 2016",
+        packet,
+    ) == []
+    assert legal_research.validate_legal_citations(
+        "المادة 12 من قانون رقم 81 لسنة 2016",
+        packet,
+    )
+
+
+def test_official_caoa_jobs_portal_supports_civil_service_appointment_context(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if url.rstrip("/") == "https://jobs.caoa.gov.eg":
+            return (
+                "بوابة الوظائف الحكومية. الوظائف المتاحة: وظائف تشغل بالتعيين والتعاقد. "
+                "مكتبة الموقع: قانون الخدمة المدنية رقم 81 لسنة 2016 واللائحة التنفيذية. "
+                "تعلن الجهات الحكومية عن الوظائف الشاغرة وشروط شغلها."
+            )
+        if "caoa.gov.eg/WebForms/laws.aspx" in url:
+            return "الجهاز المركزي للتنظيم والإدارة. قوانين ومبادئ مستقرة. قانون الخدمة المدنية 2016 رقم 81."
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+
+    assert any("jobs.caoa.gov.eg" in url for url in fetched)
     assert legal_research.has_verified_legal_source(packet)
     assert "Type: official_government_source" in packet
     assert legal_research.validate_legal_citations(
