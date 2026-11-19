@@ -377,3 +377,31 @@ URL: https://moj.gov.eg/laws/example
 VERIFIED SOURCE TEXT (retrieved): المادة 12 من قانون رقم 81 لسنة 2016 تنظم التعيين.
 """
     assert validate_legal_citations(post, packet)
+
+
+def test_negative_administrative_decision_discovers_official_state_council_source(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if "esc.gov.eg/service/" in url:
+            return (
+                "القسم القضائي بمجلس الدولة المصري. تختص محاكم مجلس الدولة دون غيرها بالفصل "
+                "في المنازعات الإدارية. ويعتبر في حكم القرارات الإدارية رفض السلطات الإدارية "
+                "أو امتناعها عن اتخاذ قرار كان من الواجب عليها اتخاذه وفقا للقوانين واللوائح."
+            )
+        if "mof.gov.eg/ar/legislation/legislation-5fe86ada" in url:
+            return "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ."
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
+
+    assert any("esc.gov.eg/service/" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "امتناعها عن اتخاذ قرار" in packet
+    assert "Type: official_government_source" in packet
+    assert legal_research.validate_legal_citations("قانون رقم 47 لسنة 1972", packet) == []

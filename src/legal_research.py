@@ -163,6 +163,11 @@ def _topic_evidence_terms(topic: str) -> list[str]:
             "اسم كاذب", "تداخل في وظيفة عمومية", "صفة رسمية من الحكومة",
             "اختلاس الألقاب والوظائف", "الاتصاف بها بدون حق",
         ])
+    if "امتناع" in normalized and "الادارة" in normalized:
+        aliases.extend([
+            "امتناع الإدارة", "رفض السلطات الإدارية", "القرارات الإدارية",
+            "قرار إداري سلبي", "اتخاذ قرار", "مجلس الدولة", "قانون مجلس الدولة",
+        ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend([
             "الخدمة المدنية", "الوظائف العامة", "شغل الوظائف", "التعيين في الوظائف",
@@ -407,6 +412,17 @@ def research_legal_topic(topic, existing=""):
             ("https://aca.gov.eg/Media/News/2021/12/11/2021-637748484788261346-826.pdf", "هيئة الرقابة الإدارية: استغلال صفة الموظف العام"),
             ("https://manshurat.org/node/14677", "قانون العقوبات رقم 58 لسنة 1937 — الباب العاشر، المواد 155 إلى 157"),
         ])
+    if "امتناع" in normalized_for_seeds and "الادارة" in normalized_for_seeds:
+        seed_urls.extend([
+            (
+                "https://esc.gov.eg/service/%D8%A7%D9%84%D9%82%D8%B3%D9%85-%D8%A7%D9%84%D9%82%D8%B6%D8%A7%D8%A6%D9%8A/",
+                "مجلس الدولة المصري — اختصاص القضاء الإداري وحكم الامتناع عن اتخاذ القرار",
+            ),
+            (
+                "https://mof.gov.eg/ar/legislation/legislation-5fe86ada7bfc600007cc01b8",
+                "وزارة المالية — قانون مجلس الدولة رقم 47 لسنة 1972 وحالته التشريعية",
+            ),
+        ])
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         seed_urls.extend([
             (
@@ -489,10 +505,15 @@ def research_legal_topic(topic, existing=""):
             "المحكمة الإدارية العليا" if _host_matches(domain, ADMIN) else domain
         )
         case = _case(body)
-        if _host_matches(domain, COURT) or _host_matches(domain, ADMIN):
+        if _host_matches(domain, COURT):
             source_type = "judgment_or_principle"
             # Never invent a case number; a source without one may be cited without a quotation.
             quote = _quote(body, topic) if case else ""
+        elif _host_matches(domain, ADMIN):
+            # The official State Council website is an institutional source,
+            # not a retrieved judicial ruling; classify it accordingly.
+            source_type = "official_government_source"
+            quote = ""
         elif _host_matches(domain, OFFICIAL_LAWS):
             source_type = "current_legislation_source"
             quote = ""
