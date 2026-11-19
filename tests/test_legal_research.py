@@ -307,3 +307,16 @@ def test_topic_evidence_terms_expand_legal_synonyms():
     assert "صفة" in impersonation
     assert "الخدمة" in employment
     assert "المدنية" in employment
+
+
+def test_negative_administrative_decision_uses_curated_offline_source_when_live_research_fails(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+    monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
+    packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
+    assert legal_research.has_verified_legal_source(packet)
+    assert "قانون مجلس الدولة رقم 47 لسنة 1972" in packet
+    assert "21855 لسنة 65 قضائية" in packet
+    assert "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" in packet
+    assert "EXISTING SHEET LEGAL SOURCES:" not in packet
