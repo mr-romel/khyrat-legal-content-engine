@@ -185,6 +185,18 @@ def test_low_scores_and_missing_secondary_props_are_advisory():
     assert "no concrete publication-blocking defect" in result["qa_policy_override"]
 
 
+def test_policy_rejects_missing_central_subject_but_not_missing_secondary_props():
+    from image_qa import _apply_lenient_relevance_policy
+    result = _apply_lenient_relevance_policy({
+        "decision": "REGENERATE",
+        "text_detected": False,
+        "issues": ["Missing primary subject (job-vacancy notice)."],
+        "relevance_findings": ["Missing specific visual details (red stamp, chair silhouette)."],
+        "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    assert result["decision"] == "REGENERATE"
+
+
 def test_policy_rejects_explicitly_unrelated_image():
     from image_qa import _apply_lenient_relevance_policy
     result = _apply_lenient_relevance_policy({
