@@ -49,7 +49,7 @@ def test_scene_visual_qa_rejection_falls_through_to_external_provider(tmp_path):
         used.append(provider)
         Path(kwargs["output_path"]).write_bytes((provider.encode("ascii") * 6000)[:12000])
     def fake_qa(**kwargs):
-        return {"decision": "PASS" if Path(kwargs["image_path"]).read_bytes().startswith(b"pixabay") else "REGENERATE",
+        return {"decision": "PASS" if Path(kwargs["image_path"]).read_bytes().startswith(b"wikimedia") else "REGENERATE",
                 "issues": ["off-topic generated scene"]}
     result = _generate_scene_with_provider_fallbacks(
         topic="المرفق العام الاقتصادي", post="خدمات المرافق العامة الاقتصادية",
