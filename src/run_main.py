@@ -908,6 +908,10 @@ def _smart_main() -> None:
                         f"status={str(refreshed_row.get('الحالة', '')).strip().upper()}; "
                         f"new_post_ids={len(new_post_ids)}; reason={failure_reason}"
                     )
+            else:
+                failure_reason = f"Processed row {row_number} was not present in the refreshed sheet response."
+                failures.append((row_number, failure_reason))
+                print(f"CATCH_UP_ROW_FAILED: row={row_number}; reason={failure_reason}")
         except Exception as row_exc:
             failures.append((row_number, str(row_exc)))
             print(f"CATCH_UP_ROW_FAILED: row={row_number}; continuing with remaining due rows: {row_exc}")
@@ -919,17 +923,23 @@ def _smart_main() -> None:
             sheet_name=sheet_name,
             row_number=last_successful_row,
         )
-    if failures:
-        print(
-            f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} "
-            f"row_failures={len(failures)} successful_social_sources="
-            f"{len(successful_social_rows)}."
-        )
-    else:
-        print(
-            f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} row_failures=0 "
-            f"successful_social_sources={len(successful_social_rows)}."
-        )
+    summary_line = (
+        f"CATCH_UP_SUMMARY: attempted={len(selected_rows)} "
+        f"row_failures={len(failures)} successful_social_sources={len(successful_social_rows)}."
+    )
+    print(summary_line)
+    github_summary = os.getenv("GITHUB_STEP_SUMMARY", "").strip()
+    if github_summary:
+        try:
+            with Path(github_summary).open("a", encoding="utf-8") as summary_file:
+                summary_file.write("## Khyrat publishing engine result\\n\\n")
+                summary_file.write(f"- Attempted rows: {len(selected_rows)}\\n")
+                summary_file.write(f"- Row failures: {len(failures)}\\n")
+                summary_file.write(f"- Newly confirmed social sources: {len(successful_social_rows)}\\n")
+                for row_number, detail in failures:
+                    summary_file.write(f"- Row {row_number} failed: {detail[:500]}\\n")
+        except OSError as summary_exc:
+            print(f"GitHub step summary write failed (non-blocking): {summary_exc}")
 
 
 production_main._prepare_editorial_assets = _capture_editorial_assets
