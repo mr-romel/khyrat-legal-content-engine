@@ -1378,7 +1378,7 @@ def main() -> int:
                 # Public, openly licensed scene-matched image search is available
                 # without a paid API secret and is still subjected to the same visual QA.
                 4: "openverse",
-                5: "wikimedia",
+                5: "pixabay",
             }
             for scene_index, scene_prompt in enumerate(scene_prompts, start=1):
                 image_path = scene_dir / f"ai_scene_{scene_index:02d}.jpg"
