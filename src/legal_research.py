@@ -12,8 +12,8 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","sis.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
+OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","caoa.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -429,6 +429,10 @@ def research_legal_topic(topic, existing=""):
         ])
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         seed_urls.extend([
+            (
+                "https://sis.gov.eg/media/734804/1-%D8%AF%D9%88%D8%B1%D9%8A%D8%A911.pdf",
+                "الهيئة العامة للاستعلامات — دراسات في حقوق الإنسان: ضمانات المساواة في شغل الوظائف العامة ونص المادة 12 من قانون الخدمة المدنية",
+            ),
             (
                 "https://customs.gov.eg/Upload/ECAAdminace/54f10188-271f-4255-93f2-2f722a46f244.pdf",
                 "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، نسخة منشورة على موقع مصلحة الجمارك",
