@@ -1,13 +1,21 @@
 from reel_pipeline import post_visual_terms
 
 
-def test_public_service_appointment_uses_five_explicit_vacancy_scenes():
+def test_public_service_appointment_uses_text_free_recruitment_process_scenes():
     scenes = post_visual_terms(
         "زاوية جديدة: 3 علامات تحذيرية قبل اتخاذ قرار التعيين في الوظيفة العامة",
         "الوظيفة العامة والتعيين",
     )
     assert len(scenes) == 8
-    assert all("vacancy" in scene or "recruitment" in scene for scene in scenes)
-    assert "notice board" in scenes[0]
-    assert "submission tray" in scenes[1]
-    assert "recruitment committee" in scenes[2]
+    assert "government employment office" in scenes[0]
+    assert "recruitment waiting area" in scenes[1]
+    assert "recruitment interview" in scenes[2]
+    assert all(
+        forbidden not in scene.casefold()
+        for scene in scenes
+        for forbidden in ("notice board", "vacancy poster", "application form", "submission tray", "readable text")
+    )
+    assert all(
+        any(term in scene.casefold() for term in ("no signs", "no signage", "no paperwork", "no papers", "no documents", "no posters", "no writing"))
+        for scene in scenes
+    )
