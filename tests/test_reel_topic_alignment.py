@@ -116,3 +116,29 @@ def test_video_metadata_recognizes_public_service_and_impersonation_subjects():
 
     assert _topic_family("الوظيفة العامة والتعيين") == "public_service"
     assert _topic_family("انتحال الشخصية") == "impersonation"
+
+
+def test_administrative_refusal_has_its_own_topic_specific_visual_scenes():
+    from reel_pipeline import _visual_topic_family, post_visual_terms
+
+    topic = "امتناع الإدارة عن اتخاذ القرار"
+    assert _visual_topic_family(topic) == "administrative_refusal"
+    scenes = post_visual_terms(
+        "تأخر الجهة الإدارية عن البت في طلب المواطن ورفض اتخاذ الإجراء",
+        topic,
+    )
+    assert len(scenes) == 8
+    assert all(any(term in scene.casefold() for term in ("public", "government", "administrative")) for scene in scenes)
+    assert all(any(term in scene.casefold() for term in ("no signs", "no signage", "no text", "no readable text", "no writing")) for scene in scenes)
+    assert not any("pricing" in scene.casefold() or "business desk" in scene.casefold() for scene in scenes)
+
+
+def test_identity_impersonation_has_multiple_text_free_human_scenes_without_courtroom_cliches():
+    from reel_pipeline import post_visual_terms
+
+    scenes = post_visual_terms("مواجهة انتحال الشخصية", "انتحال الشخصية")
+    assert len(scenes) == 8
+    assert any("clerk" in scene.casefold() or "employee" in scene.casefold() for scene in scenes)
+    assert any("fingerprint" in scene.casefold() for scene in scenes)
+    assert all("no readable text" in scene.casefold() or "no visible writing" in scene.casefold() for scene in scenes)
+    assert not any("gavel" in scene.casefold() or "courtroom" in scene.casefold() for scene in scenes)

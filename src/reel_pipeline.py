@@ -637,6 +637,7 @@ def _visual_topic_family(topic: str) -> str:
     """Resolve one authoritative visual family from the public legal topic."""
     value = " ".join(str(topic or "").split()).casefold()
     families = [
+        ("administrative_refusal", ("امتناع الإدارة", "امتناع جهة الإدارة", "القرار السلبي", "رفض الإدارة", "امتناع الجهة الإدارية", "رفض الجهة الإدارية")),
         ("nursery_surveillance", ("حضانات", "حضانة", "دار حضانة", "روضة أطفال", "رياض الأطفال")),
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
@@ -668,8 +669,25 @@ def _visual_topic_content_aligned(topic: str, post: str) -> bool:
 
 
 _VISUAL_SCENES = {
+    "administrative_refusal": [
+        "A contemporary Egyptian public-service office: an adult citizen calmly speaking with a government clerk across a service counter; the clerk is politely indicating that the requested service will not proceed, no papers, no signs, no logos, no readable text, documentary realism.",
+        "A citizen waiting at a public administration service counter while a staff member gestures that the request cannot be processed; modern neutral government interior, no paperwork, no signage, no readable text.",
+        "A close documentary photograph of a citizen standing before a public-service counter with a staff member visible behind it, conveying an unresolved administrative request, no signs or readable text.",
+        "A respectful face-to-face interaction between an adult citizen and a public official in a modern administrative office, the official explaining a refusal with an open-hand gesture, no papers or screens, no text.",
+        "A wide modern government service hall with one citizen seeking assistance at an unoccupied service window, quiet atmosphere suggesting an unanswered request, no posters, no signs, no logos, no writing.",
+        "A public employee behind a counter listening to a citizen's request and declining to take action, subtle body language, contemporary office, no documents, no readable text.",
+        "A citizen leaving a government service office after an unresolved request, staff and service counter in the background, realistic contemporary Egyptian setting, no signs, no text.",
+        "A close view of an empty public-service counter and a citizen waiting nearby, visual metaphor for administrative inaction, clean modern public office, no paperwork, no signage, no readable text.",
+    ],
     "identity_impersonation": [
-        "A contemporary identity verification scene: a neutral unbranded identity card with all lettering blurred, a fingerprint evidence impression on a transparent forensic sheet, and a magnifying glass inspecting the identity photo area. A secure document sleeve and evidence tags sit on a clean desk. The visual must communicate impersonation and identity verification, not generic employment or courtroom imagery. No readable text, no police uniform, no handcuffs, no logos."
+        "A contemporary identity verification scene in a neutral service office: an adult clerk compares a person's face with a completely blank, unmarked identity card, both faces shown naturally, no readable text, no logos, no courtroom objects.",
+        "A close documentary photograph of two anonymous adults checking that an identity belongs to the person presenting it, neutral modern office, no papers, no visible writing, no legal symbols.",
+        "A secure identity-verification desk with a blank unmarked card, a fingerprint scanner, and a person's hand placing a finger on the scanner, no letters, numbers, logos, or readable text.",
+        "A modern reception employee carefully comparing a visitor's face with a blurred identity photo on a plain unmarked card, screen turned away, no readable text, no gavel or courtroom imagery.",
+        "A neutral close-up of a fingerprint scanner beside a plain identity card with no visible writing, a person's fingertip in focus, contemporary documentary photography.",
+        "An adult discovering that a second unmarked identity card carries a different portrait, both cards blank except for indistinct portrait shapes, no names, numbers, letters, or logos.",
+        "A modern identity-check interaction at a public-service reception counter, staff member verifying a visitor's identity discreetly, no paperwork, signage, screens, or readable text.",
+        "A forensic-style but realistic close-up of two anonymous portrait areas on separate blank identity cards with a fingerprint scanner nearby, no magnifying glass, no gavel, no courtroom, no readable text."
     ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",

@@ -105,13 +105,16 @@ No character-reference images are supplied or required. Evaluate the generated s
 The generated scene must be new and directly communicate the legal situation without relying on a recurring-person identity.
 
 LEGAL RELEVANCE RULE:
-Judge the image as a complete visual story, not as a checklist of props. The main scene should reasonably communicate the legal topic or the practical situation described in the ORIGINAL VISUAL BRIEF. Accept a clear contextual, documentary, or symbolic depiction when the relationship is understandable from the dominant scene. Do NOT require every named supporting object, color, stamp, silhouette, hand, calendar, or background detail to appear. Missing one specified prop is not a topic mismatch when the overall scene still communicates the same situation. Do not invent mandatory props from examples or explanatory wording. Reject only when the dominant scene is clearly about a different subject, is genuinely generic with no recognizable connection to the brief, or would materially mislead viewers. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
+Judge the image as a complete visual story, not as a checklist of props. The main scene should reasonably communicate the legal topic or the practical situation described in the ORIGINAL VISUAL BRIEF. Accept a clear contextual, documentary, or symbolic depiction when the relationship is understandable from the dominant scene. Do NOT require every named supporting object, color, stamp, silhouette, hand, calendar, or background detail to appear. Missing one specified prop is not a topic mismatch when the overall scene still communicates the same situation. Do not invent mandatory props from examples or explanatory wording. Reject only when the dominant scene is clearly about a different subject, is genuinely generic with no recognizable connection to the brief, or would materially mislead viewers. A plausible administrative setting, citizen-official interaction, waiting area, service counter, or refusal interaction can communicate administrative inaction even if the exact requested camera angle or a secondary person/prop is absent. Do not impose an unrequested country, nationality, culture, historical period, art style, gender, or cast restriction.
 
 BRAND OVERLAY RULE:
 A small bottom overlay reading "{ALLOWED_BRAND_TEXT}" and "{BRAND_OVERLAY_SUBTEXT}" is intentionally
 added by the code after generation. This exact overlay is ALLOWED and must NOT be counted as bad generated text. No platform-specific icon is used.
-Any other visible generated text, fake Arabic/English lettering, gibberish, watermark, logo, headline,
-caption, sign, document writing, or typography is a defect.
+Only text that is prominent, clearly readable at normal phone-screen size, and visually distracting
+or materially misleading is a defect. Tiny incidental background marks, defocused interface details,
+and faint paper texture are not publication blockers. Reject readable text when it dominates the frame,
+creates a false legal/business claim, or is the main focal element; do not reject an otherwise relevant
+scene for a small incidental word in the background.
 
 CHECK THESE FIVE THINGS:
 1. LEGAL RELEVANCE: Does the MAIN SUBJECT and MAIN ACTION directly depict the specific topic and original visual brief? Ignore incidental generic legal props.
@@ -242,7 +245,7 @@ def _apply_lenient_relevance_policy(data: dict[str, Any], hard: dict[str, Any]) 
     )
 
     data["advisories"] = list(data.get("advisories") or [])
-    data["qa_policy"] = "CONCRETE_DEFECTS_ONLY_V3"
+    data["qa_policy"] = "CONCRETE_DEFECTS_ONLY_V4_MOBILE_TEXT_THRESHOLD"
     if data.get("decision") == "REGENERATE" and not hard_failure:
         data["decision"] = "PASS"
         data["qa_policy_override"] = (

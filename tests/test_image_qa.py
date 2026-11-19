@@ -181,7 +181,7 @@ def test_low_scores_and_missing_secondary_props_are_advisory():
         "advisories": [],
     }, {"aspect_ratio_ok": True})
     assert result["decision"] == "PASS"
-    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V3"
+    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V4_MOBILE_TEXT_THRESHOLD"
     assert "no concrete publication-blocking defect" in result["qa_policy_override"]
 
 
@@ -221,3 +221,34 @@ def test_policy_still_rejects_generated_text_and_bad_format():
     }, {"aspect_ratio_ok": False})
     assert text_result["decision"] == "REGENERATE"
     assert ratio_result["decision"] == "REGENERATE"
+
+
+def test_qa_prompt_only_blocks_prominent_mobile_readable_text():
+    prompt = _build_prompt(
+        "امتناع الإدارة عن اتخاذ القرار",
+        "A citizen speaking with a government clerk at a public-service counter.",
+        {"width": 576, "height": 1024, "aspect_ratio": 0.5625, "aspect_ratio_ok": True},
+        0,
+        "CONTEXT_ONLY",
+    )
+    assert "normal phone-screen size" in prompt
+    assert "Tiny incidental background marks" in prompt
+    assert "materially misleading" in prompt
+
+
+def test_qa_policy_still_treats_low_scores_as_advisory_under_v4():
+    from image_qa import _apply_lenient_relevance_policy
+
+    result = _apply_lenient_relevance_policy({
+        "decision": "REGENERATE",
+        "composition_score": 20,
+        "relevance_score": 35,
+        "overall_score": 30,
+        "text_detected": False,
+        "issues": ["Composition advisory below 55.", "Relevance advisory below 72."],
+        "relevance_findings": ["A secondary object is missing."],
+        "composition_findings": ["The camera angle is imperfect."],
+        "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    assert result["decision"] == "PASS"
+    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V4_MOBILE_TEXT_THRESHOLD"
