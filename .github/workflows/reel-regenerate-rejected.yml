@@ -136,7 +136,11 @@ jobs:
               requested = status == "REGENERATE_REQUESTED"
               retryable_image_failure = (
                   status == "FAILED"
-                  and last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
+                  and (
+                      last_error.startswith("REEL_STAGE topic_specific_image_generation_failed")
+                      or last_error.startswith("REEL_STAGE image_pack_incomplete")
+                      or last_error.startswith("REEL_STAGE topic_specific_scene_plan_incomplete")
+                  )
                   and retry_count < 3
               )
               pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
