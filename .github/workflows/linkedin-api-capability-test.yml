@@ -1,5 +1,8 @@
 name: LinkedIn API Capability Test
 
+permissions:
+  contents: read
+
 on:
   push:
     paths:
