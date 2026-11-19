@@ -343,3 +343,11 @@ def test_pinned_reel_recovery_logs_safe_eligibility_diagnostics():
     assert "PINNED_RECOVERY_SOURCE_DIAGNOSTICS=" in workflow
     assert '"attempt_marker_seen"' in workflow
     assert '"has_external_reel_id"' in workflow
+
+
+def test_reel_recovery_pin_is_manual_only_not_inherited_by_schedule():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "recovery_source_id:" in workflow
+    assert "recovery_attempt_id:" in workflow
+    assert "REEL_RECOVERY_SOURCE_ID: ${{ inputs.recovery_source_id || '' }}" in workflow
+    assert 'REEL_RECOVERY_SOURCE_ID: "20261117-2200-R017"' not in workflow
