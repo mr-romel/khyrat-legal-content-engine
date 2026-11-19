@@ -499,7 +499,7 @@ def research_legal_topic(topic, existing=""):
         # Offline, curated legal source fallback. This is intentionally narrow:
         # only use a source packet whose exact text and URL were previously reviewed.
         # Never treat a topic keyword match alone as proof of a legal rule.
-        if "امتناع" in normalized_for_seeds and ("اداره" in normalized_for_seeds or "الاداره" in normalized_for_seeds):
+        if "امتناع" in normalized_for_seeds and "الادارة" in normalized_for_seeds:
             local_judgment_text = (
                 "الحكم الصادر من محكمة القضاء الإداري في الدعوى رقم 21855 لسنة 65 قضائية "
                 "بجلسة 28/5/2011 قرر أن القرار الإداري السلبي لا يقوم لمجرد سكوت الإدارة؛ "
