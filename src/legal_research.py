@@ -569,6 +569,14 @@ def research_legal_topic(topic, existing=""):
                 "قانون الخدمة المدنية رقم 81 لسنة 2016 — شروط التعيين والكفاءة والجدارة",
                 "", "https://lawhub.info/eg/?p=11478", civil_service_text,
             ))
+            if not any(record[7] == "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cbeec5" for record in records):
+                records.append((
+                    "official_government_source", "وزارة المالية — بوابة التشريعات",
+                    "", "", "صفحة التشريع تعرض قانون رقم 81 لسنة 2016 بحالة «سارٍ»",
+                    "قانون الخدمة المدنية رقم 81 لسنة 2016 — الحالة المنشورة: سارٍ",
+                    "", "https://mof.gov.eg/ar/legislation/legislation-5fe868ed7bfc600007cbeec5",
+                    "بوابة وزارة المالية المصرية تعرض قانون رقم 81 لسنة 2016 بإصدار قانون الخدمة المدنية وتذكر أن حالة القانون: سارٍ. وتوضح البوابة أن النصوص المنشورة إرشادية وأن المرجع القانوني هو الجريدة الرسمية."
+                ))
             print("Legal research: appended curated Civil Service Law text alongside official status source.")
     if any(record[7] in {
         "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf",
