@@ -30,6 +30,7 @@ from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
 GENERATED_DIR = Path("generated")
 
 MAX_IMAGE_QA_ATTEMPTS = 6
+IMAGE_QA_POLICY_VERSION = "CONCRETE_DEFECTS_ONLY_V3_PUBLIC_APPOINTMENT_V1"
 IMAGE_QA_ATTEMPTS_PER_RUN = 3
 IMAGE_PROVIDER_ROTATION = ["cloudflare", "gemini", "openverse", "wikimedia", "pixabay"]
 if os.getenv("POLLINATIONS_API_KEY", "").strip():
@@ -498,6 +499,20 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
         image_qa_score = ""
         image_qa_status = "QA_REJECTED"
         prior_image_qa_attempts = _image_qa_attempt_count(row)
+        stored_qa_policy = str(row.get("Image QA Policy Version", "") or "").strip()
+        if stored_qa_policy != IMAGE_QA_POLICY_VERSION:
+            # A changed visual brief/QA policy gets one fresh retry budget. This also
+            # releases rows previously stuck at the old three-attempt rejection limit.
+            print(
+                "IMAGE QA POLICY MIGRATION: "
+                f"{stored_qa_policy or 'legacy/blank'} -> {IMAGE_QA_POLICY_VERSION}; resetting stale retry count."
+            )
+            prior_image_qa_attempts = 0
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "Image QA Attempt": "0",
+                "Image QA Policy Version": IMAGE_QA_POLICY_VERSION,
+                "Image QA Issues": "",
+            })
         if prior_image_qa_attempts >= MAX_IMAGE_QA_ATTEMPTS:
             raise ImageQAError(
                 "IMAGE_QA_RETRY_BUDGET_EXHAUSTED: the scene brief requires correction before another automatic generation."
@@ -627,6 +642,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 "Image SHA256": image_sha256,
                 "Image Mode": "POST_GENERATED_IMAGE_BRIEF",
                 "Image QA Attempt": str(image_qa_attempt),
+                "Image QA Policy Version": IMAGE_QA_POLICY_VERSION,
                 "Image QA Status": image_qa_status,
                 "Image QA Score": image_qa_score,
                 "Image QA Issues": image_qa_summary[:1500],
@@ -650,6 +666,7 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 update_row(service, config["sheet_id"], sheet_name, row_number, {
                     "رابط الصورة": "",
                     "Image QA Attempt": str(locals().get("image_qa_attempt", 0)),
+                    "Image QA Policy Version": IMAGE_QA_POLICY_VERSION,
                     "Image QA Status": "IMAGE_QA_BLOCKED",
                     "Image QA Issues": str(image_exc)[:1500],
                     "Image Mode": "IMAGE_REQUIRED_BLOCKED",
