@@ -519,3 +519,35 @@ def test_official_constitutional_court_source_supports_merit_in_public_appointme
     assert legal_research.has_verified_legal_source(packet)
     assert "Type: judgment_or_principle" in packet
     assert "الخبرة والجدارة" in packet
+
+
+def test_accessible_aca_source_supports_civil_service_and_appointment_context(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if "aca.gov.eg/News/1625.aspx" in url:
+            return (
+                "الإطار التشريعي. قانون الخدمة المدنية رقم 81 لسنة 2016. "
+                "هو القانون المستحدث المعني بالعاملين بالجهاز الإداري للدولة من حيث تنظيم طرق "
+                "التعيين وترتيب وتوصيف وتقييم الوظائف ونقل العاملين وترقياتهم."
+            )
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic("الوظيفة العامة والتعيين")
+
+    assert any("aca.gov.eg/News/1625.aspx" in url for url in fetched)
+    assert legal_research.has_verified_legal_source(packet)
+    assert "Type: official_government_source" in packet
+    assert legal_research.validate_legal_citations(
+        "قانون رقم 81 لسنة 2016",
+        packet,
+    ) == []
+    assert legal_research.validate_legal_citations(
+        "المادة 12 من قانون رقم 81 لسنة 2016",
+        packet,
+    )
