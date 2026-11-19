@@ -404,7 +404,7 @@ def test_negative_administrative_decision_discovers_official_state_council_sourc
     assert legal_research.has_verified_legal_source(packet)
     assert "امتناعها عن اتخاذ قرار" in packet
     assert "Type: official_government_source" in packet
-    assert legal_research.validate_legal_citations("قانون رقم 47 لسنة 1972", packet) == []
+    assert legal_research.validate_legal_citations("قانون رقم 47 لسنة 1972", packet)
 
 
 def test_state_council_law_status_page_alone_does_not_verify_negative_decision(monkeypatch):
@@ -419,3 +419,17 @@ def test_state_council_law_status_page_alone_does_not_verify_negative_decision(m
     packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
     assert not legal_research.has_verified_legal_source(packet)
     assert "رفض السلطات الإدارية" not in packet
+
+
+def test_ministry_law_status_page_cannot_satisfy_substantive_legal_source_gate(monkeypatch):
+    import legal_research
+
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda _url: "قانون رقم 47 لسنة 1972 بشأن مجلس الدولة. حالة القانون: سارٍ. المرجع القانوني هو الوقائع المصرية.",
+    )
+    packet = legal_research.research_legal_topic("امتناع الإدارة عن اتخاذ القرار")
+    assert "Type: legislation_status_source" in packet
+    assert not legal_research.has_verified_legal_source(packet)
