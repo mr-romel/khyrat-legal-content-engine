@@ -336,3 +336,10 @@ def test_pinned_reel_recovery_does_not_report_success_when_source_is_ineligible(
     assert "PINNED_RECOVERY_SOURCE_NOT_ELIGIBLE" in workflow
     assert "if recovery_source_id:" in workflow
     assert "raise SystemExit(" in workflow
+
+
+def test_pinned_reel_recovery_logs_safe_eligibility_diagnostics():
+    workflow = Path(".github/workflows/reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert "PINNED_RECOVERY_SOURCE_DIAGNOSTICS=" in workflow
+    assert '"attempt_marker_seen"' in workflow
+    assert '"has_external_reel_id"' in workflow
