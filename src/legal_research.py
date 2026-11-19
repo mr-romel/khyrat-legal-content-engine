@@ -528,6 +528,8 @@ def research_legal_topic(topic, existing=""):
                 "بوابة وزارة المالية المصرية تعرض قانون رقم 47 لسنة 1972 بشأن مجلس الدولة وتذكر أن حالة القانون: سارٍ. وتوضح البوابة أن النصوص المنشورة إرشادية وأن المرجع القانوني هو الجريدة الرسمية."
             ))
             print("Legal research: using curated offline source packet for negative administrative decision; live discovery unavailable.")
+    if any(record[7] == "https://manshurat.org/sites/default/files/docs/pdf/009589.pdf" for record in records):
+        lines.append("Research method: curated offline source packet; live discovery unavailable.")
     if not records:
         print(
             "Legal research final result: BLOCKED; "
