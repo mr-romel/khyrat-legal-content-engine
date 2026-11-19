@@ -3,12 +3,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_reel_scene_providers_are_external_and_pixabay_is_fourth_fallback():
+def test_reel_scene_providers_prioritize_public_open_license_fallbacks():
     source = (ROOT / "src" / "reel_pipeline.py").read_text(encoding="utf-8")
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
     assert '3: "gemini"' in source
-    assert '4: "pixabay"' in source
+    assert '4: "openverse"' in source
+    assert '5: "wikimedia"' in source
     assert '4: "local_scene"' not in source
     assert "_generate_scene_with_provider_fallbacks" in source
     assert "REEL_SCENE_VISUAL_QA_REJECTED" in source
