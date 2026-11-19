@@ -299,9 +299,12 @@ def validate_legal_citations(text: str, research_packet: str) -> list[str]:
     eligible_evidence = [source_blocks[0]]
     for block in source_blocks[1:]:
         source_type = re.search(r"(?m)^Type:\s*(\S+)", block)
-        # Secondary legal databases can be useful research leads, but they are
-        # not primary evidence for exact statutory or judicial citations.
-        if source_type and source_type.group(1) == "secondary_legislation_reference":
+        # Only explicitly typed primary/official source blocks can verify
+        # precise legal citations. Secondary, missing-type, and unknown blocks
+        # remain context only and cannot satisfy this evidentiary requirement.
+        if not source_type or source_type.group(1) not in {
+            "current_legislation_source", "judgment_or_principle", "official_government_source"
+        }:
             continue
         eligible_evidence.append(block)
     normalized_evidence = _norm_legal_text("\n".join(eligible_evidence))
