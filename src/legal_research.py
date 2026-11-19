@@ -1,5 +1,5 @@
 from __future__ import annotations
-import html as html_lib, re, io
+import html as html_lib, re, io, os
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -66,9 +66,34 @@ def _unwrap(u):
     q=parse_qs(urlparse(u).query).get("uddg",[""])[0]
     return unquote(q) if q else u
 
+def _trusted_get(url, **kwargs):
+    """Retry TLS validation with the OS trust store when certifi lacks a CA.
+
+    Certificate verification is always enabled. This is a compatibility fallback
+    for government endpoints whose certificate chain is trusted by the OS store
+    but not by the Python certifi bundle.
+    """
+    try:
+        return requests.get(url, **kwargs)
+    except requests.exceptions.SSLError as initial_error:
+        candidates = []
+        configured = os.getenv("SSL_CERT_FILE", "").strip()
+        if configured and os.path.isfile(configured):
+            candidates.append(configured)
+        system_bundle = "/etc/ssl/certs/ca-certificates.crt"
+        if os.path.isfile(system_bundle) and system_bundle not in candidates:
+            candidates.append(system_bundle)
+        for ca_bundle in candidates:
+            try:
+                return requests.get(url, verify=ca_bundle, **kwargs)
+            except requests.exceptions.SSLError:
+                continue
+        raise initial_error
+
+
 def _search(q):
     try:
-        r=requests.get("https://html.duckduckgo.com/html/",params={"q":q,"kl":"eg-ar"},headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
+        r=_trusted_get("https://html.duckduckgo.com/html/",params={"q":q,"kl":"eg-ar"},headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
         r.raise_for_status()
     except Exception as e:
         print(f"Legal research search unavailable: {q!r} :: {e}"); return []
@@ -90,7 +115,7 @@ def _search(q):
 
 def _fetch(u):
     try:
-        r=requests.get(u,headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
+        r=_trusted_get(u,headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
         r.raise_for_status()
         content_type = r.headers.get("content-type", "").lower()
         if "pdf" in content_type or urlparse(u).path.lower().endswith(".pdf"):
