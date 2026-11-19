@@ -932,12 +932,12 @@ def _smart_main() -> None:
     if github_summary:
         try:
             with Path(github_summary).open("a", encoding="utf-8") as summary_file:
-                summary_file.write("## Khyrat publishing engine result\\n\\n")
-                summary_file.write(f"- Attempted rows: {len(selected_rows)}\\n")
-                summary_file.write(f"- Row failures: {len(failures)}\\n")
-                summary_file.write(f"- Newly confirmed social sources: {len(successful_social_rows)}\\n")
+                summary_file.write("## Khyrat publishing engine result\n\n")
+                summary_file.write(f"- Attempted rows: {len(selected_rows)}\n")
+                summary_file.write(f"- Row failures: {len(failures)}\n")
+                summary_file.write(f"- Newly confirmed social sources: {len(successful_social_rows)}\n")
                 for row_number, detail in failures:
-                    summary_file.write(f"- Row {row_number} failed: {detail[:500]}\\n")
+                    summary_file.write(f"- Row {row_number} failed: {detail[:500]}\n")
         except OSError as summary_exc:
             print(f"GitHub step summary write failed (non-blocking): {summary_exc}")
 
