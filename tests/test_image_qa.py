@@ -181,11 +181,11 @@ def test_low_scores_and_missing_secondary_props_are_advisory():
         "advisories": [],
     }, {"aspect_ratio_ok": True})
     assert result["decision"] == "PASS"
-    assert result["qa_policy"] == "CONCRETE_DEFECTS_ONLY_V3"
+    assert result["qa_policy"] == "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
     assert "no concrete publication-blocking defect" in result["qa_policy_override"]
 
 
-def test_policy_rejects_missing_central_subject_but_not_missing_secondary_props():
+def test_policy_does_not_reject_missing_subject_or_secondary_props_without_clear_mismatch():
     from image_qa import _apply_lenient_relevance_policy
     result = _apply_lenient_relevance_policy({
         "decision": "REGENERATE",
@@ -194,7 +194,7 @@ def test_policy_rejects_missing_central_subject_but_not_missing_secondary_props(
         "relevance_findings": ["Missing specific visual details (red stamp, chair silhouette)."],
         "advisories": [],
     }, {"aspect_ratio_ok": True})
-    assert result["decision"] == "REGENERATE"
+    assert result["decision"] == "PASS"
 
 
 def test_policy_rejects_explicitly_unrelated_image():
@@ -209,7 +209,7 @@ def test_policy_rejects_explicitly_unrelated_image():
     assert result["decision"] == "REGENERATE"
 
 
-def test_policy_still_rejects_generated_text_and_bad_format():
+def test_policy_does_not_reject_text_or_format_advisories_alone():
     from image_qa import _apply_lenient_relevance_policy
     text_result = _apply_lenient_relevance_policy({
         "decision": "PASS", "text_detected": True, "issues": [],
@@ -219,5 +219,25 @@ def test_policy_still_rejects_generated_text_and_bad_format():
         "decision": "PASS", "text_detected": False, "issues": [],
         "relevance_findings": [], "advisories": [],
     }, {"aspect_ratio_ok": False})
-    assert text_result["decision"] == "REGENERATE"
-    assert ratio_result["decision"] == "REGENERATE"
+    assert text_result["decision"] == "PASS"
+    assert ratio_result["decision"] == "PASS"
+
+
+
+def test_policy_rejects_severe_visible_distortion_only():
+    from image_qa import _apply_lenient_relevance_policy
+    result = _apply_lenient_relevance_policy({
+        "decision": "PASS", "text_detected": False,
+        "issues": ["The image contains a severe distortion with a visibly fused limb."],
+        "relevance_findings": [], "advisories": [],
+    }, {"aspect_ratio_ok": True})
+    assert result["decision"] == "REGENERATE"
+
+
+def test_qa_unavailable_is_not_a_rejection(tmp_path):
+    from image_qa import qa_image
+    path = tmp_path / "image.jpg"
+    Image.new("RGB", (576, 1024), "white").save(path)
+    result = qa_image(api_key="", image_path=str(path), topic="test", image_brief="test")
+    assert result["decision"] == "PASS"
+    assert result["qa_policy"] == "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
