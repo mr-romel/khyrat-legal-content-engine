@@ -35,8 +35,10 @@ def build_video_comment_bundle(
     The bundle is randomized per video/platform but deterministic across retries,
     so an interrupted publishing job can resume without changing comment order.
     """
-    if not valid_blogger_article_url(article_url):
-        raise ValueError("A published, topic-matched Blogger article URL is required.")
+    article_url = str(article_url or "").strip()
+    article_available = valid_blogger_article_url(article_url)
+    if article_url and not article_available:
+        raise ValueError("Blogger URL is present but is not a valid Ask Mahmoud article URL.")
     topic = " ".join(str(topic or "").split()).strip() or "الموضوع القانوني في الفيديو"
     topic = topic[:140]
     platform = str(platform or "").strip().lower()
@@ -117,12 +119,14 @@ def build_video_comment_bundle(
 
     question = rng.choice(questions)
     answer = rng.choice(answers)
-    article_cta = rng.choice(article_ctas)
-
-    # Keep the conversation readable: question, answer, then the mandatory article CTA.
-    optional = [rng.choice(extra_ctas), rng.choice(extra_questions)]
+    # Article links are useful but never block comments when Blogger is delayed.
+    optional = []
+    if article_available:
+        optional.append(rng.choice(article_ctas))
+    optional.extend([rng.choice(extra_ctas), rng.choice(extra_questions)])
     rng.shuffle(optional)
-    return [question, answer, article_cta, *optional[: max(0, count - 3)]]
+    target_count = count if article_available else min(4, len(optional) + 2)
+    return [question, answer, *optional[: max(0, target_count - 2)]]
 
 
 def parse_published_comment_ids(value: str) -> list[str]:
