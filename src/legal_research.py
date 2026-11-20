@@ -209,7 +209,34 @@ def _fetch(u):
         try:
             from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(response.content))
-            return _clean(" ".join(page.extract_text() or "" for page in reader.pages))[:MAX_SOURCE_CHARS]
+            plain_parts = []
+            layout_parts = []
+            for page in reader.pages:
+                try:
+                    plain_parts.append(page.extract_text() or "")
+                except Exception:
+                    plain_parts.append("")
+                try:
+                    layout_parts.append(page.extract_text(extraction_mode="layout") or "")
+                except Exception:
+                    layout_parts.append("")
+            candidates = [
+                _clean(" ".join(plain_parts)),
+                _clean(" ".join(layout_parts)),
+            ]
+            # Arabic PDFs sometimes expose usable text only through layout extraction.
+            # Prefer the candidate containing the most Arabic code points, not the
+            # longest string, so broken font-map noise cannot win.
+            extracted = max(
+                candidates,
+                key=lambda value: sum("\u0600" <= char <= "\u06FF" for char in value),
+            )
+            arabic_chars = sum("\u0600" <= char <= "\u06FF" for char in extracted)
+            print(
+                f"Legal PDF extraction completed: chars={len(extracted)}; "
+                f"arabic_chars={arabic_chars}; url={u}"
+            )
+            return extracted[:MAX_SOURCE_CHARS]
         except Exception as pdf_exc:
             print(f"Legal PDF text extraction unavailable: {u} :: {pdf_exc}")
             return ""
@@ -294,17 +321,23 @@ def _topic_evidence_terms(topic: str) -> list[str]:
         ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend([
+            "الوظائف المدنية حق للمواطنين", "الكفاءة والجدارة",
+            "التعيين بموجب قرار", "شغل الوظائف", "الوظائف الشاغرة والممولة",
+            "امتحان ينفذه الجهاز", "لجنة للاختيار", "شروط شغل الوظائف",
             "الخدمة المدنية", "الوظائف العامة", "الوظائف المدنية", "الوظيفة المدنية",
-            "شغل الوظائف", "التعيين في الوظائف", "قانون الخدمة المدنية",
-            "قانون الخدمة المدنية رقم 81 لسنة 2016", "الكفاءة والجدارة",
-            "وظائف شاغرة وممولة",
+            "التعيين في الوظائف", "قانون الخدمة المدنية",
+            "قانون الخدمة المدنية رقم 81 لسنة 2016", "وظائف شاغرة وممولة",
             "لجنة الاختيار", "امتحان التعيين", "المادة 12",
         ])
     for alias in aliases:
         for token in re.findall(r"[\u0621-\u064A]{3,}", _norm_legal_text(alias)):
             if token not in terms:
                 terms.append(token)
-    return terms[:28]
+    if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
+        for token in ("الوظائف", "المدنية", "الكفاءة", "الجدارة", "التعيين", "شاغرة", "ممولة", "الامتحان"):
+            if token not in terms:
+                terms.append(token)
+    return terms
 
 def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]:
     """Match exact words and close Arabic inflections without a per-topic synonym table."""
@@ -380,13 +413,17 @@ def _quote(t,topic,max_words=24):
     ss.sort(key=lambda s:sum(term in s for term in terms),reverse=True)
     return _clean(" ".join(ss[0].split()[:max_words]))
 def _allowed(u):
-    parsed=urlparse(str(u or ""))
-    d=_domain(u)
-    return parsed.scheme == "https" and bool(parsed.hostname) and (
-        _host_matches(d, COURT)
-        or _host_matches(d, ADMIN)
-        or _host_matches(d, LAWS)
-        or _host_matches(d, OFFICIAL_GOVERNMENT)
+    parsed = urlparse(str(u or ""))
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    trusted_roots = {
+        str(root).lower().removeprefix("www.").rstrip(".")
+        for root in (*COURT, *ADMIN, *OFFICIAL_GOVERNMENT, *OFFICIAL_LAWS, *SECONDARY_LAWS)
+    }
+    return parsed.scheme.lower() == "https" and bool(host) and any(
+        host == root or host.endswith("." + root)
+        for root in trusted_roots
     )
 
 
@@ -600,6 +637,10 @@ def research_legal_topic(topic, existing=""):
             (
                 "https://www.esa.gov.eg/files/laws/10.pdf",
                 "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، نسخة منشورة على موقع وكالة الفضاء المصرية",
+            ),
+            (
+                "https://www.cairo.gov.eg/ar/Monthly%20Publication/%D9%86%D8%B4%D8%B1%D8%A9%20%D9%81%D8%A8%D8%B1%D8%A7%D9%8A%D8%B12019%20.pdf",
+                "محافظة القاهرة — نسخة منشورة من قانون الخدمة المدنية في النشرة الرسمية لشهر فبراير 2019",
             ),
             (
                 "https://jobs.caoa.gov.eg/",

@@ -1226,21 +1226,51 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 f"attempt={attempt}/{max_attempts}; waiting={delay}s"
             )
             time.sleep(delay)
-        _process_row_once(
-            service=service,
-            config=config,
-            sheet_name=sheet_name,
-            row_number=row_number,
-            row=current_row,
-            current=current,
-        )
+        try:
+            _process_row_once(
+                service=service,
+                config=config,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                row=current_row,
+                current=current,
+            )
+        except Exception as pipeline_exc:
+            diagnostic = (
+                f"UNHANDLED_PIPELINE_EXCEPTION: {type(pipeline_exc).__name__}: "
+                f"{pipeline_exc}"
+            )
+            print(
+                f"PIPELINE AUTO-RECOVERY: row={row_number}; "
+                f"attempt={attempt}/{max_attempts}; {diagnostic}"
+            )
+            current_row = dict(current_row)
+            current_row["الحالة"] = "FAILED"
+            current_row["آخر خطأ"] = diagnostic[:1500]
+            try:
+                update_row(service, config["sheet_id"], sheet_name, row_number, {
+                    "الحالة": "FAILED",
+                    "آخر خطأ": diagnostic[:1500],
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+            except Exception as persist_exc:
+                print(f"PIPELINE AUTO-RECOVERY: could not persist failure state: {persist_exc}")
         try:
             values = get_values(service, config["sheet_id"], config["sheet_range"])
             latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
         except Exception as state_read_exc:
             diagnostic = f"Could not refresh row state after attempt {attempt}: {state_read_exc}"
             print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
-            notify(f"🚨 تعذر استكمال الاسترداد الآلي للصف {row_number}.\nالموضوع: {row.get('الموضوع', '')}\nالتشخيص: {diagnostic}")
+            if attempt < max_attempts:
+                current_row = dict(current_row)
+                current_row["الحالة"] = "FAILED"
+                current_row["آخر خطأ"] = diagnostic[:1500]
+                continue
+            notify(
+                f"🚨 تعذر استكمال الاسترداد الآلي بعد {max_attempts} محاولات.\n"
+                f"الصف: {row_number}\nالموضوع: {row.get('الموضوع', '')}\n"
+                f"التشخيص النهائي: {diagnostic[:900]}"
+            )
             return
         status = str(latest.get("الحالة", "") or "").strip().upper()
         error = str(latest.get("آخر خطأ", "") or "").strip()
