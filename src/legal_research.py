@@ -333,7 +333,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
         for token in re.findall(r"[\u0621-\u064A]{3,}", _norm_legal_text(alias)):
             if token not in terms:
                 terms.append(token)
-    return terms[:48]
+    return terms
 
 def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]:
     """Match exact words and close Arabic inflections without a per-topic synonym table."""
