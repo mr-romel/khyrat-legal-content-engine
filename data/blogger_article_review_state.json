@@ -137,8 +137,19 @@
     "951951017369043591",
     "961694497190134881"
   ],
-  "failed_ids": [],
-  "last_batch_success_count": 2,
+  "failed_ids": [
+    {
+      "id": "6683397613033704727",
+      "title": "عقوبة انتهاك حرمة الحياة الخاصة في مصر: شروط النشر وحساب العقوبات",
+      "error": "Openverse returned no openly licensed scene images for: contemporary this specific situation"
+    },
+    {
+      "id": "7861520256168786610",
+      "title": "حيازة السلاح بدون ترخيص في مصر: الإجراءات والمسؤولية",
+      "error": "Openverse returned no openly licensed scene images for: contemporary this specific situation"
+    }
+  ],
+  "last_batch_success_count": 0,
   "last_title": "انتحال الشخصية في مصر: 4 خطوات قبل تقديم البلاغ أو الدعوى",
   "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/11/blog-post_280.html"
 }
