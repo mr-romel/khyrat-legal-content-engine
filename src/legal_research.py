@@ -261,21 +261,6 @@ def _extract_pdf_text(pdf_bytes: bytes, url: str = "") -> str:
     except Exception as exc:
         print(f"Legal PDF pypdf extraction unavailable: {url} :: {exc}")
 
-    # PyMuPDF's text engine often handles font maps/order differently from pypdf.
-    try:
-        import fitz
-        document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        mupdf_parts = []
-        for page in document:
-            try:
-                mupdf_parts.append(page.get_text("text", sort=True) or "")
-            except Exception:
-                mupdf_parts.append("")
-        candidates.append(_clean("\n".join(mupdf_parts)))
-        document.close()
-    except Exception as exc:
-        print(f"Legal PDF PyMuPDF native extraction unavailable: {url} :: {exc}")
-
     best_native = max(candidates, key=lambda value: _pdf_arabic_count(value), default="")
     if _pdf_text_is_usable(best_native):
         extracted = best_native
