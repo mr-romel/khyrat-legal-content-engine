@@ -763,3 +763,60 @@ def test_cairo_government_publication_is_allowlisted_for_civil_service_law():
     assert "الوظائف" in terms
     assert "الكفاءة" in terms
     assert "الجدارة" in terms
+
+
+def test_pdf_extraction_falls_back_to_arabic_ocr_when_native_text_is_unusable(monkeypatch):
+    import legal_research
+
+    class FakePage:
+        def extract_text(self, extraction_mode=None):
+            return "garbled font map" if extraction_mode != "layout" else "###"
+
+    class FakeReader:
+        def __init__(self, _stream):
+            self.pages = [FakePage()]
+
+    monkeypatch.setattr(legal_research, "_ocr_pdf_pages", lambda _bytes: (
+        "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية حق للمواطنين "
+        "على أساس الكفاءة والجدارة"
+    ))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pypdf",
+        __import__("types").SimpleNamespace(PdfReader=FakeReader),
+    )
+    extracted = legal_research._extract_pdf_text(b"%PDF-test", "https://www.gov.eg/law.pdf")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert "الكفاءة والجدارة" in extracted
+
+
+def test_pdf_native_extraction_skips_ocr_when_arabic_text_is_usable(monkeypatch):
+    import legal_research
+
+    expected = (
+        "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية حق للمواطنين "
+        "على أساس الكفاءة والجدارة، وتحدد اللائحة التنفيذية شروط التعيين."
+    )
+
+    class FakePage:
+        def extract_text(self, extraction_mode=None):
+            return expected
+
+    class FakeReader:
+        def __init__(self, _stream):
+            self.pages = [FakePage()]
+
+    ocr_calls = []
+    monkeypatch.setattr(legal_research, "_ocr_pdf_pages", lambda _bytes: ocr_calls.append(True) or "")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pypdf",
+        __import__("types").SimpleNamespace(PdfReader=FakeReader),
+    )
+    # Disable the independent PyMuPDF extractor; pypdf already returned readable Arabic.
+    monkeypatch.setitem(__import__("sys").modules, "fitz", None)
+    extracted = legal_research._extract_pdf_text(b"%PDF-test", "https://www.gov.eg/law.pdf")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert ocr_calls == []
