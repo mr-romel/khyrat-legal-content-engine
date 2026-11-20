@@ -670,3 +670,29 @@ def test_generic_query_reformulations_apply_to_unlisted_legal_topics(monkeypatch
     assert any('"تنظيم تراخيص المحال العامة" مصر قانون تشريع' in query for query in captured)
     assert any("site:gov.eg" in query for query in captured)
     assert any("قرار إداري لائحة" in query for query in captured)
+
+
+def test_cached_official_source_is_refetched_and_revalidated_for_current_topic(monkeypatch):
+    import legal_research
+
+    cached_url = "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/legal-reference.pdf"
+    existing = (
+        "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\\n"
+        "SOURCE 1\\nType: current_legislation_source\\n"
+        "Title: مرجع قانوني سابق\\nURL: " + cached_url + "\\n"
+        "VERIFIED SOURCE TEXT (retrieved): نص سابق\\n"
+    )
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: fetched.append(url) or (
+            "تنظيم تراخيص المحال العامة وفق المادة 12 من القانون رقم 1 لسنة 2020. "
+            "ويحدد النص الشروط والإجراءات والاختصاصات القانونية ذات الصلة."
+        ),
+    )
+
+    legal_research.research_legal_topic("تنظيم تراخيص المحال العامة", existing)
+
+    assert cached_url in fetched
