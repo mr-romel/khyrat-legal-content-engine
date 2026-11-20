@@ -642,6 +642,8 @@ def test_fetch_retries_once_after_transient_connection_error(monkeypatch):
         status_code = 200
         headers = {"content-type": "text/html"}
         text = "<html><body>نص قانوني رسمي كامل</body></html>"
+        def raise_for_status(self):
+            return None
 
     calls = {"count": 0}
     def fake_get(url, **kwargs):
