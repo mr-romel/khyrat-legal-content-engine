@@ -12,7 +12,7 @@ MAX_RESULTS=8
 MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
-OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg","caoa.gov.eg","www.caoa.gov.eg")
+OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg","caoa.gov.eg","www.caoa.gov.eg","escc.gov.eg","www.escc.gov.eg")
 OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
@@ -187,6 +187,14 @@ def _topic_evidence_terms(topic: str) -> list[str]:
             "انتحال صفة", "صفة كاذبة", "صفة غير صحيحة", "انتحال صفة موظف عام",
             "اسم كاذب", "تداخل في وظيفة عمومية", "صفة رسمية من الحكومة",
             "اختلاس الألقاب والوظائف", "الاتصاف بها بدون حق",
+        ])
+    if any(term in normalized for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+        aliases.extend([
+            "انتهاك حرمة الحياة الخاصة", "الاعتداء على حرمة الحياة الخاصة",
+            "خصوصية أي شخص دون رضاه", "نشر معلومات أو صور تنتهك الخصوصية",
+            "تسجيل أو نقل محادثات في مكان خاص", "التقاط صورة شخص في مكان خاص",
+            "قانون مكافحة جرائم تقنية المعلومات", "المادة 25",
+            "المادة 309 مكرر", "قانون العقوبات",
         ])
     if "امتناع" in normalized and "الادارة" in normalized:
         aliases.extend([
@@ -411,6 +419,14 @@ def research_legal_topic(topic, existing=""):
     # Small semantic query expansions for the two current queue subjects. These
     # are discovery terms only; a source still must pass live retrieval and topic evidence.
     normalized_topic = _norm_legal_text(topic)
+    if any(term in normalized_topic for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+        queries.extend([
+            'site:escc.gov.eg/assets/docs/law-175-2018.pdf "حرمة الحياة الخاصة"',
+            'site:register.cc.gov.eg "انتهاك حرمة الحياة الخاصة"',
+            'site:register.cc.gov.eg "المادة 25" "القانون 175"',
+            'site:cc.gov.eg "309 مكرر" "حرمة الحياة الخاصة"',
+            '"انتهاك حرمة الحياة الخاصة" "القانون رقم 175 لسنة 2018" مصر',
+        ])
     if "انتحال" in normalized_topic:
         queries.extend([
             'site:aca.gov.eg "انتحال صفة" موظف عام',
@@ -497,6 +513,17 @@ def research_legal_topic(topic, existing=""):
             (
                 "https://manshurat.org/node/14678",
                 "قانون الخدمة المدنية رقم 81 لسنة 2016 — النص الكامل والمواد المنظمة للتعيين",
+            ),
+        ])
+    if any(term in normalized_for_seeds for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+        seed_urls.extend([
+            (
+                "https://escc.gov.eg/assets/docs/law-175-2018.pdf",
+                "الجريدة الرسمية — القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات، الفصل الثالث والمادة 25",
+            ),
+            (
+                "https://register.cc.gov.eg/publications/159/download",
+                "محكمة النقض المصرية — مبدأ قضائي رسمي بشأن الاعتداء على حرمة الحياة الخاصة وفق المادة 309 مكرراً عقوبات",
             ),
         ])
     for url, title in seed_urls:
