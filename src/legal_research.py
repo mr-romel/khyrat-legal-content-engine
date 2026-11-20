@@ -553,10 +553,10 @@ def research_legal_topic(topic, existing=""):
     # cross-run cache optimization, not a trust shortcut: every URL is fetched
     # again and must pass the current topic-evidence and official-domain gates.
     existing_packet = str(existing or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
-    cached_blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", existing_packet)
+    cached_blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", existing_packet)
     for block in cached_blocks[1:]:
-        url_match = re.search(r"(?m)^URL:\\s*(https://\\S+)", block)
-        title_match = re.search(r"(?m)^Title:\\s*(.+)$", block)
+        url_match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
+        title_match = re.search(r"(?m)^Title:\s*(.+)$", block)
         cached_url = url_match.group(1).rstrip(").,;") if url_match else ""
         cached_title = title_match.group(1).strip() if title_match else ""
         if cached_url and _allowed(cached_url) and cached_url not in seen:
