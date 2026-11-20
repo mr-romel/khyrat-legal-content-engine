@@ -287,7 +287,7 @@ jobs:
           PY
 
       - name: Publish approved reel
-        if: ${{ steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
+        if: ${{ steps.target.outputs.row_number != '' && (steps.target.outputs.task != 'publish' || steps.recovery.outputs.available == 'true') }}
         env:
           ROW_NUMBER: ${{ steps.target.outputs.row_number }}
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
@@ -503,7 +503,7 @@ jobs:
 
 
       - name: Record publication in Google Sheets
-        if: ${{ success() && steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
+        if: ${{ success() && steps.target.outputs.row_number != '' && (steps.target.outputs.task != 'publish' || steps.recovery.outputs.available == 'true') }}
         env:
           SOURCE_ID: ${{ steps.target.outputs.source_id }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
@@ -535,7 +535,7 @@ jobs:
           PY
 
       - name: Upload publication proof
-        if: ${{ always() && steps.target.outputs.row_number != '' && steps.recovery.outputs.available == 'true' }}
+        if: ${{ always() && steps.target.outputs.row_number != '' && (steps.target.outputs.task != 'publish' || steps.recovery.outputs.available == 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: khyrat-reel-publication-proof
