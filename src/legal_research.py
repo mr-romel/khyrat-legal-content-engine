@@ -188,7 +188,7 @@ def _topic_evidence_terms(topic: str) -> list[str]:
             "اسم كاذب", "تداخل في وظيفة عمومية", "صفة رسمية من الحكومة",
             "اختلاس الألقاب والوظائف", "الاتصاف بها بدون حق",
         ])
-    if any(term in normalized for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+    if any(term in normalized for term in ("الحياة الخاصة", "انتهاك حرمة", "خصوصية")):
         aliases.extend([
             "انتهاك حرمة الحياة الخاصة", "الاعتداء على حرمة الحياة الخاصة",
             "خصوصية أي شخص دون رضاه", "نشر معلومات أو صور تنتهك الخصوصية",
@@ -419,7 +419,7 @@ def research_legal_topic(topic, existing=""):
     # Small semantic query expansions for the two current queue subjects. These
     # are discovery terms only; a source still must pass live retrieval and topic evidence.
     normalized_topic = _norm_legal_text(topic)
-    if any(term in normalized_topic for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+    if any(term in normalized_topic for term in ("الحياة الخاصة", "انتهاك حرمة", "خصوصية")):
         queries.extend([
             'site:escc.gov.eg/assets/docs/law-175-2018.pdf "حرمة الحياة الخاصة"',
             'site:register.cc.gov.eg "انتهاك حرمة الحياة الخاصة"',
@@ -515,7 +515,7 @@ def research_legal_topic(topic, existing=""):
                 "قانون الخدمة المدنية رقم 81 لسنة 2016 — النص الكامل والمواد المنظمة للتعيين",
             ),
         ])
-    if any(term in normalized_for_seeds for term in ("الحياه الخاصه", "انتهاك حرمه", "خصوصيه")):
+    if any(term in normalized_for_seeds for term in ("الحياة الخاصة", "انتهاك حرمة", "خصوصية")):
         seed_urls.extend([
             (
                 "https://escc.gov.eg/assets/docs/law-175-2018.pdf",
