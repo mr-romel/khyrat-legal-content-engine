@@ -188,13 +188,12 @@ def _pdf_text_is_usable(value: str) -> bool:
 
 
 def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
-    """Free local Arabic OCR fallback using PyMuPDF + Tesseract; no cloud upload."""
+    """Free local Arabic OCR fallback using PDFium + Tesseract; no cloud upload."""
     try:
         import pypdfium2 as pdfium
         import pytesseract
-        from PIL import Image
     except Exception as exc:
-        print(f"Legal PDF OCR dependencies unavailable (PyMuPDF/Tesseract/Pillow): {exc}")
+        print(f"Legal PDF OCR dependencies unavailable (PDFium/Tesseract): {exc}")
         return ""
 
     parts = []
@@ -205,7 +204,9 @@ def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
                 print(f"Legal PDF OCR page limit reached: {max_pages}")
                 break
             try:
-                native = _clean(page.get_text("text", sort=True) or "")
+                text_page = page.get_textpage()
+                native = _clean(text_page.get_text_range() or "")
+                text_page.close()
             except Exception:
                 native = ""
             if _pdf_text_is_usable(native):
