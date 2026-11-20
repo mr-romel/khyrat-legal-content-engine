@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/reel-publish-approved.yml"
+      - "src/youtube_publisher.py"
       - "workers/telegram-control/src/index.js"
   schedule:
     - cron: "*/5 * * * *"
