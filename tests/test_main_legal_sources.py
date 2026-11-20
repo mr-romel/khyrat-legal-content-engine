@@ -97,3 +97,36 @@ def test_pipeline_retries_failed_row_immediately_then_stops_on_recovery(monkeypa
     )
 
     assert attempts == [2, 2]
+
+
+def test_pipeline_sends_one_failure_alert_only_after_all_retries_are_exhausted(monkeypatch):
+    import main
+
+    attempts = []
+    alerts = []
+    states = [
+        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
+        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
+        {"الحالة": "FAILED", "آخر خطأ": "permanent source outage", "الموضوع": "اختبار موضوع قانوني"},
+    ]
+    monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: attempts.append(kwargs["row_number"]))
+    monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
+    monkeypatch.setattr(main, "row_to_dict", lambda value: states.pop(0))
+    monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
+    monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
+    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(main, "notify", lambda message: alerts.append(message))
+
+    main.process_row(
+        service=object(),
+        config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
+        sheet_name="Content",
+        row_number=2,
+        row={"الموضوع": "اختبار موضوع قانوني"},
+        current=object(),
+    )
+
+    assert attempts == [2, 2, 2]
+    assert len(alerts) == 1
+    assert "بعد الاسترداد التلقائي" in alerts[0]
+    assert "permanent source outage" in alerts[0]
