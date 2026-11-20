@@ -719,6 +719,7 @@ def test_official_host_allowlist_normalizes_www_case_and_subdomains():
     assert legal_research._allowed("https://www.mwri.gov.eg/law.pdf")
     assert legal_research._allowed("https://files.mwri.gov.eg/law.pdf")
     assert legal_research._allowed("https://WWW.FRA.GOV.EG/law.pdf")
+    assert legal_research._allowed("https://www.new-ministry.gov.eg/law.pdf")
     assert not legal_research._allowed("http://www.mwri.gov.eg/law.pdf")
     assert not legal_research._allowed("https://mwri.gov.eg.example.com/law.pdf")
 
