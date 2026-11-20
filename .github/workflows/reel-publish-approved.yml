@@ -130,11 +130,12 @@ jobs:
               "published_reels":published_records[:30],
               "review_rows_waiting_approval":review_rows[:30],
           },ensure_ascii=False,sort_keys=True))
-          # Prioritize oldest new approvals, then partial retries, then metadata/comment backfills.
+          # Drain comment/metadata backfills on already-published videos before selecting new uploads.
+          # This prevents an approved new Reel from starving comments on existing Reels/Shorts.
           ordered_rows = sorted(
               enumerate(values[1:], start=2),
               key=lambda item: (
-                  0 if str(mapped(item[1]).get("Reel Status","")).strip().upper() in {"REVIEW","APPROVED","READY_TO_PUBLISH"}
+                  0 if str(mapped(item[1]).get("Reel Status","")).strip().upper() == "PUBLISHED"
                   else 1 if str(mapped(item[1]).get("Reel Status","")).strip().upper() in {"PUBLISHED_PARTIAL","PUBLISH_FAILED"}
                   else 2,
                   item[0],
