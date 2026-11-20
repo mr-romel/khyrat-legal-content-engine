@@ -666,6 +666,7 @@ def test_generic_query_reformulations_apply_to_unlisted_legal_topics(monkeypatch
     monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
     legal_research.research_legal_topic("تنظيم تراخيص المحال العامة")
 
-    assert any('"تنظيم تراخيص محال"' in query for query in captured)
+    assert len(captured) >= 16
+    assert any('"تنظيم تراخيص المحال العامة" مصر قانون تشريع' in query for query in captured)
     assert any("site:gov.eg" in query for query in captured)
-    assert any("قرار إداري لائحة" in query for query in captured)
+    assert any('"قرار إداري لائحة"' in query for query in captured)
