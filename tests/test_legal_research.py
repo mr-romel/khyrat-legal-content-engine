@@ -677,10 +677,10 @@ def test_cached_official_source_is_refetched_and_revalidated_for_current_topic(m
 
     cached_url = "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/legal-reference.pdf"
     existing = (
-        "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\\n"
-        "SOURCE 1\\nType: current_legislation_source\\n"
-        "Title: مرجع قانوني سابق\\nURL: " + cached_url + "\\n"
-        "VERIFIED SOURCE TEXT (retrieved): نص سابق\\n"
+        "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\n"
+        "SOURCE 1\nType: current_legislation_source\n"
+        "Title: مرجع قانوني سابق\nURL: " + cached_url + "\n"
+        "VERIFIED SOURCE TEXT (retrieved): نص سابق\n"
     )
     fetched = []
     monkeypatch.setattr(legal_research, "_search", lambda query: [])
