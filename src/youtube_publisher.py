@@ -135,6 +135,29 @@ def publish_youtube_short_comment(video_id: str, message: str) -> dict[str, str]
         scopes=["https://www.googleapis.com/auth/youtube.force-ssl"],
     )
     youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+    # Preflight access before inserting a comment. A videoNotFound response can
+    # mean the comment OAuth token belongs to a different YouTube channel.
+    mine = youtube.channels().list(part="id,snippet", mine=True).execute()
+    mine_items = mine.get("items") or []
+    auth_channel = mine_items[0] if mine_items else {}
+    auth_channel_id = str(auth_channel.get("id", "")).strip()
+    auth_channel_title = str((auth_channel.get("snippet") or {}).get("title", "")).strip()
+    visible = youtube.videos().list(part="id,snippet,status", id=video_id).execute()
+    visible_items = visible.get("items") or []
+    if not visible_items:
+        raise RuntimeError(
+            "VIDEO_NOT_ACCESSIBLE_TO_COMMENT_TOKEN: "
+            f"video_id={video_id}; authorized_channel_id={auth_channel_id or 'unknown'}; "
+            f"authorized_channel_title={auth_channel_title or 'unknown'}. "
+            "Reauthorize YOUTUBE_COMMENT_REFRESH_TOKEN on the channel that owns this Short "
+            "with youtube.force-ssl, then replace the GitHub secret."
+        )
+    video_owner_channel = str((visible_items[0].get("snippet") or {}).get("channelId", "")).strip()
+    print(
+        "YOUTUBE_COMMENT_ACCESS_PREFLIGHT="
+        f"video_id={video_id}; authorized_channel_id={auth_channel_id}; "
+        f"authorized_channel_title={auth_channel_title}; video_owner_channel_id={video_owner_channel}"
+    )
     response = youtube.commentThreads().insert(
         part="snippet",
         body={"snippet": {
