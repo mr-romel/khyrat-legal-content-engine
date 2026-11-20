@@ -976,7 +976,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
         print(f"Image repair PostBank logging failed: {exc}")
 
 
-def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
+def _process_row_once(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     topic = row.get("الموضوع", "").strip()
     if not topic:
         raise RuntimeError(f"Row {row_number} has no topic.")
@@ -1212,6 +1212,51 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             print(f"Duplicate pipeline alert suppressed; unchanged failure remains retryable: {exc}")
         return
 
+
+
+def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
+    """Run a row with bounded in-invocation recovery before surfacing a persistent failure."""
+    max_attempts = 3
+    current_row = dict(row)
+    for attempt in range(1, max_attempts + 1):
+        if attempt > 1:
+            delay = 2 ** (attempt - 1)
+            print(
+                f"PIPELINE AUTO-RECOVERY: row={row_number}; "
+                f"attempt={attempt}/{max_attempts}; waiting={delay}s"
+            )
+            time.sleep(delay)
+        _process_row_once(
+            service=service,
+            config=config,
+            sheet_name=sheet_name,
+            row_number=row_number,
+            row=current_row,
+            current=current,
+        )
+        try:
+            values = get_values(service, config["sheet_id"], config["sheet_range"])
+            latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
+        except Exception as state_read_exc:
+            print(f"PIPELINE AUTO-RECOVERY: could not refresh row state after attempt {attempt}: {state_read_exc}")
+            return
+        status = str(latest.get("الحالة", "") or "").strip().upper()
+        error = str(latest.get("آخر خطأ", "") or "").strip()
+        if status not in {"FAILED", "PARTIAL_FAILED"}:
+            return
+        if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
+            print("PIPELINE AUTO-RECOVERY: stopping retries because LinkedIn authorization requires credential renewal.")
+            return
+        if error.upper().startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(latest) >= MAX_IMAGE_QA_ATTEMPTS:
+            print("PIPELINE AUTO-RECOVERY: stopping because the visual QA retry budget is exhausted.")
+            return
+        if attempt == max_attempts:
+            print(
+                f"PIPELINE AUTO-RECOVERY EXHAUSTED: row={row_number}; "
+                f"attempts={max_attempts}; final_error={error[:700]}"
+            )
+            return
+        current_row = latest
 
 def main() -> None:
     print("=" * 70)
