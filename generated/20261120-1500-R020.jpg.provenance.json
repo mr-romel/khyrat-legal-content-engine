@@ -1,37 +1,24 @@
 {
   "topic": "انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
-  "provider": "PIXABAY_SCENE_STOCK",
-  "model": "pixabay-scene-search",
-  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A gender‑neutral adult sits on a modern couch in a sun‑lit living‑room, holding a smartphone at chest level. The phone’s screen displays a softly blurred portrait of another person, making the face indistinct, and a faint, generic “send” icon is visible at the bottom. The person’s right hand hovers just above the screen, fingers paused as if deciding whether to tap the button. A coffee table with a mug and a potted plant sit nearby, and warm natural light streams through a nearby window, casting gentle shadows. The shot is framed as an over‑the‑shoulder close‑up, keeping the blurred phone image and hovering hand in sharp focus while the background is slightly out of focus, emphasizing the moment of hesitation b\nLEGAL TOPIC: انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: نشر صور أو أخبار خاصة لأي شخص على الإنترنت دون رضاه، حتى لو كانت المعلومات دي صحيحة، بيحطك مباشرة تحت طائلة القانون كجريمة انتهاك لحرمة الحياة ال\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 47dc4660d0b6",
-  "prompt_sha256": "85b2ae0d15f49d0a611727651590d4944c0ba9f3ec54c91016c1b3ff9fd18829",
-  "image_sha256": "ff147c0cda2f23e5424d14934311a1bac0a5f05ddbe4d1b47c30076d78ee5c7a",
+  "provider": "POLLINATIONS_IMAGE_GENERATION",
+  "model": "black-forest-labs/flux.1-schnell",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A gender‑neutral young adult sits on a modern couch in a bright living‑room, holding a smartphone at chest level. Their thumb hovers just above the phone’s “share” icon, while their eyes look thoughtfully at the screen, a subtle frown suggesting hesitation. The phone display shows a partially visible, intimate family photo – a close‑up of a smiling person whose face is slightly blurred, clearly meant to be private. The background is softly out of focus, showing a window with natural daylight streaming in, a coffee table with a laptop, and a potted plant. The composition is framed from eye level with a shallow depth of field that keeps the phone and the hesitant hand in sharp focus, while the surrounding room re\nLEGAL TOPIC: انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: نشر صور أو أخبار خاصة لأي شخص على الإنترنت دون رضاه، حتى لو كانت المعلومات دي صحيحة، بيحطك مباشرة تحت طائلة القانون كجريمة انتهاك لحرمة الحياة ال\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 47dc4660d0b6",
+  "prompt_sha256": "e21cc28f95fa54d4b64334e5b0c000c48ebefc79101cc4deba2b8da218ed5777",
+  "image_sha256": "a3c15aa3a983a1aeadf19e9f8fe6016250cd970aa85067ca5c12a1507001e3db",
   "image_path": "generated/20261120-1500-R020.jpg",
-  "visual_description": "A gender‑neutral adult sits on a modern couch in a sun‑lit living‑room, holding a smartphone at chest level. The phone’s screen displays a softly blurred portrait of another person, making the face indistinct, and a faint, generic “send” icon is visible at the bottom. The person’s right hand hovers just above the screen, fingers paused as if deciding whether to tap the button. A coffee table with a mug and a potted plant sit nearby, and warm natural light streams through a nearby window, casting gentle shadows. The shot is framed as an over‑the‑shoulder close‑up, keeping the blurred phone image and hovering hand in sharp focus while the background is slightly out of focus, emphasizing the moment of hesitation before publishing private content.",
+  "visual_description": "A gender‑neutral young adult sits on a modern couch in a bright living‑room, holding a smartphone at chest level. Their thumb hovers just above the phone’s “share” icon, while their eyes look thoughtfully at the screen, a subtle frown suggesting hesitation. The phone display shows a partially visible, intimate family photo – a close‑up of a smiling person whose face is slightly blurred, clearly meant to be private. The background is softly out of focus, showing a window with natural daylight streaming in, a coffee table with a laptop, and a potted plant. The composition is framed from eye level with a shallow depth of field that keeps the phone and the hesitant hand in sharp focus, while the surrounding room remains gently blurred. Soft, natural lighting highlights the hand and the phone screen, emphasizing the moment of pause before potentially publishing the private image.",
   "aspect_ratio": "4:5",
   "width": 1024,
   "height": 1280,
   "qa_decision": "PASS",
-  "source_metadata": {
-    "source": "Pixabay",
-    "title": "camera, lens, magazine, pen, mobile, phone, work, desk, nature, table, business, office, interior, plant, green",
-    "source_page": "https://pixabay.com/photos/camera-lens-magazine-pen-mobile-2569628/",
-    "source_url": "https://pixabay.com/get/gab031fde06a43cdbcc690db5259f99c646f53fd949e91c47f0ac338c50aaf0dc576f153f3791fcf7e268517927ae2d159fb5406459b5b15664721b28113b6eac_1280.jpg",
-    "license": "Pixabay Content License",
-    "artist": "StockSnap",
-    "attribution_required": "false",
-    "search_query": "phone plant",
-    "image_id": "2569628"
-  },
+  "source_metadata": {},
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 2,
-  "qa_relevance_score": 2,
+  "qa_overall_score": 9,
+  "qa_relevance_score": 10,
   "qa_issues": [
-    "The generated image completely ignores the core subject matter of the legal brief (a person interacting with a smartphone to publish content).",
-    "Contains visible, distracting brand text ('Canon') on the camera lens.",
     "Composition advisory below 55.",
     "Relevance advisory below 72.",
-    "Overall advisory below 60.",
-    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    "Overall advisory below 60."
   ],
-  "qa_checked_image_sha256": "ff147c0cda2f23e5424d14934311a1bac0a5f05ddbe4d1b47c30076d78ee5c7a"
+  "qa_checked_image_sha256": "a3c15aa3a983a1aeadf19e9f8fe6016250cd970aa85067ca5c12a1507001e3db"
 }
