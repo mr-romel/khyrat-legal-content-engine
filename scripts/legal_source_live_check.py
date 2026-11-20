@@ -65,7 +65,7 @@ def main() -> int:
     if failures:
         print("\nLIVE LEGAL SOURCE CHECK FAILED: " + " | ".join(failures), flush=True)
         return 1
-    print("\nLEGAL SOURCE RECOVERY CHECK PASSED: both current queue topics have retrieved primary/official source records.", flush=True)
+    print(f"\nLEGAL SOURCE RECOVERY CHECK PASSED: all {len(topics)} selected topics have retrieved primary/official source records.", flush=True)
     return 0
 
 
