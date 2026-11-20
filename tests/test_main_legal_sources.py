@@ -133,6 +133,7 @@ def test_pipeline_sends_one_failure_alert_only_after_all_retries_are_exhausted(m
 
 
 def test_pipeline_retries_unhandled_row_exception_instead_of_exiting(monkeypatch):
+    from datetime import datetime, timezone
     import main
 
     attempts = []
@@ -163,7 +164,7 @@ def test_pipeline_retries_unhandled_row_exception_instead_of_exiting(monkeypatch
         sheet_name="Content",
         row_number=7,
         row={"الموضوع": "موضوع تجريبي"},
-        current=object(),
+        current=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
 
     assert attempts == [7, 7]
