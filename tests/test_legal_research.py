@@ -595,3 +595,104 @@ def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_una
     assert "المادة 25" in packet
     assert "انتهك حرمة الحياة الخاصة" in packet
 
+
+
+def test_bing_result_parser_handles_organic_result_containers():
+    from legal_research import _BingResults
+
+    parser = _BingResults()
+    parser.feed(
+        '<ol><li class="b_algo"><h2><a href="https://www.moj.gov.eg/law">نص القانون الرسمي</a></h2>'
+        '<p>ملخص</p></li></ol>'
+    )
+    assert parser.items == [{"url": "https://www.moj.gov.eg/law", "title": "نص القانون الرسمي"}]
+
+
+def test_search_falls_back_to_bing_when_duckduckgo_has_no_parseable_results(monkeypatch):
+    import legal_research
+
+    class Response:
+        def __init__(self, text, status_code=200):
+            self.text = text
+            self.status_code = status_code
+        def raise_for_status(self):
+            return None
+
+    calls = []
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if "duckduckgo" in url:
+            return Response("<html><body>challenge page</body></html>")
+        return Response(
+            '<li class="b_algo"><h2><a href="https://www.moj.gov.eg/laws/1">مصدر تشريعي رسمي</a></h2></li>'
+        )
+
+    monkeypatch.setattr(legal_research, "_trusted_get", fake_get)
+    results = legal_research._search("اختبار بحث قانوني")
+    assert len(results) == 1
+    assert results[0]["url"] == "https://www.moj.gov.eg/laws/1"
+    assert calls == ["https://html.duckduckgo.com/html/", "https://www.bing.com/search"]
+
+
+def test_fetch_retries_once_after_transient_connection_error(monkeypatch):
+    import legal_research
+    import requests
+
+    class Response:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+        text = "<html><body>نص قانوني رسمي كامل</body></html>"
+        def raise_for_status(self):
+            return None
+
+    calls = {"count": 0}
+    def fake_get(url, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise requests.exceptions.ConnectionError("temporary reset")
+        return Response()
+
+    monkeypatch.setattr(legal_research, "_trusted_get", fake_get)
+    monkeypatch.setattr(legal_research.time, "sleep", lambda seconds: None)
+    assert "نص قانوني رسمي كامل" in legal_research._fetch("https://www.moj.gov.eg/law")
+    assert calls["count"] == 2
+
+
+def test_generic_query_reformulations_apply_to_unlisted_legal_topics(monkeypatch):
+    import legal_research
+
+    captured = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: captured.append(query) or [])
+    monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
+    legal_research.research_legal_topic("تنظيم تراخيص المحال العامة")
+
+    assert len(captured) >= 16
+    assert any('"تنظيم تراخيص المحال العامة" مصر قانون تشريع' in query for query in captured)
+    assert any("site:gov.eg" in query for query in captured)
+    assert any("قرار إداري لائحة" in query for query in captured)
+
+
+def test_cached_official_source_is_refetched_and_revalidated_for_current_topic(monkeypatch):
+    import legal_research
+
+    cached_url = "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/legal-reference.pdf"
+    existing = (
+        "LEGAL RESEARCH PACKET — VERIFIED WEB SOURCES ONLY\n"
+        "SOURCE 1\nType: current_legislation_source\n"
+        "Title: مرجع قانوني سابق\nURL: " + cached_url + "\n"
+        "VERIFIED SOURCE TEXT (retrieved): نص سابق\n"
+    )
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: [])
+    monkeypatch.setattr(
+        legal_research,
+        "_fetch",
+        lambda url: fetched.append(url) or (
+            "تنظيم تراخيص المحال العامة وفق المادة 12 من القانون رقم 1 لسنة 2020. "
+            "ويحدد النص الشروط والإجراءات والاختصاصات القانونية ذات الصلة."
+        ),
+    )
+
+    legal_research.research_legal_topic("تنظيم تراخيص المحال العامة", existing)
+
+    assert cached_url in fetched

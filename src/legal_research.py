@@ -2,6 +2,7 @@ from __future__ import annotations
 import html as html_lib, re, io, os
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
+import time
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, unquote, urlparse
 import requests
@@ -54,6 +55,38 @@ class _SearchResults(HTMLParser):
                 self.items.append({"url": url, "title": title})
             self._active = None
 
+
+class _BingResults(HTMLParser):
+    """Extract organic links from Bing result containers without depending on attribute order."""
+    def __init__(self):
+        super().__init__()
+        self.items = []
+        self._in_result = False
+        self._active = None
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        classes = str(attrs.get("class", "")).split()
+        if tag.lower() in {"li", "div"} and "b_algo" in classes:
+            self._in_result = True
+        if self._in_result and tag.lower() == "a" and attrs.get("href") and self._active is None:
+            href = html_lib.unescape(str(attrs["href"]))
+            if href.startswith("http"):
+                self._active = {"url": href, "title_parts": []}
+
+    def handle_data(self, data):
+        if self._active is not None and data.strip():
+            self._active["title_parts"].append(data.strip())
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._active is not None:
+            title = _clean(" ".join(self._active["title_parts"]))
+            if title:
+                self.items.append({"url": self._active["url"], "title": title})
+            self._active = None
+        elif tag.lower() in {"li", "div"} and self._in_result:
+            self._in_result = False
+
 def _clean(x): return re.sub(r"\s+"," ",str(x or "")).strip()
 def _domain(u):
     return (urlparse(str(u or "")).hostname or "").lower().rstrip(".").removeprefix("www.")
@@ -91,44 +124,102 @@ def _trusted_get(url, **kwargs):
         raise initial_error
 
 
-def _search(q):
-    try:
-        r=_trusted_get("https://html.duckduckgo.com/html/",params={"q":q,"kl":"eg-ar"},headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
-        r.raise_for_status()
-    except Exception as e:
-        print(f"Legal research search unavailable: {q!r} :: {e}"); return []
-    parser = _SearchResults()
-    try:
-        parser.feed(r.text)
-    except Exception as parse_exc:
-        print(f"Legal research result parsing failed: {parse_exc}")
-        return []
-    out=[]; seen=set()
-    for item in parser.items:
-        u=item["url"]; t=item["title"]
-        if not u.startswith("http") or not t or u in seen: continue
-        seen.add(u); out.append({"url":u,"title":t})
-        if len(out)>=MAX_RESULTS: break
-    if not out:
-        print("Legal research search returned HTML but no result anchors matched; parser diagnostics required.")
+def _dedupe_search_items(items):
+    out, seen = [], set()
+    for item in items:
+        url = str(item.get("url", "")).strip()
+        title = _clean(item.get("title", ""))
+        if not url.startswith("https://") or not title or url in seen:
+            continue
+        seen.add(url)
+        out.append({"url": url, "title": title})
+        if len(out) >= MAX_RESULTS:
+            break
     return out
 
-def _fetch(u):
+
+def _search(q):
+    """Use DuckDuckGo first, then an independent Bing HTML result parser on empty/error responses."""
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"}
+    ddg_items = []
     try:
-        r=_trusted_get(u,headers={"User-Agent":"Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},timeout=TIMEOUT)
-        r.raise_for_status()
-        content_type = r.headers.get("content-type", "").lower()
-        if "pdf" in content_type or urlparse(u).path.lower().endswith(".pdf"):
-            try:
-                from pypdf import PdfReader
-                reader = PdfReader(io.BytesIO(r.content))
-                return _clean(" ".join(page.extract_text() or "" for page in reader.pages))[:MAX_SOURCE_CHARS]
-            except Exception as pdf_exc:
-                print(f"Legal PDF text extraction unavailable: {u} :: {pdf_exc}")
-                return ""
-        p=_P(); p.feed(r.text); return _clean(" ".join(p.parts))[:MAX_SOURCE_CHARS]
-    except Exception as e:
-        print(f"Legal research source unavailable: {u} :: {e}"); return ""
+        response = _trusted_get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": q, "kl": "eg-ar"}, headers=headers, timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        parser = _SearchResults()
+        parser.feed(response.text)
+        ddg_items = parser.items
+    except Exception as exc:
+        print(f"Legal research DuckDuckGo unavailable: {q!r} :: {exc}")
+
+    results = _dedupe_search_items(ddg_items)
+    if results:
+        return results
+
+    try:
+        response = _trusted_get(
+            "https://www.bing.com/search",
+            params={"q": q, "cc": "EG", "setlang": "ar"},
+            headers=headers, timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        parser = _BingResults()
+        parser.feed(response.text)
+        results = _dedupe_search_items(parser.items)
+        if results:
+            print(f"Legal research fallback search recovered {len(results)} results via Bing.")
+            return results
+        print(f"Legal research fallback search returned no parseable organic results: {q!r}")
+    except Exception as exc:
+        print(f"Legal research Bing fallback unavailable: {q!r} :: {exc}")
+    return results
+
+def _fetch(u):
+    """Fetch source text with bounded retries for transient transport/server failures only."""
+    response = None
+    for attempt in range(2):
+        try:
+            response = _trusted_get(
+                u,
+                headers={"User-Agent": "Mozilla/5.0 Khyrat-Legal-Content-Engine/1.0"},
+                timeout=TIMEOUT,
+            )
+            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                print(f"Legal source transient HTTP {response.status_code}; retrying once: {u}")
+                time.sleep(0.5)
+                continue
+            response.raise_for_status()
+            break
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            if attempt == 0:
+                print(f"Legal source transient transport error; retrying once: {u} :: {exc}")
+                time.sleep(0.5)
+                continue
+            print(f"Legal research source unavailable after retry: {u} :: {exc}")
+            return ""
+        except Exception as exc:
+            print(f"Legal research source unavailable: {u} :: {exc}")
+            return ""
+    if response is None:
+        return ""
+    content_type = response.headers.get("content-type", "").lower()
+    if "pdf" in content_type or urlparse(u).path.lower().endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(response.content))
+            return _clean(" ".join(page.extract_text() or "" for page in reader.pages))[:MAX_SOURCE_CHARS]
+        except Exception as pdf_exc:
+            print(f"Legal PDF text extraction unavailable: {u} :: {pdf_exc}")
+            return ""
+    try:
+        parser = _P()
+        parser.feed(response.text)
+        return _clean(" ".join(parser.parts))[:MAX_SOURCE_CHARS]
+    except Exception as parse_exc:
+        print(f"Legal source HTML parsing failed: {u} :: {parse_exc}")
+        return ""
 
 def _case(t):
     for pat in [
@@ -416,6 +507,21 @@ def research_legal_topic(topic, existing=""):
         f'site:manshurat.org "{topic}" قانون مصر',
     ]
 
+    # Universal semantic reformulations: derive additional searches from the
+    # actual topic terms instead of relying on a hand-maintained topic whitelist.
+    # This runs for every legal subject, including newly added queue topics.
+    generic_terms = [term for term in terms if len(term) >= 3][:5]
+    if generic_terms:
+        compact_topic = " ".join(generic_terms[:3])
+        queries.extend([
+            f'"{compact_topic}" قانون مصري',
+            f'"{compact_topic}" مادة تشريع مصر',
+            f'"{compact_topic}" حكم قضائي مبدأ',
+            f'"{compact_topic}" قرار إداري لائحة',
+            f'site:gov.eg "{compact_topic}"',
+            f'site:*.gov.eg "{compact_topic}" قانون OR قرار',
+        ])
+
     # Small semantic query expansions for the two current queue subjects. These
     # are discovery terms only; a source still must pass live retrieval and topic evidence.
     normalized_topic = _norm_legal_text(topic)
@@ -442,6 +548,20 @@ def research_legal_topic(topic, existing=""):
         ])
     candidates = []
     seen = set()
+
+    # Revalidate previously stored source URLs before fresh discovery. This is a
+    # cross-run cache optimization, not a trust shortcut: every URL is fetched
+    # again and must pass the current topic-evidence and official-domain gates.
+    existing_packet = str(existing or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
+    cached_blocks = re.split(r"(?m)^SOURCE\s+\d+\s*$", existing_packet)
+    for block in cached_blocks[1:]:
+        url_match = re.search(r"(?m)^URL:\s*(https://\S+)", block)
+        title_match = re.search(r"(?m)^Title:\s*(.+)$", block)
+        cached_url = url_match.group(1).rstrip(").,;") if url_match else ""
+        cached_title = title_match.group(1).strip() if title_match else ""
+        if cached_url and _allowed(cached_url) and cached_url not in seen:
+            seen.add(cached_url)
+            candidates.append({"url": cached_url, "title": cached_title or "Previously verified legal source — revalidation required"})
 
     # Verified official landing documents for the two queue topics. They are
     # still fetched live and must pass the same text/topic evidence checks below.

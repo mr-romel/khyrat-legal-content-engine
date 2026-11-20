@@ -70,3 +70,30 @@ def test_researched_packet_is_persisted_when_sheet_is_available(monkeypatch):
     assert result == VERIFIED_PACKET
     assert len(calls) == 1
     assert calls[0][0][4]["المصادر القانونية"] == VERIFIED_PACKET
+
+
+def test_pipeline_retries_failed_row_immediately_then_stops_on_recovery(monkeypatch):
+    import main
+
+    attempts = []
+    states = [
+        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
+        {"الحالة": "PUBLISHED", "آخر خطأ": "", "الموضوع": "اختبار موضوع قانوني"},
+    ]
+    monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: attempts.append(kwargs["row_number"]))
+    monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
+    monkeypatch.setattr(main, "row_to_dict", lambda value: states.pop(0))
+    monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
+    monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
+    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
+
+    main.process_row(
+        service=object(),
+        config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
+        sheet_name="Content",
+        row_number=2,
+        row={"الموضوع": "اختبار موضوع قانوني"},
+        current=object(),
+    )
+
+    assert attempts == [2, 2]
