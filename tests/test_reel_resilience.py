@@ -248,7 +248,8 @@ def test_gemini_image_quota_exhaustion_opens_daily_circuit():
 def test_reel_scene_budget_is_five_distinct_images_with_pollinations_primary():
     source = Path("src/reel_pipeline.py").read_text(encoding="utf-8")
     assert "reel_scene_count = 5" in source
-    assert "brief[\"video_terms\"][:reel_scene_count]" in source
+    assert "scene_prompts = post_visual_terms(post, visual_topic)[:reel_scene_count]" in source
+    assert "brief[\"video_terms\"] = scene_prompts" in source
     assert "if len(scenes) != reel_scene_count" in source
     assert '1: "pollinations"' in source
     assert '2: "cloudflare"' in source
