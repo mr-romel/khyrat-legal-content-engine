@@ -229,9 +229,9 @@ def _fetch(u):
             # longest string, so broken font-map noise cannot win.
             extracted = max(
                 candidates,
-                key=lambda value: sum("\\u0600" <= char <= "\\u06FF" for char in value),
+                key=lambda value: sum("\u0600" <= char <= "\u06FF" for char in value),
             )
-            arabic_chars = sum("\\u0600" <= char <= "\\u06FF" for char in extracted)
+            arabic_chars = sum("\u0600" <= char <= "\u06FF" for char in extracted)
             print(
                 f"Legal PDF extraction completed: chars={len(extracted)}; "
                 f"arabic_chars={arabic_chars}; url={u}"
