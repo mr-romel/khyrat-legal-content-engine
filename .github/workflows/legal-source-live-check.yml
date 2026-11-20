@@ -7,6 +7,12 @@ on:
       - "src/legal_research.py"
       - "scripts/legal_source_live_check.py"
       - ".github/workflows/legal-source-live-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/legal_research.py"
+      - "scripts/legal_source_live_check.py"
+      - ".github/workflows/legal-source-live-check.yml"
   workflow_dispatch:
     inputs:
       topics:
