@@ -2,35 +2,36 @@
   "topic": "انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء",
   "provider": "PIXABAY_SCENE_STOCK",
   "model": "pixabay-scene-search",
-  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A middle‑aged man in a plain button‑down shirt sits at a small home office desk. He is leaning slightly forward, his right hand hovering over the keyboard of an open laptop while his left hand clicks a mouse to capture a screenshot. The laptop screen shows a blurred social‑media style page: a circular avatar that resembles the man’s face, a generic post box with comment bubbles, and a thin address bar with a faint URL—no legible text is visible. To his right, a smartphone lies on the desk, its screen displaying a police‑report form with empty fields and a highlighted “Submit” button, again without readable characters. The desk holds a notebook with a pen, a coffee mug, and a small stack of printed documents. Th\nLEGAL TOPIC: انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: صاحب شركة اتصل بيا الصبح، لقى صورته الشخصية وصور موظفين اتنشرت على صفحة وهمية مع تعليقات مسيئة، أول رد فعل كان عايز يشيل الصفحة فوراً ويبلغ المنص\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 6258ebf8f82e",
-  "prompt_sha256": "053e8565fa876d0c99ee55c1e8a32a613b548067bcd3e619cb23fe70bf5afd40",
-  "image_sha256": "743ba1cc19444867a31c75a0c98fa28ddd9a335da3ac3dc80dadf2bc476f25be",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A gender‑neutral adult sits on a modern couch in a sun‑lit living‑room, holding a smartphone at chest level. The phone’s screen displays a softly blurred portrait of another person, making the face indistinct, and a faint, generic “send” icon is visible at the bottom. The person’s right hand hovers just above the screen, fingers paused as if deciding whether to tap the button. A coffee table with a mug and a potted plant sit nearby, and warm natural light streams through a nearby window, casting gentle shadows. The shot is framed as an over‑the‑shoulder close‑up, keeping the blurred phone image and hovering hand in sharp focus while the background is slightly out of focus, emphasizing the moment of hesitation b\nLEGAL TOPIC: انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: نشر صور أو أخبار خاصة لأي شخص على الإنترنت دون رضاه، حتى لو كانت المعلومات دي صحيحة، بيحطك مباشرة تحت طائلة القانون كجريمة انتهاك لحرمة الحياة ال\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 47dc4660d0b6",
+  "prompt_sha256": "85b2ae0d15f49d0a611727651590d4944c0ba9f3ec54c91016c1b3ff9fd18829",
+  "image_sha256": "ff147c0cda2f23e5424d14934311a1bac0a5f05ddbe4d1b47c30076d78ee5c7a",
   "image_path": "generated/20261120-1500-R020.jpg",
-  "visual_description": "A middle‑aged man in a plain button‑down shirt sits at a small home office desk. He is leaning slightly forward, his right hand hovering over the keyboard of an open laptop while his left hand clicks a mouse to capture a screenshot. The laptop screen shows a blurred social‑media style page: a circular avatar that resembles the man’s face, a generic post box with comment bubbles, and a thin address bar with a faint URL—no legible text is visible. To his right, a smartphone lies on the desk, its screen displaying a police‑report form with empty fields and a highlighted “Submit” button, again without readable characters. The desk holds a notebook with a pen, a coffee mug, and a small stack of printed documents. The scene is lit by soft natural light coming from a window on the left, casting gentle shadows and giving the room a calm, daytime atmosphere. The camera angle is a slightly elevated medium shot that captures the man, the laptop screen, and the phone in one cohesive frame, emphasizing the act of documenting digital evidence.",
+  "visual_description": "A gender‑neutral adult sits on a modern couch in a sun‑lit living‑room, holding a smartphone at chest level. The phone’s screen displays a softly blurred portrait of another person, making the face indistinct, and a faint, generic “send” icon is visible at the bottom. The person’s right hand hovers just above the screen, fingers paused as if deciding whether to tap the button. A coffee table with a mug and a potted plant sit nearby, and warm natural light streams through a nearby window, casting gentle shadows. The shot is framed as an over‑the‑shoulder close‑up, keeping the blurred phone image and hovering hand in sharp focus while the background is slightly out of focus, emphasizing the moment of hesitation before publishing private content.",
   "aspect_ratio": "4:5",
   "width": 1024,
   "height": 1280,
-  "qa_decision": "REGENERATE",
+  "qa_decision": "PASS",
   "source_metadata": {
     "source": "Pixabay",
-    "title": "smart phone, documents, paperwork, office desk, workspace, work setup, desk setup, paperwork, paperwork, paperwork, paperwork, paperwork",
-    "source_page": "https://pixabay.com/photos/smart-phone-documents-paperwork-7091494/",
-    "source_url": "https://pixabay.com/get/gd6316b0cc49fcaa3f3880ac7a56574f3cd04c634ba33064c0b9921ab6b38621f6643465721716f65c29e2229d5abca39c656f002efc3e28aa029f221d980893e_1280.jpg",
+    "title": "camera, lens, magazine, pen, mobile, phone, work, desk, nature, table, business, office, interior, plant, green",
+    "source_page": "https://pixabay.com/photos/camera-lens-magazine-pen-mobile-2569628/",
+    "source_url": "https://pixabay.com/get/gab031fde06a43cdbcc690db5259f99c646f53fd949e91c47f0ac338c50aaf0dc576f153f3791fcf7e268517927ae2d159fb5406459b5b15664721b28113b6eac_1280.jpg",
     "license": "Pixabay Content License",
-    "artist": "LUNEMax",
+    "artist": "StockSnap",
     "attribution_required": "false",
-    "search_query": "office desk documents phone",
-    "image_id": "7091494"
+    "search_query": "phone plant",
+    "image_id": "2569628"
   },
   "qa_model": "gemini-3.1-flash-lite",
-  "qa_overall_score": 3,
+  "qa_overall_score": 2,
   "qa_relevance_score": 2,
   "qa_issues": [
-    "Topic mismatch: The scene reflects financial/pricing planning rather than the legal process of documenting digital evidence for privacy violations.",
-    "Prominent legible text: Multiple English words (PRICING FORMULA, LABOR, etc.) are clearly visible and unrelated to the topic.",
+    "The generated image completely ignores the core subject matter of the legal brief (a person interacting with a smartphone to publish content).",
+    "Contains visible, distracting brand text ('Canon') on the camera lens.",
     "Composition advisory below 55.",
     "Relevance advisory below 72.",
-    "Overall advisory below 60."
+    "Overall advisory below 60.",
+    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
   ],
-  "qa_checked_image_sha256": "743ba1cc19444867a31c75a0c98fa28ddd9a335da3ac3dc80dadf2bc476f25be"
+  "qa_checked_image_sha256": "ff147c0cda2f23e5424d14934311a1bac0a5f05ddbe4d1b47c30076d78ee5c7a"
 }
