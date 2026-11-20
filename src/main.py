@@ -1089,7 +1089,7 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
                     update_row(service, config["sheet_id"], sheet_name, row_number, {"Facebook Status": "FAILED", "آخر خطأ": error})
                 except Exception as state_exc:
                     print(f"Facebook failure state could not be persisted: {state_exc}")
-                notify(f"🚨 Facebook publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
+                print(f"Facebook failure notification deferred until row recovery is exhausted: {exc}")
 
         linkedin_status = str(row.get("LinkedIn Status", "")).strip().upper()
         if linkedin_post_id and linkedin_status == "PUBLISHED":
@@ -1136,7 +1136,7 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
                     update_row(service, config["sheet_id"], sheet_name, row_number, {"LinkedIn Status": row["LinkedIn Status"], "آخر خطأ": error})
                 except Exception as state_exc:
                     print(f"LinkedIn failure state could not be persisted: {state_exc}")
-                notify(f"🚨 LinkedIn publishing failed\nالموضوع: {topic}\nالسبب: {exc}")
+                print(f"LinkedIn failure notification deferred until row recovery is exhausted: {exc}")
 
         fb_ok = bool(facebook_post_id) and str(row.get("Facebook Status", "") or "").strip().upper() == "PUBLISHED"
         li_post_ok = bool(linkedin_post_id) and str(row.get("LinkedIn Status", "") or "").strip().upper() == "PUBLISHED"
@@ -1184,10 +1184,10 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
         else:
             detail = final_error or "Social publication did not complete."
             if str(row.get("LinkedIn Status", "")).strip().upper() == "BLOCKED_TOKEN" and fb_ok:
-                notify(f"🟠 تم نشر المنشور على Facebook، وتم إيقاف إعادة المحاولة التلقائية لـ LinkedIn بسبب رفض التوكن (401).\nالموضوع: {topic}\nالإجراء: أصلح/جدّد توكن LinkedIn، ثم أعد اعتماد الصف لإعادة نشر LinkedIn فقط دون تكرار Facebook.\nالسبب: {detail}")
+                print(f"LinkedIn token rejection will be reported once after recovery policy evaluation: {detail}")
                 print(f"LinkedIn token rejected; Facebook succeeded. Automatic retries paused to prevent duplicate publishing: {detail}")
             else:
-                notify(f"🟠 Publication retry scheduled automatically.\nالموضوع: {topic}\nالسبب: {detail}")
+                print(f"Publication failure notification deferred until recovery is exhausted: {detail}")
                 print(f"Non-blocking publication failure; scheduler will retry: {detail}")
         return
     except Exception as exc:
@@ -1207,7 +1207,7 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
                 })
             except Exception as sheet_exc:
                 print(f"Sheet failure recording error (also non-blocking): {sheet_exc}")
-            notify(f"🟠 Pipeline issue — التشغيل مستمر وسيتم إعادة المحاولة تلقائيًا.\nالموضوع: {topic}\nالسبب: {exc}")
+            print(f"Pipeline failure notification deferred until automatic recovery is exhausted: {exc}")
         else:
             print(f"Duplicate pipeline alert suppressed; unchanged failure remains retryable: {exc}")
         return
@@ -1238,22 +1238,33 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
             values = get_values(service, config["sheet_id"], config["sheet_range"])
             latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
         except Exception as state_read_exc:
-            print(f"PIPELINE AUTO-RECOVERY: could not refresh row state after attempt {attempt}: {state_read_exc}")
+            diagnostic = f"Could not refresh row state after attempt {attempt}: {state_read_exc}"
+            print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
+            notify(f"🚨 تعذر استكمال الاسترداد الآلي للصف {row_number}.\\nالموضوع: {row.get('الموضوع', '')}\\nالتشخيص: {diagnostic}")
             return
         status = str(latest.get("الحالة", "") or "").strip().upper()
         error = str(latest.get("آخر خطأ", "") or "").strip()
         if status not in {"FAILED", "PARTIAL_FAILED"}:
             return
         if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
-            print("PIPELINE AUTO-RECOVERY: stopping retries because LinkedIn authorization requires credential renewal.")
+            diagnostic = "LinkedIn authorization rejected; credential renewal is required. Other successful platform posts remain protected by idempotency."
+            print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
+            notify(f"🟠 انتهت محاولات الاسترداد المسموح بها للصف {row_number} بسبب رفض توكن LinkedIn.\\nالموضوع: {current_row.get('الموضوع', '')}\\nالإجراء المطلوب: تجديد التوكن ثم إعادة الصف لنشر LinkedIn فقط.\\nالسبب: {error[:700]}")
             return
         if error.upper().startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(latest) >= MAX_IMAGE_QA_ATTEMPTS:
-            print("PIPELINE AUTO-RECOVERY: stopping because the visual QA retry budget is exhausted.")
+            diagnostic = "Image semantic QA retry budget exhausted; visual brief requires correction."
+            print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
+            notify(f"🟠 استُنفدت محاولات إصلاح الصورة للصف {row_number}.\\nالموضوع: {current_row.get('الموضوع', '')}\\nالتشخيص: {error[:700]}")
             return
         if attempt == max_attempts:
             print(
                 f"PIPELINE AUTO-RECOVERY EXHAUSTED: row={row_number}; "
                 f"attempts={max_attempts}; final_error={error[:700]}"
+            )
+            notify(
+                f"🚨 تعذر استكمال الصف بعد الاسترداد التلقائي.\\n"
+                f"الصف: {row_number}\\nالموضوع: {current_row.get('الموضوع', '')}\\n"
+                f"المحاولات: {max_attempts}\\nالتشخيص النهائي: {error[:1000]}"
             )
             return
         current_row = latest
