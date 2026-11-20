@@ -190,7 +190,7 @@ def _pdf_text_is_usable(value: str) -> bool:
 def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
     """Free local Arabic OCR fallback using PyMuPDF + Tesseract; no cloud upload."""
     try:
-        import fitz
+        import pypdfium2 as pdfium
         import pytesseract
         from PIL import Image
     except Exception as exc:
@@ -199,7 +199,7 @@ def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
 
     parts = []
     try:
-        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        document = pdfium.PdfDocument(pdf_bytes)
         for page_number, page in enumerate(document):
             if page_number >= max_pages:
                 print(f"Legal PDF OCR page limit reached: {max_pages}")
@@ -212,8 +212,8 @@ def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
                 parts.append(native)
                 continue
             try:
-                pixmap = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)
-                image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                bitmap = page.render(scale=2.5)
+                image = bitmap.to_pil()
                 recognized = pytesseract.image_to_string(
                     image,
                     lang="ara+eng",
