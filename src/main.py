@@ -1240,7 +1240,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         except Exception as state_read_exc:
             diagnostic = f"Could not refresh row state after attempt {attempt}: {state_read_exc}"
             print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
-            notify(f"🚨 تعذر استكمال الاسترداد الآلي للصف {row_number}.\\nالموضوع: {row.get('الموضوع', '')}\\nالتشخيص: {diagnostic}")
+            notify(f"🚨 تعذر استكمال الاسترداد الآلي للصف {row_number}.\nالموضوع: {row.get('الموضوع', '')}\nالتشخيص: {diagnostic}")
             return
         status = str(latest.get("الحالة", "") or "").strip().upper()
         error = str(latest.get("آخر خطأ", "") or "").strip()
@@ -1249,12 +1249,12 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
             diagnostic = "LinkedIn authorization rejected; credential renewal is required. Other successful platform posts remain protected by idempotency."
             print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
-            notify(f"🟠 انتهت محاولات الاسترداد المسموح بها للصف {row_number} بسبب رفض توكن LinkedIn.\\nالموضوع: {current_row.get('الموضوع', '')}\\nالإجراء المطلوب: تجديد التوكن ثم إعادة الصف لنشر LinkedIn فقط.\\nالسبب: {error[:700]}")
+            notify(f"🟠 انتهت محاولات الاسترداد المسموح بها للصف {row_number} بسبب رفض توكن LinkedIn.\nالموضوع: {current_row.get('الموضوع', '')}\nالإجراء المطلوب: تجديد التوكن ثم إعادة الصف لنشر LinkedIn فقط.\nالسبب: {error[:700]}")
             return
         if error.upper().startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(latest) >= MAX_IMAGE_QA_ATTEMPTS:
             diagnostic = "Image semantic QA retry budget exhausted; visual brief requires correction."
             print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
-            notify(f"🟠 استُنفدت محاولات إصلاح الصورة للصف {row_number}.\\nالموضوع: {current_row.get('الموضوع', '')}\\nالتشخيص: {error[:700]}")
+            notify(f"🟠 استُنفدت محاولات إصلاح الصورة للصف {row_number}.\nالموضوع: {current_row.get('الموضوع', '')}\nالتشخيص: {error[:700]}")
             return
         if attempt == max_attempts:
             print(
@@ -1262,9 +1262,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
                 f"attempts={max_attempts}; final_error={error[:700]}"
             )
             notify(
-                f"🚨 تعذر استكمال الصف بعد الاسترداد التلقائي.\\n"
-                f"الصف: {row_number}\\nالموضوع: {current_row.get('الموضوع', '')}\\n"
-                f"المحاولات: {max_attempts}\\nالتشخيص النهائي: {error[:1000]}"
+                f"🚨 تعذر استكمال الصف بعد الاسترداد التلقائي.\n"
+                f"الصف: {row_number}\nالموضوع: {current_row.get('الموضوع', '')}\n"
+                f"المحاولات: {max_attempts}\nالتشخيص النهائي: {error[:1000]}"
             )
             return
         current_row = latest
