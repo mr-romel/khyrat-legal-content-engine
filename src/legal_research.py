@@ -14,7 +14,7 @@ MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
 OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg","caoa.gov.eg","www.caoa.gov.eg","escc.gov.eg","www.escc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg","mwri.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -294,8 +294,10 @@ def _topic_evidence_terms(topic: str) -> list[str]:
         ])
     if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         aliases.extend([
-            "الخدمة المدنية", "الوظائف العامة", "شغل الوظائف", "التعيين في الوظائف",
-            "قانون الخدمة المدنية", "الكفاءة والجدارة", "وظائف شاغرة وممولة",
+            "الخدمة المدنية", "الوظائف العامة", "الوظائف المدنية", "الوظيفة المدنية",
+            "شغل الوظائف", "التعيين في الوظائف", "قانون الخدمة المدنية",
+            "قانون الخدمة المدنية رقم 81 لسنة 2016", "الكفاءة والجدارة",
+            "وظائف شاغرة وممولة",
             "لجنة الاختيار", "امتحان التعيين", "المادة 12",
         ])
     for alias in aliases:
@@ -591,6 +593,14 @@ def research_legal_topic(topic, existing=""):
         ])
     if any(term in normalized_for_seeds for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
         seed_urls.extend([
+            (
+                "https://www.mwri.gov.eg/wp-content/uploads/2019/12/Civil-Service-Law.pdf",
+                "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، نسخة منشورة على موقع وزارة الموارد المائية والري",
+            ),
+            (
+                "https://www.esa.gov.eg/files/laws/10.pdf",
+                "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، نسخة منشورة على موقع وكالة الفضاء المصرية",
+            ),
             (
                 "https://jobs.caoa.gov.eg/",
                 "الجهاز المركزي للتنظيم والإدارة — بوابة الوظائف الحكومية، الوظائف التي تشغل بالتعيين والتعاقد ومكتبة قانون الخدمة المدنية",

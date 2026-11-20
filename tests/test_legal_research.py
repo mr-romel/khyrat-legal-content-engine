@@ -696,3 +696,18 @@ def test_cached_official_source_is_refetched_and_revalidated_for_current_topic(m
     legal_research.research_legal_topic("تنظيم تراخيص المحال العامة", existing)
 
     assert cached_url in fetched
+
+
+def test_public_employment_topic_includes_official_law_81_terms_and_source_domain():
+    import legal_research
+
+    terms = legal_research._topic_evidence_terms("الوظيفة العامة والتعيين")
+    assert "الوظائف" in terms
+    assert legal_research._allowed(
+        "https://www.mwri.gov.eg/wp-content/uploads/2019/12/Civil-Service-Law.pdf"
+    )
+    evidence = legal_research._source_evidence(
+        "قانون الخدمة المدنية. الوظائف المدنية حق للمواطنين على أساس الكفاءة والجدارة.",
+        "الوظيفة العامة والتعيين",
+    )
+    assert "الوظائف المدنية" in evidence
