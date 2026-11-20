@@ -429,10 +429,10 @@ jobs:
           # Persist each returned ID so scheduled retries resume without duplicate comments.
           topic=str(row.get('الموضوع', plan.get('title', 'المعلومة القانونية'))).strip()
           article_url=str(row.get('Blogger URL','')).strip()
-          blogger_ready=(
-              str(row.get('Blogger Status','')).strip().upper() == 'PUBLISHED'
-              and valid_blogger_article_url(article_url)
-          )
+          if not valid_blogger_article_url(article_url):
+              print(f"Reel comments: row={row_number} has no valid Blogger article URL; publishing comments without an article link.")
+              article_url=''
+          blogger_ready=bool(article_url)
           result['comments']={
               'facebook': {'status':str(row.get('Reel Facebook Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
               'youtube': {'status':str(row.get('Reel YouTube Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
