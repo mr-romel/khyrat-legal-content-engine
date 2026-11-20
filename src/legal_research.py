@@ -549,6 +549,20 @@ def research_legal_topic(topic, existing=""):
     candidates = []
     seen = set()
 
+    # Revalidate previously stored source URLs before fresh discovery. This is a
+    # cross-run cache optimization, not a trust shortcut: every URL is fetched
+    # again and must pass the current topic-evidence and official-domain gates.
+    existing_packet = str(existing or "").split("EXISTING SHEET LEGAL SOURCES:", 1)[0]
+    cached_blocks = re.split(r"(?m)^SOURCE\\s+\\d+\\s*$", existing_packet)
+    for block in cached_blocks[1:]:
+        url_match = re.search(r"(?m)^URL:\\s*(https://\\S+)", block)
+        title_match = re.search(r"(?m)^Title:\\s*(.+)$", block)
+        cached_url = url_match.group(1).rstrip(").,;") if url_match else ""
+        cached_title = title_match.group(1).strip() if title_match else ""
+        if cached_url and _allowed(cached_url) and cached_url not in seen:
+            seen.add(cached_url)
+            candidates.append({"url": cached_url, "title": cached_title or "Previously verified legal source — revalidation required"})
+
     # Verified official landing documents for the two queue topics. They are
     # still fetched live and must pass the same text/topic evidence checks below.
     normalized_for_seeds = _norm_legal_text(topic)
