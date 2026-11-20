@@ -706,3 +706,8 @@ def test_public_employment_topic_includes_official_law_81_terms_and_source_domai
     assert legal_research._allowed(
         "https://www.mwri.gov.eg/wp-content/uploads/2019/12/Civil-Service-Law.pdf"
     )
+    evidence = legal_research._source_evidence(
+        "قانون الخدمة المدنية. الوظائف المدنية حق للمواطنين على أساس الكفاءة والجدارة.",
+        "الوظيفة العامة والتعيين",
+    )
+    assert "الوظائف المدنية" in evidence
