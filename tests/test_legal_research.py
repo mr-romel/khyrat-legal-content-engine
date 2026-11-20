@@ -721,3 +721,45 @@ def test_official_host_allowlist_normalizes_www_case_and_subdomains():
     assert legal_research._allowed("https://WWW.FRA.GOV.EG/law.pdf")
     assert not legal_research._allowed("http://www.mwri.gov.eg/law.pdf")
     assert not legal_research._allowed("https://mwri.gov.eg.example.com/law.pdf")
+
+
+def test_pdf_fetch_uses_arabic_layout_text_when_plain_extraction_is_garbled(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    import legal_research
+
+    class FakePage:
+        def extract_text(self, extraction_mode=None):
+            if extraction_mode == "layout":
+                return "الوظائف المدنية حق للمواطنين على أساس الكفاءة والجدارة"
+            return "garbled"
+
+    class FakeReader:
+        def __init__(self, _stream):
+            self.pages = [FakePage()]
+
+    response = SimpleNamespace(
+        status_code=200,
+        headers={"content-type": "application/pdf"},
+        content=b"%PDF-test",
+        raise_for_status=lambda: None,
+    )
+    monkeypatch.setattr(legal_research, "_trusted_get", lambda *args, **kwargs: response)
+    monkeypatch.setitem(sys.modules, "pypdf", SimpleNamespace(PdfReader=FakeReader))
+
+    extracted = legal_research._fetch("https://www.moa.gov.eg/law.pdf")
+
+    assert "الوظائف المدنية" in extracted
+    assert "الكفاءة والجدارة" in extracted
+
+
+def test_cairo_government_publication_is_allowlisted_for_civil_service_law():
+    import legal_research
+
+    assert legal_research._allowed(
+        "https://www.cairo.gov.eg/ar/Monthly%20Publication/%D9%86%D8%B4%D8%B1%D8%A9%20%D9%81%D8%A8%D8%B1%D8%A7%D9%8A%D8%B12019%20.pdf"
+    )
+    terms = legal_research._topic_evidence_terms("الوظيفة العامة والتعيين")
+    assert "الوظائف" in terms
+    assert "الكفاءة" in terms
+    assert "الجدارة" in terms
