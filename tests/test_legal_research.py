@@ -814,8 +814,6 @@ def test_pdf_native_extraction_skips_ocr_when_arabic_text_is_usable(monkeypatch)
         "pypdf",
         __import__("types").SimpleNamespace(PdfReader=FakeReader),
     )
-    # Disable the independent PyMuPDF extractor; pypdf already returned readable Arabic.
-    monkeypatch.setitem(__import__("sys").modules, "fitz", None)
     extracted = legal_research._extract_pdf_text(b"%PDF-test", "https://www.gov.eg/law.pdf")
 
     assert "قانون الخدمة المدنية" in extracted
