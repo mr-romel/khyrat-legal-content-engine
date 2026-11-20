@@ -507,6 +507,21 @@ def research_legal_topic(topic, existing=""):
         f'site:manshurat.org "{topic}" قانون مصر',
     ]
 
+    # Universal semantic reformulations: derive additional searches from the
+    # actual topic terms instead of relying on a hand-maintained topic whitelist.
+    # This runs for every legal subject, including newly added queue topics.
+    generic_terms = [term for term in terms if len(term) >= 3][:5]
+    if generic_terms:
+        compact_topic = " ".join(generic_terms[:3])
+        queries.extend([
+            f'"{compact_topic}" قانون مصري',
+            f'"{compact_topic}" مادة تشريع مصر',
+            f'"{compact_topic}" حكم قضائي مبدأ',
+            f'"{compact_topic}" قرار إداري لائحة',
+            f'site:gov.eg "{compact_topic}"',
+            f'site:*.gov.eg "{compact_topic}" قانون OR قرار',
+        ])
+
     # Small semantic query expansions for the two current queue subjects. These
     # are discovery terms only; a source still must pass live retrieval and topic evidence.
     normalized_topic = _norm_legal_text(topic)
