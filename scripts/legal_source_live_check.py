@@ -24,7 +24,7 @@ def configured_topics() -> tuple[str, ...]:
     if not raw:
         return TOPICS
     requested = tuple(dict.fromkeys(
-        item.strip() for item in re.split(r"[;\\n]+", raw) if item.strip()
+        item.strip() for item in re.split(r"[;\n]+", raw) if item.strip()
     ))
     if any(item.casefold() == "all_500" for item in requested):
         from topic_bank_500 import TOPIC_BANK
