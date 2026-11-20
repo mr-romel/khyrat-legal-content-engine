@@ -711,3 +711,13 @@ def test_public_employment_topic_includes_official_law_81_terms_and_source_domai
         "الوظيفة العامة والتعيين",
     )
     assert "الوظائف المدنية" in evidence
+
+
+def test_official_host_allowlist_normalizes_www_case_and_subdomains():
+    import legal_research
+
+    assert legal_research._allowed("https://www.mwri.gov.eg/law.pdf")
+    assert legal_research._allowed("https://files.mwri.gov.eg/law.pdf")
+    assert legal_research._allowed("https://WWW.FRA.GOV.EG/law.pdf")
+    assert not legal_research._allowed("http://www.mwri.gov.eg/law.pdf")
+    assert not legal_research._allowed("https://mwri.gov.eg.example.com/law.pdf")
