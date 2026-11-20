@@ -162,11 +162,11 @@ def test_pipeline_retries_unhandled_row_exception_instead_of_exiting(monkeypatch
         service=object(),
         config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
         sheet_name="Content",
-        row_number=7,
+        row_number=2,
         row={"الموضوع": "موضوع تجريبي"},
         current=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
 
-    assert attempts == [7, 7]
+    assert attempts == [2, 2]
     assert len(persisted) == 1
     assert alerts == []
