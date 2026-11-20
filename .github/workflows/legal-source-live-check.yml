@@ -37,8 +37,10 @@ jobs:
 
       - name: Install legal research dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara tesseract-ocr-eng
           python -m pip install --disable-pip-version-check --upgrade pip certifi
-          python -m pip install --disable-pip-version-check requests pypdf
+          python -m pip install --disable-pip-version-check requests pypdf PyMuPDF pytesseract
 
       - name: Retrieve and verify selected legal topics live (no publishing)
         env:
