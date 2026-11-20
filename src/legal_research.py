@@ -333,6 +333,10 @@ def _topic_evidence_terms(topic: str) -> list[str]:
         for token in re.findall(r"[\u0621-\u064A]{3,}", _norm_legal_text(alias)):
             if token not in terms:
                 terms.append(token)
+    if any(term in normalized for term in ("وظيفه", "الوظيفه", "تعيين", "الخدمه المدنيه")):
+        for token in ("الوظائف", "المدنية", "الكفاءة", "الجدارة", "التعيين", "شاغرة", "ممولة", "الامتحان"):
+            if token not in terms:
+                terms.append(token)
     return terms
 
 def _matching_source_words(terms: list[str], text: str) -> list[tuple[str, int]]:
