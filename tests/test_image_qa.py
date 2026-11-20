@@ -98,7 +98,8 @@ def test_image_qa_api_error_is_advisory_not_a_rejection(monkeypatch, tmp_path):
     monkeypatch.setattr("image_qa.genai.Client", lambda **kwargs: BrokenClient())
     result = qa_image(api_key="test-key", image_path=str(path), topic="test", image_brief="test")
     assert result["decision"] == "PASS"
-    assert "cannot be cleared for publication" in result["issues"][0]
+    assert "accepted because no mismatch or severe distortion was established" in result["issues"][0]
+    assert result["qa_policy"] == "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
 
 
 def test_image_qa_uses_openverse_metadata_only_when_visual_api_is_unavailable(monkeypatch, tmp_path):
