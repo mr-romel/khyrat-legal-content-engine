@@ -13,6 +13,7 @@ from legal_research import has_verified_legal_source, research_legal_topic
 TOPICS = (
     "الوظيفة العامة والتعيين",
     "امتناع الإدارة عن اتخاذ القرار",
+    "انتهاك حرمة الحياة الخاصة",
 )
 
 
