@@ -180,7 +180,7 @@ jobs:
                   )
                   if status == "PUBLISHED" and not metadata_topic_aligned:
                       print(f"Skipping legacy metadata backfill for row={n}: topic_family={row_topic_family}, narration_family={narration_family}; no descriptions will be overwritten.")
-                  comments_pending = status == "PUBLISHED" and video_identity_valid and metadata_topic_aligned and (
+                  comments_pending = status == "PUBLISHED" and metadata_topic_aligned and (
                       (bool(fb_id) and fb_comment_status != "PUBLISHED")
                       or (youtube_management_ready and bool(yt_id) and yt_comment_status != "PUBLISHED")
                   )
