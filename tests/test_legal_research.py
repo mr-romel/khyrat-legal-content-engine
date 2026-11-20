@@ -656,3 +656,16 @@ def test_fetch_retries_once_after_transient_connection_error(monkeypatch):
     monkeypatch.setattr(legal_research.time, "sleep", lambda seconds: None)
     assert "نص قانوني رسمي كامل" in legal_research._fetch("https://www.moj.gov.eg/law")
     assert calls["count"] == 2
+
+
+def test_generic_query_reformulations_apply_to_unlisted_legal_topics(monkeypatch):
+    import legal_research
+
+    captured = []
+    monkeypatch.setattr(legal_research, "_search", lambda query: captured.append(query) or [])
+    monkeypatch.setattr(legal_research, "_fetch", lambda _url: "")
+    legal_research.research_legal_topic("تنظيم تراخيص المحال العامة")
+
+    assert any('"تنظيم تراخيص محال"' in query for query in captured)
+    assert any("site:gov.eg" in query for query in captured)
+    assert any("قرار إداري لائحة" in query for query in captured)
