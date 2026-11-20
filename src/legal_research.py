@@ -424,6 +424,7 @@ def research_legal_topic(topic, existing=""):
             'site:escc.gov.eg/assets/docs/law-175-2018.pdf "حرمة الحياة الخاصة"',
             'site:register.cc.gov.eg "انتهاك حرمة الحياة الخاصة"',
             'site:register.cc.gov.eg "المادة 25" "القانون 175"',
+            'site:fra.gov.eg "حرمة الحياة الخاصة" "قانون 175 لسنة 2018"',
             'site:cc.gov.eg "309 مكرر" "حرمة الحياة الخاصة"',
             '"انتهاك حرمة الحياة الخاصة" "القانون رقم 175 لسنة 2018" مصر',
         ])
@@ -517,6 +518,14 @@ def research_legal_topic(topic, existing=""):
         ])
     if any(term in normalized_for_seeds for term in ("الحياة الخاصة", "انتهاك حرمة", "خصوصية")):
         seed_urls.extend([
+            (
+                "https://www.fra.gov.eg/wp-content/uploads/2025/01/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018-%D8%A8%D8%AA%D8%A7%D8%B1%D9%8A%D8%AE-2018-08-14.pdf",
+                "الهيئة العامة للرقابة المالية — نسخة منشورة من القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات",
+            ),
+            (
+                "https://fra.gov.eg/regulations/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%B1%D9%82%D9%85-175-%D9%84%D8%B3%D9%86%D8%A9-2018/",
+                "الهيئة العامة للرقابة المالية — صفحة القانون رقم 175 لسنة 2018",
+            ),
             (
                 "https://escc.gov.eg/assets/docs/law-175-2018.pdf",
                 "الجريدة الرسمية — القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات، الفصل الثالث والمادة 25",

@@ -562,6 +562,13 @@ def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_una
 
     def fake_fetch(url):
         fetched.append(url)
+        if "fra.gov.eg/wp-content/uploads/2025/01/" in url:
+            return (
+                "الجريدة الرسمية. القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات. "
+                "الفصل الثالث الجرائم المتعلقة بالاعتداء على حرمة الحياة الخاصة. "
+                "المادة (25) يعاقب كل من انتهك حرمة الحياة الخاصة أو نشر معلومات أو صوراً "
+                "تنتهك خصوصية أي شخص دون رضاه سواء كانت المعلومات صحيحة أو غير صحيحة."
+            )
         if "escc.gov.eg/assets/docs/law-175-2018.pdf" in url:
             return (
                 "القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات. "
@@ -581,6 +588,7 @@ def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_una
         "انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
     )
 
+    assert any("fra.gov.eg/wp-content/uploads/2025/01/" in url for url in fetched)
     assert "https://escc.gov.eg/assets/docs/law-175-2018.pdf" in fetched
     assert legal_research.has_verified_legal_source(packet)
     assert "قانون رقم 175 لسنة 2018" in packet
