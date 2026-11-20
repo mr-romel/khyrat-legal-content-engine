@@ -595,3 +595,62 @@ def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_una
     assert "المادة 25" in packet
     assert "انتهك حرمة الحياة الخاصة" in packet
 
+
+
+def test_bing_result_parser_handles_organic_result_containers():
+    from legal_research import _BingResults
+
+    parser = _BingResults()
+    parser.feed(
+        '<ol><li class="b_algo"><h2><a href="https://www.moj.gov.eg/law">نص القانون الرسمي</a></h2>'
+        '<p>ملخص</p></li></ol>'
+    )
+    assert parser.items == [{"url": "https://www.moj.gov.eg/law", "title": "نص القانون الرسمي"}]
+
+
+def test_search_falls_back_to_bing_when_duckduckgo_has_no_parseable_results(monkeypatch):
+    import legal_research
+
+    class Response:
+        def __init__(self, text, status_code=200):
+            self.text = text
+            self.status_code = status_code
+        def raise_for_status(self):
+            return None
+
+    calls = []
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if "duckduckgo" in url:
+            return Response("<html><body>challenge page</body></html>")
+        return Response(
+            '<li class="b_algo"><h2><a href="https://www.moj.gov.eg/laws/1">مصدر تشريعي رسمي</a></h2></li>'
+        )
+
+    monkeypatch.setattr(legal_research, "_trusted_get", fake_get)
+    results = legal_research._search("اختبار بحث قانوني")
+    assert len(results) == 1
+    assert results[0]["url"] == "https://www.moj.gov.eg/laws/1"
+    assert calls == ["https://html.duckduckgo.com/html/", "https://www.bing.com/search"]
+
+
+def test_fetch_retries_once_after_transient_connection_error(monkeypatch):
+    import legal_research
+    import requests
+
+    class Response:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+        text = "<html><body>نص قانوني رسمي كامل</body></html>"
+
+    calls = {"count": 0}
+    def fake_get(url, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise requests.exceptions.ConnectionError("temporary reset")
+        return Response()
+
+    monkeypatch.setattr(legal_research, "_trusted_get", fake_get)
+    monkeypatch.setattr(legal_research.time, "sleep", lambda seconds: None)
+    assert "نص قانوني رسمي كامل" in legal_research._fetch("https://www.moj.gov.eg/law")
+    assert calls["count"] == 2
