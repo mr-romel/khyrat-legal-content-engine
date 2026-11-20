@@ -176,6 +176,130 @@ def _search(q):
         print(f"Legal research Bing fallback unavailable: {q!r} :: {exc}")
     return results
 
+def _pdf_arabic_count(value: str) -> int:
+    return sum("\u0600" <= char <= "\u06FF" for char in value)
+
+
+def _pdf_text_is_usable(value: str) -> bool:
+    cleaned = _clean(value)
+    arabic = _pdf_arabic_count(cleaned)
+    letters = sum(char.isalpha() for char in cleaned)
+    return arabic >= 80 and arabic >= max(1, letters) * 0.12
+
+
+def _ocr_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> str:
+    """Free local Arabic OCR fallback using PyMuPDF + Tesseract; no cloud upload."""
+    try:
+        import fitz
+        import pytesseract
+        from PIL import Image
+    except Exception as exc:
+        print(f"Legal PDF OCR dependencies unavailable (PyMuPDF/Tesseract/Pillow): {exc}")
+        return ""
+
+    parts = []
+    try:
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        for page_number, page in enumerate(document):
+            if page_number >= max_pages:
+                print(f"Legal PDF OCR page limit reached: {max_pages}")
+                break
+            try:
+                native = _clean(page.get_text("text", sort=True) or "")
+            except Exception:
+                native = ""
+            if _pdf_text_is_usable(native):
+                parts.append(native)
+                continue
+            try:
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)
+                image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                recognized = pytesseract.image_to_string(
+                    image,
+                    lang="ara+eng",
+                    config="--oem 1 --psm 6",
+                )
+                recognized = _clean(recognized)
+                if recognized:
+                    parts.append(recognized)
+                    print(
+                        f"Legal PDF OCR page recovered: page={page_number + 1}; "
+                        f"arabic_chars={_pdf_arabic_count(recognized)}"
+                    )
+            except Exception as page_exc:
+                print(f"Legal PDF OCR page failed: page={page_number + 1}: {page_exc}")
+        try:
+            document.close()
+        except Exception:
+            pass
+    except Exception as exc:
+        print(f"Legal PDF OCR document open failed: {exc}")
+        return ""
+    return _clean("\n".join(parts))[:MAX_SOURCE_CHARS]
+
+
+def _extract_pdf_text(pdf_bytes: bytes, url: str = "") -> str:
+    """Try native extractors first, then local Arabic OCR for scanned/garbled PDFs."""
+    candidates = []
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        plain_parts, layout_parts = [], []
+        for page in reader.pages:
+            try:
+                plain_parts.append(page.extract_text() or "")
+            except Exception:
+                plain_parts.append("")
+            try:
+                layout_parts.append(page.extract_text(extraction_mode="layout") or "")
+            except Exception:
+                layout_parts.append("")
+        candidates.extend([
+            _clean("\n".join(plain_parts)),
+            _clean("\n".join(layout_parts)),
+        ])
+    except Exception as exc:
+        print(f"Legal PDF pypdf extraction unavailable: {url} :: {exc}")
+
+    # PyMuPDF's text engine often handles font maps/order differently from pypdf.
+    try:
+        import fitz
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        mupdf_parts = []
+        for page in document:
+            try:
+                mupdf_parts.append(page.get_text("text", sort=True) or "")
+            except Exception:
+                mupdf_parts.append("")
+        candidates.append(_clean("\n".join(mupdf_parts)))
+        document.close()
+    except Exception as exc:
+        print(f"Legal PDF PyMuPDF native extraction unavailable: {url} :: {exc}")
+
+    best_native = max(candidates, key=lambda value: _pdf_arabic_count(value), default="")
+    if _pdf_text_is_usable(best_native):
+        extracted = best_native
+        method = "native"
+    else:
+        print(
+            f"Legal PDF native Arabic text weak; trying local OCR: "
+            f"arabic_chars={_pdf_arabic_count(best_native)}; url={url}"
+        )
+        ocr_text = _ocr_pdf_pages(pdf_bytes)
+        extracted = max(
+            (best_native, ocr_text),
+            key=lambda value: _pdf_arabic_count(value),
+        )
+        method = "tesseract_ara" if extracted == ocr_text and ocr_text else "native_partial"
+
+    arabic_chars = _pdf_arabic_count(extracted)
+    print(
+        f"Legal PDF extraction completed: method={method}; chars={len(extracted)}; "
+        f"arabic_chars={arabic_chars}; url={url}"
+    )
+    return extracted[:MAX_SOURCE_CHARS]
+
+
 def _fetch(u):
     """Fetch source text with bounded retries for transient transport/server failures only."""
     response = None
@@ -206,40 +330,7 @@ def _fetch(u):
         return ""
     content_type = response.headers.get("content-type", "").lower()
     if "pdf" in content_type or urlparse(u).path.lower().endswith(".pdf"):
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(response.content))
-            plain_parts = []
-            layout_parts = []
-            for page in reader.pages:
-                try:
-                    plain_parts.append(page.extract_text() or "")
-                except Exception:
-                    plain_parts.append("")
-                try:
-                    layout_parts.append(page.extract_text(extraction_mode="layout") or "")
-                except Exception:
-                    layout_parts.append("")
-            candidates = [
-                _clean(" ".join(plain_parts)),
-                _clean(" ".join(layout_parts)),
-            ]
-            # Arabic PDFs sometimes expose usable text only through layout extraction.
-            # Prefer the candidate containing the most Arabic code points, not the
-            # longest string, so broken font-map noise cannot win.
-            extracted = max(
-                candidates,
-                key=lambda value: sum("\u0600" <= char <= "\u06FF" for char in value),
-            )
-            arabic_chars = sum("\u0600" <= char <= "\u06FF" for char in extracted)
-            print(
-                f"Legal PDF extraction completed: chars={len(extracted)}; "
-                f"arabic_chars={arabic_chars}; url={u}"
-            )
-            return extracted[:MAX_SOURCE_CHARS]
-        except Exception as pdf_exc:
-            print(f"Legal PDF text extraction unavailable: {u} :: {pdf_exc}")
-            return ""
+        return _extract_pdf_text(response.content, u)
     try:
         parser = _P()
         parser.feed(response.text)
