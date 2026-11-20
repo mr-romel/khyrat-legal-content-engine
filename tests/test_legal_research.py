@@ -818,3 +818,55 @@ def test_pdf_native_extraction_skips_ocr_when_arabic_text_is_usable(monkeypatch)
 
     assert "قانون الخدمة المدنية" in extracted
     assert ocr_calls == []
+
+def test_pdfium_tesseract_ocr_renders_and_reads_arabic_page(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    import legal_research
+
+    arabic = "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية"
+
+    class FakeTextPage:
+        def get_text_range(self):
+            return "unreadable font map"
+        def close(self):
+            return None
+
+    class FakeBitmap:
+        def to_pil(self):
+            return "rendered-page-image"
+
+    class FakePage:
+        def get_textpage(self):
+            return FakeTextPage()
+        def render(self, scale):
+            assert scale >= 2
+            return FakeBitmap()
+
+    class FakeDocument:
+        def __iter__(self):
+            return iter([FakePage()])
+        def close(self):
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "pypdfium2",
+        SimpleNamespace(PdfDocument=lambda _data: FakeDocument()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "pytesseract",
+        SimpleNamespace(
+            image_to_string=lambda image, lang, config: (
+                arabic if image == "rendered-page-image" and lang == "ara+eng" else ""
+            )
+        ),
+    )
+
+    extracted = legal_research._ocr_pdf_pages(b"%PDF-test")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert "الوظائف المدنية" in extracted
+
+
