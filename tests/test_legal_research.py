@@ -553,3 +553,37 @@ def test_official_caoa_jobs_portal_supports_civil_service_appointment_context(mo
         "المادة 12 من قانون رقم 81 لسنة 2016",
         packet,
     )
+
+def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_unavailable(monkeypatch):
+    import legal_research
+
+    fetched = []
+    monkeypatch.setattr(legal_research, "_search", lambda _query: [])
+
+    def fake_fetch(url):
+        fetched.append(url)
+        if "escc.gov.eg/assets/docs/law-175-2018.pdf" in url:
+            return (
+                "القانون رقم 175 لسنة 2018 بشأن مكافحة جرائم تقنية المعلومات. "
+                "الفصل الثالث الجرائم المتعلقة بالاعتداء على حرمة الحياة الخاصة. "
+                "المادة (25) يعاقب كل من انتهك حرمة الحياة الخاصة أو نشر معلومات أو صوراً "
+                "تنتهك خصوصية أي شخص دون رضاه سواء كانت المعلومات صحيحة أو غير صحيحة."
+            )
+        if "register.cc.gov.eg/publications/159/download" in url:
+            return (
+                "محكمة النقض المصرية. جريمة الاعتداء على حرمة الحياة الخاصة وفقاً للمادة 309 مكرراً "
+                "عقوبات تتحقق بالتقاط صورة شخص في مكان خاص دون رضائه."
+            )
+        return ""
+
+    monkeypatch.setattr(legal_research, "_fetch", fake_fetch)
+    packet = legal_research.research_legal_topic(
+        "انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
+    )
+
+    assert "https://escc.gov.eg/assets/docs/law-175-2018.pdf" in fetched
+    assert legal_research.has_verified_legal_source(packet)
+    assert "القانون رقم 175 لسنة 2018" in packet
+    assert "المادة 25" in packet
+    assert "انتهك حرمة الحياة الخاصة" in packet
+
