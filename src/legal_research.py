@@ -380,13 +380,17 @@ def _quote(t,topic,max_words=24):
     ss.sort(key=lambda s:sum(term in s for term in terms),reverse=True)
     return _clean(" ".join(ss[0].split()[:max_words]))
 def _allowed(u):
-    parsed=urlparse(str(u or ""))
-    d=_domain(u)
-    return parsed.scheme == "https" and bool(parsed.hostname) and (
-        _host_matches(d, COURT)
-        or _host_matches(d, ADMIN)
-        or _host_matches(d, LAWS)
-        or _host_matches(d, OFFICIAL_GOVERNMENT)
+    parsed = urlparse(str(u or ""))
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    trusted_roots = {
+        str(root).lower().removeprefix("www.").rstrip(".")
+        for root in (*COURT, *ADMIN, *OFFICIAL_GOVERNMENT, *OFFICIAL_LAWS, *SECONDARY_LAWS)
+    }
+    return parsed.scheme.lower() == "https" and bool(host) and any(
+        host == root or host.endswith("." + root)
+        for root in trusted_roots
     )
 
 
