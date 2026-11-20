@@ -182,8 +182,8 @@ jobs:
                   if status == "PUBLISHED" and not metadata_topic_aligned:
                       print(f"Skipping legacy metadata backfill for row={n}: topic_family={row_topic_family}, narration_family={narration_family}; no descriptions will be overwritten.")
                   comments_pending = status == "PUBLISHED" and metadata_topic_aligned and (
-                      (bool(fb_id) and fb_comment_status != "PUBLISHED")
-                      or (youtube_management_ready and bool(yt_id) and yt_comment_status != "PUBLISHED")
+                      (bool(fb_id) and fb_comment_status not in {"PUBLISHED", "BLOCKED_ACCESS"})
+                      or (youtube_management_ready and bool(yt_id) and yt_comment_status not in {"PUBLISHED", "BLOCKED_ACCESS"})
                   )
                   # Backfill Shorts for already-published Facebook Reels without reposting Facebook.
                   eligible_status = status in {"REVIEW","APPROVED","READY_TO_PUBLISH","PUBLISHED_PARTIAL","PUBLISH_FAILED"}
@@ -481,7 +481,8 @@ jobs:
                       comment_warnings.append(platform+' comment '+str(index+1)+': '+error_text)
                       print('VIDEO_COMMENT_FAILED platform='+platform+' index='+str(index+1)+' error='+error_text)
                       break
-              final_status='PARTIAL' if failed else 'PUBLISHED'
+              non_retryable_access_error = any('VIDEO_NOT_ACCESSIBLE_TO_COMMENT_TOKEN:' in warning for warning in comment_warnings)
+              final_status='BLOCKED_ACCESS' if non_retryable_access_error else 'PARTIAL' if failed else 'PUBLISHED'
               update_row(svc,cfg['sheet_id'],sheet,row_number,{
                   ids_key:json.dumps(comment_ids,ensure_ascii=False),
                   status_key:final_status,
