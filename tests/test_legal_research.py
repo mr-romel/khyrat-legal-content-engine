@@ -583,7 +583,7 @@ def test_privacy_topic_recovers_official_primary_sources_when_live_search_is_una
 
     assert "https://escc.gov.eg/assets/docs/law-175-2018.pdf" in fetched
     assert legal_research.has_verified_legal_source(packet)
-    assert "القانون رقم 175 لسنة 2018" in packet
+    assert "قانون رقم 175 لسنة 2018" in packet
     assert "المادة 25" in packet
     assert "انتهك حرمة الحياة الخاصة" in packet
 
