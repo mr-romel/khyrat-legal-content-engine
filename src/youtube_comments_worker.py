@@ -98,9 +98,11 @@ def run() -> int:
         if _text(row, "Reel Status").upper() not in {"PUBLISHED", "SUCCESS", "POSTED"}:
             continue
         article_url = _text(row, "Blogger URL")
-        if not article_url:
-            print(f"YouTube comments: row {row_number} has no matching Blogger URL; skipped.")
-            continue
+        if article_url:
+            from video_comments import valid_blogger_article_url
+            if not valid_blogger_article_url(article_url):
+                print(f"YouTube comments: row {row_number} has an invalid Blogger URL; comments will proceed without the link.")
+                article_url = ""
         published_ids = parse_published_comment_ids(row.get("Reel YouTube Comment IDs", ""))
         bundle = build_video_comment_bundle(
             topic=_text(row, "الموضوع", "المحتوى"),
@@ -144,7 +146,7 @@ def run() -> int:
         processed += 1
 
     if not candidates:
-        print("YouTube comments: no eligible published Shorts with a matching Blogger article.")
+        print("YouTube comments: no eligible published Shorts with pending comments.")
     elif processed == 0:
         print("YouTube comments: eligible Shorts already have a complete comment bundle.")
     return processed
