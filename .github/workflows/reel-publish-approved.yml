@@ -145,17 +145,26 @@ jobs:
               status=str(row.get("Reel Status","")).strip().upper()
               approval=str(row.get("Reel Approval","")).strip().upper()
               run_id=str(row.get("Reel Run ID","")).strip()
-              if approval=="APPROVED":
+              if status == "PUBLISHED":
+                  print("REEL_COMMENT_BACKFILL_AUDIT="+json.dumps({
+                      "row": n,
+                      "source_id": str(row.get("ID","")).strip(),
+                      "approval": approval,
+                      "run_id_present": bool(run_id),
+                      "facebook_video_id_present": bool(str(row.get("Reel Facebook ID","")).strip()),
+                      "youtube_video_id_present": bool(str(row.get("Reel YouTube ID","")).strip()),
+                      "facebook_comment_status": str(row.get("Reel Facebook Comments Status","")).strip() or "NOT_STARTED",
+                      "youtube_comment_status": str(row.get("Reel YouTube Comments Status","")).strip() or "NOT_STARTED",
+                      "video_sha256_valid": len(str(row.get("Reel Video SHA256","")).strip()) == 64,
+                      "blogger_url_present": bool(str(row.get("Blogger URL","")).strip()),
+                  }, ensure_ascii=False, sort_keys=True))
+              if approval=="APPROVED" or status == "PUBLISHED":
                   candidates.append((n,status,approval,run_id))
                   fb_id = str(row.get("Reel Facebook ID","")).strip()
                   yt_id = str(row.get("Reel YouTube ID","")).strip()
-                  # Resume pending first-party comment bundles only after the matching Blogger article is live.
+                  # Comments are independent of Blogger publication; the article URL is optional.
                   fb_comment_status = str(row.get("Reel Facebook Comments Status","")).strip().upper()
                   yt_comment_status = str(row.get("Reel YouTube Comments Status","")).strip().upper()
-                  blogger_ready = (
-                      str(row.get("Blogger Status","")).strip().upper() == "PUBLISHED"
-                      and valid_blogger_article_url(str(row.get("Blogger URL","")).strip())
-                  )
                   fb_description_status = str(row.get("Reel Facebook Description Status","")).strip().upper()
                   yt_description_status = str(row.get("Reel YouTube Description Status","")).strip().upper()
                   youtube_management_ready = bool(os.getenv("YOUTUBE_COMMENT_REFRESH_TOKEN", "").strip())
@@ -170,7 +179,7 @@ jobs:
                   )
                   if status == "PUBLISHED" and not metadata_topic_aligned:
                       print(f"Skipping legacy metadata backfill for row={n}: topic_family={row_topic_family}, narration_family={narration_family}; no descriptions will be overwritten.")
-                  comments_pending = status == "PUBLISHED" and video_identity_valid and metadata_topic_aligned and blogger_ready and (
+                  comments_pending = status == "PUBLISHED" and video_identity_valid and metadata_topic_aligned and (
                       (bool(fb_id) and fb_comment_status != "PUBLISHED")
                       or (youtube_management_ready and bool(yt_id) and yt_comment_status != "PUBLISHED")
                   )
@@ -427,67 +436,58 @@ jobs:
               'facebook': {'status':str(row.get('Reel Facebook Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
               'youtube': {'status':str(row.get('Reel YouTube Comments Status','NOT_STARTED')).strip() or 'NOT_STARTED'},
           }
-          if not blogger_ready:
-              for platform, video_data, status_key in (
-                  ('facebook', result['facebook'], 'Reel Facebook Comments Status'),
-                  ('youtube', result['youtube'], 'Reel YouTube Comments Status'),
-              ):
-                  if video_data.get('video_id') and result['comments'][platform]['status'] != 'PUBLISHED':
-                      result['comments'][platform]={'status':'WAITING_BLOGGER','error':'Matching Blogger article is not published or its URL is invalid.'}
-                      update_row(svc,cfg['sheet_id'],sheet,row_number,{status_key:'WAITING_BLOGGER'})
-          else:
-              platform_jobs=[
-                  ('facebook', result['facebook'], 'Reel Facebook Comments Status', 'Reel Facebook Comment IDs', publish_facebook_video_comment),
-              ]
-              if youtube_management_ready:
-                  platform_jobs.append(
-                      ('youtube', result['youtube'], 'Reel YouTube Comments Status', 'Reel YouTube Comment IDs', publish_youtube_short_comment)
-                  )
-              elif result['youtube'].get('video_id') and result['comments']['youtube']['status'] != 'PUBLISHED':
-                  result['comments']['youtube']={'status':'WAITING_SCOPE','error':'Add YOUTUBE_COMMENT_REFRESH_TOKEN with youtube.force-ssl scope.'}
-                  update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Comments Status':'WAITING_SCOPE'})
-              for platform, video_data, status_key, ids_key, publisher in platform_jobs:
-                  video_id=str(video_data.get('video_id','')).strip()
-                  if not video_id:
-                      result['comments'][platform]={'status':'NOT_PUBLISHED'}
+          platform_jobs=[
+              ('facebook', result['facebook'], 'Reel Facebook Comments Status', 'Reel Facebook Comment IDs', publish_facebook_video_comment),
+          ]
+          if youtube_management_ready:
+              platform_jobs.append(
+                  ('youtube', result['youtube'], 'Reel YouTube Comments Status', 'Reel YouTube Comment IDs', publish_youtube_short_comment)
+              )
+          elif result['youtube'].get('video_id') and result['comments']['youtube']['status'] != 'PUBLISHED':
+              result['comments']['youtube']={'status':'WAITING_SCOPE','error':'Add YOUTUBE_COMMENT_REFRESH_TOKEN with youtube.force-ssl scope.'}
+              update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Comments Status':'WAITING_SCOPE'})
+          for platform, video_data, status_key, ids_key, publisher in platform_jobs:
+              video_id=str(video_data.get('video_id','')).strip()
+              if not video_id:
+                  result['comments'][platform]={'status':'NOT_PUBLISHED'}
+                  continue
+              current_status=str(row.get(status_key,'')).strip().upper()
+              comment_ids=parse_published_comment_ids(row.get(ids_key,''))
+              if current_status == 'PUBLISHED':
+                  result['comments'][platform]={'status':'PUBLISHED','count':len(comment_ids),'comment_ids':comment_ids}
+                  continue
+              bundle=build_video_comment_bundle(
+                  topic=topic, article_url=article_url, video_id=video_id, platform=platform
+              )
+              failed=False
+              for index, message in enumerate(bundle):
+                  if index < len(comment_ids):
                       continue
-                  current_status=str(row.get(status_key,'')).strip().upper()
-                  comment_ids=parse_published_comment_ids(row.get(ids_key,''))
-                  if current_status == 'PUBLISHED':
-                      result['comments'][platform]={'status':'PUBLISHED','count':len(comment_ids),'comment_ids':comment_ids}
-                      continue
-                  bundle=build_video_comment_bundle(
-                      topic=topic, article_url=article_url, video_id=video_id, platform=platform
-                  )
-                  failed=False
-                  for index, message in enumerate(bundle):
-                      if index < len(comment_ids):
-                          continue
-                      try:
-                          published=publisher(video_id, message)
-                          comment_id=str(published.get('comment_id','')).strip()
-                          if not comment_id:
-                              raise RuntimeError('Comment API returned no comment ID')
-                          comment_ids.append(comment_id)
-                          update_row(svc,cfg['sheet_id'],sheet,row_number,{
-                              ids_key:json.dumps(comment_ids,ensure_ascii=False),
-                              status_key:'PARTIAL',
-                          })
-                      except Exception as exc:
-                          failed=True
-                          error_text=str(exc)[:700]
-                          comment_warnings.append(platform+' comment '+str(index+1)+': '+error_text)
-                          print('VIDEO_COMMENT_FAILED platform='+platform+' index='+str(index+1)+' error='+error_text)
-                          break
-                  final_status='PARTIAL' if failed else 'PUBLISHED'
-                  update_row(svc,cfg['sheet_id'],sheet,row_number,{
-                      ids_key:json.dumps(comment_ids,ensure_ascii=False),
-                      status_key:final_status,
-                  })
-                  result['comments'][platform]={
-                      'status':final_status,'count':len(comment_ids),'target_count':len(bundle),
-                      'comment_ids':comment_ids,
-                  }
+                  try:
+                      published=publisher(video_id, message)
+                      comment_id=str(published.get('comment_id','')).strip()
+                      if not comment_id:
+                          raise RuntimeError('Comment API returned no comment ID')
+                      comment_ids.append(comment_id)
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{
+                          ids_key:json.dumps(comment_ids,ensure_ascii=False),
+                          status_key:'PARTIAL',
+                      })
+                  except Exception as exc:
+                      failed=True
+                      error_text=str(exc)[:700]
+                      comment_warnings.append(platform+' comment '+str(index+1)+': '+error_text)
+                      print('VIDEO_COMMENT_FAILED platform='+platform+' index='+str(index+1)+' error='+error_text)
+                      break
+              final_status='PARTIAL' if failed else 'PUBLISHED'
+              update_row(svc,cfg['sheet_id'],sheet,row_number,{
+                  ids_key:json.dumps(comment_ids,ensure_ascii=False),
+                  status_key:final_status,
+              })
+              result['comments'][platform]={
+                  'status':final_status,'count':len(comment_ids),'target_count':len(bundle),
+                  'comment_ids':comment_ids,
+              }
           if comment_warnings:
               print('Video upload succeeded but one or more first-party comments failed: '+' | '.join(comment_warnings))
           Path('publish-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
