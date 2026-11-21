@@ -665,7 +665,7 @@ def _visual_topic_family(topic: str) -> str:
     ]
     for family, terms in families:
         for term in terms:
-            if term == "عمل":
+            if term in {"عمل", "العمل"}:
                 # Match the standalone word only; never the prefix of "عملية".
                 if re.search(r"(?<![\u0600-\u06FF])عمل(?![\u0600-\u06FF])", value):
                     return family
