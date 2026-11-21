@@ -381,7 +381,10 @@ def _smart_is_due(row: dict[str, str], current) -> bool:
     untouched to avoid duplicate publication during a live/overlapping run.
     """
     status = str(row.get("الحالة", "READY")).strip().upper()
-    if status in {"PUBLISHED", "CANCELLED"}:
+    # FAILED rows use a separate cooldown/round-robin recovery lane. Keeping
+    # them out of ordinary due selection prevents one early failed row from
+    # monopolizing every scheduled run and starving READY content.
+    if status in {"PUBLISHED", "CANCELLED", "FAILED", "PARTIAL_FAILED"}:
         return False
 
     target = _smart_target_datetime(row)
@@ -739,6 +742,20 @@ def _smart_main() -> None:
         )
     else:
         candidates = [(i, r) for i, r in enumerate(rows, start=2) if _smart_is_due(r, current)]
+        if not candidates:
+            failed_candidates = [
+                (i, r) for i, r in enumerate(rows, start=2)
+                if production_main._failed_retry(r, current)
+            ]
+            # One failed row per scheduled cycle, oldest attempt first. The
+            # per-row processor persists its counter and retries next cycle.
+            failed_candidates.sort(key=lambda item: str(item[1].get("وقت آخر تشغيل", "") or ""))
+            candidates = failed_candidates[:1]
+            if candidates:
+                print(
+                    "RECOVERY_QUEUE: selected least-recently-attempted failed row "
+                    f"{candidates[0][0]} after cooldown; other rows remain queued."
+                )
     if force_republish_row:
         candidates = [force_republish_row]
         print(f"FORCE_REPUBLISH: bypassing schedule gate for row {force_republish_row[0]}.")
