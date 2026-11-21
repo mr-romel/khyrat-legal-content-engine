@@ -134,6 +134,19 @@ def load_reel_config() -> dict:
     }
 
 
+def _complete_queue_range() -> str:
+    """Always include appended operational columns, even when an older range secret is configured."""
+    raw = _optional("GOOGLE_SHEET_RANGE", "Content!A:CB")
+    sheet, separator, cells = raw.partition("!")
+    if not separator:
+        sheet, cells = "Content", raw
+    start, colon, end = cells.partition(":")
+    if not colon:
+        return raw
+    row_suffix = "".join(ch for ch in end if ch.isdigit())
+    return f"{sheet}!{start}:CB{row_suffix}"
+
+
 def load_config() -> dict:
     service_account_info = _service_account_info()
     dry_run = _optional("KHYRAT_DRY_RUN", "false").lower() in {"1", "true", "yes", "on"}
@@ -144,9 +157,10 @@ def load_config() -> dict:
     return {
         "service_account_info": service_account_info,
         "sheet_id": _sheet_id(),
-        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "sheet_range": _complete_queue_range(),
         "gemini_api_key": _required("GEMINI_API_KEY"),
         "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+        "gemini_fallback_model": _normalize_model_name(_optional("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")),
         "cloudflare_account_id": cloudflare_account_id,
         "cloudflare_api_token": cloudflare_api_token,
         "facebook_page_id": _optional("FACEBOOK_PAGE_ID", DEFAULT_FACEBOOK_PAGE_ID),

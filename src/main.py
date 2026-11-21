@@ -27,6 +27,7 @@ from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
+from recovery_engine import classify_failure, next_retry_at, log_event, is_stale_processing, retry_is_due, choose_fair_candidate, refresh_dashboard
 
 GENERATED_DIR = Path("generated")
 
@@ -45,7 +46,7 @@ def _image_provider_for_attempt(
     available = [provider for provider in IMAGE_PROVIDER_ROTATION if not is_image_provider_blocked(provider)]
     if not available:
         raise ImageGenerationError("IMAGE_PROVIDER_CIRCUIT_OPEN: no image provider is currently available.")
-    index = max(0, min(int(attempt_number) - 1, len(available) - 1))
+    index = (max(1, int(attempt_number)) - 1) % len(available)
     return available[index]
 
 FACEBOOK_COMMENT_LIMIT = 7
@@ -196,9 +197,8 @@ def _failed_retry(row: dict[str, str], current) -> bool:
         return False
     status = str(row.get("الحالة", "")).strip().upper()
     error = str(row.get("آخر خطأ", "") or "").strip().upper()
-    if error.startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(row) >= MAX_IMAGE_QA_ATTEMPTS:
-        print("Skipping automatic retry: semantic image QA retry budget exhausted; the visual brief needs correction.")
-        return False
+    if error.startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(row) >= MAX_IMAGE_QA_ATTEMPTS and not str(row.get("Recovery Strategy", "")).strip():
+        print("Recovery policy will classify exhausted visual QA and choose a new strategy before retry.")
     if status not in {"FAILED", "PARTIAL_FAILED"} or not str(row.get("الموضوع", "")).strip():
         return False
     # One row gets one recovery attempt per scheduled cycle. A 12-minute
@@ -217,7 +217,7 @@ def _failed_retry(row: dict[str, str], current) -> bool:
                 return False
         except (TypeError, ValueError):
             pass
-    return True
+    return retry_is_due(row, current)
 
 
 def _is_permission_blocked(value) -> bool:
@@ -572,8 +572,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 if regeneration_notes else visual_description
             )
             try:
-                image_provider = _image_provider_for_attempt(image_qa_attempt)
-                print(f"IMAGE PROVIDER ROTATION: attempt={image_qa_attempt} provider={image_provider}")
+                try:
+                    recovery_offset = max(0, int(str(row.get("Recovery Attempts Total", "0") or "0"))) * IMAGE_QA_ATTEMPTS_PER_RUN
+                except (TypeError, ValueError):
+                    recovery_offset = 0
+                provider_attempt = image_qa_attempt + recovery_offset
+                image_provider = _image_provider_for_attempt(provider_attempt)
+                print(f"IMAGE PROVIDER ROTATION: local_attempt={image_qa_attempt} recovery_offset={recovery_offset} provider_attempt={provider_attempt} provider={image_provider}")
                 create_legal_image(
                     topic=topic,
                     image_brief=attempt_brief,
@@ -978,7 +983,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             facebook_post_id=fb["post_id"],
             linkedin_post_id=li["post_urn"],
             image_url=image_url,
-            legal_sources=row.get("المصادر القانونية", ""),
+            legal_sources=legal_sources,
             angle=row.get("ملاحظات", ""),
             objective="IMAGE_REPAIR",
             review_level="CLEAR",
@@ -1038,7 +1043,7 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
-            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
             editorial = _keep_variable_comments_separate(editorial)
         except Exception as editorial_exc:
             # Legal/editorial review is mandatory. Never fail open into publication
@@ -1231,65 +1236,95 @@ def _recovery_alert_required(attempt_count: int, error: str, last_alert: str) ->
 
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
-    """Attempt a row once per scheduler cycle; persist recovery state between cycles."""
+    """Run one isolated attempt, apply a failure-specific strategy and append an audit event."""
+    started = time.monotonic()
+    config = dict(config)
+    prior_error = str(row.get("آخر خطأ", "") or "").strip()
+    failure_class, strategy, next_action = classify_failure(prior_error, row)
     try:
-        _process_row_once(
-            service=service,
-            config=config,
-            sheet_name=sheet_name,
-            row_number=row_number,
-            row=dict(row),
-            current=current,
-        )
+        attempt_total = max(0, int(str(row.get("Recovery Attempts Total", "0") or "0"))) + 1
+    except (TypeError, ValueError):
+        attempt_total = 1
+    working_row = dict(row)
+    if str(row.get("الحالة", "")).strip().upper() in {"FAILED", "PARTIAL_FAILED"}:
+        if failure_class == "VISUAL_ASSET":
+            working_row["وصف الصورة"] = ""
+            working_row["Image QA Attempt"] = "0"
+            print(f"RECOVERY STRATEGY: row={row_number}; rebuild visual brief and restart provider rotation.")
+        elif failure_class == "LEGAL_EVIDENCE":
+            working_row["المصادر القانونية"] = ""
+            print(f"RECOVERY STRATEGY: row={row_number}; force fresh primary-source research.")
+        elif failure_class == "TRANSIENT_PROVIDER":
+            fallback_model = str(config.get("gemini_fallback_model", "") or "").strip()
+            if fallback_model:
+                config["gemini_model"] = fallback_model
+                print(f"RECOVERY STRATEGY: row={row_number}; switch to configured fallback model.")
+
+    log_event(service, config["sheet_id"], timestamp=current.isoformat(), row_number=row_number,
+              row=working_row, event="ATTEMPT_STARTED", failure_class=failure_class,
+              strategy=strategy, attempt=attempt_total, outcome="RUNNING",
+              reason=prior_error, next_action=next_action)
+    try:
+        _process_row_once(service=service, config=config, sheet_name=sheet_name,
+                          row_number=row_number, row=working_row, current=current)
     except Exception as pipeline_exc:
         diagnostic = f"UNHANDLED_PIPELINE_EXCEPTION: {type(pipeline_exc).__name__}: {pipeline_exc}"
         print(f"PIPELINE AUTO-RECOVERY: row={row_number}; {diagnostic}")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "الحالة": "FAILED",
-                "آخر خطأ": diagnostic[:1500],
+                "الحالة": "FAILED", "آخر خطأ": diagnostic[:1500],
                 "وقت آخر تشغيل": current.isoformat(),
             })
         except Exception as persist_exc:
             print(f"PIPELINE AUTO-RECOVERY: could not persist failure state: {persist_exc}")
-
     try:
         values = get_values(service, config["sheet_id"], config["sheet_range"])
         latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
     except Exception as state_read_exc:
         diagnostic = f"تعذر تحديث حالة الصف بعد محاولة التنفيذ: {type(state_read_exc).__name__}: {state_read_exc}"
-        print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
-        notify(
-            f"🟠 تعذر قراءة حالة الصف بعد محاولة الاسترداد.\n"
-            f"الصف: {row_number}\nالموضوع: {row.get('الموضوع', '')}\n"
-            f"التشخيص: {diagnostic[:900]}"
-        )
+        notify(f"🟠 تعذر قراءة حالة الصف بعد محاولة الاسترداد.\nالصف: {row_number}\nالتشخيص: {diagnostic[:900]}")
+        log_event(service, config["sheet_id"], timestamp=now_cairo().isoformat(), row_number=row_number,
+                  row=working_row, event="ATTEMPT_RESULT_UNKNOWN", failure_class=failure_class,
+                  strategy=strategy, attempt=attempt_total, outcome="STATE_READ_FAILED",
+                  reason=diagnostic, duration=time.monotonic()-started,
+                  next_action="Inspect Google Sheets state; no blind republish.")
         return
 
     status = str(latest.get("الحالة", "") or "").strip().upper()
     error = str(latest.get("آخر خطأ", "") or "").strip()
+    duration = time.monotonic() - started
     if status not in {"FAILED", "PARTIAL_FAILED"}:
+        log_event(service, config["sheet_id"], timestamp=now_cairo().isoformat(), row_number=row_number,
+                  row=latest, event="ATTEMPT_FINISHED", failure_class=failure_class,
+                  strategy=strategy, attempt=attempt_total, outcome="RECOVERED",
+                  duration=duration, next_action="Row returned to normal publishing lifecycle.")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "محاولات الاسترداد": "0",
-                "آخر تنبيه استرداد": "",
+                "Recovery Failure Class": "", "Recovery Strategy": "", "Recovery Next At": "",
+                "Recovery Attempts Total": str(attempt_total),
             })
-        except Exception as reset_exc:
-            print(f"Recovery counters reset deferred: {reset_exc}")
+        except Exception as state_exc:
+            print(f"Recovery success metadata persistence deferred: {state_exc}")
         return
 
-    if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
-        diagnostic = error or "LinkedIn authorization rejected; credential renewal is required."
-        notify(
-            f"🟠 الاسترداد الآلي متوقف بسبب رفض صلاحية LinkedIn.\n"
-            f"الصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\n"
-            f"السبب: {diagnostic[:900]}"
-        )
-        return
-
+    failure_class, strategy, next_action = classify_failure(error, latest)
+    retry_at = next_retry_at(current, failure_class, attempt_total)
+    try:
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "Recovery Failure Class": failure_class, "Recovery Strategy": strategy,
+            "Recovery Next At": retry_at.isoformat() if retry_at else "HOLD",
+            "Recovery Attempts Total": str(attempt_total),
+        })
+    except Exception as recovery_state_exc:
+        print(f"Recovery policy metadata persistence deferred: {recovery_state_exc}")
+    log_event(service, config["sheet_id"], timestamp=now_cairo().isoformat(), row_number=row_number,
+              row=latest, event="ATTEMPT_FINISHED", failure_class=failure_class,
+              strategy=strategy, attempt=attempt_total, outcome="FAILED",
+              reason=error, duration=duration, next_action=next_action)
+    if failure_class == "AUTHORIZATION":
+        notify(f"🟠 الاسترداد الآلي متوقف لحين تجديد الصلاحية.\\nالصف: {row_number}\\nالموضوع: {latest.get('الموضوع', '')}\\nالسبب: {error[:900]}")
     if not error:
         error = "UNCLASSIFIED_FAILURE: الصف فشل دون تسجيل سبب؛ تمت جدولة إعادة المحاولة تلقائيًا."
-        print(f"PIPELINE DIAGNOSTIC REPAIR: row={row_number}; empty error field replaced.")
     previous_error = str(row.get("آخر خطأ", "") or "").strip()
     try:
         previous_count = max(0, int(str(row.get("محاولات الاسترداد", "0") or "0")))
@@ -1299,32 +1334,19 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     last_alert = str(latest.get("آخر تنبيه استرداد", "") or "").strip()
     try:
         update_row(service, config["sheet_id"], sheet_name, row_number, {
-            "الحالة": "FAILED",
-            "آخر خطأ": error[:1500],
-            "محاولات الاسترداد": str(count),
-            "وقت آخر تشغيل": current.isoformat(),
+            "الحالة": "FAILED", "آخر خطأ": error[:1500],
+            "محاولات الاسترداد": str(count), "وقت آخر تشغيل": current.isoformat(),
         })
     except Exception as persist_exc:
         print(f"PIPELINE AUTO-RECOVERY: failed to persist retry counter: {persist_exc}")
-
-    print(
-        f"PIPELINE AUTO-RECOVERY DEFERRED: row={row_number}; "
-        f"scheduled_attempt={count}; next_retry=next eligible scheduler cycle; diagnostic={error[:500]}"
-    )
-    # Avoid repeated Telegram spam. Notify only after three separate scheduled
-    # cycles, and once per distinct failure signature. The queue keeps retrying.
+    print(f"PIPELINE AUTO-RECOVERY: row={row_number}; class={failure_class}; strategy={strategy}; attempt={attempt_total}; next={retry_at.isoformat() if retry_at else 'manual'}")
     if _recovery_alert_required(count, error, last_alert):
-        notify(
-            f"🚨 الصف ما زال قيد الاسترداد الآلي وسيُعاد تلقائيًا.\n"
-            f"الصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\n"
-            f"دورات الاسترداد: {count}\nالتشخيص: {error[:1000]}"
-        )
+        notify(f"🚨 الصف ما زال قيد الاسترداد الآلي.\nالصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\nدورات الاسترداد: {count}\nالتشخيص: {error[:1000]}\nالاستراتيجية التالية: {strategy}")
         try:
-            update_row(service, config["sheet_id"], sheet_name, row_number, {
-                "آخر تنبيه استرداد": error[:1500],
-            })
+            update_row(service, config["sheet_id"], sheet_name, row_number, {"آخر تنبيه استرداد": error[:1500]})
         except Exception as alert_state_exc:
             print(f"Recovery alert state persistence deferred: {alert_state_exc}")
+
 
 def main() -> None:
     print("=" * 70)
@@ -1349,7 +1371,8 @@ def main() -> None:
         print(f"Latest-3 comment backfill unavailable; normal publishing continues: {exc}")
     repair_candidates = [
         (i, r) for i, r in enumerate(rows, start=2)
-        if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+        if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD"
+        and str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
         and _is_bad_published_image(r)
     ]
     if repair_candidates:
@@ -1357,25 +1380,42 @@ def main() -> None:
         print(f"Found published row requiring image repair: row={row_number}")
         try:
             process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+            refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
         except Exception as exc:
             print(f"Image repair failed; normal publishing selection continues: {exc}")
             print(traceback.format_exc())
 
-    candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
-    if not candidates:
-        failed_candidates = [
-            (i, r) for i, r in enumerate(rows, start=2) if _failed_retry(r, current)
-        ]
-        # Recover the least recently attempted failed row first. This rotates
-        # recovery across the queue instead of trapping it on one early row.
-        failed_candidates.sort(key=lambda item: str(item[1].get("وقت آخر تشغيل", "") or ""))
-        candidates = failed_candidates[:1]
-    if not candidates:
+    # Reclaim orphaned PROCESSING rows; crashed runners must never strand queue items.
+    for index, candidate_row in enumerate(rows, start=2):
+        if str(candidate_row.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and is_stale_processing(candidate_row, current, stale_minutes=35):
+            stale_error = "STALE_PROCESSING_RECOVERED: prior runner exceeded the 35-minute lease."
+            print(f"QUEUE INTELLIGENCE: reclaiming stale PROCESSING row={index}.")
+            try:
+                update_row(service, config["sheet_id"], sheet_name, index, {
+                    "الحالة": "FAILED", "آخر خطأ": stale_error,
+                    "Recovery Failure Class": "STALE_RUNNER",
+                    "Recovery Strategy": "CLEAN_RESTART_BOUNDED",
+                    "Recovery Next At": current.isoformat(),
+                    "وقت آخر تشغيل": current.isoformat(),
+                })
+                candidate_row["الحالة"] = "FAILED"
+                candidate_row["آخر خطأ"] = stale_error
+                candidate_row["Recovery Next At"] = current.isoformat()
+            except Exception as reclaim_exc:
+                print(f"QUEUE INTELLIGENCE: stale row reclaim failed for row={index}: {reclaim_exc}")
+
+    due_candidates = [(i, r) for i, r in enumerate(rows, start=2) if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and _is_due(r, current)]
+    failed_candidates = [(i, r) for i, r in enumerate(rows, start=2)
+                         if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and _failed_retry(r, current) and retry_is_due(r, current)]
+    selected = choose_fair_candidate(due_candidates + failed_candidates)
+    refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
+    if not selected:
         print("No due rows or cooldown-eligible failed rows found.")
         return
-    row_number, row = candidates[0]
+    row_number, row = selected
     try:
         process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+        refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
     except Exception as exc:
         print(f"Top-level non-blocking row failure: {exc}")
         print(traceback.format_exc())
