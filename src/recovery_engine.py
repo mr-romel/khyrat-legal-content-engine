@@ -127,3 +127,63 @@ def choose_fair_candidate(candidates: list[tuple[int, dict[str, Any]]]) -> tuple
         row = item[1]
         return (str(row.get("وقت آخر تشغيل", "") or ""), item[0])
     return sorted(candidates, key=key)[0]
+
+def refresh_dashboard(service, spreadsheet_id: str, content_range: str) -> None:
+    """Refresh a compact live operational dashboard from queue state and audit events."""
+    dashboard = "Recovery Dashboard"
+    try:
+        metadata = service.spreadsheets().get(
+            spreadsheetId=spreadsheet_id, fields="sheets.properties"
+        ).execute()
+        exists = any(
+            str(sheet.get("properties", {}).get("title", "")).casefold() == dashboard.casefold()
+            for sheet in metadata.get("sheets", [])
+        )
+        if not exists:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": dashboard}}}]},
+            ).execute()
+        queue_values = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id, range=content_range
+        ).execute().get("values", [])
+        headers = [str(x or "").strip() for x in (queue_values[0] if queue_values else [])]
+        records = []
+        for values in queue_values[1:]:
+            padded = list(values) + [""] * max(0, len(headers) - len(values))
+            records.append({h: str(padded[i] or "") for i, h in enumerate(headers) if h})
+        statuses = {}
+        failures = {}
+        for row in records:
+            status = row.get("الحالة", "").strip().upper() or "UNSET"
+            statuses[status] = statuses.get(status, 0) + 1
+            failure = row.get("Recovery Failure Class", "").strip() or "UNCLASSIFIED"
+            if status in {"FAILED", "PARTIAL_FAILED"}:
+                failures[failure] = failures.get(failure, 0) + 1
+        events = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id, range=f"'{LOG_SHEET}'!A:L"
+        ).execute().get("values", [])
+        outcomes = [str(row[8]).upper() for row in events[1:] if len(row) > 8]
+        recovered = sum(1 for value in outcomes if value == "RECOVERED")
+        failed_attempts = sum(1 for value in outcomes if value == "FAILED")
+        holds = sum(1 for row in records if row.get("Recovery Next At", "").strip().upper() == "HOLD")
+        rows = [
+            ["Khyrat Legal Content Engine — Recovery Dashboard", "Value", "Updated At"],
+            ["Queue rows", len(records), datetime.now().astimezone().isoformat()],
+            ["READY", statuses.get("READY", 0), ""],
+            ["PROCESSING", statuses.get("PROCESSING", 0), ""],
+            ["PUBLISHED", statuses.get("PUBLISHED", 0), ""],
+            ["FAILED", statuses.get("FAILED", 0), ""],
+            ["PARTIAL_FAILED", statuses.get("PARTIAL_FAILED", 0), ""],
+            ["Manual holds", holds, ""],
+            ["Recovery attempts logged", max(0, len(events) - 1), ""],
+            ["Recovered attempts", recovered, ""],
+            ["Failed attempts", failed_attempts, ""],
+            ["Failure classes (active)", " | ".join(f"{k}:{v}" for k, v in sorted(failures.items())), ""],
+        ]
+        service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id, range=f"'{dashboard}'!A1:C{len(rows)}",
+            valueInputOption="RAW", body={"values": rows},
+        ).execute()
+    except Exception as exc:
+        print(f"RECOVERY_DASHBOARD_REFRESH_FAILED: {type(exc).__name__}: {exc}")
