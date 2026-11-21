@@ -1379,7 +1379,7 @@ def main() -> None:
         print(f"Found published row requiring image repair: row={row_number}")
         try:
             process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
-        refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
+            refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
         except Exception as exc:
             print(f"Image repair failed; normal publishing selection continues: {exc}")
             print(traceback.format_exc())
@@ -1414,6 +1414,7 @@ def main() -> None:
     row_number, row = selected
     try:
         process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+        refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
     except Exception as exc:
         print(f"Top-level non-blocking row failure: {exc}")
         print(traceback.format_exc())
