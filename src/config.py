@@ -144,9 +144,10 @@ def load_config() -> dict:
     return {
         "service_account_info": service_account_info,
         "sheet_id": _sheet_id(),
-        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:U"),
+        "sheet_range": _optional("GOOGLE_SHEET_RANGE", "Content!A:CB"),
         "gemini_api_key": _required("GEMINI_API_KEY"),
         "gemini_model": _normalize_model_name(_optional("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)),
+        "gemini_fallback_model": _normalize_model_name(_optional("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")),
         "cloudflare_account_id": cloudflare_account_id,
         "cloudflare_api_token": cloudflare_api_token,
         "facebook_page_id": _optional("FACEBOOK_PAGE_ID", DEFAULT_FACEBOOK_PAGE_ID),
