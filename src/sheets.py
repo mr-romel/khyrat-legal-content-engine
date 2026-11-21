@@ -28,10 +28,10 @@ HEADERS = [
     "Reel Facebook Comments Status", "Reel Facebook Comment IDs",
     "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
     "Reel Facebook Description Status", "Reel YouTube Description Status", "Reel Video SHA256",
-    "Image SHA256", "Image QA Policy Version",
+    "Image SHA256", "Image QA Policy Version", "محاولات الاسترداد", "آخر تنبيه استرداد",
 ]
 
-SHEET_LAST_COLUMN = "BZ"
+SHEET_LAST_COLUMN = "CB"
 
 T = TypeVar("T")
 

@@ -72,101 +72,50 @@ def test_researched_packet_is_persisted_when_sheet_is_available(monkeypatch):
     assert calls[0][0][4]["المصادر القانونية"] == VERIFIED_PACKET
 
 
-def test_pipeline_retries_failed_row_immediately_then_stops_on_recovery(monkeypatch):
+def test_pipeline_attempts_failed_row_once_per_scheduler_cycle(monkeypatch):
     import main
 
     attempts = []
-    states = [
-        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
-        {"الحالة": "PUBLISHED", "آخر خطأ": "", "الموضوع": "اختبار موضوع قانوني"},
-    ]
+    updates = []
+    states = [{"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني", "آخر تنبيه استرداد": ""}]
     monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: attempts.append(kwargs["row_number"]))
     monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
-    monkeypatch.setattr(main, "row_to_dict", lambda value: states.pop(0))
+    monkeypatch.setattr(main, "row_to_dict", lambda value: states[0])
+    monkeypatch.setattr(main, "update_row", lambda *args, **kwargs: updates.append(args[4] if len(args) > 4 else kwargs))
     monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
     monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
-    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(main, "notify", lambda message: None)
 
     main.process_row(
-        service=object(),
-        config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
-        sheet_name="Content",
-        row_number=2,
-        row={"الموضوع": "اختبار موضوع قانوني"},
-        current=object(),
+        service=object(), config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
+        sheet_name="Content", row_number=2,
+        row={"الموضوع": "اختبار موضوع قانوني", "آخر خطأ": "temporary provider timeout", "محاولات الاسترداد": "1"},
+        current=__import__("datetime").datetime(2026, 11, 20),
     )
 
-    assert attempts == [2, 2]
+    assert attempts == [2]
+    assert any(x.get("محاولات الاسترداد") == "2" for x in updates)
 
 
-def test_pipeline_sends_one_failure_alert_only_after_all_retries_are_exhausted(monkeypatch):
+def test_recovery_alert_threshold_is_once_per_failure_signature():
     import main
 
-    attempts = []
-    alerts = []
-    states = [
-        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
-        {"الحالة": "FAILED", "آخر خطأ": "temporary provider timeout", "الموضوع": "اختبار موضوع قانوني"},
-        {"الحالة": "FAILED", "آخر خطأ": "permanent source outage", "الموضوع": "اختبار موضوع قانوني"},
-    ]
-    monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: attempts.append(kwargs["row_number"]))
-    monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
-    monkeypatch.setattr(main, "row_to_dict", lambda value: states.pop(0))
-    monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
-    monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
-    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
-    monkeypatch.setattr(main, "notify", lambda message: alerts.append(message))
-
-    main.process_row(
-        service=object(),
-        config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
-        sheet_name="Content",
-        row_number=2,
-        row={"الموضوع": "اختبار موضوع قانوني"},
-        current=object(),
-    )
-
-    assert attempts == [2, 2, 2]
-    assert len(alerts) == 1
-    assert "بعد الاسترداد التلقائي" in alerts[0]
-    assert "permanent source outage" in alerts[0]
+    error = "LEGAL_SOURCE_GATE_BLOCKED: no verified source"
+    assert not main._recovery_alert_required(2, error, "")
+    assert main._recovery_alert_required(3, error, "")
+    assert not main._recovery_alert_required(4, error, error)
+    assert main._recovery_alert_required(3, "different failure", error)
 
 
-def test_pipeline_retries_unhandled_row_exception_instead_of_exiting(monkeypatch):
-    from datetime import datetime, timezone
+
+def test_failed_rows_obey_retry_cooldown_and_ready_rows_keep_priority():
+    from datetime import datetime, timedelta
     import main
 
-    attempts = []
-    persisted = []
-    alerts = []
-    states = [
-        {"الحالة": "FAILED", "آخر خطأ": "UNHANDLED_PIPELINE_EXCEPTION: RuntimeError: transient", "الموضوع": "موضوع تجريبي"},
-        {"الحالة": "PUBLISHED", "آخر خطأ": "", "الموضوع": "موضوع تجريبي"},
-    ]
-
-    def process_once(**kwargs):
-        attempts.append(kwargs["row_number"])
-        if len(attempts) == 1:
-            raise RuntimeError("transient provider interruption")
-
-    monkeypatch.setattr(main, "_process_row_once", process_once)
-    monkeypatch.setattr(main, "update_row", lambda *args, **kwargs: persisted.append((args, kwargs)))
-    monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
-    monkeypatch.setattr(main, "row_to_dict", lambda value: states.pop(0))
-    monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
-    monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
-    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
-    monkeypatch.setattr(main, "notify", lambda message: alerts.append(message))
-
-    main.process_row(
-        service=object(),
-        config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
-        sheet_name="Content",
-        row_number=2,
-        row={"الموضوع": "موضوع تجريبي"},
-        current=datetime(2026, 11, 20, tzinfo=timezone.utc),
-    )
-
-    assert attempts == [2, 2]
-    assert len(persisted) == 1
-    assert alerts == []
+    now = datetime(2026, 11, 21, 12, 0)
+    recent = {"الحالة": "FAILED", "الموضوع": "موضوع", "وقت آخر تشغيل": (now - timedelta(minutes=5)).isoformat()}
+    eligible = {"الحالة": "FAILED", "الموضوع": "موضوع", "وقت آخر تشغيل": (now - timedelta(minutes=20)).isoformat()}
+    assert not main._failed_retry(recent, now)
+    assert main._failed_retry(eligible, now)
+    import run_main
+    assert not run_main._smart_is_due(recent, now)
