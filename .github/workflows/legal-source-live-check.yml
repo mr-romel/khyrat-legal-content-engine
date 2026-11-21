@@ -7,7 +7,18 @@ on:
       - "src/legal_research.py"
       - "scripts/legal_source_live_check.py"
       - ".github/workflows/legal-source-live-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/legal_research.py"
+      - "scripts/legal_source_live_check.py"
+      - ".github/workflows/legal-source-live-check.yml"
   workflow_dispatch:
+    inputs:
+      topics:
+        description: "Semicolon-separated legal topics to verify; use ALL_500 for the complete topic bank."
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -20,7 +31,7 @@ jobs:
   live-source-check:
     name: Verify live Egyptian legal sources (no publishing)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,10 +43,13 @@ jobs:
 
       - name: Install legal research dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara tesseract-ocr-eng
           python -m pip install --disable-pip-version-check --upgrade pip certifi
-          python -m pip install --disable-pip-version-check requests pypdf
+          python -m pip install --disable-pip-version-check requests pypdf pypdfium2 pytesseract Pillow
 
-      - name: Retrieve and verify both blocked topics live
+      - name: Retrieve and verify selected legal topics live (no publishing)
         env:
           PYTHONUNBUFFERED: "1"
+          LEGAL_SOURCE_CHECK_TOPICS: ${{ inputs.topics }}
         run: python scripts/legal_source_live_check.py

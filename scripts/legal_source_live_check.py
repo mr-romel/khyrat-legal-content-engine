@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -17,9 +18,25 @@ TOPICS = (
 )
 
 
+def configured_topics() -> tuple[str, ...]:
+    """Allow the same live verifier to check any requested topic, not only defaults."""
+    raw = os.getenv("LEGAL_SOURCE_CHECK_TOPICS", "").strip()
+    if not raw:
+        return TOPICS
+    requested = tuple(dict.fromkeys(
+        item.strip() for item in re.split(r"[;\n]+", raw) if item.strip()
+    ))
+    if any(item.casefold() == "all_500" for item in requested):
+        from topic_bank_500 import TOPIC_BANK
+        return tuple(item["topic"] for item in TOPIC_BANK)
+    return requested
+
+
 def main() -> int:
     failures = []
-    for topic in TOPICS:
+    topics = configured_topics()
+    print(f"LIVE LEGAL SOURCE CHECK: selected_topics={len(topics)}", flush=True)
+    for topic in topics:
         print(f"\n=== LIVE LEGAL SOURCE CHECK: {topic} ===", flush=True)
         packet = research_legal_topic(topic)
         if not has_verified_legal_source(packet):
@@ -48,7 +65,7 @@ def main() -> int:
     if failures:
         print("\nLIVE LEGAL SOURCE CHECK FAILED: " + " | ".join(failures), flush=True)
         return 1
-    print("\nLEGAL SOURCE RECOVERY CHECK PASSED: both current queue topics have retrieved primary/official source records.", flush=True)
+    print(f"\nLEGAL SOURCE RECOVERY CHECK PASSED: all {len(topics)} selected topics have retrieved primary/official source records.", flush=True)
     return 0
 
 

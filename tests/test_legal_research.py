@@ -763,3 +763,110 @@ def test_cairo_government_publication_is_allowlisted_for_civil_service_law():
     assert "الوظائف" in terms
     assert "الكفاءة" in terms
     assert "الجدارة" in terms
+
+
+def test_pdf_extraction_falls_back_to_arabic_ocr_when_native_text_is_unusable(monkeypatch):
+    import legal_research
+
+    class FakePage:
+        def extract_text(self, extraction_mode=None):
+            return "garbled font map" if extraction_mode != "layout" else "###"
+
+    class FakeReader:
+        def __init__(self, _stream):
+            self.pages = [FakePage()]
+
+    monkeypatch.setattr(legal_research, "_ocr_pdf_pages", lambda _bytes: (
+        "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية حق للمواطنين "
+        "على أساس الكفاءة والجدارة"
+    ))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pypdf",
+        __import__("types").SimpleNamespace(PdfReader=FakeReader),
+    )
+    extracted = legal_research._extract_pdf_text(b"%PDF-test", "https://www.gov.eg/law.pdf")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert "الكفاءة والجدارة" in extracted
+
+
+def test_pdf_native_extraction_skips_ocr_when_arabic_text_is_usable(monkeypatch):
+    import legal_research
+
+    expected = (
+        "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية حق للمواطنين "
+        "على أساس الكفاءة والجدارة، وتحدد اللائحة التنفيذية شروط التعيين."
+    )
+
+    class FakePage:
+        def extract_text(self, extraction_mode=None):
+            return expected
+
+    class FakeReader:
+        def __init__(self, _stream):
+            self.pages = [FakePage()]
+
+    ocr_calls = []
+    monkeypatch.setattr(legal_research, "_ocr_pdf_pages", lambda _bytes: ocr_calls.append(True) or "")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pypdf",
+        __import__("types").SimpleNamespace(PdfReader=FakeReader),
+    )
+    extracted = legal_research._extract_pdf_text(b"%PDF-test", "https://www.gov.eg/law.pdf")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert ocr_calls == []
+
+def test_pdfium_tesseract_ocr_renders_and_reads_arabic_page(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    import legal_research
+
+    arabic = "قانون الخدمة المدنية رقم 81 لسنة 2016 والوظائف المدنية"
+
+    class FakeTextPage:
+        def get_text_range(self):
+            return "unreadable font map"
+        def close(self):
+            return None
+
+    class FakeBitmap:
+        def to_pil(self):
+            return "rendered-page-image"
+
+    class FakePage:
+        def get_textpage(self):
+            return FakeTextPage()
+        def render(self, scale):
+            assert scale >= 2
+            return FakeBitmap()
+
+    class FakeDocument:
+        def __iter__(self):
+            return iter([FakePage()])
+        def close(self):
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "pypdfium2",
+        SimpleNamespace(PdfDocument=lambda _data: FakeDocument()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "pytesseract",
+        SimpleNamespace(
+            image_to_string=lambda image, lang, config: (
+                arabic if image == "rendered-page-image" and lang == "ara+eng" else ""
+            )
+        ),
+    )
+
+    extracted = legal_research._ocr_pdf_pages(b"%PDF-test")
+
+    assert "قانون الخدمة المدنية" in extracted
+    assert "الوظائف المدنية" in extracted
+
+

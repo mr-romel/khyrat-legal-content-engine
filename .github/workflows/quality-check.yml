@@ -40,6 +40,8 @@ jobs:
           npx tsc --noEmit
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara tesseract-ocr-eng
           python -m pip install --upgrade pip
           pip install -r requirements-worker.txt
           pip install -r requirements-browser.txt
