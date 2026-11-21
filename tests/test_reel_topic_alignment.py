@@ -120,3 +120,26 @@ def test_video_metadata_recognizes_public_service_and_impersonation_subjects():
 
     assert _topic_family("الوظيفة العامة والتعيين") == "public_service"
     assert _topic_family("انتحال الشخصية") == "impersonation"
+
+def test_privacy_violation_topic_is_not_misclassified_by_editorial_word_process():
+    from reel_pipeline import _visual_topic_family, _visual_topic_content_aligned
+
+    topic = "انتهاك حرمة الحياة الخاصة — زاوية جديدة: Checklist عملية قبل بدء أي إجراء"
+    post = "انتهاك حرمة الحياة الخاصة له صور متعددة، منها الاعتداء على البيانات الشخصية أو إفشائها دون سند."
+    assert _visual_topic_family(topic) == "privacy_violation"
+    assert _visual_topic_family("عملية التحقق من المستندات") == "general"
+    assert _visual_topic_content_aligned(topic, post)
+
+
+def test_employment_classifier_still_recognizes_actual_employment_terms():
+    from reel_pipeline import _visual_topic_family
+
+    assert _visual_topic_family("حقوق العامل في علاقة العمل") == "employment"
+    assert _visual_topic_family("العمل دون عقد مكتوب") == "employment"
+
+
+def test_privacy_family_precedes_generic_criminal_wording():
+    from reel_pipeline import _visual_topic_family
+
+    assert _visual_topic_family("جريمة انتهاك حرمة الحياة الخاصة") == "privacy_violation"
+

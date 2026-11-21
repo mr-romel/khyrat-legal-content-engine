@@ -634,15 +634,28 @@ def _generate_scene_with_provider_fallbacks(
 
 
 def _visual_topic_family(topic: str) -> str:
-    """Resolve one authoritative visual family from the public legal topic."""
+    """Resolve the legal subject without mistaking editorial angle words for legal topics."""
     value = " ".join(str(topic or "").split()).casefold()
+    # Editorial suffixes are metadata, not part of the legal subject. In particular,
+    # "عملية" contains the character sequence "عمل" but is not an employment term.
+    value = re.sub(
+        r"\s*(?:[—–|:؛-]\s*)?(?:زاوية\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\s*[-_ ]?\s*list|checklist|content\s*angle|editorial\s*angle).*$",
+        "",
+        value,
+        flags=re.I,
+    ).strip()
+    # Resolve standalone employment verb/noun before broader families such as contracts.
+    if re.search(r"(?<![\u0600-\u06FF])(?:ال)?عمل(?![\u0600-\u06FF])", value):
+        return "employment"
     families = [
         ("nursery_surveillance", ("حضانات", "حضانة", "دار حضانة", "روضة أطفال", "رياض الأطفال")),
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
+        ("privacy_violation", ("انتهاك حرمة الحياة الخاصة", "حرمة الحياة الخاصة", "الحياة الخاصة", "الخصوصية", "خصوصية", "بيانات شخصية", "الحياة الشخصية")),
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
         ("identity_impersonation", ("انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud")),
-        ("employment", ("الوظيفة العامة", "وظيفة عامة", "التعيين", "الخدمة المدنية", "النقل كجزاء", "النقل التأديبي", "نقل تأديبي", "نقل الموظف", "عمل", "عامل", "عمال", "موظف", "فصل", "مرتب", "راتب", "أجر", "استقالة")),
+        ("employment", ("الوظيفة العامة", "وظيفة عامة", "التعيين", "الخدمة المدنية", "النقل كجزاء", "النقل التأديبي", "نقل تأديبي", "نقل الموظف", "العمل", "عمل", "عامل", "عمال", "موظف", "فصل", "مرتب", "راتب", "أجر", "استقالة")),
         ("family", ("طلاق", "خلع", "نفقة", "حضانة", "رؤية", "زواج", "أسرة", "اسرة")),
         ("public_utility", ("المرفق العام", "المرافق العامة", "مرفق عام", "المرفق الاقتصادي", "مرفق اقتصادي", "المرافق الاقتصادية", "خدمة عامة", "الخدمات العامة")),
         ("companies", ("شركة", "شركات", "شريك", "شراكة", "تأسيس", "مساهم")),
@@ -654,8 +667,13 @@ def _visual_topic_family(topic: str) -> str:
         ("criminal", ("جريمة", "جنائي", "سرقة", "ضرب", "قتل", "سب", "قذف", "نصب", "احتيال")),
     ]
     for family, terms in families:
-        if any(term in value for term in terms):
-            return family
+        for term in terms:
+            if term in {"عمل", "العمل"}:
+                # Match the standalone word only; never the prefix of "عملية".
+                if re.search(r"(?<![\u0600-\u06FF])(?:ال)?عمل(?![\u0600-\u06FF])", value):
+                    return family
+            elif term in value:
+                return family
     return "general"
 
 
