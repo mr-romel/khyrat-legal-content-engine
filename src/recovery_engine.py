@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import re
 import time
@@ -13,16 +13,29 @@ LOG_HEADERS = [
 ]
 
 def classify_failure(error: str, row: dict[str, Any] | None = None) -> tuple[str, str, str]:
-    """Map a failure signature to a recovery lane, strategy and operator action."""
+    """Classify only explicit HTTP status fields or bounded, recognizable error signatures."""
     value = str(error or "").casefold()
     row = row or {}
-    if any(x in value for x in ("http 401", "401 unauthorized", "token has expired", "userinfo failed", "blocked_token")):
+    status = row.get("http_status", row.get("status_code", row.get("httpStatus")))
+    try:
+        status_code = int(status) if status not in (None, "") else None
+    except (TypeError, ValueError):
+        status_code = None
+    if status_code == 401 or re.search(r"\bhttp(?:/\d(?:\.\d)?)?\s*[:=]?\s*401\b|\b401\s+unauthorized\b", value) or any(
+        signature in value for signature in ("token has expired", "userinfo failed", "blocked_token")
+    ):
         return "AUTHORIZATION", "HOLD_AND_ALERT", "Renew the affected platform credential; do not retry-loop."
     if any(x in value for x in ("legal_citation_gate", "mandatory_legal_review", "no retrieved primary", "legal_source")):
         return "LEGAL_EVIDENCE", "REFRESH_PRIMARY_SOURCES", "Refresh primary/official legal sources; publication gate remains closed."
     if any(x in value for x in ("image_qa", "semantic qa", "visual relevance", "image_required_blocked", "image_provider")):
         return "VISUAL_ASSET", "REBUILD_BRIEF_AND_ROTATE_PROVIDER", "Regenerate a topic-specific visual and run semantic QA again."
-    if any(x in value for x in ("429", "quota", "rate limit", "resource_exhausted", "503", "502", "timeout")):
+    transient_code = status_code in {429, 500, 502, 503, 504}
+    transient_signature = bool(re.search(
+        r"\bhttp(?:/\d(?:\.\d)?)?\s*[:=]?\s*(?:429|500|502|503|504)\b|"
+        r"\b(?:429|500|502|503|504)\s+(?:too many requests|bad gateway|service unavailable|gateway timeout)\b",
+        value,
+    ))
+    if transient_code or transient_signature or any(x in value for x in ("quota exceeded", "rate limit", "resource_exhausted", "timeout")):
         return "TRANSIENT_PROVIDER", "SWITCH_PROVIDER_AND_BACKOFF", "Use an alternate configured provider, then bounded backoff."
     if any(x in value for x in ("google sheets", "spreadsheet", "service unavailable", "connection reset")):
         return "PERSISTENCE", "RETRY_PERSISTENCE_ONLY", "Retry state persistence without repeating external publication."
@@ -120,13 +133,21 @@ def retry_is_due(row: dict[str, Any], now: datetime) -> bool:
         return True
 
 def choose_fair_candidate(candidates: list[tuple[int, dict[str, Any]]]) -> tuple[int, dict[str, Any]] | None:
-    """Oldest attempted row wins; blank timestamps naturally get first service."""
+    """Oldest valid attempt instant wins; blank timestamps get first service."""
     if not candidates:
         return None
     def key(item):
-        row = item[1]
-        return (str(row.get("وقت آخر تشغيل", "") or ""), item[0])
-    return sorted(candidates, key=key)[0]
+        raw = str(item[1].get("وقت آخر تشغيل", "") or "").strip()
+        if not raw:
+            return (0, datetime.min.replace(tzinfo=timezone.utc), item[0])
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return (1, parsed.astimezone(timezone.utc), item[0])
+        except (TypeError, ValueError):
+            return (0, datetime.min.replace(tzinfo=timezone.utc), item[0])
+    return min(candidates, key=key)
 
 def refresh_dashboard(service, spreadsheet_id: str, content_range: str) -> None:
     """Refresh a compact live operational dashboard from queue state and audit events."""
@@ -177,7 +198,7 @@ def refresh_dashboard(service, spreadsheet_id: str, content_range: str) -> None:
             ["FAILED", statuses.get("FAILED", 0), ""],
             ["PARTIAL_FAILED", statuses.get("PARTIAL_FAILED", 0), ""],
             ["Manual holds", holds, ""],
-            ["Recovery attempts logged", max(0, len(events) - 1), ""],
+            ["Recovery attempts logged", sum(1 for row in events[1:] if len(row) > 4 and str(row[4]).upper() == "ATTEMPT_STARTED"), ""],
             ["Recovered attempts", recovered, ""],
             ["Failed attempts", failed_attempts, ""],
             ["Failure classes (active)", " | ".join(f"{k}:{v}" for k, v in sorted(failures.items())), ""],
