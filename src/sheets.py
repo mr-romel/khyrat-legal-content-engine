@@ -29,6 +29,7 @@ HEADERS = [
     "Reel YouTube Comments Status", "Reel YouTube Comment IDs",
     "Reel Facebook Description Status", "Reel YouTube Description Status", "Reel Video SHA256",
     "Image SHA256", "Image QA Policy Version", "محاولات الاسترداد", "آخر تنبيه استرداد",
+    "Recovery Failure Class", "Recovery Strategy", "Recovery Next At", "Recovery Attempts Total",
 ]
 
 SHEET_LAST_COLUMN = "CB"
