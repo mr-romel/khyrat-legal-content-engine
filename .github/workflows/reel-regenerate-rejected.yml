@@ -143,6 +143,14 @@ jobs:
                   )
                   and retry_count < 3
               )
+              # The privacy/employment classifier fix is now deployed. A prior
+              # script-topic mismatch can therefore be retried safely, but only
+              # with the same bounded retry budget and existing duplicate guards.
+              retryable_topic_mismatch = (
+                  status == "FAILED"
+                  and last_error.startswith("REEL_SCRIPT_TOPIC_MISMATCH:")
+                  and retry_count < 3
+              )
               pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
               pinned_source_retry = (
                   bool(os.getenv("REEL_RECOVERY_SOURCE_ID", "").strip())
@@ -151,10 +159,9 @@ jobs:
                   and status in {"FAILED", "REGENERATE_REQUESTED"}
                   and pinned_attempt_marker not in review.casefold()
               )
-              # Topic mismatch is a source-integrity failure, not an image-provider
-              # outage. Never auto-retry it except when the user explicitly pins a
-              # different immutable source ID for a bounded, one-time recovery.
-              retryable_failure = retryable_image_failure or pinned_source_retry
+              # Topic mismatch is eligible only after the corrected classifier is
+              # deployed; the same source publication and duplicate-ID guards apply.
+              retryable_failure = retryable_image_failure or retryable_topic_mismatch or pinned_source_retry
               # Eligibility is based on immutable row identity plus a bounded retry
               # count; the pinned ID is explicit and never depends on row position.
               if not (requested or retryable_failure):
