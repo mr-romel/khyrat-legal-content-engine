@@ -170,10 +170,11 @@ def _linkedin_token_blocked(row: dict[str, str]) -> bool:
 
 
 def _is_due(row: dict[str, str], current) -> bool:
+    # New READY content always has priority. Failed rows are handled by the
+    # separate cooldown/round-robin recovery lane below, never repeatedly
+    # selected ahead of untouched scheduled content.
     status = str(row.get("الحالة", "READY")).strip().upper()
-    if _linkedin_token_blocked(row):
-        return False
-    if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
+    if _linkedin_token_blocked(row) or status != "READY":
         return False
     target_date = parse_date(row.get("تاريخ النشر", ""))
     target_time = parse_time(row.get("ساعة النشر", ""))
@@ -196,9 +197,27 @@ def _failed_retry(row: dict[str, str], current) -> bool:
     status = str(row.get("الحالة", "")).strip().upper()
     error = str(row.get("آخر خطأ", "") or "").strip().upper()
     if error.startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(row) >= MAX_IMAGE_QA_ATTEMPTS:
-        print("Skipping automatic retry: semantic image QA retry budget exhausted; the visual brief needs human correction.")
+        print("Skipping automatic retry: semantic image QA retry budget exhausted; the visual brief needs correction.")
         return False
-    return status in {"FAILED", "PARTIAL_FAILED"} and bool(row.get("الموضوع", "").strip())
+    if status not in {"FAILED", "PARTIAL_FAILED"} or not str(row.get("الموضوع", "")).strip():
+        return False
+    # One row gets one recovery attempt per scheduled cycle. A 12-minute
+    # cooldown prevents the same failed row monopolizing every 15-minute run.
+    last_run = str(row.get("وقت آخر تشغيل", "") or "").strip()
+    if last_run and hasattr(current, "tzinfo"):
+        try:
+            from datetime import datetime
+            previous = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+            now = current
+            if previous.tzinfo is None and now.tzinfo is not None:
+                previous = previous.replace(tzinfo=now.tzinfo)
+            elif previous.tzinfo is not None and now.tzinfo is None:
+                now = now.replace(tzinfo=previous.tzinfo)
+            if (now - previous).total_seconds() < 12 * 60:
+                return False
+        except (TypeError, ValueError):
+            pass
+    return True
 
 
 def _is_permission_blocked(value) -> bool:
@@ -1215,89 +1234,110 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
 
 
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
-    """Run a row with bounded in-invocation recovery before surfacing a persistent failure."""
-    max_attempts = 3
-    current_row = dict(row)
-    for attempt in range(1, max_attempts + 1):
-        if attempt > 1:
-            delay = 2 ** (attempt - 1)
-            print(
-                f"PIPELINE AUTO-RECOVERY: row={row_number}; "
-                f"attempt={attempt}/{max_attempts}; waiting={delay}s"
-            )
-            time.sleep(delay)
+    """Attempt a row once per scheduler cycle; persist recovery state between cycles."""
+    try:
+        _process_row_once(
+            service=service,
+            config=config,
+            sheet_name=sheet_name,
+            row_number=row_number,
+            row=dict(row),
+            current=current,
+        )
+    except Exception as pipeline_exc:
+        diagnostic = f"UNHANDLED_PIPELINE_EXCEPTION: {type(pipeline_exc).__name__}: {pipeline_exc}"
+        print(f"PIPELINE AUTO-RECOVERY: row={row_number}; {diagnostic}")
         try:
-            _process_row_once(
-                service=service,
-                config=config,
-                sheet_name=sheet_name,
-                row_number=row_number,
-                row=current_row,
-                current=current,
-            )
-        except Exception as pipeline_exc:
-            diagnostic = (
-                f"UNHANDLED_PIPELINE_EXCEPTION: {type(pipeline_exc).__name__}: "
-                f"{pipeline_exc}"
-            )
-            print(
-                f"PIPELINE AUTO-RECOVERY: row={row_number}; "
-                f"attempt={attempt}/{max_attempts}; {diagnostic}"
-            )
-            current_row = dict(current_row)
-            current_row["الحالة"] = "FAILED"
-            current_row["آخر خطأ"] = diagnostic[:1500]
-            try:
-                update_row(service, config["sheet_id"], sheet_name, row_number, {
-                    "الحالة": "FAILED",
-                    "آخر خطأ": diagnostic[:1500],
-                    "وقت آخر تشغيل": current.isoformat(),
-                })
-            except Exception as persist_exc:
-                print(f"PIPELINE AUTO-RECOVERY: could not persist failure state: {persist_exc}")
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "الحالة": "FAILED",
+                "آخر خطأ": diagnostic[:1500],
+                "وقت آخر تشغيل": current.isoformat(),
+            })
+        except Exception as persist_exc:
+            print(f"PIPELINE AUTO-RECOVERY: could not persist failure state: {persist_exc}")
+
+    try:
+        values = get_values(service, config["sheet_id"], config["sheet_range"])
+        latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
+    except Exception as state_read_exc:
+        diagnostic = f"تعذر تحديث حالة الصف بعد محاولة التنفيذ: {type(state_read_exc).__name__}: {state_read_exc}"
+        print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
+        notify(
+            f"🟠 تعذر قراءة حالة الصف بعد محاولة الاسترداد.
+"
+            f"الصف: {row_number}
+الموضوع: {row.get('الموضوع', '')}
+"
+            f"التشخيص: {diagnostic[:900]}"
+        )
+        return
+
+    status = str(latest.get("الحالة", "") or "").strip().upper()
+    error = str(latest.get("آخر خطأ", "") or "").strip()
+    if status not in {"FAILED", "PARTIAL_FAILED"}:
         try:
-            values = get_values(service, config["sheet_id"], config["sheet_range"])
-            latest = row_to_dict(values[row_number - 1]) if len(values) >= row_number else {}
-        except Exception as state_read_exc:
-            diagnostic = f"Could not refresh row state after attempt {attempt}: {state_read_exc}"
-            print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
-            if attempt < max_attempts:
-                current_row = dict(current_row)
-                current_row["الحالة"] = "FAILED"
-                current_row["آخر خطأ"] = diagnostic[:1500]
-                continue
-            notify(
-                f"🚨 تعذر استكمال الاسترداد الآلي بعد {max_attempts} محاولات.\n"
-                f"الصف: {row_number}\nالموضوع: {row.get('الموضوع', '')}\n"
-                f"التشخيص النهائي: {diagnostic[:900]}"
-            )
-            return
-        status = str(latest.get("الحالة", "") or "").strip().upper()
-        error = str(latest.get("آخر خطأ", "") or "").strip()
-        if status not in {"FAILED", "PARTIAL_FAILED"}:
-            return
-        if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
-            diagnostic = "LinkedIn authorization rejected; credential renewal is required. Other successful platform posts remain protected by idempotency."
-            print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
-            notify(f"🟠 انتهت محاولات الاسترداد المسموح بها للصف {row_number} بسبب رفض توكن LinkedIn.\nالموضوع: {current_row.get('الموضوع', '')}\nالإجراء المطلوب: تجديد التوكن ثم إعادة الصف لنشر LinkedIn فقط.\nالسبب: {error[:700]}")
-            return
-        if error.upper().startswith("IMAGE_QA_BLOCKED:") and _image_qa_attempt_count(latest) >= MAX_IMAGE_QA_ATTEMPTS:
-            diagnostic = "Image semantic QA retry budget exhausted; visual brief requires correction."
-            print(f"PIPELINE AUTO-RECOVERY STOPPED: {diagnostic}")
-            notify(f"🟠 استُنفدت محاولات إصلاح الصورة للصف {row_number}.\nالموضوع: {current_row.get('الموضوع', '')}\nالتشخيص: {error[:700]}")
-            return
-        if attempt == max_attempts:
-            print(
-                f"PIPELINE AUTO-RECOVERY EXHAUSTED: row={row_number}; "
-                f"attempts={max_attempts}; final_error={error[:700]}"
-            )
-            notify(
-                f"🚨 تعذر استكمال الصف بعد الاسترداد التلقائي.\n"
-                f"الصف: {row_number}\nالموضوع: {current_row.get('الموضوع', '')}\n"
-                f"المحاولات: {max_attempts}\nالتشخيص النهائي: {error[:1000]}"
-            )
-            return
-        current_row = latest
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "محاولات الاسترداد": "0",
+                "آخر تنبيه استرداد": "",
+            })
+        except Exception as reset_exc:
+            print(f"Recovery counters reset deferred: {reset_exc}")
+        return
+
+    if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
+        diagnostic = error or "LinkedIn authorization rejected; credential renewal is required."
+        notify(
+            f"🟠 الاسترداد الآلي متوقف بسبب رفض صلاحية LinkedIn.
+"
+            f"الصف: {row_number}
+الموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}
+"
+            f"السبب: {diagnostic[:900]}"
+        )
+        return
+
+    if not error:
+        error = "UNCLASSIFIED_FAILURE: الصف فشل دون تسجيل سبب؛ تمت جدولة إعادة المحاولة تلقائيًا."
+        print(f"PIPELINE DIAGNOSTIC REPAIR: row={row_number}; empty error field replaced.")
+    previous_error = str(row.get("آخر خطأ", "") or "").strip()
+    try:
+        previous_count = max(0, int(str(row.get("محاولات الاسترداد", "0") or "0")))
+    except (TypeError, ValueError):
+        previous_count = 0
+    count = previous_count + 1 if previous_error == error else 1
+    last_alert = str(latest.get("آخر تنبيه استرداد", "") or "").strip()
+    try:
+        update_row(service, config["sheet_id"], sheet_name, row_number, {
+            "الحالة": "FAILED",
+            "آخر خطأ": error[:1500],
+            "محاولات الاسترداد": str(count),
+            "وقت آخر تشغيل": current.isoformat(),
+        })
+    except Exception as persist_exc:
+        print(f"PIPELINE AUTO-RECOVERY: failed to persist retry counter: {persist_exc}")
+
+    print(
+        f"PIPELINE AUTO-RECOVERY DEFERRED: row={row_number}; "
+        f"scheduled_attempt={count}; next_retry=next eligible scheduler cycle; diagnostic={error[:500]}"
+    )
+    # Avoid repeated Telegram spam. Notify only after three separate scheduled
+    # cycles, and once per distinct failure signature. The queue keeps retrying.
+    if count >= 3 and last_alert != error:
+        notify(
+            f"🚨 الصف ما زال قيد الاسترداد الآلي وسيُعاد تلقائيًا.
+"
+            f"الصف: {row_number}
+الموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}
+"
+            f"دورات الاسترداد: {count}
+التشخيص: {error[:1000]}"
+        )
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {
+                "آخر تنبيه استرداد": error[:1500],
+            })
+        except Exception as alert_state_exc:
+            print(f"Recovery alert state persistence deferred: {alert_state_exc}")
 
 def main() -> None:
     print("=" * 70)
@@ -1336,9 +1376,15 @@ def main() -> None:
 
     candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
     if not candidates:
-        candidates = [(i, r) for i, r in enumerate(rows, start=2) if _failed_retry(r, current)][:1]
+        failed_candidates = [
+            (i, r) for i, r in enumerate(rows, start=2) if _failed_retry(r, current)
+        ]
+        # Recover the least recently attempted failed row first. This rotates
+        # recovery across the queue instead of trapping it on one early row.
+        failed_candidates.sort(key=lambda item: str(item[1].get("وقت آخر تشغيل", "") or ""))
+        candidates = failed_candidates[:1]
     if not candidates:
-        print("No due rows found.")
+        print("No due rows or cooldown-eligible failed rows found.")
         return
     row_number, row = candidates[0]
     try:
