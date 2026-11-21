@@ -645,6 +645,9 @@ def _visual_topic_family(topic: str) -> str:
         value,
         flags=re.I,
     ).strip()
+    # Resolve standalone employment verb/noun before broader families such as contracts.
+    if re.search(r"(?<![\\u0600-\\u06FF])(?:ال)?عمل(?![\\u0600-\\u06FF])", value):
+        return "employment"
     families = [
         ("nursery_surveillance", ("حضانات", "حضانة", "دار حضانة", "روضة أطفال", "رياض الأطفال")),
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
