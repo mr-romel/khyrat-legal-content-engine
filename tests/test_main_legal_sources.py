@@ -117,3 +117,5 @@ def test_failed_rows_obey_retry_cooldown_and_ready_rows_keep_priority():
     eligible = {"الحالة": "FAILED", "الموضوع": "موضوع", "وقت آخر تشغيل": (now - timedelta(minutes=20)).isoformat()}
     assert not main._failed_retry(recent, now)
     assert main._failed_retry(eligible, now)
+    import run_main
+    assert not run_main._smart_is_due(recent, now)
