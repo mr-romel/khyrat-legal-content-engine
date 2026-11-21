@@ -1225,6 +1225,11 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
 
 
 
+def _recovery_alert_required(attempt_count: int, error: str, last_alert: str) -> bool:
+    """Return true once per persistent failure signature after three scheduler cycles."""
+    return int(attempt_count) >= 3 and bool(str(error or "").strip()) and str(last_alert or "").strip() != str(error or "").strip()
+
+
 def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[str, str], current) -> None:
     """Attempt a row once per scheduler cycle; persist recovery state between cycles."""
     try:
@@ -1308,7 +1313,7 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     )
     # Avoid repeated Telegram spam. Notify only after three separate scheduled
     # cycles, and once per distinct failure signature. The queue keeps retrying.
-    if count >= 3 and last_alert != error:
+    if _recovery_alert_required(count, error, last_alert):
         notify(
             f"🚨 الصف ما زال قيد الاسترداد الآلي وسيُعاد تلقائيًا.\n"
             f"الصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\n"
