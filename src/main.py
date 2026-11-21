@@ -27,7 +27,7 @@ from post_bank import add_published_post, build_previous_context, get_bank_rows
 from sheets import create_service, ensure_headers, get_values, row_to_dict, update_row
 from telegram_bot import notify, send_review_request
 from utils import now_cairo, parse_date, parse_time, sheet_name_from_range
-from recovery_engine import classify_failure, next_retry_at, log_event, is_stale_processing, retry_is_due, choose_fair_candidate
+from recovery_engine import classify_failure, next_retry_at, log_event, is_stale_processing, retry_is_due, choose_fair_candidate, refresh_dashboard
 
 GENERATED_DIR = Path("generated")
 
@@ -1374,6 +1374,7 @@ def main() -> None:
         print(f"Found published row requiring image repair: row={row_number}")
         try:
             process_row(service=service, config=config, sheet_name=sheet_name, row_number=row_number, row=row, current=current)
+        refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
         except Exception as exc:
             print(f"Image repair failed; normal publishing selection continues: {exc}")
             print(traceback.format_exc())
@@ -1401,6 +1402,7 @@ def main() -> None:
     failed_candidates = [(i, r) for i, r in enumerate(rows, start=2)
                          if _failed_retry(r, current) and retry_is_due(r, current)]
     selected = choose_fair_candidate(due_candidates + failed_candidates)
+    refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
     if not selected:
         print("No due rows or cooldown-eligible failed rows found.")
         return
