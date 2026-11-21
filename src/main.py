@@ -983,7 +983,7 @@ def _repair_published_bad_image(*, service, config, sheet_name: str, row_number:
             facebook_post_id=fb["post_id"],
             linkedin_post_id=li["post_urn"],
             image_url=image_url,
-            legal_sources=row.get("المصادر القانونية", ""),
+            legal_sources=legal_sources,
             angle=row.get("ملاحظات", ""),
             objective="IMAGE_REPAIR",
             review_level="CLEAR",
@@ -1043,7 +1043,7 @@ def _process_row_once(*, service, config, sheet_name: str, row_number: int, row:
         if not post:
             post = _fallback_post(topic, row.get("المصادر القانونية", ""))
         try:
-            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=row.get("المصادر القانونية", ""))
+            editorial = _prepare_editorial_assets(config=config, topic=topic, facebook_post=post, legal_sources=legal_sources)
             editorial = _keep_variable_comments_separate(editorial)
         except Exception as editorial_exc:
             # Legal/editorial review is mandatory. Never fail open into publication
@@ -1371,7 +1371,8 @@ def main() -> None:
         print(f"Latest-3 comment backfill unavailable; normal publishing continues: {exc}")
     repair_candidates = [
         (i, r) for i, r in enumerate(rows, start=2)
-        if str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
+        if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD"
+        and str(r.get("الحالة", "")).strip().upper() == "PUBLISHED"
         and _is_bad_published_image(r)
     ]
     if repair_candidates:
@@ -1386,7 +1387,7 @@ def main() -> None:
 
     # Reclaim orphaned PROCESSING rows; crashed runners must never strand queue items.
     for index, candidate_row in enumerate(rows, start=2):
-        if is_stale_processing(candidate_row, current, stale_minutes=35):
+        if str(candidate_row.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and is_stale_processing(candidate_row, current, stale_minutes=35):
             stale_error = "STALE_PROCESSING_RECOVERED: prior runner exceeded the 35-minute lease."
             print(f"QUEUE INTELLIGENCE: reclaiming stale PROCESSING row={index}.")
             try:
@@ -1403,9 +1404,9 @@ def main() -> None:
             except Exception as reclaim_exc:
                 print(f"QUEUE INTELLIGENCE: stale row reclaim failed for row={index}: {reclaim_exc}")
 
-    due_candidates = [(i, r) for i, r in enumerate(rows, start=2) if _is_due(r, current)]
+    due_candidates = [(i, r) for i, r in enumerate(rows, start=2) if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and _is_due(r, current)]
     failed_candidates = [(i, r) for i, r in enumerate(rows, start=2)
-                         if _failed_retry(r, current) and retry_is_due(r, current)]
+                         if str(r.get("Recovery Next At", "") or "").strip().upper() != "HOLD" and _failed_retry(r, current) and retry_is_due(r, current)]
     selected = choose_fair_candidate(due_candidates + failed_candidates)
     refresh_dashboard(service, config["sheet_id"], config["sheet_range"])
     if not selected:
