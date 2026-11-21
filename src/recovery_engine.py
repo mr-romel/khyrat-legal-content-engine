@@ -49,17 +49,23 @@ def _ensure_log_sheet(service, spreadsheet_id: str) -> None:
     metadata = service.spreadsheets().get(
         spreadsheetId=spreadsheet_id, fields="sheets.properties"
     ).execute()
-    if any(str(s.get("properties", {}).get("title", "")).casefold() == LOG_SHEET.casefold()
-           for s in metadata.get("sheets", [])):
-        return
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id,
-        body={"requests": [{"addSheet": {"properties": {"title": LOG_SHEET}}}]},
-    ).execute()
-    service.spreadsheets().values().update(
-        spreadsheetId=spreadsheet_id, range=f"'{LOG_SHEET}'!A1:L1",
-        valueInputOption="RAW", body={"values": [LOG_HEADERS]},
-    ).execute()
+    exists = any(
+        str(sheet.get("properties", {}).get("title", "")).casefold() == LOG_SHEET.casefold()
+        for sheet in metadata.get("sheets", [])
+    )
+    if not exists:
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": LOG_SHEET}}}]},
+        ).execute()
+    current = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=f"'{LOG_SHEET}'!A1:L1"
+    ).execute().get("values", [])
+    if not current or current[0][:len(LOG_HEADERS)] != LOG_HEADERS:
+        service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id, range=f"'{LOG_SHEET}'!A1:L1",
+            valueInputOption="RAW", body={"values": [LOG_HEADERS]},
+        ).execute()
 
 def log_event(service, spreadsheet_id: str, *, timestamp: str, row_number: int,
               row: dict[str, Any], event: str, failure_class: str = "",
