@@ -160,6 +160,7 @@ def refresh_dashboard(service, spreadsheet_id: str, content_range: str) -> None:
             failure = row.get("Recovery Failure Class", "").strip() or "UNCLASSIFIED"
             if status in {"FAILED", "PARTIAL_FAILED"}:
                 failures[failure] = failures.get(failure, 0) + 1
+        _ensure_log_sheet(service, spreadsheet_id)
         events = service.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id, range=f"'{LOG_SHEET}'!A:L"
         ).execute().get("values", [])
