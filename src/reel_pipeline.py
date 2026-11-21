@@ -639,6 +639,9 @@ def _visual_topic_family(topic: str) -> str:
     families = [
         ("nursery_surveillance", ("حضانات", "حضانة", "دار حضانة", "روضة أطفال", "رياض الأطفال")),
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
+        # Privacy is a primary subject even when the facts occur in a workplace.
+        # Keep it before employment/criminal so incidental words do not relabel it.
+        ("privacy_violation", ("انتهاك حرمة الحياة الخاصة", "حرمة الحياة الخاصة", "الحياة الخاصة", "انتهاك الخصوصية", "الخصوصية", "خصوصية", "خصوصية العامل", "خصوصية الموظف")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
         ("identity_impersonation", ("انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud")),
@@ -677,6 +680,16 @@ _VISUAL_SCENES = {
         "A person reviewing an unfamiliar account profile on a smartphone while holding a fictional identity card for comparison, screen fully unreadable, contemporary realistic setting.",
         "A secure desk scene with a sealed digital evidence envelope, a fictional identity card, and a smartphone showing a blurred login notification, focused on tracing an impersonating account.",
         "A neutral identity-verification workstation with document scanner, camera, fictional ID card and fingerprint reader arranged clearly, contemporary documentary realism, no logos or legible text."
+    ],
+    "privacy_violation": [
+        "A contemporary office employee closing a laptop screen with confidential personal information blurred, while a coworker respects the person's private workspace; realistic Egyptian office, no readable text or logos.",
+        "A close-up documentary scene of a smartphone with a blurred private message beside a closed personal notebook on an office desk, illustrating protection of private communications.",
+        "A modern workplace corridor with a clearly visible security camera in the background and an employee discussing privacy boundaries with a manager, faces natural and non-identifiable.",
+        "A neutral HR office desk with a sealed personnel file, a privacy notice sheet with all writing unreadable, and a locked cabinet, documentary realism.",
+        "An employee reviewing a blurred CCTV monitor with a supervisor in a modern office, focused on lawful privacy safeguards, no identifiable faces or readable screens.",
+        "A close-up of a computer access-control screen with all interface text blurred, beside a sealed employee personnel folder and a privacy lock symbol.",
+        "A person placing a personal phone face down beside confidential papers in a shared office, emphasizing separation of personal information from workplace records.",
+        "A modern office meeting room with a manager and employee reviewing a generic privacy policy document, all writing blurred, calm professional atmosphere, no logos."
     ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
