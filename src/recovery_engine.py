@@ -85,8 +85,6 @@ def is_stale_processing(row: dict[str, Any], now: datetime, stale_minutes: int =
     raw = str(row.get("وقت آخر تشغيل", "") or "").strip()
     if not raw:
         return True
-    if raw.upper() == "HOLD":
-        return False
     try:
         started = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         current = now
@@ -102,6 +100,8 @@ def retry_is_due(row: dict[str, Any], now: datetime) -> bool:
     raw = str(row.get("Recovery Next At", "") or "").strip()
     if not raw:
         return True
+    if raw.upper() == "HOLD":
+        return False
     try:
         due = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         current = now
