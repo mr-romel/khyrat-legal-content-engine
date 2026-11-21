@@ -103,11 +103,11 @@ def test_image_provider_rotation_uses_only_external_independent_engines(monkeypa
     import main
     monkeypatch.setattr(main, "IMAGE_PROVIDER_ROTATION", ["cloudflare", "gemini", "openverse", "wikimedia", "pixabay"])
     assert [main._image_provider_for_attempt(i) for i in range(1, 7)] == [
-        "cloudflare", "gemini", "openverse", "wikimedia", "pixabay", "pixabay"
+        "cloudflare", "gemini", "openverse", "wikimedia", "pixabay", "cloudflare"
     ]
     assert "local_scene" not in main.IMAGE_PROVIDER_ROTATION
-    # FLUX and FLUX Klein share the same account quota; a daily limit on one
-    # must never trigger a second request against the same Cloudflare account.
-    assert main._image_provider_for_attempt(6) == "pixabay"
+    # FLUX and FLUX Klein share the same account quota; a daily quota circuit on either model
+    # must block both models for the remainder of the Cairo day.
+    assert main._image_provider_for_attempt(6) == "cloudflare"
 
 
