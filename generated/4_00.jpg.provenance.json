@@ -1,0 +1,35 @@
+{
+  "topic": "جريمة التحرش",
+  "provider": "WIKIMEDIA_COMMONS_SCENE",
+  "model": "wikimedia-commons-scene-search",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A medium‑shot, eye‑level view of a young woman in modest, everyday clothing standing in front of a modest government building that clearly functions as a police station (simple façade with a glass door and a small, unobtrusive “Police” plaque that is out of focus). She holds a smartphone in both hands, her thumb poised over the screen as she captures a screenshot; the phone’s display is visible enough to show a chat window with a speech‑bubble icon and a red exclamation‑mark indicator, suggesting an abusive message, but no readable text. Behind her, a ceiling‑mounted CCTV camera is angled toward the entrance, hinting at surveillance. The scene is lit by soft natural daylight spilling from a nearby street, casti\nLEGAL TOPIC: جريمة التحرش\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: لو تعرضتِ لموقف تحرش في الشارع، أو في مكان العمل، أو حتى عبر رسائل الموبايل.. أول سؤال بييجي في البال: \"هل لو بلّغت هاخد حقي ولا الموضوع هيضيع؟\" القانون المصري بيجرّم التحرش بكل أشكاله، سواء كان بالقول، أو \nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 4aea6990fbf0",
+  "prompt_sha256": "892961c483fee2148ea3ef32d273907cc556ad06af2256915630cb8def3ec999",
+  "image_sha256": "bc62889137d6f864c629b0bfb75004ee6c247d9b1efea5736616c8458f4d2a8e",
+  "image_path": "generated/4_00.jpg",
+  "visual_description": "A medium‑shot, eye‑level view of a young woman in modest, everyday clothing standing in front of a modest government building that clearly functions as a police station (simple façade with a glass door and a small, unobtrusive “Police” plaque that is out of focus). She holds a smartphone in both hands, her thumb poised over the screen as she captures a screenshot; the phone’s display is visible enough to show a chat window with a speech‑bubble icon and a red exclamation‑mark indicator, suggesting an abusive message, but no readable text. Behind her, a ceiling‑mounted CCTV camera is angled toward the entrance, hinting at surveillance. The scene is lit by soft natural daylight spilling from a nearby street, casting gentle shadows and giving the image a calm, realistic atmosphere. The composition centers the woman and her phone, with the police station doorway and camera providing contextual clues to the legal‑reporting step described in the post.",
+  "aspect_ratio": "4:5",
+  "width": 1024,
+  "height": 1280,
+  "qa_decision": "REGENERATE",
+  "source_metadata": {
+    "source": "Wikimedia Commons",
+    "title": "File:Medium shot eye level a young woman smiling blonde.png",
+    "source_page": "https://commons.wikimedia.org/wiki/File:Medium_shot_eye_level_a_young_woman_smiling_blonde.png",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/0/07/Medium_shot_eye_level_a_young_woman_smiling_blonde.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "artist": "Shane Stroud",
+    "attribution_required": "true",
+    "search_query": "medium shot eye level young woman"
+  },
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 1,
+  "qa_relevance_score": 1,
+  "qa_issues": [
+    "The image is completely unrelated to the visual brief.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "bc62889137d6f864c629b0bfb75004ee6c247d9b1efea5736616c8458f4d2a8e"
+}
