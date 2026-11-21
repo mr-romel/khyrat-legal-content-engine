@@ -8,13 +8,15 @@ permissions:
 jobs:
   recovery-policy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install isolated Google Sheets test dependencies
+        run: python -m pip install --disable-pip-version-check google-api-python-client google-auth
       - name: Compile production modules
         run: python -m py_compile src/main.py src/sheets.py src/config.py src/recovery_engine.py
-      - name: Run recovery policy tests
-        run: PYTHONPATH=src python tests/test_recovery_engine.py
+      - name: Run recovery and migration regression tests
+        run: PYTHONPATH=src python -m unittest tests.test_recovery_engine tests.test_sheet_header_migration tests.test_recovery_integration_guards -v
