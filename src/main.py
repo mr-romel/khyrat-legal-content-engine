@@ -312,32 +312,24 @@ def _has_topic_matched_original_legal_text(topic: str, source_text: str) -> bool
 
 
 def _research_and_persist_legal_sources(*, topic: str, sheet_sources: str, service, config: dict, sheet_name: str, row_number: int) -> str:
-    """Retry source discovery for every topic before allowing the legal source gate to block."""
-    legal_sources = ""
-    last_error = ""
-    # A complete research pass includes alternate search engines and all topic-derived
-    # query variants. Retry the pass itself on empty/unverified results or transient errors.
-    # The budget is deliberately bounded to avoid runaway jobs and duplicate side effects.
-    for attempt in range(1, 4):
-        try:
-            candidate = research_legal_topic(topic, sheet_sources)
-            if has_verified_legal_source(candidate):
-                legal_sources = candidate
-                break
-            legal_sources = candidate or legal_sources
-            last_error = "No retrieved primary/official source passed topic-evidence verification."
-        except Exception as research_exc:
-            last_error = str(research_exc)
-            print(f"Legal research attempt {attempt}/3 failed for {topic!r}: {research_exc}")
-        if attempt < 3:
-            delay = 2 ** (attempt - 1)
-            print(f"LEGAL SOURCE AUTO-RECOVERY: retrying topic={topic!r} attempt={attempt + 1}/3 after {delay}s.")
-            time.sleep(delay)
+    """Run one complete, topic-derived source discovery pass per scheduled cycle.
+
+    Repeating the exact same 16+ queries three times inside one job does not
+    recover a blocked search provider; it only burns the job timeout and delays
+    every other queue row. The scheduler persists the failure and retries this
+    row in a later cycle, while legal citation/source gates remain mandatory.
+    """
+    try:
+        legal_sources = research_legal_topic(topic, sheet_sources)
+    except Exception as research_exc:
+        print(f"Legal research pass failed for {topic!r}: {type(research_exc).__name__}: {research_exc}")
+        return ""
 
     if not has_verified_legal_source(legal_sources):
         print(
-            "LEGAL SOURCE AUTO-RECOVERY EXHAUSTED: "
-            f"topic={topic!r}; attempts=3; last_diagnostic={last_error}"
+            "LEGAL SOURCE RECOVERY DEFERRED: "
+            f"topic={topic!r}; diagnostic=No retrieved primary/official source passed topic-evidence verification. "
+            "The failed row remains queued for a fresh scheduled recovery cycle."
         )
         return legal_sources
 
