@@ -639,8 +639,8 @@ def _visual_topic_family(topic: str) -> str:
     # Editorial suffixes are metadata, not part of the legal subject. In particular,
     # "عملية" contains the character sequence "عمل" but is not an employment term.
     value = re.sub(
-        r"\s*(?:[—–|:؛-]\\s*)?(?:زاوية\\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
-        r"check\\s*[-_ ]?\\s*list|checklist|content\\s*angle|editorial\\s*angle).*$",
+        r"\s*(?:[—–|:؛-]\s*)?(?:زاوية\s*(?:جديدة|أخرى|اخري|اخرى|مختلفة)|"
+        r"check\s*[-_ ]?\s*list|checklist|content\s*angle|editorial\s*angle).*$",
         "",
         value,
         flags=re.I,
@@ -667,7 +667,7 @@ def _visual_topic_family(topic: str) -> str:
         for term in terms:
             if term in {"عمل", "العمل"}:
                 # Match the standalone word only; never the prefix of "عملية".
-                if re.search(r"(?<![\u0600-\u06FF])عمل(?![\u0600-\u06FF])", value):
+                if re.search(r"(?<![\u0600-\u06FF])(?:ال)?عمل(?![\u0600-\u06FF])", value):
                     return family
             elif term in value:
                 return family
