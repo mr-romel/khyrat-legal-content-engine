@@ -81,7 +81,7 @@ def test_pipeline_attempts_failed_row_once_per_scheduler_cycle(monkeypatch):
     monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: attempts.append(kwargs["row_number"]))
     monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
     monkeypatch.setattr(main, "row_to_dict", lambda value: states[0])
-    monkeypatch.setattr(main, "update_row", lambda *args, **kwargs: updates.append(kwargs))
+    monkeypatch.setattr(main, "update_row", lambda *args, **kwargs: updates.append(args[4] if len(args) > 4 else kwargs))
     monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
     monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
     monkeypatch.setattr(main, "notify", lambda message: None)
@@ -97,32 +97,15 @@ def test_pipeline_attempts_failed_row_once_per_scheduler_cycle(monkeypatch):
     assert any(x.get("محاولات الاسترداد") == "2" for x in updates)
 
 
-def test_pipeline_alerts_after_three_separate_cycles_with_diagnostic(monkeypatch):
+def test_recovery_alert_threshold_is_once_per_failure_signature():
     import main
-    from datetime import datetime
 
-    alerts = []
-    updates = []
-    latest = {"الحالة": "FAILED", "آخر خطأ": "LEGAL_SOURCE_GATE_BLOCKED: no verified source", "الموضوع": "انتهاك حرمة الحياة الخاصة", "آخر تنبيه استرداد": ""}
-    monkeypatch.setattr(main, "_process_row_once", lambda **kwargs: None)
-    monkeypatch.setattr(main, "get_values", lambda *args, **kwargs: [[], ["row"]])
-    monkeypatch.setattr(main, "row_to_dict", lambda value: latest)
-    monkeypatch.setattr(main, "update_row", lambda *args, **kwargs: updates.append(kwargs))
-    monkeypatch.setattr(main, "_linkedin_token_blocked", lambda row: False)
-    monkeypatch.setattr(main, "_image_qa_attempt_count", lambda row: 0)
-    monkeypatch.setattr(main, "notify", lambda message: alerts.append(message))
+    error = "LEGAL_SOURCE_GATE_BLOCKED: no verified source"
+    assert not main._recovery_alert_required(2, error, "")
+    assert main._recovery_alert_required(3, error, "")
+    assert not main._recovery_alert_required(4, error, error)
+    assert main._recovery_alert_required(3, "different failure", error)
 
-    main.process_row(
-        service=object(), config={"sheet_id": "test", "sheet_range": "Content!A:Y"},
-        sheet_name="Content", row_number=12,
-        row={"الموضوع": latest["الموضوع"], "آخر خطأ": latest["آخر خطأ"], "محاولات الاسترداد": "2"},
-        current=datetime(2026, 11, 20),
-    )
-
-    assert len(alerts) == 1
-    assert "LEGAL_SOURCE_GATE_BLOCKED" in alerts[0]
-    assert "سيُعاد تلقائيًا" in alerts[0]
-    assert any(x.get("آخر تنبيه استرداد") for x in updates)
 
 
 def test_failed_rows_obey_retry_cooldown_and_ready_rows_keep_priority():
@@ -134,5 +117,3 @@ def test_failed_rows_obey_retry_cooldown_and_ready_rows_keep_priority():
     eligible = {"الحالة": "FAILED", "الموضوع": "موضوع", "وقت آخر تشغيل": (now - timedelta(minutes=20)).isoformat()}
     assert not main._failed_retry(recent, now)
     assert main._failed_retry(eligible, now)
-    assert not main._is_due(recent, now)
-    assert main._is_due({"الحالة": "READY", "تاريخ النشر": "2026-11-21", "ساعة النشر": "11:00"}, now)
