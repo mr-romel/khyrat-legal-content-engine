@@ -641,7 +641,7 @@ def _visual_topic_family(topic: str) -> str:
         ("secret_threat", ("تهديد", "إفشاء", "افشاء", "أسرار", "اسرار", "ابتزاز", "مساومة")),
         # Privacy is a primary subject even when the facts occur in a workplace.
         # Keep it before employment/criminal so incidental words do not relabel it.
-        ("privacy_violation", ("انتهاك حرمة الحياة الخاصة", "حرمة الحياة الخاصة", "الحياة الخاصة", "انتهاك الخصوصية", "الخصوصية", "خصوصية", "خصوصية العامل", "خصوصية الموظف")),
+        ("privacy_violation", ("انتهاك حرمة الحياة الخاصة", "حرمة الحياة الخاصة", "الحياة الخاصة", "انتهاك الخصوصية", "الخصوصية", "خصوصية", "خصوصيتك", "خصوصيته", "خصوصيتها", "خصوصيات", "خصوصية العامل", "خصوصية الموظف")),
         ("unauthorized_recording", ("تصوير", "التصوير", "كاميرا", "تسجيل دون إذن", "تصوير دون إذن", "خصوصية الصورة")),
         ("harassment", ("تحرش", "مضايقة", "ملاحقة")),
         ("identity_impersonation", ("انتحال الشخصية", "انتحال", "تزوير الهوية", "هوية مزورة", "identity theft", "impersonation", "identity fraud")),
