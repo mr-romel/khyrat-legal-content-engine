@@ -103,6 +103,16 @@ def row_to_dict(row: list[str], headers: list[str] | None = None) -> dict[str, s
     return {header: str(padded[i] or "") for i, header in enumerate(active_headers) if header}
 
 
+def _column_number(label: str) -> int:
+    """Convert an A1 column label to its 1-based numeric capacity."""
+    number = 0
+    for char in str(label).upper():
+        if not ("A" <= char <= "Z"):
+            raise ValueError(f"Invalid spreadsheet column label: {label}")
+        number = number * 26 + ord(char) - 64
+    return number
+
+
 def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") -> None:
     """Initialize headers or append required columns without reordering live data."""
     existing = get_values(service, spreadsheet_id, f"{sheet_name}!A1:{SHEET_LAST_COLUMN}1")
@@ -116,8 +126,8 @@ def ensure_headers(service, spreadsheet_id: str, sheet_name: str = "Content") ->
                 merged.append(header)
     if merged == live:
         return
-    if len(merged) > 78:
-        raise RuntimeError(f"Cannot append required sheet headers: {len(merged)} columns exceed A:BZ.")
+    if len(merged) > _column_number(SHEET_LAST_COLUMN):
+        raise RuntimeError(f"Cannot append required sheet headers: {len(merged)} columns exceed A:{SHEET_LAST_COLUMN}.")
     _execute_with_retry(
         lambda: service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
