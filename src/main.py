@@ -46,7 +46,7 @@ def _image_provider_for_attempt(
     available = [provider for provider in IMAGE_PROVIDER_ROTATION if not is_image_provider_blocked(provider)]
     if not available:
         raise ImageGenerationError("IMAGE_PROVIDER_CIRCUIT_OPEN: no image provider is currently available.")
-    index = max(0, min(int(attempt_number) - 1, len(available) - 1))
+    index = (max(1, int(attempt_number)) - 1) % len(available)
     return available[index]
 
 FACEBOOK_COMMENT_LIMIT = 7
@@ -572,8 +572,13 @@ def _generate_if_needed(*, service, config, sheet_name, row_number, row, current
                 if regeneration_notes else visual_description
             )
             try:
-                image_provider = _image_provider_for_attempt(image_qa_attempt)
-                print(f"IMAGE PROVIDER ROTATION: attempt={image_qa_attempt} provider={image_provider}")
+                try:
+                    recovery_offset = max(0, int(str(row.get("Recovery Attempts Total", "0") or "0"))) * IMAGE_QA_ATTEMPTS_PER_RUN
+                except (TypeError, ValueError):
+                    recovery_offset = 0
+                provider_attempt = image_qa_attempt + recovery_offset
+                image_provider = _image_provider_for_attempt(provider_attempt)
+                print(f"IMAGE PROVIDER ROTATION: local_attempt={image_qa_attempt} recovery_offset={recovery_offset} provider_attempt={provider_attempt} provider={image_provider}")
                 create_legal_image(
                     topic=topic,
                     image_brief=attempt_brief,
