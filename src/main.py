@@ -1255,11 +1255,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
         diagnostic = f"تعذر تحديث حالة الصف بعد محاولة التنفيذ: {type(state_read_exc).__name__}: {state_read_exc}"
         print(f"PIPELINE AUTO-RECOVERY: {diagnostic}")
         notify(
-            f"🟠 تعذر قراءة حالة الصف بعد محاولة الاسترداد.
-"
-            f"الصف: {row_number}
-الموضوع: {row.get('الموضوع', '')}
-"
+            f"🟠 تعذر قراءة حالة الصف بعد محاولة الاسترداد.\n"
+            f"الصف: {row_number}\nالموضوع: {row.get('الموضوع', '')}\n"
             f"التشخيص: {diagnostic[:900]}"
         )
         return
@@ -1279,11 +1276,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     if _linkedin_token_blocked(latest) or "BLOCKED_TOKEN" in error.upper():
         diagnostic = error or "LinkedIn authorization rejected; credential renewal is required."
         notify(
-            f"🟠 الاسترداد الآلي متوقف بسبب رفض صلاحية LinkedIn.
-"
-            f"الصف: {row_number}
-الموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}
-"
+            f"🟠 الاسترداد الآلي متوقف بسبب رفض صلاحية LinkedIn.\n"
+            f"الصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\n"
             f"السبب: {diagnostic[:900]}"
         )
         return
@@ -1316,13 +1310,9 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
     # cycles, and once per distinct failure signature. The queue keeps retrying.
     if count >= 3 and last_alert != error:
         notify(
-            f"🚨 الصف ما زال قيد الاسترداد الآلي وسيُعاد تلقائيًا.
-"
-            f"الصف: {row_number}
-الموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}
-"
-            f"دورات الاسترداد: {count}
-التشخيص: {error[:1000]}"
+            f"🚨 الصف ما زال قيد الاسترداد الآلي وسيُعاد تلقائيًا.\n"
+            f"الصف: {row_number}\nالموضوع: {latest.get('الموضوع', row.get('الموضوع', ''))}\n"
+            f"دورات الاسترداد: {count}\nالتشخيص: {error[:1000]}"
         )
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
