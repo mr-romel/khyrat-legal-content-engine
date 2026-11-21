@@ -11,6 +11,19 @@ def test_topic_family_recognizes_core_reel_subjects():
     assert _topic_family("فسخ عقد الإيجار") == "rent"
     assert _topic_family("نزاع على إيصال أمانة") == "payments"
 
+def test_workplace_privacy_topic_is_not_misclassified_as_employment_or_criminal():
+    from reel_pipeline import _visual_topic_family, post_visual_terms
+
+    topic = "انتهاك حرمة الحياة الخاصة"
+    post = "انتهاك خصوصية الموظف في مكان العمل قد يثير مسؤولية قانونية بحسب وسيلة الاعتداء والوقائع."
+    script = "لو خصوصيتك اتنتهكت في مكان العمل، لازم تميز بين الواقعة وطريقة الحصول على المعلومات."
+    assert _visual_topic_family(topic) == "privacy_violation"
+    assert _visual_topic_family(post) == "privacy_violation"
+    assert _visual_topic_family(script) == "privacy_violation"
+    scenes = post_visual_terms(post, topic)
+    assert len(scenes) == 8
+    assert all(any(term in scene.lower() for term in ("privacy", "office", "personal", "employee", "confidential", "workplace")) for scene in scenes)
+
 
 def test_video_description_rejects_narration_from_another_subject():
     with pytest.raises(ValueError, match="Video metadata topic mismatch"):
