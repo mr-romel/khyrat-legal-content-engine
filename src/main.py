@@ -1316,6 +1316,8 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
               row=latest, event="ATTEMPT_FINISHED", failure_class=failure_class,
               strategy=strategy, attempt=attempt_total, outcome="FAILED",
               reason=error, duration=duration, next_action=next_action)
+    if failure_class == "AUTHORIZATION":
+        notify(f"🟠 الاسترداد الآلي متوقف لحين تجديد الصلاحية.\\nالصف: {row_number}\\nالموضوع: {latest.get('الموضوع', '')}\\nالسبب: {error[:900]}")
     if not error:
         error = "UNCLASSIFIED_FAILURE: الصف فشل دون تسجيل سبب؛ تمت جدولة إعادة المحاولة تلقائيًا."
     previous_error = str(row.get("آخر خطأ", "") or "").strip()
