@@ -154,7 +154,7 @@ jobs:
               # scene pack exists; do not broadly retry arbitrary KeyError failures.
               retryable_scene_family_failure = (
                   status == "FAILED"
-                  and last_error.strip() == "KeyError: 'privacy_violation'"
+                  and last_error.strip() in {"'privacy_violation'", "KeyError: 'privacy_violation'"}
                   and retry_count < 3
               )
               pinned_attempt_marker = f"source-id-recovery-used:{recovery_attempt_id}".casefold()
