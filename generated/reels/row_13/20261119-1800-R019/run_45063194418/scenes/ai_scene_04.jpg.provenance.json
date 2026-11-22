@@ -1,0 +1,26 @@
+{
+  "topic": "تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علام",
+  "provider": "POLLINATIONS_IMAGE_GENERATION",
+  "model": "black-forest-labs/flux.1-schnell",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A closed employee file beside a small stack of blank leave-request forms, no people or legible text.\nLEGAL TOPIC: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانو\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علامات تحذيرية عشان تتأكد إن موقفك سليم: 1️⃣ هل كان من الواجب على الجهة اتخاذ قرار؟ القانون بيعتبر الامتناع قراراً إدارياً فقط لو كان فيه نص قانوني أو لائحة بتلزم الجهة باتخاذ إجراء مع\nCOMPOSITION FORMAT: portrait 9:16; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid generic legal clichés and unrelated decoration. No added text or labels; keep the main subj\nPOST-SPECIFIC VISUAL VARIATION: camera: wide environmental view with the relevant action or place as the focal point. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 43ac0264b18b",
+  "prompt_sha256": "6aceba99ba2202ffb7fba66be774875884b9748ad8e8cbaf1b1f7b4d73d64c71",
+  "image_sha256": "842586f74aaea4c3afa4d49f818beb9d8350090b26e5b6821ad31e3e6279840e",
+  "image_path": "generated/reels/row_13/20261119-1800-R019/run_45063194418/scenes/ai_scene_04.jpg",
+  "visual_description": "A closed employee file beside a small stack of blank leave-request forms, no people or legible text.",
+  "aspect_ratio": "9:16",
+  "width": 576,
+  "height": 1024,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 6,
+  "qa_issues": [
+    "Prominent, legible (albeit gibberish) generated text appears on the document, which violates the brand overlay and generated text rules.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60.",
+    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  ],
+  "qa_checked_image_sha256": "842586f74aaea4c3afa4d49f818beb9d8350090b26e5b6821ad31e3e6279840e"
+}

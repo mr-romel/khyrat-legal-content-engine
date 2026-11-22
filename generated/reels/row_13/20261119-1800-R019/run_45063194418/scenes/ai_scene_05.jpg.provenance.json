@@ -1,0 +1,24 @@
+{
+  "topic": "تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علام",
+  "provider": "POLLINATIONS_IMAGE_GENERATION",
+  "model": "black-forest-labs/flux.1-schnell",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A modern HR folder beside a desk calendar and capped pen, clean still-life composition.\nLEGAL TOPIC: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانو\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علامات تحذيرية عشان تتأكد إن موقفك سليم: 1️⃣ هل كان من الواجب على الجهة اتخاذ قرار؟ القانون بيعتبر الامتناع قراراً إدارياً فقط لو كان فيه نص قانوني أو لائحة بتلزم الجهة باتخاذ إجراء مع\nCOMPOSITION FORMAT: portrait 9:16; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid generic legal clichés and unrelated decoration. No added text or labels; keep the main subject clearly \nPOST-SPECIFIC VISUAL VARIATION: camera: three-quarter desk view, layered foreground and background, asymmetric layout. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 106de351e4a3",
+  "prompt_sha256": "a372ba6cb38805a7a8b0eb775c6efc30bf22f91f34869e4f1b5edec6b0cf5832",
+  "image_sha256": "2b10ca7572dddce9279893ad1a370e0ca474ba6bee7216db7bddddb21eafa707",
+  "image_path": "generated/reels/row_13/20261119-1800-R019/run_45063194418/scenes/ai_scene_05.jpg",
+  "visual_description": "A modern HR folder beside a desk calendar and capped pen, clean still-life composition.",
+  "aspect_ratio": "9:16",
+  "width": 576,
+  "height": 1024,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 9,
+  "qa_relevance_score": 9,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "2b10ca7572dddce9279893ad1a370e0ca474ba6bee7216db7bddddb21eafa707"
+}
