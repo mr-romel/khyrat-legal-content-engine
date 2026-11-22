@@ -59,6 +59,7 @@
     "480475505439479913",
     "4806758141991320350",
     "4928050932030450928",
+    "4946000038990439803",
     "4954305849796016127",
     "4969206376082952344",
     "5053316777459558435",
@@ -90,6 +91,7 @@
     "6459880917883553270",
     "6527861832989515458",
     "6653899844760583137",
+    "6683397613033704727",
     "6801354324269877270",
     "6915484792621498395",
     "7104635103250080097",
@@ -109,6 +111,7 @@
     "765737678327244527",
     "7734357662502751271",
     "7786000847918796809",
+    "7861520256168786610",
     "7906937206244270794",
     "7918860992815100064",
     "7999624151497085617",
@@ -137,24 +140,8 @@
     "951951017369043591",
     "961694497190134881"
   ],
-  "failed_ids": [
-    {
-      "id": "4946000038990439803",
-      "title": "الفصل التعسفي بعد الخدمة الطويلة في القانون المصري",
-      "error": "Openverse returned no openly licensed scene images for: contemporary this specific situation"
-    },
-    {
-      "id": "6683397613033704727",
-      "title": "عقوبة انتهاك حرمة الحياة الخاصة في مصر وفقاً للقانون",
-      "error": "Openverse returned no openly licensed scene images for: contemporary this specific situation"
-    },
-    {
-      "id": "7861520256168786610",
-      "title": "حيازة السلاح بدون ترخيص في مصر: الإجراءات والمسؤولية",
-      "error": "Openverse returned no openly licensed scene images for: contemporary this specific situation"
-    }
-  ],
-  "last_batch_success_count": 0,
-  "last_title": "انتحال الشخصية في مصر: 4 خطوات قبل تقديم البلاغ أو الدعوى",
-  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/11/blog-post_280.html"
+  "failed_ids": [],
+  "last_batch_success_count": 3,
+  "last_title": "ضبط السلاح بدون ترخيص في مصر: الإجراءات الجنائية والمسؤولية",
+  "last_post_url": "https://askmahmoudkhyrat.blogspot.com/2026/11/blog-post_20.html"
 }
