@@ -1,0 +1,50 @@
+{
+  "cache_key": "9adba36d4cc51b6fa91483dd918abf799d04b2eb7c56d4878c660c576fba6fa2",
+  "image_sha256": "fc10219f4cbec902485ee0a35fe26b3b638d431ece341bb00c7aecbd712f2cb4",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 8,
+    "relevance_score": 6,
+    "reference_score": 100,
+    "overall_score": 7,
+    "text_detected": true,
+    "detected_text": [
+      "Payroll"
+    ],
+    "composition_findings": [
+      "The image is composed well for the 9:16 format.",
+      "The focal subjects are clearly visible and well-framed."
+    ],
+    "relevance_findings": [
+      "The visual brief explicitly requested 'no visible numbers, names, or writing'. The generated image contains the prominent word 'Payroll' at the top of the document, which violates the negative constraint."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Presence of generated text ('Payroll') which contradicts the explicit visual brief constraint 'no visible numbers, names, or writing'.",
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "regeneration_prompt": "A professional photo of a plain, unmarked payroll folder lying on a wooden desk next to a calculator and a bank card. No text, no writing, no names, no numbers, no labels on the paper or folder. Clean, minimalist legal aesthetic, 9:16 aspect ratio.",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4",
+    "qa_policy_override": "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  },
+  "topic": "تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علام",
+  "image_brief": "A payroll folder beside a calculator and a bank card, no visible numbers, names, or writing."
+}

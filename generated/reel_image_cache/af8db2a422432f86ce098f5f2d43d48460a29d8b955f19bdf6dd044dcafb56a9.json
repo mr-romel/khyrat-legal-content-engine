@@ -1,0 +1,49 @@
+{
+  "cache_key": "af8db2a422432f86ce098f5f2d43d48460a29d8b955f19bdf6dd044dcafb56a9",
+  "image_sha256": "2b10ca7572dddce9279893ad1a370e0ca474ba6bee7216db7bddddb21eafa707",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 10,
+    "relevance_score": 9,
+    "reference_score": 100,
+    "overall_score": 9,
+    "text_detected": true,
+    "detected_text": [
+      "HR"
+    ],
+    "composition_findings": [
+      "The image is composed professionally for a 9:16 portrait format.",
+      "The subject (HR folder and calendar) is clearly centered and well-framed."
+    ],
+    "relevance_findings": [
+      "The image directly adheres to the visual brief (HR folder and calendar) and provides a clean, professional backdrop for the legal topic of 'administrative silence' regarding formal requests.",
+      "The scene effectively communicates the concept of pending time/waiting on an administrative body."
+    ],
+    "reference_findings": [
+      "No issues identified."
+    ],
+    "issues": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "regeneration_prompt": "None",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
+  },
+  "topic": "تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علام",
+  "image_brief": "A modern HR folder beside a desk calendar and capped pen, clean still-life composition."
+}

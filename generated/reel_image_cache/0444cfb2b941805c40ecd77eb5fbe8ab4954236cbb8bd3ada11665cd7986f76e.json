@@ -1,0 +1,53 @@
+{
+  "cache_key": "0444cfb2b941805c40ecd77eb5fbe8ab4954236cbb8bd3ada11665cd7986f76e",
+  "image_sha256": "e62691bcbbadf399d6d9893747c3db68e4bba2924ef76520ebbd4bf8110914f5",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 9,
+    "relevance_score": 10,
+    "reference_score": 100,
+    "overall_score": 9,
+    "text_detected": true,
+    "detected_text": [
+      "NUAX TEXT MEEN YTM",
+      "1 2 1 4 1 5",
+      "14 5 25 16 6 11 17",
+      "24 267 26 29 21 28",
+      "20 261 201 21 23 23"
+    ],
+    "composition_findings": [
+      "The image is well-composed in a 9:16 portrait orientation.",
+      "The focal point is clear and effectively conveys the passage of time relevant to the legal delay topic."
+    ],
+    "relevance_findings": [
+      "The visual accurately represents the theme of time passing (calendar) and legal administrative procedures (folders/documents), which directly supports the legal topic of administrative silence (امتناع الإدارة)."
+    ],
+    "reference_findings": [
+      "The visual aligns with the brief's request for a desk calendar and folder."
+    ],
+    "issues": [
+      "The calendar contains gibberish/non-sensical numbers and text. Per the instructions, minor generated text on a calendar is acceptable as it is contextual to the object, but it is noted as detected.",
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "regeneration_prompt": "None",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
+  },
+  "topic": "تخيل إنك قدمت طلب لجهة إدارية، ومر الوقت من غير ما يجيلك رد، لا بالقبول ولا بالرفض، ده اللي بنسميه قانوناً امتناع الإدارة، وهو في نظر القانون بيتعامل معاملة القرار الإداري السلبي اللي ممكن تطعن عليه، بس قبل ما تاخد خطوة قانونية، راقب 3 علام",
+  "image_brief": "A close-up of a simple desk calendar and an attendance-record folder, all dates and text out of focus."
+}
