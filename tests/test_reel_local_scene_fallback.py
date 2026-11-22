@@ -88,3 +88,10 @@ def test_tts_fallback_chain_uses_only_approved_neural_providers(monkeypatch, tmp
     result = reel_pipeline.generate_reel_narration_with_fallbacks("key", {}, "نص تجريبي", [], tmp_path / "voice.mp3")
     assert result == tmp_path / "voice.mp3"
     assert calls == ["gemini", "google"]
+
+
+def test_recovery_queue_retries_only_the_fixed_privacy_scene_family_keyerror():
+    workflow = (ROOT / ".github" / "workflows" / "reel-regenerate-rejected.yml").read_text(encoding="utf-8")
+    assert 'last_error.strip() == "KeyError: \'privacy_violation\'"' in workflow
+    assert "retry_count < 3" in workflow
+    assert "retryable_scene_family_failure" in workflow
