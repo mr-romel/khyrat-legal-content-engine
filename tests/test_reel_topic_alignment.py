@@ -138,6 +138,25 @@ def test_employment_classifier_still_recognizes_actual_employment_terms():
     assert _visual_topic_family("العمل دون عقد مكتوب") == "employment"
 
 
+def test_privacy_violation_scene_pack_is_complete_and_topic_specific():
+    from reel_pipeline import post_visual_terms, topic_visual_terms
+
+    topic = "انتهاك حرمة الحياة الخاصة"
+    scenes = post_visual_terms(
+        "يجب الحفاظ على البيانات الشخصية وعدم إفشائها أو تداولها دون سند قانوني.",
+        topic,
+    )
+    deterministic_scenes = topic_visual_terms(topic)
+    assert len(scenes) == 8
+    assert len(set(scenes)) == 8
+    assert len(deterministic_scenes) == 8
+    assert all(
+        any(term in scene.lower() for term in ("privacy", "personal", "private", "confidential", "data", "secure", "security"))
+        for scene in scenes
+    )
+    assert not any("police complaint folder" in scene.lower() for scene in scenes)
+
+
 def test_privacy_family_precedes_generic_criminal_wording():
     from reel_pipeline import _visual_topic_family
 
