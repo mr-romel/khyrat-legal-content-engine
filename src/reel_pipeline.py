@@ -696,6 +696,16 @@ _VISUAL_SCENES = {
         "A secure desk scene with a sealed digital evidence envelope, a fictional identity card, and a smartphone showing a blurred login notification, focused on tracing an impersonating account.",
         "A neutral identity-verification workstation with document scanner, camera, fictional ID card and fingerprint reader arranged clearly, contemporary documentary realism, no logos or legible text."
     ],
+    "privacy_violation": [
+        "A realistic contemporary home-office scene with a person reviewing privacy settings on a smartphone, screen fully blurred, emphasizing control over personal information, no logos or readable text.",
+        "A close-up of a secure laptop showing an abstract personal-data access dashboard with every label blurred, beside a closed confidential file folder, no readable text.",
+        "A person placing private documents into a locked office drawer, hands only, with no visible names, numbers, or legible writing.",
+        "A smartphone on a desk beside a sealed evidence envelope and a plain incident timeline sheet, illustrating preservation of evidence of a privacy breach, all text unreadable.",
+        "A contemporary apartment interior with a discreet security camera in the background and a person adjusting a privacy screen on a laptop, documentary realism, no identifiable faces.",
+        "A close-up of a phone displaying a blurred notification about an account privacy alert, beside a notebook with blank pages, no readable text or personal data.",
+        "A professional office scene showing a staff member securely shredding duplicate personal records, paper details fully unreadable, clean documentary photography.",
+        "A secure digital workspace with an encrypted external drive, closed personal-record folder and laptop showing abstract lock graphics only, no logos or legible text."
+    ],
     "secret_threat": [
         "A close-up of a smartphone receiving a threatening private message; all screen content blurred and unreadable, present-day home setting.",
         "A person carefully preserving the original threatening message and its timestamp on a smartphone.",
