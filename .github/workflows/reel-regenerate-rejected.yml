@@ -267,3 +267,4 @@ jobs:
           path: generated/reels/
           if-no-files-found: error
           retention-days: 14
+# Recovery compatibility note: Python str(KeyError('privacy_violation')) is exactly "'privacy_violation'".
