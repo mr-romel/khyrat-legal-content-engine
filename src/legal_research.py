@@ -609,6 +609,10 @@ def research_legal_topic(topic, existing=""):
     if any(term in normalized_for_seeds for term in ("انتهاء الخدمه", "انتهاء الخدمة", "انتهاء خدمه")):
         seed_urls.extend([
             (
+                "https://www.sccourt.gov.eg/DjangoPortalResources/Rules_Html/18013_44_2_1_2.html",
+                "المحكمة الدستورية العليا — حكم الدعوى رقم 2 لسنة 44 قضائية دستورية، يتضمن نقل نص المادة 69 من قانون الخدمة المدنية رقم 81 لسنة 2016 وأسباب انتهاء الخدمة",
+            ),
+            (
                 "https://assets.mof.gov.eg/filesbd691d70-4e8d-11eb-97af-37aa1e0e70a6.pdf",
                 "وزارة المالية — دليل رسمي يورد السند القانوني لإنهاء الخدمة، ويشير صراحة إلى المادة 69 من قانون الخدمة المدنية رقم 81 لسنة 2016 والمواد 168 إلى 180 من لائحته التنفيذية",
             ),
