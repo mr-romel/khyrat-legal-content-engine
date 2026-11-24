@@ -181,7 +181,8 @@ jobs:
                   )
                   if status == "PUBLISHED" and not metadata_topic_aligned:
                       print(f"Skipping legacy metadata backfill for row={n}: topic_family={row_topic_family}, narration_family={narration_family}; no descriptions will be overwritten.")
-                  comments_pending = status == "PUBLISHED" and metadata_topic_aligned and (
+                  article_ready = valid_blogger_article_url(str(row.get("Blogger URL","")).strip())
+                  comments_pending = status == "PUBLISHED" and metadata_topic_aligned and article_ready and (
                       (bool(fb_id) and fb_comment_status not in {"PUBLISHED", "BLOCKED_ACCESS"})
                       or (youtube_management_ready and bool(yt_id) and yt_comment_status not in {"PUBLISHED", "BLOCKED_ACCESS"})
                   )
