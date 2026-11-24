@@ -7,6 +7,7 @@ on:
       - ".github/EMERGENCY_RUN_NOW.md"
       - ".github/SAFE_RUN_NOW.md"
       - ".github/REEL_CATCH_UP_NOW.md"
+      - ".github/workflows/publish-scheduled.yml"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -34,7 +35,7 @@ env:
   GEMINI_PRIMARY_ATTEMPTS: "2"
   GEMINI_FALLBACK_ATTEMPTS: "1"
   CLOUDFLARE_IMAGE_STEPS: "20"
-  # Manual SAFE_RUN_NOW is deliberately one-row only; scheduled runs retain catch-up behavior.
+  # Manual SAFE_RUN_NOW is one-row only; REEL_CATCH_UP_NOW authorizes one oldest non-terminal retry without republishing.
   KHYRAT_CATCH_UP_ALL_DUE: ${{ github.event_name == 'push' && github.event.head_commit.message == 'SAFE_RUN_NOW' && 'false' || 'true' }}
 
 jobs:
