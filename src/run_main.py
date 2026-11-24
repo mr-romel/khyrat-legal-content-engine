@@ -337,11 +337,22 @@ def _single_telegram_notify(text: str) -> None:
             send_single_status_message(text=compact)
             return
         if compact.startswith("✅"):
-            marker = "تم نشر:"
+            marker = "الموضوع:"
             topic = compact.split(marker, 1)[1].split("\n", 1)[0].strip() if marker in compact else "غير متاح"
             post = str(_latest_editorial.get("facebook_post", "")).strip()
+            published_links = re.findall(r"https?://[^\s<>()]+", compact)
+            published_links = [url.rstrip(".,؛،") for url in published_links]
+            link_report = (
+                "روابط المنشورات المؤكدة:\n" + "\n".join(published_links)
+                if published_links else "لم تُرفق روابط النشر في إشعار النجاح."
+            )
             if post:
-                send_single_publication_message(topic=topic, post=post, legal_sources=str(_latest_editorial.get("legal_sources", "")), status_text="Facebook + LinkedIn: تم النشر بنجاح")
+                send_single_publication_message(
+                    topic=topic,
+                    post=post,
+                    legal_sources=str(_latest_editorial.get("legal_sources", "")),
+                    status_text="تم التحقق من النشر على فيسبوك ولينكدإن.\n" + link_report,
+                )
             else:
                 send_single_status_message(text=compact)
             return
