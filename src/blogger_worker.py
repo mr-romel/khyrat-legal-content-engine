@@ -671,7 +671,13 @@ def main() -> int:
                 f"BLOGGER_SOURCE_IMAGE_BLOCKED: Image Mode={image_mode or 'MISSING'}; "
                 f"Image QA Status={image_qa or 'MISSING'}. A topic-specific QA-approved image is required."
             )
-            _mark_blogger_failed(service, config, sheet_name, row_number, reason)
+            # Historical social posts are not today's Blogger candidates. Do not
+            # write a failure cell for every old row on each scheduled poll; that
+            # creates unnecessary Sheets traffic and can exhaust the 60/min quota.
+            if parse_date(row.get("تاريخ النشر", "")) == datetime.now(ZoneInfo("Africa/Cairo")).date():
+                _mark_blogger_failed(service, config, sheet_name, row_number, reason)
+            else:
+                print(f"Blogger historical row left unchanged: row={row_number}; {reason}")
             print(reason)
             continue
         candidates.append((row_number, row))
