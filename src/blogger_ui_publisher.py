@@ -49,6 +49,29 @@ def _blog_id_from_url(url: str) -> str:
     return match.group(1) if match else ""
 
 
+def _blog_id_from_public_feed(blog_url: str) -> str:
+    """Resolve Blogger's numeric blog ID from its public JSON feed without UI guessing."""
+    base = str(blog_url or "").strip().rstrip("/")
+    if not base.startswith("https://"):
+        return ""
+    for feed_type in ("posts", "pages"):
+        try:
+            response = requests.get(
+                f"{base}/feeds/{feed_type}/default",
+                params={"alt": "json", "max-results": "1"},
+                headers={"User-Agent": "Khyrat-Legal-Content-Engine/1.0"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            feed_id = str((response.json().get("feed") or {}).get("id", {}).get("$t", "")).strip()
+            match = re.search(r"(?:^|:)blog-(\\d+)$", feed_id)
+            if match:
+                return match.group(1)
+        except Exception as exc:
+            print(f"Blogger public feed blog-ID discovery unavailable for {feed_type}: {exc}")
+    return ""
+
+
 def _first_visible(page, selectors):
     """Return the first visible match, not merely the first (possibly hidden) match."""
     for selector in selectors:
