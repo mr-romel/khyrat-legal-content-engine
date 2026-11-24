@@ -1219,7 +1219,12 @@ def publish_page_ui(
 
 
 def resolve_blog_id_ui() -> str:
-    """Resolve the current Blogger blog ID from the authenticated UI without OAuth API tokens."""
+    """Resolve the current Blogger blog ID from its public feed before using the authenticated UI."""
+    public_blog_url = os.getenv("BLOGGER_URL", "https://askmahmoudkhyrat.blogspot.com/").strip()
+    public_feed_id = _blog_id_from_public_feed(public_blog_url)
+    if public_feed_id:
+        print("Blogger site setup: blog ID resolved from the public feed.")
+        return public_feed_id
     state_path = _storage_state_path()
     try:
         with sync_playwright() as playwright:
