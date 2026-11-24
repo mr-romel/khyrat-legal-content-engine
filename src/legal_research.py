@@ -606,6 +606,21 @@ def research_legal_topic(topic, existing=""):
     # still fetched live and must pass the same text/topic evidence checks below.
     normalized_for_seeds = _norm_legal_text(topic)
     seed_urls = []
+    if any(term in normalized_for_seeds for term in ("انتهاء الخدمه", "انتهاء الخدمة", "انتهاء خدمه")):
+        seed_urls.extend([
+            (
+                "https://www.mwri.gov.eg/wp-content/uploads/2019/12/Civil-Service-Law.pdf",
+                "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، الباب الثامن انتهاء الخدمة والمواد 69 إلى 72، نسخة منشورة على موقع وزارة الموارد المائية والري",
+            ),
+            (
+                "https://www.esa.gov.eg/files/laws/10.pdf",
+                "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، الباب الثامن انتهاء الخدمة والمواد 69 إلى 72، نسخة منشورة على موقع وكالة الفضاء المصرية",
+            ),
+            (
+                "https://www.nosi.gov.eg/ar/Lists/NOSILibrary/قانون%20الخدمة%20المدنية%2081%20لسنة%202016.pdf",
+                "الهيئة القومية للتأمين الاجتماعي — النص المنشور لقانون الخدمة المدنية رقم 81 لسنة 2016، الباب الثامن انتهاء الخدمة",
+            ),
+        ])
     if "انتحال" in normalized_for_seeds:
         seed_urls.extend([
             ("https://aca.gov.eg/News/1550.aspx", "الرقابة الإدارية: انتحال صفة الموظفين العموميين"),
