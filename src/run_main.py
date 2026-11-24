@@ -776,16 +776,23 @@ def _smart_main() -> None:
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
     force_next_ready = os.getenv("KHYRAT_FORCE_NEXT_READY", "").strip().lower() in {"1", "true", "yes", "on"}
     if not candidates and force_next_ready:
-        # SAFE_RUN_NOW/manual dispatch explicitly authorizes one immediate
-        # publication even when the next scheduled slot is in the future.
-        # Select exactly one earliest non-terminal row; never touch PUBLISHED
-        # or CANCELLED rows and never clear existing platform IDs.
+        # A dedicated legal-source recovery marker may reopen only the exact
+        # termination-of-service row whose primary-source retrieval path was
+        # just repaired. It must never select an older unrelated failed row.
+        force_legal_source_retry = os.getenv("KHYRAT_FORCE_LEGAL_SOURCE_RETRY", "").strip().lower() in {"1", "true", "yes", "on"}
         forced_ready = []
         for row_number, candidate_row in enumerate(rows, start=2):
             status = str(candidate_row.get("الحالة", "")).strip().upper()
-            if status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
+            topic = str(candidate_row.get("الموضوع", "") or "").strip()
+            if force_legal_source_retry:
+                failure_class = str(candidate_row.get("Recovery Failure Class", "") or "").strip().upper()
+                if status not in {"FAILED", "PARTIAL_FAILED"} or failure_class != "LEGAL_EVIDENCE":
+                    continue
+                if "انتهاء الخدمة" not in topic and "انتهاء الخدمه" not in topic:
+                    continue
+            elif status not in {"READY", "FAILED", "PARTIAL_FAILED"}:
                 continue
-            if not str(candidate_row.get("الموضوع", "")).strip():
+            if not topic:
                 continue
             target = _smart_target_datetime(candidate_row)
             forced_ready.append((row_number, candidate_row, target))
@@ -800,12 +807,15 @@ def _smart_main() -> None:
             row_number, candidate_row, target = forced_ready[0]
             candidates = [(row_number, candidate_row)]
             print(
-                "FORCE_NEXT_READY enabled by explicit manual run: publishing exactly one "
-                f"earliest non-terminal row ahead of schedule; row={row_number}, "
+                "FORCE_NEXT_READY enabled by explicit manual run: processing exactly one "
+                f"eligible row; legal_source_only={force_legal_source_retry}; row={row_number}, "
                 f"ID={candidate_row.get('ID', '')}, scheduled={target.isoformat() if target else 'unscheduled'}."
             )
         else:
-            print("FORCE_NEXT_READY enabled, but no eligible READY/FAILED row exists.")
+            print(
+                "FORCE_NEXT_READY enabled, but no row matches the requested safe recovery scope "
+                f"(legal_source_only={force_legal_source_retry})."
+            )
     reel_recovery_row = None
     if not candidates and force_due:
         forced = []
