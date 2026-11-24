@@ -664,7 +664,17 @@ def main() -> int:
         image_qa = str(row.get("Image QA Status", "") or "").strip().upper()
         blogger_image_url = str(row.get("Blogger Image URL", "") or "").strip()
         blogger_image_qa = str(row.get("Blogger Image QA Status", "") or "").strip().upper()
-        approved_image_states = {"PASS", "REPAIRED_SINGLE_GENERATION", "IMAGE_REPAIR_COMPLETE"}
+        approved_image_states = {
+            "PASS",
+            "REPAIRED_SINGLE_GENERATION",
+            "IMAGE_REPAIR_COMPLETE",
+            # These states mean semantic review retained a relevant image with
+            # non-blocking advisory warnings; they are not mismatch/distortion
+            # rejections and are consistent with the project's visual policy.
+            "ACCEPTED_WITH_WARNINGS",
+            "QA_WARNING_NON_BLOCKING",
+            "QA_WARNING_RETAINED",
+        }
         shared_image_approved = image_qa in approved_image_states and "FALLBACK" not in image_mode
         blogger_image_approved = blogger_image_qa == "PASS" and blogger_image_url.startswith("https://")
         if not shared_image_approved and not blogger_image_approved:
