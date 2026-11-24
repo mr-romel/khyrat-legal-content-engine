@@ -699,21 +699,16 @@ def main() -> int:
         except Exception:
             return 0.0
 
-    today = today_cairo.isoformat()
-    today_prefix = today.replace("-", "") + "-"
-    today_candidates = [
-        item for item in candidates
-        if (
-            str(item[1].get("ID", "")).strip().startswith(today_prefix)
-            or parse_date(item[1].get("تاريخ النشر", "")) == today_cairo
-        )
-    ]
-    if not today_candidates:
-        print(f"Blogger worker: no published Sheet row for today ({today}); refusing to publish an older row.")
-        return 0
-    candidates = today_candidates
-    print(f"Blogger: publishing only today's scheduled row(s) ({today}).")
+    # Social catch-up may publish a previously scheduled row today. Blogger must
+    # follow the newest actually-published social row, not require its original
+    # schedule date to equal today's date. The PUBLISHED + not-yet-blogged +
+    # topic-image + legal-source gates above remain mandatory.
     candidates.sort(key=_recent_key, reverse=True)
+    print(
+        "Blogger: selecting newest eligible social-published row; "
+        f"eligible_candidates={len(candidates)}; "
+        f"selected_schedule_date={str(candidates[0][1].get('تاريخ النشر', '')).strip() if candidates else 'NONE'}."
+    )
     row_number, row = candidates[0]
     update_row(service, config["sheet_id"], sheet_name, row_number, {
         "Blogger Status": "PROCESSING",
