@@ -64,7 +64,7 @@ def _blog_id_from_public_feed(blog_url: str) -> str:
             )
             response.raise_for_status()
             feed_id = str((response.json().get("feed") or {}).get("id", {}).get("$t", "")).strip()
-            match = re.search(r"(?:^|:)blog-(\\d+)$", feed_id)
+            match = re.search(r"(?:^|:)blog-(\d+)$", feed_id)
             if match:
                 return match.group(1)
         except Exception as exc:
