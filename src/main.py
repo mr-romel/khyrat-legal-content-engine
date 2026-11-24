@@ -1264,11 +1264,13 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
               row=working_row, event="ATTEMPT_STARTED", failure_class=failure_class,
               strategy=strategy, attempt=attempt_total, outcome="RUNNING",
               reason=prior_error, next_action=next_action)
+    pipeline_error = ""
     try:
         _process_row_once(service=service, config=config, sheet_name=sheet_name,
                           row_number=row_number, row=working_row, current=current)
     except Exception as pipeline_exc:
         diagnostic = f"UNHANDLED_PIPELINE_EXCEPTION: {type(pipeline_exc).__name__}: {pipeline_exc}"
+        pipeline_error = diagnostic
         print(f"PIPELINE AUTO-RECOVERY: row={row_number}; {diagnostic}")
         try:
             update_row(service, config["sheet_id"], sheet_name, row_number, {
