@@ -14,7 +14,7 @@ MAX_SOURCE_CHARS=250000
 COURT=("cc.gov.eg","www.cc.gov.eg","sccourt.gov.eg","www.sccourt.gov.eg")
 ADMIN=("esc.gov.eg","www.esc.gov.eg","stg.esc.gov.eg")
 OFFICIAL_GOVERNMENT=("aca.gov.eg","www.aca.gov.eg","sis.gov.eg","www.sis.gov.eg","caoa.gov.eg","www.caoa.gov.eg","escc.gov.eg","www.escc.gov.eg")
-OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg","mwri.gov.eg")
+OFFICIAL_LAWS=("fra.gov.eg","mof.gov.eg","elpai.idsc.gov.eg","gafi.gov.eg","eta.gov.eg","nosi.gov.eg","moi.gov.eg","cabinet.gov.eg","presidency.eg","moj.gov.eg","labour.gov.eg","parliament.gov.eg","mfa.gov.eg","mohp.gov.eg","moa.gov.eg","customs.gov.eg","esa.gov.eg","mcit.gov.eg","mti.gov.eg","moss.gov.eg","mohesr.gov.eg","moe.gov.eg","mld.gov.eg","mped.gov.eg","cairo.gov.eg","mwri.gov.eg","drc.gov.eg")
 SECONDARY_LAWS=("manshurat.org","www.manshurat.org","lawhub.info","www.lawhub.info")
 LAWS=tuple(set(OFFICIAL_LAWS+SECONDARY_LAWS))
 
@@ -611,6 +611,10 @@ def research_legal_topic(topic, existing=""):
             (
                 "https://www.mwri.gov.eg/wp-content/uploads/2019/12/Civil-Service-Law.pdf",
                 "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، الباب الثامن انتهاء الخدمة والمواد 69 إلى 72، نسخة منشورة على موقع وزارة الموارد المائية والري",
+            ),
+            (
+                "https://drc.gov.eg/wp-content/uploads/2022/05/%D9%82%D8%A7%D9%86%D9%88%D9%86-%D8%A7%D9%84%D8%AE%D8%AF%D9%85%D8%A9-%D8%A7%D9%84%D9%85%D8%AF%D9%86%D9%8A%D8%A9-81-%D9%84%D8%B3%D9%86%D8%A9-2016.pdf",
+                "الجريدة الرسمية — قانون الخدمة المدنية رقم 81 لسنة 2016، الباب الثامن انتهاء الخدمة والمواد 69 إلى 72، نسخة منشورة على موقع حكومي",
             ),
             (
                 "https://www.esa.gov.eg/files/laws/10.pdf",
