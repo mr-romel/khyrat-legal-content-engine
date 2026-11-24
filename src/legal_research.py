@@ -728,6 +728,15 @@ def research_legal_topic(topic, existing=""):
 
     search_result_count = 0
     rejected_domain_count = 0
+    if seed_urls:
+        # Topic-specific official documents are fetched and text-verified below.
+        # Avoid spending minutes on unavailable HTML search providers when a
+        # primary-source retrieval path is already known for this subject.
+        print(
+            "Legal research: using topic-specific official source seeds first; "
+            f"external discovery skipped for this seeded topic ({len(seed_urls)} source(s))."
+        )
+        queries = []
     for query in queries:
         found = _search(query)
         search_result_count += len(found)
