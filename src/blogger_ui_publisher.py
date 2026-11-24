@@ -914,6 +914,10 @@ def publish_article_ui(
 
             target_blog_id = str(blog_id or "").strip()
             if not target_blog_id:
+                target_blog_id = _blog_id_from_public_feed(blog_url)
+                if target_blog_id:
+                    print("Blogger blog ID resolved from the public feed.")
+            if not target_blog_id:
                 page.goto("https://www.blogger.com/", wait_until="domcontentloaded")
                 page.wait_for_timeout(1200)
                 target_blog_id = _blog_id_from_url(page.url)
