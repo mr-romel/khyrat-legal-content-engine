@@ -609,6 +609,10 @@ def research_legal_topic(topic, existing=""):
     if any(term in normalized_for_seeds for term in ("انتهاء الخدمه", "انتهاء الخدمة", "انتهاء خدمه")):
         seed_urls.extend([
             (
+                "https://customs.gov.eg/Upload/ECAAdminace/5992cf23-5536-400c-afc0-cb67fa8d3eee.pdf",
+                "مصلحة الجمارك المصرية — دليل رسمي يشرح الباب الثامن انتهاء الخدمة بقانون الخدمة المدنية رقم 81 لسنة 2016، والمواد 69 إلى 70 والمواد 168 إلى 185 من اللائحة التنفيذية",
+            ),
+            (
                 "https://www.sccourt.gov.eg/DjangoPortalResources/Rules_Html/18013_44_2_1_2.html",
                 "المحكمة الدستورية العليا — حكم الدعوى رقم 2 لسنة 44 قضائية دستورية، يتضمن نقل نص المادة 69 من قانون الخدمة المدنية رقم 81 لسنة 2016 وأسباب انتهاء الخدمة",
             ),
