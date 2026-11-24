@@ -786,7 +786,14 @@ def _smart_main() -> None:
             topic = str(candidate_row.get("الموضوع", "") or "").strip()
             if force_legal_source_retry:
                 failure_class = str(candidate_row.get("Recovery Failure Class", "") or "").strip().upper()
-                if status not in {"FAILED", "PARTIAL_FAILED"} or failure_class != "LEGAL_EVIDENCE":
+                last_error = str(candidate_row.get("آخر خطأ", "") or "").strip().upper()
+                source_failure = (
+                    failure_class == "LEGAL_EVIDENCE"
+                    or "LEGAL_SOURCE_GATE_BLOCKED" in last_error
+                    or "LEGAL_CITATION_GATE_BLOCKED" in last_error
+                    or (failure_class == "UNKNOWN" and not last_error)
+                )
+                if status not in {"FAILED", "PARTIAL_FAILED"} or not source_failure:
                     continue
                 if "انتهاء الخدمة" not in topic and "انتهاء الخدمه" not in topic:
                     continue
