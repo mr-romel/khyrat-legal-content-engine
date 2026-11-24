@@ -55,7 +55,17 @@ def _execute_with_retry(request_factory: Callable[[], Any], operation: str) -> A
             if status not in TRANSIENT_STATUS_CODES or attempt >= MAX_RETRIES:
                 raise
 
-            delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
+            if status == 429:
+                # Sheets enforces a per-user read quota (commonly 60/minute).
+                # A short exponential retry only repeats the same quota window.
+                retry_after = getattr(exc.resp, "get", lambda *_: None)("retry-after")
+                try:
+                    delay = max(60.0, min(90.0, float(retry_after))) if retry_after else 60.0
+                except (TypeError, ValueError):
+                    delay = 60.0
+                delay += random.uniform(1.0, 8.0)
+            else:
+                delay = INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
             print(
                 f"Google Sheets temporary error ({status}) during {operation}; "
                 f"retry {attempt}/{MAX_RETRIES - 1} in {delay:.0f}s..."
