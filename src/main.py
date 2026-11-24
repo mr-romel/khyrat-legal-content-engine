@@ -1294,6 +1294,12 @@ def process_row(*, service, config, sheet_name: str, row_number: int, row: dict[
 
     status = str(latest.get("الحالة", "") or "").strip().upper()
     error = str(latest.get("آخر خطأ", "") or "").strip()
+    if not error and pipeline_error:
+        error = pipeline_error
+        try:
+            update_row(service, config["sheet_id"], sheet_name, row_number, {"آخر خطأ": error[:1500]})
+        except Exception as error_state_exc:
+            print(f"Recovery diagnostic persistence deferred (non-blocking): {error_state_exc}")
     duration = time.monotonic() - started
     if status not in {"FAILED", "PARTIAL_FAILED"}:
         log_event(service, config["sheet_id"], timestamp=now_cairo().isoformat(), row_number=row_number,
