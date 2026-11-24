@@ -26,7 +26,7 @@ permissions:
 # prerequisite for the downstream workers.
 # Serialize each publishing stage independently. A slow Blogger/Reel worker must
 # not hold the core social publisher's queue; REEL_CATCH_UP_NOW retries only the
-# specifically repaired legal-evidence row, backed by the Customs Authority's official chapter on termination of service.
+# specifically repaired legal-evidence row, backed by the official SIS publication of the 2021 amendment.
 
 env:
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
