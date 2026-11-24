@@ -14,6 +14,7 @@ from typing import Any
 
 import requests
 from google import genai
+from google.genai import types
 
 
 _GEMINI_QUOTA_EXHAUSTED = False
