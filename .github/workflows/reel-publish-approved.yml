@@ -449,6 +449,13 @@ jobs:
           elif result['youtube'].get('video_id') and result['comments']['youtube']['status'] != 'PUBLISHED':
               result['comments']['youtube']={'status':'WAITING_SCOPE','error':'Add YOUTUBE_COMMENT_REFRESH_TOKEN with youtube.force-ssl scope.'}
               update_row(svc,cfg['sheet_id'],sheet,row_number,{'Reel YouTube Comments Status':'WAITING_SCOPE'})
+          if not blogger_ready:
+              print(f"Reel comments deferred for row={row_number}: waiting for a verified topic-matched Blogger article URL.")
+              for platform, video_data, status_key, ids_key, _publisher in platform_jobs:
+                  if str(video_data.get('video_id','')).strip() and str(row.get(status_key,'')).strip().upper() != 'PUBLISHED':
+                      update_row(svc,cfg['sheet_id'],sheet,row_number,{status_key:'WAITING_BLOGGER_ARTICLE'})
+                      result['comments'][platform]={'status':'WAITING_BLOGGER_ARTICLE'}
+              platform_jobs=[]
           for platform, video_data, status_key, ids_key, publisher in platform_jobs:
               video_id=str(video_data.get('video_id','')).strip()
               if not video_id:
