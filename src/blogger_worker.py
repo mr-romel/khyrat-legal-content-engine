@@ -178,7 +178,7 @@ def repair_published_image(svc, bid: str, row: dict[str, str]) -> bool:
 def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str, sheet_name: str, bid: str, row_number: int, row: dict[str, str]) -> bool:
     """Generate and attach a new topic-specific image when a published row reuses another row's image."""
     import hashlib
-    from image_generator import create_legal_image, _supports_topic_specific_local_scene
+    from image_generator import create_legal_image
     from image_qa import qa_image
     from gemini import _deterministic_legal_scene
     post_id = str(row.get("Blogger Post ID", "")).strip()
