@@ -162,7 +162,22 @@ jobs:
             echo "No new approved scene images to cache."
           else
             git commit -m "Store reusable QA-approved Reel scene images"
-            git push origin HEAD:${GITHUB_REF_NAME}
+            for attempt in 1 2 3; do
+              git fetch origin "${GITHUB_REF_NAME}"
+              if ! git rebase FETCH_HEAD; then
+                git rebase --abort || true
+                echo "Scene cache commit deferred after a concurrent branch update; Reel delivery remains successful."
+                exit 0
+              fi
+              if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                echo "Approved scene cache persisted."
+                exit 0
+              fi
+              echo "Concurrent push detected; retrying scene cache persistence (${attempt}/3)."
+              sleep 4
+            done
+            echo "Scene cache persistence deferred after retries; Reel delivery remains successful."
+            exit 0
           fi
       - name: Persist reel package
         if: ${{ success() }}
@@ -174,7 +189,22 @@ jobs:
             echo "No reel package changes."
           else
             git commit -m "Store daily legal reel package"
-            git push origin HEAD:${GITHUB_REF_NAME}
+            for attempt in 1 2 3; do
+              git fetch origin "${GITHUB_REF_NAME}"
+              if ! git rebase FETCH_HEAD; then
+                git rebase --abort || true
+                echo "Reel package persistence deferred after a concurrent branch update; Telegram review delivery is already complete."
+                exit 0
+              fi
+              if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                echo "Reel package persisted."
+                exit 0
+              fi
+              echo "Concurrent push detected; retrying Reel package persistence (${attempt}/3)."
+              sleep 4
+            done
+            echo "Reel package persistence deferred after retries; Telegram review delivery is already complete."
+            exit 0
           fi
       - name: Upload read-only Reel backlog audit
         if: ${{ always() }}
