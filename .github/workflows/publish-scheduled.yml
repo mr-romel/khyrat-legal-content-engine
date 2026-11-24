@@ -24,9 +24,8 @@ permissions:
 # IMPORTANT: stages are isolated. A failure in Reel/Blogger/engagement must
 # never block the other stages. Only the core publishing engine is the
 # prerequisite for the downstream workers.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+# Serialize each publishing stage independently. A slow Blogger/Reel worker must
+# not hold the core social publisher's queue for the entire workflow duration.
 
 env:
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -40,6 +39,9 @@ env:
 
 jobs:
   publish:
+    concurrency:
+      group: khyrat-core-social-publisher
+      cancel-in-progress: false
     outputs:
       reel_source_available: ${{ steps.detect-reel-source.outputs.available }}
     if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'SAFE_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_RUN_NOW' || github.event.head_commit.message == 'EMERGENCY_REEL_REPAIR' || github.event.head_commit.message == 'FIX_IMAGE_RUN' || github.event.head_commit.message == 'PRODUCTION_QUALITY_FIX' || github.event.head_commit.message == 'REEL_CATCH_UP_NOW' }}
@@ -179,6 +181,9 @@ jobs:
           git push origin HEAD:${GITHUB_REF_NAME}
 
   reel:
+    concurrency:
+      group: khyrat-reel-publisher
+      cancel-in-progress: false
     name: 2. Reel Generator + Telegram Review
     needs: publish
     if: ${{ needs.publish.result == 'success' && needs.publish.outputs.reel_source_available == 'true' }}
@@ -428,6 +433,9 @@ jobs:
           retention-days: 7
 
   linkedin_engagement:
+    concurrency:
+      group: khyrat-linkedin-engagement
+      cancel-in-progress: false
     name: 4. LinkedIn Engagement
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
@@ -464,6 +472,9 @@ jobs:
         run: PYTHONPATH=src python src/linkedin_engagement_worker.py
 
   facebook_engagement:
+    concurrency:
+      group: khyrat-facebook-engagement
+      cancel-in-progress: false
     name: 5. Facebook Engagement
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
@@ -499,6 +510,9 @@ jobs:
         run: PYTHONPATH=src python src/facebook_engagement_worker.py
 
   facebook_replies:
+    concurrency:
+      group: khyrat-facebook-comment-replies
+      cancel-in-progress: false
     name: 6. Facebook Comment Replies
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
@@ -530,6 +544,9 @@ jobs:
         run: PYTHONPATH=src python src/facebook_private_reply_worker.py
 
   package:
+    concurrency:
+      group: khyrat-publishing-artifact
+      cancel-in-progress: false
     name: 7. Publishing Artifact
     needs: publish
     if: ${{ needs.publish.result == 'success' }}
