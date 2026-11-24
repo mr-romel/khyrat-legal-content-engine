@@ -192,7 +192,8 @@ def regenerate_duplicate_published_image(svc, sheet_service, spreadsheet_id: str
     image_path = Path(BLOGGER_ARTIFACT_DIR) / ("row_" + str(row_number)) / ("dedup-" + safe_id + ".jpg")
     image_path.parent.mkdir(parents=True, exist_ok=True)
     brief = _deterministic_legal_scene(topic, post) or post[:1400]
-    provider = "local_scene" if _supports_topic_specific_local_scene(topic, brief) else "auto"
+    # Use supported remote providers only; the retired local-scene renderer is not used.
+    provider = "auto"
     create_legal_image(
         topic=topic, image_brief=brief, visual_description=brief,
         post_context=post, output_path=str(image_path),
