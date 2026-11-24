@@ -111,7 +111,10 @@ class RoutedClient:
     def _generate_gemini(self, prompt: str, model: str, config: Any) -> str:
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is not configured.")
-        client = genai.Client(api_key=self.api_key)
+        client = genai.Client(
+            api_key=self.api_key,
+            http_options=types.HttpOptions(timeout=90_000),
+        )
         response = client.models.generate_content(
             model=model,
             contents=prompt,
