@@ -45,9 +45,9 @@ def is_retryable_gemini_error(exc: BaseException) -> bool:
 def with_gemini_retry(
     func: Callable[..., Any],
     *,
-    attempts: int = 6,
+    attempts: int = 3,
     initial_delay: float = 5.0,
-    max_delay: float = 30.0,
+    max_delay: float = 20.0,
 ) -> Callable[..., Any]:
     """Retry genuine transient Gemini/service failures; quota exhaustion (429) fails fast so deterministic fallbacks can run."""
     @wraps(func)
