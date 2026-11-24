@@ -775,11 +775,11 @@ def _smart_main() -> None:
             print(f"Today's published image repair selected: row={candidates[0][0]}.")
     force_due = os.getenv("KHYRAT_FORCE_DUE", "").strip().lower() in {"1", "true", "yes", "on"}
     force_next_ready = os.getenv("KHYRAT_FORCE_NEXT_READY", "").strip().lower() in {"1", "true", "yes", "on"}
-    if not candidates and force_next_ready:
-        # A dedicated legal-source recovery marker may reopen only the exact
-        # termination-of-service row whose primary-source retrieval path was
-        # just repaired. It must never select an older unrelated failed row.
-        force_legal_source_retry = os.getenv("KHYRAT_FORCE_LEGAL_SOURCE_RETRY", "").strip().lower() in {"1", "true", "yes", "on"}
+    force_legal_source_retry = os.getenv("KHYRAT_FORCE_LEGAL_SOURCE_RETRY", "").strip().lower() in {"1", "true", "yes", "on"}
+    if force_next_ready and (not candidates or force_legal_source_retry):
+        # The dedicated legal-source marker overrides the ordinary due queue
+        # and selects only the repaired termination-of-service row. It never
+        # lets an unrelated due failure steal this one-row recovery run.
         forced_ready = []
         for row_number, candidate_row in enumerate(rows, start=2):
             status = str(candidate_row.get("الحالة", "")).strip().upper()
@@ -818,11 +818,11 @@ def _smart_main() -> None:
                 f"eligible row; legal_source_only={force_legal_source_retry}; row={row_number}, "
                 f"ID={candidate_row.get('ID', '')}, scheduled={target.isoformat() if target else 'unscheduled'}."
             )
+        elif force_legal_source_retry:
+            candidates = []
+            print("FORCE_NEXT_READY enabled, but the termination-of-service legal-source row is not eligible.")
         else:
-            print(
-                "FORCE_NEXT_READY enabled, but no row matches the requested safe recovery scope "
-                f"(legal_source_only={force_legal_source_retry})."
-            )
+            print("FORCE_NEXT_READY enabled, but no eligible READY/FAILED row exists.")
     reel_recovery_row = None
     if not candidates and force_due:
         forced = []
