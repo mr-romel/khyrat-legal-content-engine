@@ -1,0 +1,46 @@
+{
+  "cache_key": "29689dcd84627af3cb8292e14fd3b60a1aae25d33437b1999b04660ced3f887a",
+  "image_sha256": "ae20d6f652bd5fc02dded2a404f73e5120c3306188ba4084b5472ec6cb224b75",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 9,
+    "relevance_score": 9,
+    "reference_score": 100,
+    "overall_score": 9,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "The 9:16 vertical orientation is correct.",
+      "The composition effectively uses the 'over-the-shoulder' perspective to frame the interview dynamic.",
+      "The branding overlay is correctly positioned and conforms to requirements."
+    ],
+    "relevance_findings": [
+      "The scene clearly depicts a professional recruitment or interview setting, perfectly aligning with 'الوظيفة العامة والتعيين'.",
+      "The interaction between the interviewers and the applicant is professional and clearly communicative of the topic."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
+  },
+  "topic": "الوظيفة العامة والتعيين",
+  "image_brief": "A public-sector recruitment interview in a modern office: three anonymous HR committee members seated across from one adult applicant, natural body language, documentary photography, no papers or screens."
+}

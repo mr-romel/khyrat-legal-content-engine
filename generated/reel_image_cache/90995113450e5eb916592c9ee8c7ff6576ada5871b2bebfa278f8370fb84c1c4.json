@@ -1,0 +1,53 @@
+{
+  "cache_key": "90995113450e5eb916592c9ee8c7ff6576ada5871b2bebfa278f8370fb84c1c4",
+  "image_sha256": "98132d35fa2679736a88a2a47e4c221e5c45af4242204c22748f89192d324676",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 8,
+    "relevance_score": 7,
+    "reference_score": 100,
+    "overall_score": 7,
+    "text_detected": true,
+    "detected_text": [
+      "LIEXICANALAY",
+      "اسال محمود خيرت - محام ومستشار قانوني"
+    ],
+    "composition_findings": [
+      "The 9:16 vertical composition is well-balanced and professionally framed.",
+      "The overall scene is coherent and depicts a professional committee meeting effectively."
+    ],
+    "relevance_findings": [
+      "The image depicts a committee, but the brief explicitly requested 'no papers'. The central figure is holding a piece of paper, which violates the specific negative constraint provided in the prompt.",
+      "The wall art contains gibberish generated text which acts as a defect."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Presence of generated gibberish text on the wall art (LIEXICANALAY).",
+      "Presence of papers on the meeting table despite the 'no papers' instruction.",
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "regeneration_prompt": "A recruitment committee of adult officials discussing candidates around a clean, modern meeting table in a contemporary government office. No papers, no nameplates, no screens, no visible text or writing on walls. Minimalist professional aesthetic, 9:16 aspect ratio.",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60.",
+      "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4",
+    "qa_policy_override": "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  },
+  "topic": "الوظيفة العامة والتعيين",
+  "image_brief": "A recruitment committee discussing candidates around a clean meeting table, adult officials in a contemporary government office, no papers, no nameplates, no screens, no readable text."
+}

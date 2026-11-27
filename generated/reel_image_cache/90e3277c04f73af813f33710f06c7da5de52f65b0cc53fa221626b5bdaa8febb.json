@@ -1,0 +1,46 @@
+{
+  "cache_key": "90e3277c04f73af813f33710f06c7da5de52f65b0cc53fa221626b5bdaa8febb",
+  "image_sha256": "1fb6732d30a6a55cfc4782c7f03ec05e6199698cd575cb612a0c757426a63ab2",
+  "provider": "pollinations",
+  "qa": {
+    "decision": "PASS",
+    "composition_score": 9,
+    "relevance_score": 10,
+    "reference_score": 100,
+    "overall_score": 9,
+    "text_detected": false,
+    "detected_text": [],
+    "composition_findings": [
+      "The image is composed well for a 9:16 portrait format.",
+      "The subject is clearly framed and the scene is uncluttered.",
+      "The placement of the subject and the monitor effectively communicates the 'assessment' context."
+    ],
+    "relevance_findings": [
+      "The image perfectly captures the requested brief of a job applicant in a testing environment.",
+      "The content on the screen is abstract and non-distracting, aligning with the brief's requirement to avoid readable interface text."
+    ],
+    "reference_findings": [],
+    "issues": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "regeneration_prompt": "",
+    "hard_checks": {
+      "width": 576,
+      "height": 1024,
+      "aspect_ratio": 0.5625,
+      "aspect_ratio_ok": true,
+      "aspect_ratio_label": "9:16 Reel portrait"
+    },
+    "image_mode": "CONTEXT_ONLY",
+    "advisories": [
+      "Composition advisory below 55.",
+      "Relevance advisory below 72.",
+      "Overall advisory below 60."
+    ],
+    "qa_policy": "UNRELATED_OR_SEVERE_DISTORTION_ONLY_V4"
+  },
+  "topic": "الوظيفة العامة والتعيين",
+  "image_brief": "An adult job applicant completing a skills assessment at a desktop computer in a quiet government testing room, monitor showing only abstract blurred shapes, no interface text, no documents."
+}
