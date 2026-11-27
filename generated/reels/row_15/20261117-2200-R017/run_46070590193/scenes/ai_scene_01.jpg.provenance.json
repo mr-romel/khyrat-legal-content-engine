@@ -1,0 +1,27 @@
+{
+  "topic": "الوظيفة العامة والتعيين",
+  "provider": "POLLINATIONS_IMAGE_GENERATION",
+  "model": "black-forest-labs/flux.1-schnell",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: Photorealistic documentary photograph of a contemporary Egyptian government employment office entrance, adult applicants arriving for recruitment, clean public architecture, no signs, no logos, no posters, no writing.\nLEGAL TOPIC: الوظيفة العامة والتعيين\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: التعيين في الوظائف العامة مش مجرد إجراء إداري روتيني، ده مسار قانوني محكوم بقواعد صارمة عشان يضمن تكافؤ الفرص والجدارة، وأي خروج عن المسار ده بيخلي القرار عرضة للبطلان، قبل ما تاخد قرار بالتعيين أو تراجع إجراءات التوظيف في جهتك، خد بالك من 3 علامات تحذيرية: أولًا، هل التعيين تم بناءً على إعلان مركزي على بوابة الحكومة المصرية؟ القانون بيشترط ده لضمان الشفافية، وأي تعيين بيتم بعيد عن المسار ده بيفتقد للأساس القانوني ال\nCOMPOSITION FORMAT: portrait 9:16; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid generic legal clichés and unrelated decoration. No added text or labels; keep the main sub\nPOST-SPECIFIC VISUAL VARIATION: camera: three-quarter desk view, layered foreground and background, asymmetric layout. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: 27fc00e98c45",
+  "prompt_sha256": "3f915fc8fc32a8fc0ebf0a6ca2b8b41599cee99d5ea55d0bebe46ccb368a7541",
+  "image_sha256": "e64a0e45fb8c08aceec1f1cd8c07f672e3888db3131145beb5e7098aa4b18176",
+  "image_path": "generated/reels/row_15/20261117-2200-R017/run_46070590193/scenes/ai_scene_01.jpg",
+  "visual_description": "Photorealistic documentary photograph of a contemporary Egyptian government employment office entrance, adult applicants arriving for recruitment, clean public architecture, no signs, no logos, no posters, no writing.",
+  "aspect_ratio": "9:16",
+  "width": 576,
+  "height": 1024,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 5,
+  "qa_relevance_score": 9,
+  "qa_issues": [
+    "The prompt explicitly requested 'no signs, no logos, no posters, no writing'.",
+    "The generated image includes prominent gibberish Arabic text and the English word 'Office' on the signage above the door, which violates the negative constraint in the visual brief.",
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60.",
+    "Model regeneration request was based on advisory scores, incomplete scene details, or subjective composition; no concrete publication-blocking defect was identified."
+  ],
+  "qa_checked_image_sha256": "e64a0e45fb8c08aceec1f1cd8c07f672e3888db3131145beb5e7098aa4b18176"
+}

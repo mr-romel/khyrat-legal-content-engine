@@ -1,0 +1,24 @@
+{
+  "topic": "الوظيفة العامة والتعيين",
+  "provider": "POLLINATIONS_IMAGE_GENERATION",
+  "model": "black-forest-labs/flux.1-schnell",
+  "prompt": "PRIMARY VISUAL BRIEF — FOLLOW THIS SCENE EXACTLY: A public-sector recruitment interview in a modern office: three anonymous HR committee members seated across from one adult applicant, natural body language, documentary photography, no papers or screens.\nLEGAL TOPIC: الوظيفة العامة والتعيين\nCreate one photorealistic editorial image in a setting appropriate to the described scene. Use contemporary 2020s architecture, infrastructure, clothing and materials. The exact subject and action in the primary visual brief must occupy the visual center and be immediately recognizable at normal social-feed size. Keep the main subject large, clear and visually dominant, with natural lighting and realistic proportions. Do not replace the requested subject with a generic lawyer portrait, courthouse, scales, gavel, handshake, generic paperwork or unrelated office. Do not add generic legal symbols as substitutes for the described scene. No readable text, letters, numbers, logos, seals, signatures, watermarks or invented legal documents. No ancient Egyptian, Pharaonic, archaeological, fantasy or historical imagery.\nSHORT SOURCE CONTEXT: التعيين في الوظائف العامة مش مجرد إجراء إداري روتيني، ده مسار قانوني محكوم بقواعد صارمة عشان يضمن تكافؤ الفرص والجدارة، وأي خروج عن المسار ده بيخلي القرار عرضة للبطلان، قبل ما تاخد قرار بالتعيين أو تراجع إجراءات التوظيف في جهتك، خد بالك من 3 علامات تحذيرية: أولًا، هل التعيين تم بناءً على إعلان مركزي على بوابة الحكومة المصرية؟ القانون بيشترط ده لضمان الشفافية، وأي تعيين بيتم بعيد عن المسار ده بيفتقد للأساس القانوني ال\nCOMPOSITION FORMAT: portrait 9:16; show a clear, concrete visual representation of the specific legal problem, evidence, action, document, or consequence described in the post. Avoid generic legal clichés and unrelated decoration. No added text or labels; keep the main subject clearly fram\nPOST-SPECIFIC VISUAL VARIATION: camera: close-up evidence detail, shallow depth of field, subject fills the frame. Distinct composition, not a recolor, crop, or near-duplicate. VISUAL ID: bd1fed902bef",
+  "prompt_sha256": "a2e20da6186ce6a5bb88808f1dd22a5415a8747ef27b883fc35417d718ac1359",
+  "image_sha256": "ae20d6f652bd5fc02dded2a404f73e5120c3306188ba4084b5472ec6cb224b75",
+  "image_path": "generated/reels/row_15/20261117-2200-R017/run_46070590193/scenes/ai_scene_03.jpg",
+  "visual_description": "A public-sector recruitment interview in a modern office: three anonymous HR committee members seated across from one adult applicant, natural body language, documentary photography, no papers or screens.",
+  "aspect_ratio": "9:16",
+  "width": 576,
+  "height": 1024,
+  "qa_decision": "PASS",
+  "source_metadata": {},
+  "qa_model": "gemini-3.1-flash-lite",
+  "qa_overall_score": 9,
+  "qa_relevance_score": 9,
+  "qa_issues": [
+    "Composition advisory below 55.",
+    "Relevance advisory below 72.",
+    "Overall advisory below 60."
+  ],
+  "qa_checked_image_sha256": "ae20d6f652bd5fc02dded2a404f73e5120c3306188ba4084b5472ec6cb224b75"
+}
